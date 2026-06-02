@@ -171,10 +171,21 @@
                 <div class="battle-end-actions">
                     <button class="btn btn-primary hidden" id="btn-pass-turn" onclick="passTurn()">⏭️ Passar Turno</button>
                     <button class="btn btn-accent hidden" id="btn-mega-evolve" onclick="megaEvolve()">🔮 Mega Evoluir!</button>
+                    <button class="btn btn-secondary" id="btn-switch-pokemon" onclick="switchPokemon()">🔄 Trocar Pokémon</button>
                     <button class="btn btn-danger" id="btn-throw-pokeball" onclick="throwPokeball()">🔴 Arremessar Pokébola</button>
                     <button class="btn btn-success" onclick="endBattle('defeated')">💀 Derrotei!</button>
                     <button class="btn btn-secondary" onclick="endBattle('fled')">🏃 Fugir</button>
                     <button class="btn btn-warning" onclick="endBattle('fainted')">😵 Meu Pokémon Desmaiou</button>
+                </div>
+                
+                <!-- Switch Pokemon Modal -->
+                <div id="switch-pokemon-modal" class="modal hidden">
+                    <div class="modal-content">
+                        <button class="modal-close" onclick="hideElement('switch-pokemon-modal')">&times;</button>
+                        <h3>🔄 Trocar Pokémon</h3>
+                        <p style="color:var(--text-muted);font-size:0.85rem;">Trocar gasta sua ação. O novo Pokémon não pode agir até o final do próximo turno.</p>
+                        <div id="switch-pokemon-list"></div>
+                    </div>
                 </div>
             </div>
         </div>

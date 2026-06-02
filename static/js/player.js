@@ -1056,9 +1056,9 @@ document.addEventListener('DOMContentLoaded', () => {
 let megaUsedThisBattle = false;
 
 async function checkMegaAvailable() {
-    // Conditions: Pedra-Chave in bag + Pokemon has mega stone as held item
+    // Conditions: Pedra-Chave in bag OR inventory + Pokemon has mega stone as held item
     const bag = (TRAINER_DATA.bag || []).join(' ').toLowerCase();
-    const hasKeyStone = bag.includes('pedra-chave') || bag.includes('key stone') || bag.includes('pedra chave');
+    const hasKeyStone = bag.includes('pedra-chave') || bag.includes('pedra chave') || bag.includes('key stone') || bag.includes('mega ring') || bag.includes('mega bracelete');
     
     if (!hasKeyStone || megaUsedThisBattle) {
         hideElement('btn-mega-evolve');
@@ -1069,7 +1069,7 @@ async function checkMegaAvailable() {
     if (!poke) { hideElement('btn-mega-evolve'); return; }
     
     const heldItem = (poke.heldItem || '').toLowerCase();
-    // Check if held item is a mega stone (ends in "ite" or contains "mega")
+    // Check if held item is a mega stone (ends in "ite" or contains "mega" or specific stone names)
     if (!heldItem.includes('ite') && !heldItem.includes('mega')) {
         hideElement('btn-mega-evolve');
         return;
@@ -1158,3 +1158,87 @@ socket.on('mega_evolved', (data) => {
         if (acEl && bonuses.ac) acEl.textContent = parseInt(acEl.textContent) + bonuses.ac;
     }
 });
+
+// ============================================
+// SWITCH POKEMON IN BATTLE
+// ============================================
+function switchPokemon() {
+    if (window.currentTurn !== 'player') { alert('Não é seu turno!'); return; }
+    
+    const currentPoke = window.currentBattleData?.playerPokemon;
+    const list = document.getElementById('switch-pokemon-list');
+    
+    list.innerHTML = playerTeam.map((p, i) => {
+        const isCurrent = p.name === currentPoke?.name && p.level === currentPoke?.level;
+        const isFainted = (p.currentHp || 0) <= 0;
+        return `
+            <div class="switch-option ${isCurrent ? 'current' : ''} ${isFainted ? 'fainted' : ''}" 
+                 ${!isCurrent && !isFainted ? `onclick="confirmSwitch(${i})"` : ''}>
+                <strong>${p.nickname || p.name}</strong> Nv.${p.level}
+                <span>HP: ${p.currentHp || p.maxHp || '?'}/${p.maxHp || '?'}</span>
+                ${isCurrent ? '<em>(em batalha)</em>' : ''}
+                ${isFainted ? '<em>(desmaiado)</em>' : ''}
+            </div>
+        `;
+    }).join('');
+    
+    showElement('switch-pokemon-modal');
+}
+
+async function confirmSwitch(teamIdx) {
+    hideElement('switch-pokemon-modal');
+    
+    let newPoke = playerTeam[teamIdx];
+    
+    // Fetch full data
+    try {
+        const resp = await fetch(`/api/pokemon?search=${encodeURIComponent(newPoke.name)}`);
+        const results = await resp.json();
+        if (results.length > 0) {
+            const api = results[0];
+            newPoke.number = api.number;
+            if (!newPoke.stats || !newPoke.stats.STR) newPoke.stats = api.stats;
+            if (!newPoke.types || newPoke.types.length === 0) newPoke.types = api.types;
+            if (!newPoke.speed) newPoke.speed = api.speed;
+            if (!newPoke.moves || newPoke.moves.length === 0) newPoke.moves = api.startingMoves || [];
+            if (!newPoke.vulnerabilities) newPoke.vulnerabilities = api.vulnerabilities;
+            if (!newPoke.resistances) newPoke.resistances = api.resistances;
+            if (!newPoke.immunities) newPoke.immunities = api.immunities;
+        }
+    } catch(e) {}
+    
+    // Update battle data
+    window.currentBattleData.playerPokemon = newPoke;
+    
+    // Update UI
+    const pNum = newPoke.number || 0;
+    document.getElementById('battle-player-sprite').src = pNum ? getPokemonSpriteUrl(pNum) : '';
+    document.getElementById('battle-player-name-full').textContent = `${newPoke.nickname || newPoke.name} Nv.${newPoke.level}`;
+    document.getElementById('battle-player-types').innerHTML = formatTypes(newPoke.types || []);
+    const pHp = newPoke.currentHp || newPoke.maxHp || 20;
+    const pMax = newPoke.maxHp || 20;
+    document.getElementById('battle-player-hp-text-full').textContent = `${pHp}/${pMax} HP`;
+    document.getElementById('battle-player-hp-bar-full').style.width = `${(pHp/pMax)*100}%`;
+    document.getElementById('battle-player-ac').textContent = newPoke.ac || 10;
+    document.getElementById('battle-player-speed').textContent = newPoke.speed || '30ft';
+    
+    if (newPoke.stats) {
+        document.getElementById('battle-player-stats').innerHTML = Object.entries(newPoke.stats).map(([k,v]) => 
+            `<span>${k}: <strong>${v}</strong> (${Math.floor((v-10)/2) >= 0 ? '+' : ''}${Math.floor((v-10)/2)})</span>`
+        ).join('');
+    }
+    
+    // Reload moves
+    const pMoves = newPoke.moves || [];
+    await loadMovesData(pMoves);
+    document.getElementById('battle-player-moves').innerHTML = pMoves.map(m => renderMoveButton(m, true)).join('');
+    
+    addBattleLog(`🔄 Trocou para <strong>${newPoke.nickname || newPoke.name}</strong>! (gasta ação)`);
+    
+    // Switching uses the action - pass turn
+    socket.emit('battle_action', { action_by: 'player', action_type: 'switch', move_name: `Trocou → ${newPoke.name}`, damage: 0, message: 'Troca de Pokémon' });
+    
+    // Check mega for new pokemon
+    megaUsedThisBattle = false;
+    checkMegaAvailable();
+}

@@ -1351,3 +1351,20 @@ body {
 /* Mega Evolution button */
 .btn-accent { background: linear-gradient(135deg, #7038f8, #ee99ac); color: white; }
 .btn-accent:hover { background: linear-gradient(135deg, #5828d8, #dd77aa); }
+
+/* Switch Pokemon options */
+.switch-option {
+    background: var(--darker);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s;
+}
+.switch-option:hover:not(.current):not(.fainted) { border-color: var(--primary); background: var(--card-bg); }
+.switch-option.current { border-color: var(--success); opacity: 0.6; cursor: default; }
+.switch-option.fainted { opacity: 0.4; cursor: default; text-decoration: line-through; }
