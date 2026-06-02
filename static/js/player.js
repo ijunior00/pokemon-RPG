@@ -197,6 +197,7 @@ async function startBattle() {
     const enemy = currentEncounter.pokemon;
     
     console.log('BATTLE - playerPokemon:', JSON.stringify(playerPokemon));
+    console.log('BATTLE - heldItem:', playerPokemon.heldItem, '| bag has pedra-chave:', (TRAINER_DATA.bag || []).join(' ').toLowerCase().includes('pedra-chave'));
     console.log('BATTLE - enemy:', enemy.name);
 
     // Notify master with full pokemon data
@@ -1056,8 +1057,12 @@ document.addEventListener('DOMContentLoaded', () => {
 let megaUsedThisBattle = false;
 
 async function checkMegaAvailable() {
-    // Conditions: Pedra-Chave in bag OR inventory + Pokemon has mega stone as held item
-    const bag = (TRAINER_DATA.bag || []).join(' ').toLowerCase();
+    // Read bag from both TRAINER_DATA and the actual textarea (in case user added items without reload)
+    const bagTextarea = document.getElementById('trainer-bag');
+    const bagText = bagTextarea ? bagTextarea.value.toLowerCase() : '';
+    const bagData = (TRAINER_DATA.bag || []).join(' ').toLowerCase();
+    const bag = bagText + ' ' + bagData;
+    
     const hasKeyStone = bag.includes('pedra-chave') || bag.includes('pedra chave') || bag.includes('key stone') || bag.includes('mega ring') || bag.includes('mega bracelete');
     
     if (!hasKeyStone || megaUsedThisBattle) {
@@ -1069,7 +1074,6 @@ async function checkMegaAvailable() {
     if (!poke) { hideElement('btn-mega-evolve'); return; }
     
     const heldItem = (poke.heldItem || '').toLowerCase();
-    // Check if held item is a mega stone (ends in "ite" or contains "mega" or specific stone names)
     if (!heldItem.includes('ite') && !heldItem.includes('mega')) {
         hideElement('btn-mega-evolve');
         return;
@@ -1080,12 +1084,12 @@ async function checkMegaAvailable() {
     try {
         const resp = await fetch(`/api/mega/${encodeURIComponent(pokeName)}`);
         const megas = await resp.json();
-        if (megas.length > 0) {
+        if (megas && megas.length > 0) {
             window.megaData = megas;
             showElement('btn-mega-evolve');
             return;
         }
-    } catch(e) {}
+    } catch(e) { console.error('Mega check failed:', e); }
     hideElement('btn-mega-evolve');
 }
 
