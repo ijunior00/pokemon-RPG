@@ -1,0 +1,146 @@
+{
+  "route_1": {
+    "name": "Rota 1 - Postwick",
+    "description": "Caminho tranquilo entre Postwick e Wedgehurst. Gramados verdes com Pokémon dóceis.",
+    "types": ["Normal", "Bug", "Flying"],
+    "level_range": [1, 5],
+    "dungeon_types": ["Dark", "Ghost"],
+    "region": "Sul de Galar"
+  },
+  "route_2": {
+    "name": "Rota 2 - Wedgehurst",
+    "description": "Rota curta com lago. Pokémon aquáticos e de grama aparecem frequentemente.",
+    "types": ["Water", "Grass", "Normal"],
+    "level_range": [2, 7],
+    "dungeon_types": ["Poison", "Dark"],
+    "region": "Sul de Galar"
+  },
+  "route_3": {
+    "name": "Rota 3 - Galar Mine Approach",
+    "description": "Terreno rochoso que leva à primeira mina. Pokémon de pedra e terra dominam.",
+    "types": ["Rock", "Ground", "Fighting"],
+    "level_range": [4, 10],
+    "dungeon_types": ["Steel", "Rock", "Ground"],
+    "region": "Sul de Galar"
+  },
+  "galar_mine_1": {
+    "name": "Mina de Galar 1",
+    "description": "Caverna escura com cristais. Pokémon de pedra e aço habitam as profundezas.",
+    "types": ["Rock", "Steel", "Ground"],
+    "level_range": [5, 12],
+    "dungeon_types": ["Rock", "Steel", "Dark", "Ghost"],
+    "region": "Sul de Galar"
+  },
+  "route_4": {
+    "name": "Rota 4 - Turffield Approach",
+    "description": "Campos de trigo dourados. Pokémon de grama e elétricos entre as plantações.",
+    "types": ["Grass", "Electric", "Bug"],
+    "level_range": [6, 13],
+    "dungeon_types": ["Grass", "Poison", "Bug"],
+    "region": "Sul de Galar"
+  },
+  "route_5": {
+    "name": "Rota 5 - Hulbury Road",
+    "description": "Estrada costeira com brisa marinha. Pokémon aquáticos e voadores.",
+    "types": ["Water", "Flying", "Normal"],
+    "level_range": [8, 16],
+    "dungeon_types": ["Water", "Ice", "Dragon"],
+    "region": "Sul de Galar"
+  },
+  "galar_mine_2": {
+    "name": "Mina de Galar 2",
+    "description": "Mina mais profunda com trilhos antigos. Pokémon de aço e lutadores.",
+    "types": ["Steel", "Fighting", "Rock"],
+    "level_range": [10, 18],
+    "dungeon_types": ["Steel", "Fighting", "Dark"],
+    "region": "Centro de Galar"
+  },
+  "wild_area_south": {
+    "name": "Wild Area - Sul",
+    "description": "Área selvagem vasta com clima variável. Todos os tipos podem aparecer dependendo do clima.",
+    "types": ["Normal", "Fire", "Water", "Grass", "Electric", "Flying", "Ground"],
+    "level_range": [5, 25],
+    "dungeon_types": ["Dragon", "Psychic", "Ghost", "Dark", "Steel", "Fairy"],
+    "region": "Centro de Galar"
+  },
+  "wild_area_north": {
+    "name": "Wild Area - Norte",
+    "description": "Parte norte da Wild Area. Pokémon mais fortes e raros habitam aqui.",
+    "types": ["Fire", "Ice", "Dragon", "Psychic", "Fighting", "Steel"],
+    "level_range": [15, 40],
+    "dungeon_types": ["Dragon", "Ghost", "Dark", "Fairy", "Steel"],
+    "region": "Centro de Galar"
+  },
+  "route_6": {
+    "name": "Rota 6 - Stow-on-Side Path",
+    "description": "Desfiladeiro rochoso com ruínas antigas. Pokémon de pedra e psíquicos.",
+    "types": ["Rock", "Psychic", "Ground"],
+    "level_range": [12, 22],
+    "dungeon_types": ["Ghost", "Psychic", "Dark"],
+    "region": "Centro de Galar"
+  },
+  "route_7": {
+    "name": "Rota 7 - Hammerlocke Hills",
+    "description": "Colinas ventosas próximas a Hammerlocke. Pokémon de aço e dragão.",
+    "types": ["Steel", "Dragon", "Flying"],
+    "level_range": [15, 28],
+    "dungeon_types": ["Dragon", "Steel", "Fire"],
+    "region": "Centro de Galar"
+  },
+  "route_8": {
+    "name": "Rota 8 - Circhester Approach",
+    "description": "Terreno montanhoso com neve. Pokémon de gelo e pedra.",
+    "types": ["Ice", "Rock", "Ground"],
+    "level_range": [18, 32],
+    "dungeon_types": ["Ice", "Dragon", "Steel"],
+    "region": "Norte de Galar"
+  },
+  "route_9": {
+    "name": "Rota 9 - Spikemuth Outskirts",
+    "description": "Área urbana decadente. Pokémon noturnos e venenosos.",
+    "types": ["Dark", "Poison", "Electric"],
+    "level_range": [20, 35],
+    "dungeon_types": ["Dark", "Ghost", "Poison"],
+    "region": "Norte de Galar"
+  },
+  "route_10": {
+    "name": "Rota 10 - Wyndon Approach",
+    "description": "Caminho nevado final antes de Wyndon. Pokémon de gelo e aço.",
+    "types": ["Ice", "Steel", "Normal"],
+    "level_range": [25, 40],
+    "dungeon_types": ["Ice", "Dragon", "Psychic", "Steel"],
+    "region": "Norte de Galar"
+  },
+  "dusty_bowl": {
+    "name": "Dusty Bowl",
+    "description": "Área desértica na Wild Area. Tempestades de areia frequentes.",
+    "types": ["Ground", "Rock", "Steel"],
+    "level_range": [15, 35],
+    "dungeon_types": ["Ground", "Dragon", "Steel"],
+    "region": "Wild Area"
+  },
+  "lake_of_outrage": {
+    "name": "Lake of Outrage",
+    "description": "Lago misterioso com pedras de evolução. Pokémon raros e poderosos.",
+    "types": ["Dragon", "Fairy", "Psychic", "Ghost"],
+    "level_range": [30, 50],
+    "dungeon_types": ["Dragon", "Ghost", "Dark", "Fairy"],
+    "region": "Wild Area"
+  },
+  "slumbering_weald": {
+    "name": "Slumbering Weald",
+    "description": "Floresta mística envolta em névoa. Pokémon fantasmas e fadas.",
+    "types": ["Fairy", "Ghost", "Grass"],
+    "level_range": [3, 45],
+    "dungeon_types": ["Fairy", "Ghost", "Psychic", "Dark"],
+    "region": "Sul de Galar"
+  },
+  "glimwood_tangle": {
+    "name": "Glimwood Tangle",
+    "description": "Floresta bioluminescente e misteriosa. Pokémon de fada e psíquicos.",
+    "types": ["Fairy", "Psychic", "Grass", "Bug"],
+    "level_range": [15, 30],
+    "dungeon_types": ["Fairy", "Ghost", "Psychic", "Dark"],
+    "region": "Centro de Galar"
+  }
+}

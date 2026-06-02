@@ -1,0 +1,549 @@
+{% extends "base.html" %}
+{% block title %}Painel do Jogador{% endblock %}
+{% block body_class %}player-page{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <!-- TABS -->
+    <div class="tabs">
+        <button class="tab active" data-tab="encounter">🔍 Caça Pokémon</button>
+        <button class="tab" data-tab="battle">⚔️ Batalha</button>
+        <button class="tab" data-tab="team">🔴 Time</button>
+        <button class="tab" data-tab="trainer">🎒 Treinador</button>
+        <button class="tab" data-tab="pokedex">📖 Pokédex</button>
+        <button class="tab" data-tab="quests">📜 Quests</button>
+        <button class="tab" data-tab="map">🗺️ Mapa</button>
+    </div>
+
+    <!-- TAB: ENCOUNTER -->
+    <div class="tab-content active" id="tab-encounter">
+        <h2>Caça Pokémon</h2>
+        
+        <div class="encounter-controls">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Rota Atual</label>
+                    <select id="current-route">
+                        {% for route_id, route in routes.items() %}
+                        <option value="{{ route_id }}">{{ route.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Modo</label>
+                    <select id="hunt-mode">
+                        <option value="normal">🌿 Normal (±3 níveis)</option>
+                        <option value="dungeon">🏰 Dungeon (±5 níveis, raros)</option>
+                        <option value="night">🌙 Noturno (+3 a +10 níveis)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="hunt-mode-info" id="hunt-mode-info">
+                <p>🌿 <strong>Normal:</strong> Pokémon comuns, nível ±3 do seu.</p>
+            </div>
+            <button class="btn btn-primary btn-lg" onclick="searchWildPokemon()">
+                🔍 Procurar Pokémon Selvagem
+            </button>
+        </div>
+
+        <!-- Encounter Result -->
+        <div id="encounter-result" class="encounter-result hidden">
+            <div class="wild-pokemon-card">
+                <div class="wild-pokemon-header">
+                    <h3>Pokémon Selvagem Apareceu!</h3>
+                    <span id="shiny-badge" class="shiny-badge hidden">✨ SHINY!</span>
+                </div>
+                <div class="wild-pokemon-info">
+                    <div class="pokemon-sprite">
+                        <img id="wild-pokemon-sprite" src="" alt="">
+                    </div>
+                    <div class="pokemon-stats-quick">
+                        <h2 id="wild-pokemon-name"></h2>
+                        <div id="wild-pokemon-types" class="type-badges"></div>
+                        <p><strong>Nível:</strong> <span id="wild-pokemon-level"></span></p>
+                        <p><strong>HP:</strong> <span id="wild-pokemon-hp"></span></p>
+                        <p><strong>AC:</strong> <span id="wild-pokemon-ac"></span></p>
+                    </div>
+                </div>
+                <div class="encounter-actions">
+                    <div class="form-group">
+                        <label>Enviar Pokémon:</label>
+                        <select id="send-pokemon"></select>
+                    </div>
+                    <button class="btn btn-danger" onclick="startBattle()">⚔️ Batalhar!</button>
+                    <button class="btn btn-secondary" onclick="fleeBattle()">🏃 Fugir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB: BATTLE -->
+    <div class="tab-content" id="tab-battle">
+        <h2>Batalha</h2>
+        <div id="battle-screen" class="battle-screen-full">
+            <div id="no-battle-msg" class="empty-state">
+                <p>Nenhuma batalha ativa. Encontre um Pokémon selvagem na aba Encontro!</p>
+            </div>
+            
+            <!-- Battle Area -->
+            <div id="battle-area" class="hidden">
+                <div class="battle-field-full">
+                    <!-- Enemy Side -->
+                    <div class="battle-side-full enemy-side">
+                        <h3>Pokémon Selvagem</h3>
+                        <div class="battle-pokemon-full">
+                            <img id="battle-enemy-sprite" src="" class="battle-sprite">
+                            <h4 id="battle-enemy-name-full"></h4>
+                            <div id="battle-enemy-types" class="type-badges"></div>
+                            <div class="hp-bar-container">
+                                <div class="hp-bar enemy-hp" id="battle-enemy-hp-bar-full" style="width: 100%"></div>
+                            </div>
+                            <span id="battle-enemy-hp-text-full" class="hp-text"></span>
+                            <div class="battle-stats-mini">
+                                <span>AC: <strong id="battle-enemy-ac"></strong></span>
+                                <span>SPD: <strong id="battle-enemy-speed"></strong></span>
+                            </div>
+                            <div class="battle-pokemon-details">
+                                <h5>Stats:</h5>
+                                <div class="mini-stats" id="battle-enemy-stats"></div>
+                                <h5>Moves:</h5>
+                                <div class="battle-moves-list" id="battle-enemy-moves"></div>
+                                <h5>Habilidade:</h5>
+                                <p id="battle-enemy-ability" class="ability-text"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VS -->
+                    <div class="battle-vs">VS</div>
+
+                    <!-- Player Side -->
+                    <div class="battle-side-full player-side">
+                        <h3>Seu Pokémon</h3>
+                        <div class="battle-pokemon-full">
+                            <img id="battle-player-sprite" src="" class="battle-sprite">
+                            <h4 id="battle-player-name-full"></h4>
+                            <div id="battle-player-types" class="type-badges"></div>
+                            <div class="hp-bar-container">
+                                <div class="hp-bar player-hp" id="battle-player-hp-bar-full" style="width: 100%"></div>
+                            </div>
+                            <span id="battle-player-hp-text-full" class="hp-text"></span>
+                            <div class="battle-stats-mini">
+                                <span>AC: <strong id="battle-player-ac"></strong></span>
+                                <span>SPD: <strong id="battle-player-speed"></strong></span>
+                            </div>
+                            <div class="battle-pokemon-details">
+                                <h5>Stats:</h5>
+                                <div class="mini-stats" id="battle-player-stats"></div>
+                                <h5>Moves (clique para usar):</h5>
+                                <div class="battle-moves-list selectable" id="battle-player-moves"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dice Roller -->
+                <div class="dice-section">
+                    <h4>🎲 Rolar Dados</h4>
+                    <div class="dice-buttons">
+                        <button class="btn btn-dice" onclick="rollDice(4)">d4</button>
+                        <button class="btn btn-dice" onclick="rollDice(6)">d6</button>
+                        <button class="btn btn-dice" onclick="rollDice(8)">d8</button>
+                        <button class="btn btn-dice" onclick="rollDice(10)">d10</button>
+                        <button class="btn btn-dice" onclick="rollDice(12)">d12</button>
+                        <button class="btn btn-dice" onclick="rollDice(20)">d20</button>
+                        <button class="btn btn-dice" onclick="rollDice(100)">d100</button>
+                    </div>
+                    <div class="dice-custom">
+                        <input type="text" id="dice-custom-input" placeholder="Ex: 2d6+3">
+                        <button class="btn btn-primary btn-sm" onclick="rollCustomDice()">Rolar</button>
+                    </div>
+                    <div class="dice-result" id="dice-result">
+                        <div class="dice-animation" id="dice-animation"></div>
+                        <span id="dice-result-text"></span>
+                    </div>
+                </div>
+
+                <!-- Battle Log -->
+                <div class="battle-log-full" id="battle-log-full"></div>
+
+                <!-- Battle Actions -->
+                <div class="battle-end-actions">
+                    <button class="btn btn-primary hidden" id="btn-pass-turn" onclick="passTurn()">⏭️ Passar Turno</button>
+                    <button class="btn btn-accent hidden" id="btn-mega-evolve" onclick="megaEvolve()">🔮 Mega Evoluir!</button>
+                    <button class="btn btn-danger" id="btn-throw-pokeball" onclick="throwPokeball()">🔴 Arremessar Pokébola</button>
+                    <button class="btn btn-success" onclick="endBattle('defeated')">💀 Derrotei!</button>
+                    <button class="btn btn-secondary" onclick="endBattle('fled')">🏃 Fugir</button>
+                    <button class="btn btn-warning" onclick="endBattle('fainted')">😵 Meu Pokémon Desmaiou</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB: TEAM -->
+    <div class="tab-content" id="tab-team">
+        <h2>Meu Time</h2>
+        <div class="team-grid" id="team-grid">
+            {% for i in range(6) %}
+            <div class="team-slot" data-slot="{{ i }}">
+                {% if trainer.team and i < trainer.team|length %}
+                    {% set poke = trainer.team[i] %}
+                    <div class="team-pokemon-card filled">
+                        <h4>{{ poke.nickname or poke.name }}</h4>
+                        <span class="level-badge">Nv. {{ poke.level }}</span>
+                        <div class="type-badges">
+                            {% for t in poke.types %}
+                            <span class="type-badge type-{{ t|lower }}">{{ t }}</span>
+                            {% endfor %}
+                        </div>
+                        <small>HP: {{ poke.currentHp }}/{{ poke.maxHp }}</small>
+                        <button class="btn btn-sm btn-secondary" onclick="editPokemon({{ i }})">Editar</button>
+                    </div>
+                {% else %}
+                    <div class="team-pokemon-card empty" onclick="addPokemon({{ i }})">
+                        <span class="add-icon">+</span>
+                        <span>Adicionar Pokémon</span>
+                    </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pokemon Edit Modal -->
+        <div id="pokemon-edit-modal" class="modal hidden">
+            <div class="modal-content modal-lg">
+                <button class="modal-close" onclick="closePokemonModal()">&times;</button>
+                <h3>Ficha do Pokémon</h3>
+                <form id="pokemon-form" class="pokemon-form">
+                    <input type="hidden" id="poke-slot" value="">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Nome/Apelido</label>
+                            <input type="text" id="poke-nickname" placeholder="Apelido">
+                        </div>
+                        <div class="form-group" style="position:relative;">
+                            <label>Espécie (buscar)</label>
+                            <input type="text" id="poke-species" placeholder="Ex: Pikachu">
+                            <div id="poke-species-results" class="autocomplete-results"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Nível</label>
+                            <input type="number" id="poke-level" value="1" min="1" max="50">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>HP Atual</label>
+                            <input type="number" id="poke-current-hp" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>HP Máximo</label>
+                            <input type="number" id="poke-max-hp" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>AC</label>
+                            <input type="number" id="poke-ac" value="10">
+                        </div>
+                        <div class="form-group">
+                            <label>Hit Dice</label>
+                            <input type="text" id="poke-hit-dice" placeholder="d6">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>STR</label><input type="number" id="poke-str" value="10"></div>
+                        <div class="form-group"><label>DEX</label><input type="number" id="poke-dex" value="10"></div>
+                        <div class="form-group"><label>CON</label><input type="number" id="poke-con" value="10"></div>
+                        <div class="form-group"><label>INT</label><input type="number" id="poke-int" value="10"></div>
+                        <div class="form-group"><label>WIS</label><input type="number" id="poke-wis" value="10"></div>
+                        <div class="form-group"><label>CHA</label><input type="number" id="poke-cha" value="10"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Velocidade</label>
+                            <input type="text" id="poke-speed" placeholder="30ft. walking">
+                        </div>
+                        <div class="form-group">
+                            <label>Saving Throws</label>
+                            <input type="text" id="poke-saves" placeholder="Dexterity, Charisma">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Moves (separados por vírgula)</label>
+                        <textarea id="poke-moves" rows="2" placeholder="Tackle, Growl, Ember..."></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Habilidade</label>
+                            <input type="text" id="poke-ability" placeholder="Ex: Blaze">
+                        </div>
+                        <div class="form-group">
+                            <label>Hidden Ability</label>
+                            <input type="text" id="poke-hidden-ability" placeholder="Ex: Solar Power">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Held Item</label>
+                            <input type="text" id="poke-held-item" placeholder="Ex: Leftovers">
+                        </div>
+                        <div class="form-group">
+                            <label>Natureza</label>
+                            <select id="poke-nature">
+                                <option value="">Selecionar...</option>
+                                <option value="Hardy">Hardy</option>
+                                <option value="Lonely">Lonely (+ATK/-DEF)</option>
+                                <option value="Brave">Brave (+ATK/-SPD)</option>
+                                <option value="Adamant">Adamant (+ATK/-SpA)</option>
+                                <option value="Naughty">Naughty (+ATK/-SpD)</option>
+                                <option value="Bold">Bold (+DEF/-ATK)</option>
+                                <option value="Relaxed">Relaxed (+DEF/-SPD)</option>
+                                <option value="Impish">Impish (+DEF/-SpA)</option>
+                                <option value="Lax">Lax (+DEF/-SpD)</option>
+                                <option value="Timid">Timid (+SPD/-ATK)</option>
+                                <option value="Hasty">Hasty (+SPD/-DEF)</option>
+                                <option value="Jolly">Jolly (+SPD/-SpA)</option>
+                                <option value="Naive">Naive (+SPD/-SpD)</option>
+                                <option value="Modest">Modest (+SpA/-ATK)</option>
+                                <option value="Mild">Mild (+SpA/-DEF)</option>
+                                <option value="Quiet">Quiet (+SpA/-SPD)</option>
+                                <option value="Rash">Rash (+SpA/-SpD)</option>
+                                <option value="Calm">Calm (+SpD/-ATK)</option>
+                                <option value="Gentle">Gentle (+SpD/-DEF)</option>
+                                <option value="Sassy">Sassy (+SpD/-SPD)</option>
+                                <option value="Careful">Careful (+SpD/-SpA)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Vulnerabilidades</label>
+                        <input type="text" id="poke-vulnerabilities" placeholder="Fire, Flying, Ice">
+                    </div>
+                    <div class="form-group">
+                        <label>Resistências</label>
+                        <input type="text" id="poke-resistances" placeholder="Water, Grass, Electric">
+                    </div>
+                    <div class="form-group">
+                        <label>Notas</label>
+                        <textarea id="poke-notes" rows="2" placeholder="Anotações..."></textarea>
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="savePokemon()">Salvar Pokémon</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB: TRAINER -->
+    <div class="tab-content" id="tab-trainer">
+        <h2>Ficha do Treinador Pokémon</h2>
+        <div class="trainer-sheet">
+            <!-- Header with XP -->
+            <div class="trainer-header">
+                <div class="trainer-info">
+                    <input type="text" id="trainer-name-input" class="trainer-name-input" 
+                           value="{{ trainer.name or current_user.username }}" placeholder="Nome do Treinador">
+                    <span class="level-badge level-lg" id="trainer-level-badge">Nível {{ trainer.level or 1 }}</span>
+                </div>
+                <div class="xp-section">
+                    <h4>Experiência</h4>
+                    <div class="xp-bar-container xp-bar-lg">
+                        <div class="xp-bar" id="player-xp-bar" 
+                             style="width: {{ ((trainer.xp or 0) / (trainer.xp_to_next or 100)) * 100 }}%"></div>
+                    </div>
+                    <span class="xp-text" id="player-xp-text">{{ trainer.xp or 0 }} / {{ trainer.xp_to_next or 100 }} XP</span>
+                </div>
+            </div>
+
+            <!-- Trainer Stats (D&D 5e style) -->
+            <div class="trainer-attributes">
+                <h4>Atributos do Treinador</h4>
+                <div class="attributes-grid">
+                    <div class="attr-box">
+                        <label>FOR</label>
+                        <input type="number" id="trainer-str" value="{{ trainer.str or 10 }}" class="attr-input">
+                        <span class="attr-mod" id="mod-str"></span>
+                    </div>
+                    <div class="attr-box">
+                        <label>DES</label>
+                        <input type="number" id="trainer-dex" value="{{ trainer.dex or 10 }}" class="attr-input">
+                        <span class="attr-mod" id="mod-dex"></span>
+                    </div>
+                    <div class="attr-box">
+                        <label>CON</label>
+                        <input type="number" id="trainer-con" value="{{ trainer.con or 10 }}" class="attr-input">
+                        <span class="attr-mod" id="mod-con"></span>
+                    </div>
+                    <div class="attr-box">
+                        <label>INT</label>
+                        <input type="number" id="trainer-int" value="{{ trainer.int or 10 }}" class="attr-input">
+                        <span class="attr-mod" id="mod-int"></span>
+                    </div>
+                    <div class="attr-box">
+                        <label>SAB</label>
+                        <input type="number" id="trainer-wis" value="{{ trainer.wis or 10 }}" class="attr-input">
+                        <span class="attr-mod" id="mod-wis"></span>
+                    </div>
+                    <div class="attr-box">
+                        <label>CAR</label>
+                        <input type="number" id="trainer-cha" value="{{ trainer.cha or 10 }}" class="attr-input">
+                        <span class="attr-mod" id="mod-cha"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Class Info -->
+            <div class="trainer-sections">
+                <div class="trainer-section">
+                    <h4>📋 Dados da Classe</h4>
+                    <div class="form-group">
+                        <label>Dado de Vida</label>
+                        <span>1d8 por nível</span>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>HP Máximo</label>
+                            <input type="number" id="trainer-hp-max" value="{{ trainer.hp_max or 8 }}">
+                        </div>
+                        <div class="form-group">
+                            <label>HP Atual</label>
+                            <input type="number" id="trainer-hp-current" value="{{ trainer.hp_current or 8 }}">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Raça</label>
+                        <input type="text" id="trainer-race" value="{{ trainer.race or '' }}" placeholder="Ex: Humano, Elfo...">
+                    </div>
+                    <div class="form-group">
+                        <label>Antecedente</label>
+                        <input type="text" id="trainer-background" value="{{ trainer.background or '' }}" placeholder="Ex: Artesão, Nobre...">
+                    </div>
+                </div>
+
+                <div class="trainer-section">
+                    <h4>🎯 Caminho do Treinador</h4>
+                    <div class="form-group">
+                        <label>Caminho (Nível 2)</label>
+                        <select id="trainer-path">
+                            <option value="" {% if not trainer.path %}selected{% endif %}>Selecionar...</option>
+                            <option value="Treinador Ás" {% if trainer.path == 'Treinador Ás' %}selected{% endif %}>Treinador Ás</option>
+                            <option value="Versátil" {% if trainer.path == 'Versátil' %}selected{% endif %}>Versátil</option>
+                            <option value="Mentor Pokémon" {% if trainer.path == 'Mentor Pokémon' %}selected{% endif %}>Mentor Pokémon</option>
+                            <option value="Pesquisador" {% if trainer.path == 'Pesquisador' %}selected{% endif %}>Pesquisador</option>
+                            <option value="Colecionador Pokémon" {% if trainer.path == 'Colecionador Pokémon' %}selected{% endif %}>Colecionador Pokémon</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Especializações</label>
+                        <input type="text" id="trainer-specializations" 
+                               value="{{ trainer.specializations or '' }}" 
+                               placeholder="Ex: Piromaníaco, Nadador...">
+                    </div>
+                </div>
+
+                <div class="trainer-section">
+                    <h4>📊 Proficiências</h4>
+                    <div class="form-group">
+                        <label>Teste de Resistência: Carisma + escolhido</label>
+                        <input type="text" id="trainer-proficiencies" 
+                               value="{{ trainer.proficiencies or 'Adestrar Animais' }}" 
+                               placeholder="Adestrar Animais, Percepção...">
+                    </div>
+                    <div class="form-group">
+                        <label>Pokéslots</label>
+                        <input type="number" id="trainer-pokeslots" value="{{ trainer.pokeslots or 3 }}" min="3" max="6">
+                    </div>
+                    <div class="form-group">
+                        <label>SR Máximo Controlável</label>
+                        <input type="number" id="trainer-max-sr" value="{{ trainer.max_sr or 2 }}" min="2" max="15">
+                    </div>
+                </div>
+
+                <div class="trainer-section">
+                    <h4>💰 Dinheiro</h4>
+                    <div class="form-group">
+                        <label>₽ (Pokédólares)</label>
+                        <input type="number" id="trainer-money" value="{{ trainer.money or 1000 }}">
+                    </div>
+                </div>
+
+                <div class="trainer-section">
+                    <h4>🎒 Bolsa / Itens</h4>
+                    <textarea id="trainer-bag" rows="6" placeholder="Liste seus itens aqui...&#10;5 Pokébolas&#10;1 Poção&#10;Licença de Treinador&#10;Pokédex">{{ trainer.bag|join('\n') if trainer.bag else '5 Pokébolas\n1 Poção\nLicença de Treinador\nPokédex' }}</textarea>
+                </div>
+
+                <div class="trainer-section">
+                    <h4>🏅 Insígnias</h4>
+                    <div class="badges-grid" id="badges-grid">
+                        {% for i in range(8) %}
+                        <div class="badge-slot {% if trainer.badges and i < trainer.badges|length %}earned{% endif %}"
+                             data-badge="{{ i }}" onclick="toggleBadge({{ i }})">
+                            {{ i + 1 }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="trainer-section">
+                    <h4>📝 Notas</h4>
+                    <textarea id="trainer-notes" rows="5" placeholder="Suas anotações...">{{ trainer.notes or '' }}</textarea>
+                </div>
+            </div>
+
+            <button class="btn btn-primary btn-block" onclick="saveTrainerData()">💾 Salvar Ficha do Treinador</button>
+        </div>
+    </div>
+
+    <!-- TAB: POKEDEX -->
+    <div class="tab-content" id="tab-pokedex">
+        <h2>Minha Pokédex</h2>
+        <p class="pokedex-counter">Pokémon registrados: <strong id="pokedex-count">{{ trainer.pokedex_seen|length if trainer.pokedex_seen else 0 }}</strong> / 808</p>
+        <p class="pokedex-hint">📖 Registre Pokémon que você viu para ganhar <strong>10 XP</strong> cada!</p>
+        
+        <div class="pokedex-search">
+            <input type="text" id="player-pokedex-search" placeholder="Buscar Pokémon para registrar...">
+            <button class="btn btn-primary" onclick="searchPlayerPokedex()">Buscar</button>
+        </div>
+        <div id="player-pokedex-results" class="pokedex-grid"></div>
+    </div>
+
+    <!-- TAB: QUESTS -->
+    <div class="tab-content" id="tab-quests">
+        <h2>Minhas Quests</h2>
+        <div class="quests-list" id="player-quests">
+            {% for quest in quests %}
+            <div class="quest-card {% if quest.completed %}quest-completed{% endif %}">
+                <h4>{{ quest.title }} {% if quest.completed %}✓{% endif %}</h4>
+                <span class="quest-city">📍 {{ quest.city }}</span>
+                {% if quest.xp_reward %}<span class="quest-xp">🌟 {{ quest.xp_reward }} XP</span>{% endif %}
+                <p>{{ quest.description }}</p>
+                <div class="quest-notes">
+                    <textarea placeholder="Suas anotações sobre esta quest..." rows="2"></textarea>
+                </div>
+            </div>
+            {% endfor %}
+            {% if not quests %}
+            <p class="empty-state">Nenhuma quest ativa no momento.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- TAB: MAP -->
+    <div class="tab-content" id="tab-map">
+        <h2>Mapa de Galar</h2>
+        <p class="map-instructions">Marque as rotas por onde já passou!</p>
+        <div class="map-container">
+            <img src="{{ url_for('static', filename='img/galar_map.png') }}" alt="Mapa de Galar" 
+                 class="galar-map" id="galar-map">
+        </div>
+        <div class="visited-routes" id="map-routes-section"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const TRAINER_DATA = {{ trainer|tojson }};
+    const ROUTES_DATA = {{ routes|tojson }};
+    let MOVES_CACHE = {};
+</script>
+<script src="{{ url_for('static', filename='js/player.js') }}"></script>
+{% endblock %}

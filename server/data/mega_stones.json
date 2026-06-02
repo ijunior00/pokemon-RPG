@@ -1,0 +1,612 @@
+{
+  "Venusaurite": {
+    "stone": "Venusaurite",
+    "pokemon": "Venusaur",
+    "megaName": "Mega Venusaur",
+    "bonuses": {
+      "ac": 3,
+      "STR": 2,
+      "DEX": 2,
+      "WIS": 1
+    },
+    "ability": "Thick Fat"
+  },
+  "Charizardite X": {
+    "stone": "Charizardite X",
+    "pokemon": "Charizard",
+    "megaName": "Mega Charizard",
+    "bonuses": {
+      "ac": 2,
+      "STR": 5,
+      "DEX": 2
+    },
+    "ability": "Tough Claws",
+    "newTypes": [
+      "Fogo",
+      "Dragão"
+    ]
+  },
+  "Charizardite Y": {
+    "stone": "Charizardite Y",
+    "pokemon": "Charizard",
+    "megaName": "Mega Charizard",
+    "bonuses": {
+      "ac": 2,
+      "STR": 2,
+      "DEX": 5
+    },
+    "ability": "Drought"
+  },
+  "Blastoisinite": {
+    "stone": "Blastoisinite",
+    "pokemon": "Blastoise",
+    "megaName": "Mega Blastoise",
+    "bonuses": {
+      "ac": 1,
+      "STR": 2,
+      "DEX": 6,
+      "WIS": 1
+    },
+    "ability": "Mega Launcher"
+  },
+  "Beedrillite": {
+    "stone": "Beedrillite",
+    "pokemon": "Beedrill",
+    "megaName": "Mega Beedrill",
+    "bonuses": {
+      "ac": 1,
+      "STR": 6,
+      "WIS": -3,
+      "speed": "+30ft"
+    },
+    "ability": "Adaptability",
+    "size": "médio"
+  },
+  "Pidgeotite": {
+    "stone": "Pidgeotite",
+    "pokemon": "Pidgeot",
+    "megaName": "Mega Pidgeot",
+    "bonuses": {
+      "ac": 1,
+      "DEX": 2,
+      "WIS": 3,
+      "CHA": 2,
+      "speed": "+10ft"
+    },
+    "ability": "No Guard"
+  },
+  "Alakazite": {
+    "stone": "Alakazite",
+    "pokemon": "Alakazam",
+    "megaName": "Mega Alakazam",
+    "bonuses": {
+      "ac": 2,
+      "DEX": 2,
+      "INT": 4,
+      "speed": "+20ft"
+    },
+    "ability": "Trace"
+  },
+  "Slowbronite": {
+    "stone": "Slowbronite",
+    "pokemon": "Slowbro",
+    "megaName": "Mega Slowbro",
+    "bonuses": {
+      "ac": 4,
+      "DEX": 3
+    },
+    "ability": "Shell Armor"
+  },
+  "Gengarite": {
+    "stone": "Gengarite",
+    "pokemon": "Gengar",
+    "megaName": "Mega Gengar",
+    "bonuses": {
+      "ac": 2,
+      "DEX": 4,
+      "WIS": 3,
+      "speed": "+10ft"
+    },
+    "ability": "Shadow Tag"
+  },
+  "Kangaskhanite": {
+    "stone": "Kangaskhanite",
+    "pokemon": "Kangaskhan",
+    "megaName": "Mega Kangaskhan",
+    "bonuses": {
+      "ac": 2,
+      "STR": 3,
+      "DEX": 3,
+      "WIS": 1,
+      "speed": "+10ft"
+    },
+    "ability": "Parental Bond"
+  },
+  "Pinsirite": {
+    "stone": "Pinsirite",
+    "pokemon": "Pinsir",
+    "megaName": "Mega Pinsir",
+    "bonuses": {
+      "ac": 2,
+      "STR": 3,
+      "DEX": 2,
+      "WIS": 1
+    },
+    "ability": "Aerilate",
+    "newTypes": [
+      "Inseto",
+      "Voador"
+    ]
+  },
+  "Gyaradosite": {
+    "stone": "Gyaradosite",
+    "pokemon": "Gyarados",
+    "megaName": "Mega Gyarados",
+    "bonuses": {
+      "ac": 3,
+      "STR": 3,
+      "DEX": 1,
+      "WIS": 1
+    },
+    "ability": "Mold Breaker",
+    "newTypes": [
+      "Água",
+      "Sombrio"
+    ]
+  },
+  "Aerodactylite": {
+    "stone": "Aerodactylite",
+    "pokemon": "Aerodactyl",
+    "megaName": "Mega Aerodactyl",
+    "bonuses": {
+      "ac": 2,
+      "STR": 3,
+      "DEX": 2,
+      "WIS": 1,
+      "speed": "+10ft"
+    },
+    "ability": "Tough Claws"
+  },
+  "Mewtwonite X": {
+    "stone": "Mewtwonite X",
+    "pokemon": "Mewtwo",
+    "megaName": "Mega Mewtwo",
+    "bonuses": {
+      "ac": 1,
+      "STR": 8
+    },
+    "ability": "Steadfast",
+    "newTypes": [
+      "Psíquico",
+      "Lutador"
+    ]
+  },
+  "Mewtwonite Y": {
+    "stone": "Mewtwonite Y",
+    "pokemon": "Mewtwo",
+    "megaName": "Mega Mewtwo",
+    "bonuses": {
+      "STR": 4,
+      "DEX": 4,
+      "WIS": 2,
+      "speed": "+10ft"
+    },
+    "ability": "Insomnia"
+  },
+  "Ampharosite": {
+    "stone": "Ampharosite",
+    "pokemon": "Ampharos",
+    "megaName": "Mega Ampharos",
+    "bonuses": {
+      "ac": 2,
+      "STR": 2,
+      "DEX": 4,
+      "WIS": 1
+    },
+    "ability": "Mold Breaker",
+    "newTypes": [
+      "Elétrico",
+      "Dragão"
+    ]
+  },
+  "Steelixite": {
+    "stone": "Steelixite",
+    "pokemon": "Steelix",
+    "megaName": "Mega Steelix",
+    "bonuses": {
+      "ac": 2,
+      "STR": 4,
+      "DEX": 2,
+      "WIS": 2
+    },
+    "ability": "Sand Force",
+    "size": "imenso"
+  },
+  "Scizorite": {
+    "stone": "Scizorite",
+    "pokemon": "Scizor",
+    "megaName": "Mega Scizor",
+    "bonuses": {
+      "ac": 3,
+      "STR": 2,
+      "DEX": 2,
+      "WIS": 1,
+      "speed": "+10ft"
+    },
+    "ability": "Technician"
+  },
+  "Heracronite": {
+    "stone": "Heracronite",
+    "pokemon": "Heracross",
+    "megaName": "Mega Heracross",
+    "bonuses": {
+      "ac": 2,
+      "STR": 6,
+      "WIS": 1
+    },
+    "ability": "Skill Link"
+  },
+  "Houndoominite": {
+    "stone": "Houndoominite",
+    "pokemon": "Houndoom",
+    "megaName": "Mega Houndoom",
+    "bonuses": {
+      "ac": 2,
+      "DEX": 4,
+      "WIS": 1,
+      "speed": "+10ft"
+    },
+    "ability": "Solar Power"
+  },
+  "Tyranitarite": {
+    "stone": "Tyranitarite",
+    "pokemon": "Tyranitar",
+    "megaName": "Mega Tyranitar",
+    "bonuses": {
+      "ac": 2,
+      "STR": 3,
+      "DEX": 1,
+      "WIS": 2,
+      "speed": "+10ft"
+    },
+    "ability": "Sand Stream",
+    "size": "grande"
+  },
+  "Sceptilite": {
+    "stone": "Sceptilite",
+    "pokemon": "Sceptile",
+    "megaName": "Mega Sceptile",
+    "bonuses": {
+      "ac": 1,
+      "STR": 2,
+      "DEX": 5,
+      "speed": "+15ft"
+    },
+    "ability": "Lightning Rod",
+    "newTypes": [
+      "Grama",
+      "Dragão"
+    ]
+  },
+  "Blazikenite": {
+    "stone": "Blazikenite",
+    "pokemon": "Blaziken",
+    "megaName": "Mega Blaziken",
+    "bonuses": {
+      "ac": 1,
+      "STR": 4,
+      "DEX": 4,
+      "speed": "+10ft"
+    },
+    "ability": "Speed Boost"
+  },
+  "Swampertite": {
+    "stone": "Swampertite",
+    "pokemon": "Swampert",
+    "megaName": "Mega Swampert",
+    "bonuses": {
+      "ac": 2,
+      "STR": 4,
+      "DEX": 3
+    },
+    "ability": "Swift Swim"
+  },
+  "Gardevoirite": {
+    "stone": "Gardevoirite",
+    "pokemon": "Gardevoir",
+    "megaName": "Mega Gardevoir",
+    "bonuses": {
+      "ac": 1,
+      "STR": 2,
+      "DEX": 7
+    },
+    "ability": "Pixilate"
+  },
+  "Sablenite": {
+    "stone": "Sablenite",
+    "pokemon": "Sableye",
+    "megaName": "Mega Sableye",
+    "bonuses": {
+      "ac": 5,
+      "STR": 1,
+      "DEX": -2,
+      "WIS": 3,
+      "speed": "-10ft"
+    },
+    "ability": "Magic Bounce",
+    "size": "pequeno"
+  },
+  "Mawilite": {
+    "stone": "Mawilite",
+    "pokemon": "Mawile",
+    "megaName": "Mega Mawile",
+    "bonuses": {
+      "ac": 4,
+      "STR": 2,
+      "DEX": 1,
+      "WIS": 1
+    },
+    "ability": "Huge Power",
+    "size": "pequeno"
+  },
+  "Aggronite": {
+    "stone": "Aggronite",
+    "pokemon": "Aggron",
+    "megaName": "Mega Aggron",
+    "bonuses": {
+      "ac": 4,
+      "STR": 3,
+      "WIS": 1
+    },
+    "ability": "Filter",
+    "newTypes": [
+      "Aço"
+    ]
+  },
+  "Medichamite": {
+    "stone": "Medichamite",
+    "pokemon": "Medicham",
+    "megaName": "Mega Medicham",
+    "bonuses": {
+      "ac": 1,
+      "STR": 4,
+      "DEX": 4,
+      "speed": "+10ft"
+    },
+    "ability": "Pure Power"
+  },
+  "Manectite": {
+    "stone": "Manectite",
+    "pokemon": "Manectric",
+    "megaName": "Mega Manectric",
+    "bonuses": {
+      "ac": 2,
+      "DEX": 5,
+      "WIS": 1,
+      "speed": "+20ft"
+    },
+    "ability": "Intimidate"
+  },
+  "Sharpedonite": {
+    "stone": "Sharpedonite",
+    "pokemon": "Sharpedo",
+    "megaName": "Mega Sharpedo",
+    "bonuses": {
+      "ac": 2,
+      "STR": 2,
+      "DEX": 4
+    },
+    "ability": "Strong Jaw",
+    "size": "grande"
+  },
+  "Cameruptite": {
+    "stone": "Cameruptite",
+    "pokemon": "Camerupt",
+    "megaName": "Mega Camerupt",
+    "bonuses": {
+      "ac": 4,
+      "STR": 6,
+      "DEX": -2
+    },
+    "ability": "Sheer Force",
+    "size": "grande"
+  },
+  "Altarianite": {
+    "stone": "Altarianite",
+    "pokemon": "Altaria",
+    "megaName": "Mega Altaria",
+    "bonuses": {
+      "ac": 1,
+      "STR": 4,
+      "DEX": 5
+    },
+    "ability": "Pixilate",
+    "newTypes": [
+      "Dragão",
+      "Fada"
+    ],
+    "size": "médio"
+  },
+  "Banettite": {
+    "stone": "Banettite",
+    "pokemon": "Banette",
+    "megaName": "Mega Banette",
+    "bonuses": {
+      "ac": 1,
+      "STR": 5,
+      "DEX": 1,
+      "WIS": 2
+    },
+    "ability": "Prankster"
+  },
+  "Absolite": {
+    "stone": "Absolite",
+    "pokemon": "Absol",
+    "megaName": "Mega Absol",
+    "bonuses": {
+      "STR": 2,
+      "DEX": 4,
+      "WIS": 4
+    },
+    "ability": "Magic Bounce"
+  },
+  "Glalitite": {
+    "stone": "Glalitite",
+    "pokemon": "Glalie",
+    "megaName": "Mega Glalie",
+    "bonuses": {
+      "ac": 1,
+      "STR": 4,
+      "DEX": 5,
+      "speed": "+10ft"
+    },
+    "ability": "Refrigerate"
+  },
+  "Salamencite": {
+    "stone": "Salamencite",
+    "pokemon": "Salamence",
+    "megaName": "Mega Salamence",
+    "bonuses": {
+      "ac": 3,
+      "STR": 1,
+      "DEX": 3,
+      "WIS": 1,
+      "speed": "+10ft"
+    },
+    "ability": "Aerilate"
+  },
+  "Metagrossite": {
+    "stone": "Metagrossite",
+    "pokemon": "Metagross",
+    "megaName": "Mega Metagross",
+    "bonuses": {
+      "ac": 2,
+      "STR": 1,
+      "DEX": 3,
+      "WIS": 2,
+      "speed": "+20ft"
+    },
+    "ability": "Tough Claws",
+    "size": "grande"
+  },
+  "Latiasite": {
+    "stone": "Latiasite",
+    "pokemon": "Latias",
+    "megaName": "Mega Latias",
+    "bonuses": {
+      "ac": 2,
+      "STR": 2,
+      "DEX": 3,
+      "WIS": 3
+    }
+  },
+  "Latiosite": {
+    "stone": "Latiosite",
+    "pokemon": "Latios",
+    "megaName": "Mega Latios",
+    "bonuses": {
+      "ac": 2,
+      "STR": 4,
+      "DEX": 2,
+      "WIS": 2
+    }
+  },
+  "Lopunnite": {
+    "stone": "Lopunnite",
+    "pokemon": "Lopunny",
+    "megaName": "Mega Lopunny",
+    "bonuses": {
+      "ac": 1,
+      "STR": 6,
+      "DEX": 3
+    },
+    "ability": "Scrappy",
+    "newTypes": [
+      "Normal",
+      "Lutador"
+    ],
+    "size": "médio"
+  },
+  "Garchompite": {
+    "stone": "Garchompite",
+    "pokemon": "Garchomp",
+    "megaName": "Mega Garchomp",
+    "bonuses": {
+      "ac": 1,
+      "STR": 4,
+      "DEX": 4,
+      "WIS": 1
+    },
+    "ability": "Sand Force"
+  },
+  "Lucarionite": {
+    "stone": "Lucarionite",
+    "pokemon": "Lucario",
+    "megaName": "Mega Lucario",
+    "bonuses": {
+      "ac": 1,
+      "STR": 5,
+      "DEX": 4,
+      "speed": "+20ft"
+    },
+    "ability": "Adaptability",
+    "size": "médio"
+  },
+  "Abomasite": {
+    "stone": "Abomasite",
+    "pokemon": "Abomasnow",
+    "megaName": "Mega Abomasnow",
+    "bonuses": {
+      "ac": 2,
+      "STR": 4,
+      "DEX": 2,
+      "WIS": 2
+    },
+    "size": "grande"
+  },
+  "Galladite": {
+    "stone": "Galladite",
+    "pokemon": "Gallade",
+    "megaName": "Mega Gallade",
+    "bonuses": {
+      "ac": 2,
+      "STR": 4,
+      "DEX": 2,
+      "speed": "+10ft"
+    },
+    "ability": "Inner Focus"
+  },
+  "Audinite": {
+    "stone": "Audinite",
+    "pokemon": "Audino",
+    "megaName": "Mega Audino",
+    "bonuses": {
+      "ac": 4,
+      "DEX": 3,
+      "WIS": 2
+    },
+    "ability": "Healer",
+    "newTypes": [
+      "Normal",
+      "Fada"
+    ]
+  },
+  "Diancite": {
+    "stone": "Diancite",
+    "pokemon": "Diancie",
+    "megaName": "Mega Diancie",
+    "bonuses": {
+      "ac": 2,
+      "STR": 5,
+      "DEX": 3,
+      "WIS": 2,
+      "speed": "+20ft"
+    },
+    "ability": "Magic Bounce",
+    "newTypes": [
+      "Terra",
+      "Fogo"
+    ],
+    "size": "pequeno"
+  }
+}

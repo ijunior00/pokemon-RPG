@@ -1,0 +1,39 @@
+============================================
+  POKEMON 5E RPG - APLICAÇÃO WEB
+============================================
+
+COMO INICIAR:
+1. Abra o terminal/cmd nesta pasta
+2. Execute: pip install -r requirements.txt
+3. Execute: python app.py
+4. Acesse: http://localhost:5000
+
+CONTA PADRÃO DO MESTRE:
+- Usuário: mestre
+- Senha: mestre123
+
+PARA JOGADORES ACESSAREM ONLINE:
+- Opção 1: Use ngrok (ngrok http 5000) para gerar um link público
+- Opção 2: Use o IP da sua rede local (ex: http://192.168.1.X:5000)
+- Opção 3: Deploy gratuito no Railway ou Render
+
+FUNCIONALIDADES:
+- Login separado para Mestre e Jogadores (max 4)
+- Encontros aleatórios por rota (baseado em tipos)
+- Modo Dungeon (pokémon mais fortes e raros)
+- Batalha em tempo real (mestre vê tudo)
+- Pokédex completa com 808 Pokémon (Gen 1-7)
+- Sistema de XP com barra visual
+- Nivelamento automático de Pokémon (nível treinador - 2)
+- Sistema de Quests
+- Ficha do Treinador (bolsa, insígnias, notas)
+- Ficha do Pokémon (stats, moves, habilidades)
+- Mapa de Galar interativo
+
+ESTRUTURA:
+- app.py              -> Servidor principal
+- server/data/        -> Dados (pokémon, rotas, usuários, estado do jogo)
+- templates/          -> Páginas HTML
+- static/css/         -> Estilos
+- static/js/          -> JavaScript (lógica do cliente)
+- static/img/         -> Imagens (mapa de Galar)

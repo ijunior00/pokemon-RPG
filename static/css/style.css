@@ -1,0 +1,1353 @@
+/* ============================================
+   POKEMON 5E RPG - MAIN STYLESHEET
+   ============================================ */
+
+:root {
+    --primary: #e63946;
+    --primary-dark: #c1121f;
+    --secondary: #457b9d;
+    --accent: #f4a261;
+    --dark: #1d3557;
+    --darker: #0d1b2a;
+    --light: #f1faee;
+    --gray: #6c757d;
+    --gray-light: #dee2e6;
+    --success: #2a9d8f;
+    --warning: #e9c46a;
+    --danger: #e63946;
+    --bg: #0d1b2a;
+    --card-bg: #1b2838;
+    --card-border: #2a3f54;
+    --text: #f1faee;
+    --text-muted: #a8b2c1;
+    --radius: 8px;
+    --shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+}
+
+/* ============================================
+   NAVBAR
+   ============================================ */
+.navbar {
+    background: var(--darker);
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--primary);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--accent);
+}
+
+.pokeball-icon { font-size: 1.5rem; }
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.nav-user {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* ============================================
+   CONTAINER & LAYOUT
+   ============================================ */
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.dashboard { padding: 0.5rem 0; }
+
+/* ============================================
+   TABS
+   ============================================ */
+.tabs {
+    display: flex;
+    gap: 0.25rem;
+    background: var(--darker);
+    padding: 0.5rem;
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+    overflow-x: auto;
+    flex-wrap: wrap;
+}
+
+.tab {
+    padding: 0.6rem 1rem;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.tab:hover { background: var(--card-bg); color: var(--text); }
+.tab.active { background: var(--primary); color: white; }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+.btn {
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-dark); }
+.btn-secondary { background: var(--secondary); color: white; }
+.btn-secondary:hover { background: #3a6a87; }
+.btn-danger { background: var(--danger); color: white; }
+.btn-danger:hover { background: #c1121f; }
+.btn-warning { background: var(--warning); color: var(--dark); }
+.btn-success { background: var(--success); color: white; }
+.btn-block { width: 100%; justify-content: center; }
+.btn-lg { padding: 0.8rem 2rem; font-size: 1.1rem; }
+.btn-sm { padding: 0.3rem 0.6rem; font-size: 0.8rem; }
+
+/* ============================================
+   FORMS
+   ============================================ */
+.form-group {
+    margin-bottom: 0.75rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.3rem;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: var(--darker);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 0.9rem;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(230, 57, 70, 0.2);
+}
+
+.form-row {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.form-row .form-group { flex: 1; min-width: 150px; }
+
+.checkbox-group {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.toggle-group { margin-top: 0.3rem; }
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+.toggle-text { color: var(--text-muted); font-size: 0.85rem; }
+
+/* ============================================
+   CARDS
+   ============================================ */
+.player-card, .quest-card, .xp-player-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.players-grid, .encounters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.player-card h3 { color: var(--accent); margin-bottom: 0.5rem; }
+.player-stats { display: flex; gap: 1rem; margin-bottom: 0.5rem; }
+.player-team h4 { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.3rem; }
+.team-pokemon { 
+    display: inline-block;
+    background: var(--darker);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    margin: 0.2rem;
+}
+
+/* ============================================
+   LEVEL & XP
+   ============================================ */
+.level-badge {
+    background: var(--accent);
+    color: var(--dark);
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.level-lg { font-size: 1.1rem; padding: 0.4rem 1rem; }
+
+.xp-bar-container {
+    background: var(--darker);
+    border-radius: 10px;
+    height: 20px;
+    overflow: hidden;
+    margin: 0.5rem 0;
+    border: 1px solid var(--card-border);
+}
+
+.xp-bar-lg { height: 30px; }
+
+.xp-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    border-radius: 10px;
+    transition: width 1s ease-in-out;
+}
+
+.xp-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+}
+
+.xp-text { color: var(--text-muted); font-size: 0.85rem; }
+
+/* ============================================
+   ENCOUNTER & BATTLE
+   ============================================ */
+.encounter-controls {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+}
+
+.encounter-result {
+    margin-top: 1rem;
+}
+
+.wild-pokemon-card {
+    background: linear-gradient(135deg, var(--card-bg), var(--darker));
+    border: 2px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.wild-pokemon-header h3 {
+    color: var(--accent);
+    font-size: 1.3rem;
+}
+
+.shiny-badge {
+    background: gold;
+    color: black;
+    padding: 0.2rem 0.8rem;
+    border-radius: 12px;
+    font-weight: bold;
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.wild-pokemon-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    margin: 1rem 0;
+    flex-wrap: wrap;
+}
+
+.pokemon-sprite img {
+    width: 120px;
+    height: 120px;
+    image-rendering: pixelated;
+}
+
+.pokemon-stats-quick { text-align: left; }
+.pokemon-stats-quick h2 { color: var(--text); margin-bottom: 0.5rem; }
+
+.encounter-actions {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    justify-content: center;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+/* Battle Screen */
+.battle-screen {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin-top: 1rem;
+}
+
+.battle-field {
+    display: flex;
+    justify-content: space-between;
+    gap: 2rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.battle-side { flex: 1; min-width: 200px; }
+
+.battle-pokemon-card {
+    background: var(--darker);
+    padding: 1rem;
+    border-radius: var(--radius);
+    text-align: center;
+}
+
+.enemy-side .battle-pokemon-card { border: 2px solid var(--danger); }
+.player-side .battle-pokemon-card { border: 2px solid var(--success); }
+
+.hp-bar-container {
+    background: var(--card-border);
+    border-radius: 6px;
+    height: 16px;
+    overflow: hidden;
+    margin: 0.5rem 0;
+}
+
+.hp-bar {
+    height: 100%;
+    background: var(--success);
+    border-radius: 6px;
+    transition: width 0.5s;
+}
+
+.hp-bar.player-hp { background: var(--secondary); }
+
+.battle-log {
+    background: var(--darker);
+    border-radius: var(--radius);
+    padding: 1rem;
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.battle-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* ============================================
+   TEAM
+   ============================================ */
+.team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.team-slot { min-height: 180px; }
+
+.team-pokemon-card {
+    background: var(--card-bg);
+    border: 2px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+}
+
+.team-pokemon-card.empty {
+    border-style: dashed;
+    cursor: pointer;
+    opacity: 0.6;
+}
+
+.team-pokemon-card.empty:hover { opacity: 1; border-color: var(--primary); }
+.team-pokemon-card.filled { border-color: var(--secondary); }
+
+.add-icon {
+    font-size: 2rem;
+    color: var(--text-muted);
+}
+
+/* ============================================
+   TYPE BADGES
+   ============================================ */
+.type-badges { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.type-badge {
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.type-normal { background: #a8a878; color: white; }
+.type-fire { background: #f08030; color: white; }
+.type-water { background: #6890f0; color: white; }
+.type-grass { background: #78c850; color: white; }
+.type-electric { background: #f8d030; color: black; }
+.type-ice { background: #98d8d8; color: black; }
+.type-fighting { background: #c03028; color: white; }
+.type-poison { background: #a040a0; color: white; }
+.type-ground { background: #e0c068; color: black; }
+.type-flying { background: #a890f0; color: white; }
+.type-psychic { background: #f85888; color: white; }
+.type-bug { background: #a8b820; color: white; }
+.type-rock { background: #b8a038; color: white; }
+.type-ghost { background: #705898; color: white; }
+.type-dragon { background: #7038f8; color: white; }
+.type-dark { background: #705848; color: white; }
+.type-steel { background: #b8b8d0; color: black; }
+.type-fairy { background: #ee99ac; color: black; }
+
+/* ============================================
+   POKEDEX
+   ============================================ */
+.pokedex-search {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.pokedex-search input { flex: 2; min-width: 200px; }
+.pokedex-search select { flex: 1; min-width: 150px; }
+
+.pokedex-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 0.75rem;
+}
+
+.pokedex-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pokedex-card:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.pokedex-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.3rem;
+}
+
+.pokedex-number { color: var(--text-muted); font-size: 0.8rem; }
+.pokedex-card h4 { color: var(--accent); }
+
+/* ============================================
+   QUESTS
+   ============================================ */
+.quest-card {
+    border-left: 4px solid var(--accent);
+}
+
+.quest-card h4 { color: var(--accent); margin-bottom: 0.3rem; }
+.quest-city { color: var(--text-muted); font-size: 0.85rem; }
+.quest-notes { margin-top: 0.5rem; }
+.quest-notes textarea {
+    width: 100%;
+    background: var(--darker);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.quest-form {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: var(--radius);
+    margin-bottom: 1.5rem;
+}
+
+/* ============================================
+   MAP
+   ============================================ */
+.map-container {
+    position: relative;
+    overflow: auto;
+    max-height: 70vh;
+    border-radius: var(--radius);
+    border: 2px solid var(--card-border);
+}
+
+.galar-map {
+    width: 100%;
+    max-width: 800px;
+    display: block;
+    margin: 0 auto;
+}
+
+.map-instructions {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+.visited-routes {
+    margin-top: 1rem;
+}
+
+.route-badge {
+    display: inline-block;
+    background: var(--success);
+    color: white;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    margin: 0.2rem;
+}
+
+/* ============================================
+   TRAINER SHEET
+   ============================================ */
+.trainer-sheet {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+}
+
+.trainer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.trainer-info h3 { color: var(--accent); font-size: 1.5rem; }
+.xp-section { flex: 1; min-width: 250px; }
+
+.trainer-sections {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.trainer-section {
+    background: var(--darker);
+    padding: 1rem;
+    border-radius: var(--radius);
+}
+
+.trainer-section h4 { color: var(--accent); margin-bottom: 0.75rem; }
+
+.badges-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+}
+
+.badge-slot {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--card-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.badge-slot.earned {
+    background: var(--accent);
+    color: var(--dark);
+}
+
+/* ============================================
+   MODAL
+   ============================================ */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+}
+
+.modal.hidden { display: none; }
+
+.modal-content {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 2rem;
+    max-width: 600px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.modal-lg { max-width: 800px; }
+
+.modal-close {
+    position: absolute;
+    top: 0.5rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+/* ============================================
+   AUTH PAGES
+   ============================================ */
+.auth-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+.auth-container {
+    width: 100%;
+    max-width: 400px;
+    padding: 1rem;
+}
+
+.auth-card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 2rem;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--card-border);
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.auth-header h1 { color: var(--accent); font-size: 1.8rem; }
+.auth-header p { color: var(--text-muted); }
+
+.auth-footer {
+    text-align: center;
+    margin-top: 1rem;
+}
+
+.auth-footer a { color: var(--secondary); text-decoration: none; }
+.auth-footer a:hover { text-decoration: underline; }
+
+/* ============================================
+   ALERTS
+   ============================================ */
+.flash-messages { margin-bottom: 1rem; }
+.alert {
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius);
+    margin-bottom: 0.5rem;
+}
+.alert-error { background: rgba(230, 57, 70, 0.2); border: 1px solid var(--danger); }
+.alert-success { background: rgba(42, 157, 143, 0.2); border: 1px solid var(--success); }
+
+.empty-state { color: var(--text-muted); font-style: italic; }
+.hidden { display: none !important; }
+
+/* ============================================
+   POKEMON DETAIL (MODAL)
+   ============================================ */
+.pokemon-detail { text-align: left; }
+.pokemon-detail h2 { color: var(--accent); margin-bottom: 0.5rem; }
+.pokemon-detail .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin: 0.75rem 0;
+}
+.pokemon-detail .stat-item {
+    background: var(--darker);
+    padding: 0.5rem;
+    border-radius: 4px;
+    text-align: center;
+}
+.pokemon-detail .stat-label { font-size: 0.75rem; color: var(--text-muted); }
+.pokemon-detail .stat-value { font-size: 1.1rem; font-weight: bold; }
+.pokemon-detail .moves-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+}
+.pokemon-detail .move-tag {
+    background: var(--darker);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+/* ============================================
+   ENCOUNTER CARD (MASTER VIEW)
+   ============================================ */
+.encounter-card {
+    background: var(--card-bg);
+    border: 2px solid var(--warning);
+    border-radius: var(--radius);
+    padding: 1rem;
+}
+
+.encounter-card h4 { color: var(--accent); }
+.encounter-card .encounter-info { margin: 0.5rem 0; }
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 768px) {
+    .tabs { flex-wrap: nowrap; overflow-x: auto; }
+    .tab { font-size: 0.8rem; padding: 0.5rem 0.75rem; }
+    .form-row { flex-direction: column; }
+    .battle-field { flex-direction: column; }
+    .trainer-header { flex-direction: column; align-items: flex-start; }
+    .wild-pokemon-info { flex-direction: column; }
+    .encounter-actions { flex-direction: column; align-items: stretch; }
+    .pokedex-grid { grid-template-columns: 1fr; }
+    .players-grid { grid-template-columns: 1fr; }
+    .team-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ============================================
+   AUTOCOMPLETE
+   ============================================ */
+.autocomplete-results {
+    position: absolute;
+    background: var(--darker);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 50;
+    width: 100%;
+}
+
+.autocomplete-item {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.autocomplete-item:hover { background: var(--card-bg); }
+
+/* ============================================
+   POKEMON FORM
+   ============================================ */
+.pokemon-form .form-row {
+    margin-bottom: 0.5rem;
+}
+
+/* Level up animation */
+@keyframes levelUp {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); background: var(--accent); }
+    100% { transform: scale(1); }
+}
+
+.level-up-animation {
+    animation: levelUp 0.8s ease-in-out;
+}
+
+/* ============================================
+   BATTLE FULL SCREEN
+   ============================================ */
+.battle-screen-full { padding: 0.5rem; }
+
+.battle-field-full {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.battle-side-full {
+    flex: 1;
+    min-width: 280px;
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 1rem;
+}
+
+.battle-side-full h3 { text-align: center; margin-bottom: 0.5rem; }
+.enemy-side h3 { color: var(--danger); }
+.player-side h3 { color: var(--success); }
+
+.battle-vs {
+    display: flex;
+    align-items: center;
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--accent);
+    padding: 2rem 0.5rem;
+}
+
+.battle-pokemon-full { text-align: center; }
+
+.battle-sprite {
+    width: 120px;
+    height: 120px;
+    image-rendering: pixelated;
+    margin: 0.5rem auto;
+    display: block;
+}
+
+.battle-stats-mini {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin: 0.5rem 0;
+    font-size: 0.85rem;
+}
+
+.battle-pokemon-details {
+    text-align: left;
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--card-border);
+}
+
+.battle-pokemon-details h5 {
+    color: var(--accent);
+    margin: 0.5rem 0 0.25rem;
+    font-size: 0.85rem;
+}
+
+.battle-pokemon-details .mini-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+}
+
+.battle-moves-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+
+.move-btn {
+    background: var(--darker);
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    border: 1px solid var(--card-border);
+}
+
+.selectable-move {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.selectable-move:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.ability-text {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.hp-text { font-size: 0.85rem; color: var(--text-muted); }
+
+.enemy-hp { background: var(--danger); }
+
+/* ============================================
+   DICE ROLLER
+   ============================================ */
+.dice-section {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.dice-section h4 { color: var(--accent); margin-bottom: 0.75rem; }
+
+.dice-buttons {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+}
+
+.btn-dice {
+    background: var(--darker);
+    color: var(--accent);
+    border: 2px solid var(--accent);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius);
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-dice:hover {
+    background: var(--accent);
+    color: var(--dark);
+}
+
+.dice-custom {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-bottom: 0.75rem;
+}
+
+.dice-custom input {
+    width: 120px;
+    padding: 0.4rem;
+    background: var(--darker);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    color: var(--text);
+    text-align: center;
+}
+
+.dice-result {
+    min-height: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.dice-rolling {
+    font-size: 3rem;
+    transition: transform 0.08s;
+}
+
+.dice-final {
+    font-size: 3rem;
+    color: var(--accent);
+    font-weight: bold;
+    animation: diceReveal 0.3s ease-out;
+}
+
+@keyframes diceReveal {
+    0% { transform: scale(1.5); opacity: 0.5; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.dice-value {
+    font-size: 1.5rem;
+    color: var(--accent);
+    font-weight: bold;
+}
+
+.battle-log-full {
+    background: var(--darker);
+    border-radius: var(--radius);
+    padding: 1rem;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+}
+
+.battle-log-full p { margin-bottom: 0.3rem; color: var(--text-muted); }
+.battle-log-full p strong { color: var(--text); }
+
+.battle-end-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* ============================================
+   TRAINER ATTRIBUTES
+   ============================================ */
+.trainer-attributes {
+    background: var(--darker);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.trainer-attributes h4 { color: var(--accent); margin-bottom: 0.75rem; }
+
+.attributes-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.75rem;
+}
+
+.attr-box {
+    text-align: center;
+    background: var(--card-bg);
+    border: 2px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 0.5rem;
+}
+
+.attr-box label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--accent);
+    font-weight: bold;
+    margin-bottom: 0.3rem;
+}
+
+.attr-input {
+    width: 100%;
+    text-align: center;
+    background: var(--darker);
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 1.2rem;
+    font-weight: bold;
+    padding: 0.3rem;
+}
+
+.attr-mod {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+}
+
+.trainer-name-input {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--accent);
+    color: var(--accent);
+    font-size: 1.5rem;
+    font-weight: bold;
+    padding: 0.3rem;
+    width: 250px;
+}
+
+.trainer-name-input:focus { outline: none; border-color: var(--primary); }
+
+/* ============================================
+   MASTER FULL PLAYER VIEW
+   ============================================ */
+.players-full-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1rem;
+}
+
+.player-full-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 1rem;
+}
+
+.player-full-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.player-full-header h3 { color: var(--accent); }
+
+.player-summary {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.player-team-section { margin-bottom: 0.5rem; }
+.player-team-section h4 { font-size: 0.85rem; color: var(--text-muted); }
+
+.mini-pokemon-card {
+    background: var(--darker);
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    margin: 0.2rem 0;
+    font-size: 0.8rem;
+}
+
+.mini-pokemon-card small { display: block; color: var(--text-muted); }
+
+.player-details { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--card-border); }
+.detail-section { margin-bottom: 0.5rem; }
+.detail-section h4 { font-size: 0.8rem; color: var(--accent); margin-bottom: 0.2rem; }
+.detail-section p { font-size: 0.8rem; color: var(--text-muted); }
+.mini-stats { display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.8rem; }
+
+/* ============================================
+   QUEST IMPROVEMENTS
+   ============================================ */
+.quest-header { display: flex; justify-content: space-between; align-items: center; }
+.quest-xp { color: var(--accent); font-size: 0.85rem; font-weight: bold; margin-left: 0.5rem; }
+.quest-completed { opacity: 0.6; border-left-color: var(--success); }
+
+/* ============================================
+   POKEDEX PLAYER
+   ============================================ */
+.pokedex-counter { color: var(--accent); font-size: 1.1rem; margin-bottom: 0.5rem; }
+.pokedex-hint { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem; }
+.pokedex-seen { border-color: var(--success); }
+.seen-badge { color: var(--success); font-size: 0.75rem; }
+.new-badge { color: var(--accent); font-size: 0.75rem; }
+
+/* ============================================
+   RESPONSIVE ADDITIONS
+   ============================================ */
+@media (max-width: 768px) {
+    .attributes-grid { grid-template-columns: repeat(3, 1fr); }
+    .battle-field-full { flex-direction: column; }
+    .battle-vs { padding: 0.5rem; font-size: 1.5rem; align-self: center; }
+    .players-full-grid { grid-template-columns: 1fr; }
+}
+
+/* ============================================
+   MASTER BATTLE CARD (FULL)
+   ============================================ */
+.encounter-card-full {
+    background: var(--card-bg);
+    border: 2px solid var(--warning);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.encounter-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.encounter-header h4 { color: var(--accent); }
+
+.turn-indicator {
+    background: var(--darker);
+    padding: 0.3rem 0.8rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: bold;
+}
+
+.battle-field-master {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.battle-col {
+    flex: 1;
+    min-width: 250px;
+    background: var(--darker);
+    padding: 0.75rem;
+    border-radius: var(--radius);
+    text-align: center;
+}
+
+.battle-col h5 { margin-bottom: 0.5rem; font-size: 0.9rem; }
+
+.mini-stats-master {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    justify-content: center;
+    font-size: 0.75rem;
+    margin: 0.5rem 0;
+    color: var(--text-muted);
+}
+
+.wild-moves-master {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    text-align: left;
+}
+
+.wild-moves-master .move-btn { margin: 0.15rem; }
+
+.master-attack-controls {
+    background: rgba(230, 57, 70, 0.1);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin: 0.75rem 0;
+}
+
+.master-attack-controls h5 { color: var(--danger); margin-bottom: 0.5rem; }
+
+.battle-log-master {
+    background: var(--darker);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 0.8rem;
+    margin-top: 0.75rem;
+}
+
+.battle-log-master p { margin-bottom: 0.25rem; color: var(--text-muted); }
+.battle-log-master p strong { color: var(--text); }
+
+/* Damage confirm section (player) */
+.damage-confirm-section { margin: 0.5rem 0; }
+
+/* ============================================
+   MOVE TOOLTIP
+   ============================================ */
+.move-tooltip {
+    display: none;
+    position: absolute;
+    background: var(--darker);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    max-width: 320px;
+    font-size: 0.8rem;
+    color: var(--text);
+    z-index: 9999;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    pointer-events: none;
+    line-height: 1.4;
+}
+
+/* ============================================
+   NPC CARDS
+   ============================================ */
+.npc-form {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: var(--radius);
+    margin-bottom: 1.5rem;
+}
+.npc-team-preview { margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.npc-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+}
+.npc-header { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.npc-header h4 { color: var(--accent); }
+.npc-team { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.npc-notes { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem; }
+
+/* Hunt mode info */
+.hunt-mode-info {
+    background: var(--darker);
+    border-radius: var(--radius);
+    padding: 0.5rem 1rem;
+    margin: 0.5rem 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* Mega Evolution button */
+.btn-accent { background: linear-gradient(135deg, #7038f8, #ee99ac); color: white; }
+.btn-accent:hover { background: linear-gradient(135deg, #5828d8, #dd77aa); }
