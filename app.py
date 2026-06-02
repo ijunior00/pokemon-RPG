@@ -15,7 +15,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # APP SETUP
 # ============================================================
 app = Flask(__name__)
-app.config['SECRET_KEY'] = secrets.token_hex(32)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'pokemon5e-rpg-secret-key-2024-galar')
+app.config['REMEMBER_COOKIE_DURATION'] = 2592000  # 30 dias
 socketio = SocketIO(app, cors_allowed_origins="*")
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -129,7 +130,8 @@ def login():
             if u['username'].lower() == username.lower():
                 if check_password_hash(u['password_hash'], password):
                     user = User(uid, u['username'], u['password_hash'], u['role'], u.get('trainer_data'))
-                    login_user(user)
+                    remember = request.form.get('remember') == '1'
+                    login_user(user, remember=remember)
                     return redirect(url_for('index'))
         flash('Usuário ou senha incorretos', 'error')
     return render_template('login.html')
