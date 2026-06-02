@@ -5,3 +5,4 @@ gevent>=24.0
 gevent-websocket>=0.10
 werkzeug>=3.0
 gunicorn>=21.0
+psycopg2-binary>=2.9

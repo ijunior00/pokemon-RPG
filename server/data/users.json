@@ -1,0 +1,239 @@
+{
+  "d1c4865a9fb0cf93": {
+    "username": "mestre",
+    "password_hash": "scrypt:32768:8:1$eJJVGt1LSimMOvmW$a11daa5a59f290824036cb11a60eabdacab0b48eff7edfc669a3ad6a818ddb30f06cfe2a6ad987c486d0d83b5e27b9c94e1ff763fcc647d8fca29b19564c0287",
+    "role": "master",
+    "trainer_data": {}
+  },
+  "6537ebe013c1f96b": {
+    "username": "juniorBarros",
+    "password_hash": "scrypt:32768:8:1$zoBqSk4mfUuGQ4Ll$b0f5a851d33526b2887d59baaa63f4eb0c976187e5399226b087631b1be1e9e733fff51fd098e4a48156488bcd2a26da038b1475b179025c16f9bfdd81d055fe",
+    "role": "player",
+    "trainer_data": {
+      "name": "juniorBarros",
+      "level": 1,
+      "xp": 60,
+      "xp_to_next": 100,
+      "team": [
+        {
+          "ability": "Resistances",
+          "ac": 13,
+          "currentHp": 16,
+          "heldItem": "",
+          "level": 5,
+          "maxHp": 16,
+          "moves": [
+            "Growl",
+            "Scratch"
+          ],
+          "name": "Charmander",
+          "nickname": "foguinho",
+          "notes": "",
+          "number": 4,
+          "stats": {
+            "CHA": 10,
+            "CON": 11,
+            "DEX": 14,
+            "INT": 6,
+            "STR": 12,
+            "WIS": 10
+          },
+          "types": [
+            "Fire"
+          ],
+          "speed": "30ft. walking",
+          "vulnerabilities": [
+            "Ground",
+            "Rock",
+            "Water"
+          ],
+          "resistances": [
+            "Bug",
+            "Fairy",
+            "Fire",
+            "Grass",
+            "Ice",
+            "Steel"
+          ]
+        },
+        {
+          "ability": "Resistances",
+          "ac": 16,
+          "currentHp": 102,
+          "heldItem": "",
+          "hiddenAbility": "Solar Power",
+          "hitDice": "d12",
+          "level": 12,
+          "maxHp": 102,
+          "moves": [
+            "Growl",
+            "Air Slash",
+            "Scratch",
+            "Ember",
+            "Dragon Claw",
+            "Shadow Claw",
+            "Wing Attack",
+            "Smokescreen",
+            "Dragon Rage",
+            "Scary Face"
+          ],
+          "name": "Charizard",
+          "nature": "Hasty",
+          "nickname": "",
+          "notes": "",
+          "number": 6,
+          "resistances": [
+            "Bug",
+            "Fairy",
+            "Fighting",
+            "Fire",
+            "Grass",
+            "Steel"
+          ],
+          "savingThrows": "Dexterity, Strength",
+          "speed": "30ft. walking, 35ft. flying",
+          "stats": {
+            "CHA": 10,
+            "CON": 15,
+            "DEX": 19,
+            "INT": 6,
+            "STR": 16,
+            "WIS": 14
+          },
+          "types": [
+            "Fire",
+            "Flying"
+          ],
+          "vulnerabilities": [
+            "Electric",
+            "Rock",
+            "Water"
+          ]
+        },
+        {
+          "name": "Karrablast",
+          "nickname": "",
+          "number": 588,
+          "types": [
+            "Bug"
+          ],
+          "level": 1,
+          "maxHp": 17,
+          "currentHp": 17,
+          "ac": 13,
+          "stats": {
+            "CHA": 10,
+            "CON": 13,
+            "DEX": 13,
+            "INT": 6,
+            "STR": 12,
+            "WIS": 10
+          },
+          "moves": [
+            "Peck",
+            "Leer"
+          ],
+          "ability": "Resistances",
+          "speed": "25ft. walking, 25ft. climbing",
+          "heldItem": "",
+          "notes": ""
+        },
+        {
+          "name": "Charmander",
+          "nickname": "",
+          "level": 5,
+          "currentHp": 16,
+          "maxHp": 16,
+          "ac": 13,
+          "hitDice": "d6",
+          "speed": "30ft. walking",
+          "savingThrows": "Dexterity",
+          "stats": {
+            "STR": 12,
+            "DEX": 14,
+            "CON": 11,
+            "INT": 6,
+            "WIS": 10,
+            "CHA": 10
+          },
+          "moves": [
+            "Growl",
+            "Scratch"
+          ],
+          "ability": "Resistances",
+          "hiddenAbility": "Solar Power",
+          "heldItem": "",
+          "nature": "Lonely",
+          "vulnerabilities": [
+            "Ground",
+            "Rock",
+            "Water"
+          ],
+          "resistances": [
+            "Bug",
+            "Fairy",
+            "Fire",
+            "Grass",
+            "Ice",
+            "Steel"
+          ],
+          "notes": "",
+          "types": [
+            "Fire"
+          ],
+          "number": 4
+        }
+      ],
+      "bag": [
+        "5 Pokébolas",
+        "1 Poção",
+        "Licença de Treinador",
+        "Pokédex"
+      ],
+      "badges": [],
+      "visited_routes": [
+        "route_1"
+      ],
+      "notes": "",
+      "race": "",
+      "background": "",
+      "path": "",
+      "specializations": "",
+      "str": 10,
+      "dex": 10,
+      "con": 10,
+      "int": 10,
+      "wis": 10,
+      "cha": 10,
+      "hp_max": 8,
+      "hp_current": 8,
+      "proficiencies": "Adestrar Animais",
+      "money": 1000,
+      "pokeslots": 3,
+      "pokedex_seen": [
+        163,
+        529,
+        127,
+        588,
+        425,
+        4
+      ]
+    }
+  },
+  "486e33ab203d4ebb": {
+    "username": "TestPlayer",
+    "password_hash": "scrypt:32768:8:1$Mhcnrot7fO9Dfm0E$c73430d79319a1d29f89b4e405340b999faad0773cf10b4105481428f15b73ddb2e7ab9d399fdb63cb204d3f5188cf6ab4dfafa6fe11f08ac513145f81fb1a7d",
+    "role": "player",
+    "trainer_data": {
+      "name": "TestPlayer",
+      "level": 1,
+      "xp": 0,
+      "xp_to_next": 100,
+      "team": [],
+      "bag": [],
+      "badges": [],
+      "visited_routes": [],
+      "notes": ""
+    }
+  }
+}

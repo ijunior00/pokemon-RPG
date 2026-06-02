@@ -1,0 +1,219 @@
+{
+  "active_encounters": {
+    "6537ebe013c1f96b": {
+      "player_id": "6537ebe013c1f96b",
+      "player_name": "juniorBarros",
+      "pokemon": {
+        "ability": {
+          "description": "Bug, Fairy, Fighting, Fire, Grass, Steel Immunities: Ground Blaze: This Pokémon doubles its STAB bonus when it has 25% or less of its maximum health.",
+          "name": "Resistances"
+        },
+        "ac": 16,
+        "asi": 2,
+        "eggGroup": [
+          "Monster",
+          "Dragon"
+        ],
+        "evolutionStage": "3/3",
+        "genderRate": "87% M / 13% F",
+        "hiddenAbility": {
+          "description": "Damage rolls for this Pokémon get an additional +2 during harsh sunlight.",
+          "name": "Solar Power"
+        },
+        "hitDice": "d12",
+        "hp": 102,
+        "immunities": [
+          "Ground"
+        ],
+        "levelMoves": {
+          "14": [
+            "Fire Fang",
+            "Flame Burst",
+            "Slash"
+          ],
+          "18": [
+            "Flamethrower",
+            "Fire Spin",
+            "Heat Wave"
+          ]
+        },
+        "minLevel": 10,
+        "name": "Charizard",
+        "number": 6,
+        "resistances": [
+          "Bug",
+          "Fairy",
+          "Fighting",
+          "Fire",
+          "Grass",
+          "Steel"
+        ],
+        "savingThrows": [
+          "Dexterity",
+          "Strength"
+        ],
+        "size": "Medium",
+        "skills": [
+          "Acrobatics",
+          "Athletics"
+        ],
+        "speed": "30ft. walking, 35ft. flying",
+        "sr": "13",
+        "startingMoves": [
+          "Growl",
+          "Air Slash",
+          "Scratch",
+          "Ember",
+          "Dragon Claw",
+          "Shadow Claw",
+          "Wing Attack",
+          "Smokescreen",
+          "Dragon Rage",
+          "Scary Face"
+        ],
+        "stats": {
+          "CHA": 10,
+          "CON": 15,
+          "DEX": 19,
+          "INT": 6,
+          "STR": 16,
+          "WIS": 14
+        },
+        "tmMoves": [
+          1,
+          2,
+          5,
+          6,
+          10,
+          11,
+          15,
+          17,
+          19,
+          21,
+          22,
+          26,
+          27,
+          31,
+          32,
+          35,
+          28,
+          29,
+          40,
+          42,
+          43,
+          44,
+          45,
+          48,
+          49,
+          50,
+          51,
+          52,
+          56,
+          58,
+          59,
+          61,
+          65,
+          68,
+          75,
+          76,
+          78,
+          80,
+          82,
+          87,
+          88,
+          90
+        ],
+        "types": [
+          "Fire",
+          "Flying"
+        ],
+        "vulnerabilities": [
+          "Electric",
+          "Rock",
+          "Water"
+        ]
+      },
+      "level": 15,
+      "is_shiny": false,
+      "route_id": null,
+      "wild_moves": [],
+      "player_pokemon": {
+        "ability": "Resistances",
+        "ac": 16,
+        "currentHp": 102,
+        "heldItem": "",
+        "hiddenAbility": "Solar Power",
+        "hitDice": "d12",
+        "level": 12,
+        "maxHp": 102,
+        "moves": [
+          "Growl",
+          "Air Slash",
+          "Scratch",
+          "Ember",
+          "Dragon Claw",
+          "Shadow Claw",
+          "Wing Attack",
+          "Smokescreen",
+          "Dragon Rage",
+          "Scary Face"
+        ],
+        "name": "Charizard",
+        "nature": "Hasty",
+        "nickname": "",
+        "notes": "",
+        "number": 6,
+        "resistances": [
+          "Bug",
+          "Fairy",
+          "Fighting",
+          "Fire",
+          "Grass",
+          "Steel"
+        ],
+        "savingThrows": "Dexterity, Strength",
+        "speed": "30ft. walking, 35ft. flying",
+        "stats": {
+          "CHA": 10,
+          "CON": 15,
+          "DEX": 19,
+          "INT": 6,
+          "STR": 16,
+          "WIS": 14
+        },
+        "types": [
+          "Fire",
+          "Flying"
+        ],
+        "vulnerabilities": [
+          "Electric",
+          "Rock",
+          "Water"
+        ]
+      },
+      "player_pokemon_name": "Charizard",
+      "battle_state": {
+        "turn": null,
+        "round": 0,
+        "wild_hp_current": 102,
+        "wild_hp_max": 102,
+        "player_hp_current": 102,
+        "player_hp_max": 102,
+        "wild_status": null,
+        "player_status": null,
+        "initiative_rolled": false
+      }
+    }
+  },
+  "quests": [
+    {
+      "id": "ce6429a4",
+      "title": "o macaco lendario",
+      "city": "viridian",
+      "description": "",
+      "assigned_to": [],
+      "completed": false
+    }
+  ],
+  "player_xp": {}
+}

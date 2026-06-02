@@ -10,6 +10,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+import database as db
 
 # ============================================================
 # APP SETUP
@@ -21,12 +22,13 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+# Initialize database
+db.init_db()
+
 # ============================================================
-# DATA LOADING
+# DATA LOADING (static data from JSON files)
 # ============================================================
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'server', 'data')
-USERS_FILE = os.path.join(DATA_DIR, 'users.json')
-GAME_FILE = os.path.join(DATA_DIR, 'game_state.json')
 POKEMON_FILE = os.path.join(DATA_DIR, 'pokemon.json')
 ROUTES_FILE = os.path.join(DATA_DIR, 'routes.json')
 
@@ -35,11 +37,6 @@ def load_json(filepath):
         with open(filepath, 'r', encoding='utf-8') as f:
             return json.load(f)
     return {}
-
-def save_json(filepath, data):
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    with open(filepath, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
 
 # Load Pokemon database
 POKEMON_DB = load_json(POKEMON_FILE)
@@ -77,11 +74,11 @@ class User(UserMixin):
         self.role = role  # 'master' or 'player'
         self.trainer_data = trainer_data or {}
 
-def get_users():
-    return load_json(USERS_FILE) if os.path.exists(USERS_FILE) else {}
-
-def save_users(users):
-    save_json(USERS_FILE, users)
+# Users/game state now handled by database.py module
+get_users = db.get_users
+save_users = db.save_users
+get_game_state = db.get_game_state
+save_game_state = db.save_game_state
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -90,24 +87,6 @@ def load_user(user_id):
         u = users[user_id]
         return User(user_id, u['username'], u['password_hash'], u['role'], u.get('trainer_data'))
     return None
-
-# ============================================================
-# GAME STATE
-# ============================================================
-def get_game_state():
-    default = {
-        'active_encounters': {},  # player_id -> encounter data
-        'quests': [],
-        'player_xp': {},  # player_id -> {xp, level}
-    }
-    state = load_json(GAME_FILE) if os.path.exists(GAME_FILE) else default
-    for key in default:
-        if key not in state:
-            state[key] = default[key]
-    return state
-
-def save_game_state(state):
-    save_json(GAME_FILE, state)
 
 # ============================================================
 # ROUTES (AUTH)
@@ -286,20 +265,13 @@ def master_view_player(player_id):
 # ============================================================
 # NPC MANAGEMENT
 # ============================================================
-NPC_FILE = os.path.join(DATA_DIR, 'npcs.json')
-
-def get_npcs():
-    return load_json(NPC_FILE) if os.path.exists(NPC_FILE) else []
-
-def save_npcs(npcs):
-    save_json(NPC_FILE, npcs)
 
 @app.route('/master/npcs', methods=['GET'])
 @login_required
 def list_npcs():
     if current_user.role != 'master':
         return jsonify({'error': 'Unauthorized'}), 403
-    return jsonify(get_npcs())
+    return jsonify(db.get_npcs())
 
 @app.route('/master/npcs', methods=['POST'])
 @login_required
@@ -307,7 +279,6 @@ def create_npc():
     if current_user.role != 'master':
         return jsonify({'error': 'Unauthorized'}), 403
     data = request.json
-    npcs = get_npcs()
     npc = {
         'id': secrets.token_hex(4),
         'name': data.get('name', ''),
@@ -316,8 +287,7 @@ def create_npc():
         'team': data.get('team', []),
         'notes': data.get('notes', '')
     }
-    npcs.append(npc)
-    save_npcs(npcs)
+    db.save_npc(npc)
     return jsonify(npc)
 
 @app.route('/master/npcs/<npc_id>', methods=['DELETE'])
@@ -325,9 +295,7 @@ def create_npc():
 def delete_npc(npc_id):
     if current_user.role != 'master':
         return jsonify({'error': 'Unauthorized'}), 403
-    npcs = get_npcs()
-    npcs = [n for n in npcs if n['id'] != npc_id]
-    save_npcs(npcs)
+    db.delete_npc(npc_id)
     return jsonify({'success': True})
 
 @app.route('/master/xp', methods=['POST'])

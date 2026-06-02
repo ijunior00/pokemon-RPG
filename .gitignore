@@ -1,6 +1,3 @@
 __pycache__/
 *.pyc
 .env
-server/data/users.json
-server/data/game_state.json
-server/data/npcs.json
