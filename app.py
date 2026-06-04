@@ -89,6 +89,13 @@ def load_user(user_id):
     return None
 
 # ============================================================
+# CONTEXT PROCESSOR - inject site settings into all templates
+# ============================================================
+@app.context_processor
+def inject_site_settings():
+    return {'site_settings': db.get_site_settings()}
+
+# ============================================================
 # ROUTES (AUTH)
 # ============================================================
 @app.route('/')
@@ -353,6 +360,32 @@ def give_xp():
         
         return jsonify({'success': True, 'level': new_level, 'xp': trainer['xp']})
     return jsonify({'error': 'Player not found'}), 404
+
+# ============================================================
+# SITE SETTINGS API
+# ============================================================
+@app.route('/api/settings', methods=['GET'])
+@login_required
+def get_settings():
+    """Get current site settings (available to all users)."""
+    return jsonify(db.get_site_settings())
+
+@app.route('/api/settings', methods=['POST'])
+@login_required
+def update_settings():
+    """Update site settings (master only). Broadcasts to all connected users."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json
+    settings = db.get_site_settings()
+    allowed_fields = ['theme', 'background', 'custom_banner', 'mesa_name']
+    for field in allowed_fields:
+        if field in data:
+            settings[field] = data[field]
+    db.save_site_settings(settings)
+    # Broadcast theme change to ALL connected users in real-time
+    socketio.emit('theme_changed', settings)
+    return jsonify(settings)
 
 # ============================================================
 # POKEMON API

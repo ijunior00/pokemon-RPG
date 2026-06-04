@@ -707,3 +707,48 @@ async function deleteNpc(id) {
     await fetch(`/master/npcs/${id}`, { method: 'DELETE' });
     loadNpcs();
 }
+
+// ============================================
+// SITE SETTINGS (VISUAL CUSTOMIZATION)
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    // Theme radio buttons - instant apply on click
+    document.querySelectorAll('input[name="theme"]').forEach(radio => {
+        radio.addEventListener('change', async () => {
+            const theme = radio.value;
+            await updateSiteSettings({ theme });
+        });
+    });
+
+    // Background radio buttons - instant apply on click
+    document.querySelectorAll('input[name="background"]').forEach(radio => {
+        radio.addEventListener('change', async () => {
+            const background = radio.value;
+            await updateSiteSettings({ background });
+        });
+    });
+
+    // Load NPCs on page load
+    loadNpcs();
+});
+
+async function updateSiteSettings(data) {
+    try {
+        const resp = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const settings = await resp.json();
+        // Apply locally too (in case socket hasn't delivered yet)
+        applyTheme(settings);
+    } catch (e) {
+        console.error('Failed to update settings:', e);
+    }
+}
+
+async function saveMesaName() {
+    const name = document.getElementById('settings-mesa-name').value.trim();
+    if (!name) { alert('Digite um nome para a mesa!'); return; }
+    await updateSiteSettings({ mesa_name: name });
+}

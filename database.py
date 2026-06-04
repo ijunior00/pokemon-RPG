@@ -151,3 +151,37 @@ def delete_npc(npc_id):
     conn.commit()
     cur.close()
     conn.close()
+
+# ============================================================
+# SITE SETTINGS (theme, background, etc.)
+# ============================================================
+DEFAULT_SITE_SETTINGS = {
+    'theme': 'pokemon-red',
+    'background': 'pokeball-pattern',
+    'custom_banner': '',
+    'mesa_name': 'Pokémon 5e RPG'
+}
+
+def get_site_settings():
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT * FROM game_state WHERE key = 'site_settings'")
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if row and row['value']:
+        merged = dict(DEFAULT_SITE_SETTINGS)
+        merged.update(row['value'])
+        return merged
+    return dict(DEFAULT_SITE_SETTINGS)
+
+def save_site_settings(settings):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('''
+        INSERT INTO game_state (key, value) VALUES ('site_settings', %s)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    ''', (json.dumps(settings),))
+    conn.commit()
+    cur.close()
+    conn.close()

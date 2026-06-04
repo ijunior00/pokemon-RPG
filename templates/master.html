@@ -13,6 +13,7 @@
         <button class="tab" data-tab="quests">📜 Quests</button>
         <button class="tab" data-tab="xp">⭐ XP</button>
         <button class="tab" data-tab="map">🗺️ Mapa</button>
+        <button class="tab" data-tab="settings">🎨 Visual</button>
     </div>
 
     <!-- TAB: ENCOUNTERS/BATTLES -->
@@ -285,6 +286,112 @@
         <h2>Mapa de Galar</h2>
         <div class="map-container">
             <img src="{{ url_for('static', filename='img/galar_map.png') }}" alt="Mapa de Galar" class="galar-map" id="galar-map">
+        </div>
+    </div>
+
+    <!-- TAB: SETTINGS (VISUAL) -->
+    <div class="tab-content" id="tab-settings">
+        <h2>🎨 Personalizar Visual da Mesa</h2>
+        <p style="color:var(--text-muted);margin-bottom:1.5rem;">As mudanças são aplicadas em tempo real para você e todos os jogadores conectados.</p>
+
+        <div class="settings-grid">
+            <!-- Theme Selection -->
+            <div class="settings-section">
+                <h4>🎭 Tema de Cores</h4>
+                <p class="settings-desc">Escolha a paleta de cores baseada na região do jogo.</p>
+                <div class="theme-options" id="theme-options">
+                    <label class="theme-option">
+                        <input type="radio" name="theme" value="pokemon-red" {% if site_settings.theme == 'pokemon-red' %}checked{% endif %}>
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #c1121f, #e63946);">
+                            <span>🔴 Kanto Red</span>
+                        </div>
+                    </label>
+                    <label class="theme-option">
+                        <input type="radio" name="theme" value="pokemon-blue" {% if site_settings.theme == 'pokemon-blue' %}checked{% endif %}>
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #1565c0, #2196f3);">
+                            <span>🔵 Kanto Blue</span>
+                        </div>
+                    </label>
+                    <label class="theme-option">
+                        <input type="radio" name="theme" value="pokemon-gold" {% if site_settings.theme == 'pokemon-gold' %}checked{% endif %}>
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #d4871a, #f5a623);">
+                            <span>🟡 Johto Gold</span>
+                        </div>
+                    </label>
+                    <label class="theme-option">
+                        <input type="radio" name="theme" value="pokemon-emerald" {% if site_settings.theme == 'pokemon-emerald' %}checked{% endif %}>
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #1b5e20, #2e7d32);">
+                            <span>🟢 Hoenn Emerald</span>
+                        </div>
+                    </label>
+                    <label class="theme-option">
+                        <input type="radio" name="theme" value="pokemon-diamond" {% if site_settings.theme == 'pokemon-diamond' %}checked{% endif %}>
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #6200ea, #7c4dff);">
+                            <span>💎 Sinnoh Diamond</span>
+                        </div>
+                    </label>
+                    <label class="theme-option">
+                        <input type="radio" name="theme" value="pokemon-sword" {% if site_settings.theme == 'pokemon-sword' %}checked{% endif %}>
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #0d47a1, #1565c0);">
+                            <span>⚔️ Galar Sword</span>
+                        </div>
+                    </label>
+                    <label class="theme-option">
+                        <input type="radio" name="theme" value="pokemon-scarlet" {% if site_settings.theme == 'pokemon-scarlet' %}checked{% endif %}>
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #b71c1c, #d32f2f);">
+                            <span>🔥 Paldea Scarlet</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Background Selection -->
+            <div class="settings-section">
+                <h4>🖼️ Fundo do Site</h4>
+                <p class="settings-desc">Escolha o padrão de fundo.</p>
+                <div class="bg-options" id="bg-options">
+                    <label class="bg-option">
+                        <input type="radio" name="background" value="pokeball-pattern" {% if site_settings.background == 'pokeball-pattern' %}checked{% endif %}>
+                        <div class="bg-preview bg-preview-pokeball">
+                            <span>⚪ Pokébolas</span>
+                        </div>
+                    </label>
+                    <label class="bg-option">
+                        <input type="radio" name="background" value="stars" {% if site_settings.background == 'stars' %}checked{% endif %}>
+                        <div class="bg-preview bg-preview-stars">
+                            <span>✨ Estrelas</span>
+                        </div>
+                    </label>
+                    <label class="bg-option">
+                        <input type="radio" name="background" value="grid" {% if site_settings.background == 'grid' %}checked{% endif %}>
+                        <div class="bg-preview bg-preview-grid">
+                            <span>📐 Grid Digital</span>
+                        </div>
+                    </label>
+                    <label class="bg-option">
+                        <input type="radio" name="background" value="grass" {% if site_settings.background == 'grass' %}checked{% endif %}>
+                        <div class="bg-preview bg-preview-grass">
+                            <span>🌿 Grama</span>
+                        </div>
+                    </label>
+                    <label class="bg-option">
+                        <input type="radio" name="background" value="none" {% if site_settings.background == 'none' %}checked{% endif %}>
+                        <div class="bg-preview bg-preview-none">
+                            <span>⬛ Nenhum</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Mesa Name -->
+            <div class="settings-section">
+                <h4>📝 Nome da Mesa</h4>
+                <p class="settings-desc">Aparece na navbar e título do site para todos.</p>
+                <div class="form-group">
+                    <input type="text" id="settings-mesa-name" value="{{ site_settings.mesa_name or 'Pokémon 5e RPG' }}" placeholder="Nome da sua mesa...">
+                </div>
+                <button class="btn btn-primary" onclick="saveMesaName()">Salvar Nome</button>
+            </div>
         </div>
     </div>
 </div>

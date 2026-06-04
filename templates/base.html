@@ -3,16 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pokémon 5e RPG - {% block title %}{% endblock %}</title>
+    <title>{{ site_settings.mesa_name or 'Pokémon 5e RPG' }} - {% block title %}{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
     {% block head %}{% endblock %}
 </head>
-<body class="{% block body_class %}{% endblock %}">
+<body class="{% block body_class %}{% endblock %}" data-theme="{{ site_settings.theme or 'pokemon-red' }}" data-bg="{{ site_settings.background or 'pokeball-pattern' }}">
     <nav class="navbar">
         <div class="nav-brand">
-            <span class="pokeball-icon">⚡</span>
-            <span>Pokémon 5e RPG</span>
+            <span class="pokeball-icon">
+                <img src="{{ url_for('static', filename='img/pokeball-icon.svg') }}" alt="" width="24" height="24">
+            </span>
+            <span>{{ site_settings.mesa_name or 'Pokémon 5e RPG' }}</span>
         </div>
         {% if current_user.is_authenticated %}
         <div class="nav-links">

@@ -1368,3 +1368,102 @@ body {
 .switch-option:hover:not(.current):not(.fainted) { border-color: var(--primary); background: var(--card-bg); }
 .switch-option.current { border-color: var(--success); opacity: 0.6; cursor: default; }
 .switch-option.fainted { opacity: 0.4; cursor: default; text-decoration: line-through; }
+
+
+/* ============================================
+   SETTINGS PANEL (MASTER)
+   ============================================ */
+.settings-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+}
+
+.settings-section {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+}
+
+.settings-section h4 {
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.settings-desc {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+.theme-options, .bg-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.75rem;
+}
+
+.theme-option, .bg-option {
+    cursor: pointer;
+}
+
+.theme-option input[type="radio"],
+.bg-option input[type="radio"] {
+    display: none;
+}
+
+.theme-preview, .bg-preview {
+    padding: 1rem;
+    border-radius: var(--radius);
+    text-align: center;
+    font-weight: bold;
+    color: white;
+    border: 3px solid transparent;
+    transition: all 0.3s;
+    font-size: 0.9rem;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+.theme-option input[type="radio"]:checked + .theme-preview,
+.bg-option input[type="radio"]:checked + .bg-preview {
+    border-color: white;
+    box-shadow: 0 0 15px rgba(255,255,255,0.4);
+    transform: scale(1.03);
+}
+
+.theme-preview:hover, .bg-preview:hover {
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.bg-preview-pokeball {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+}
+
+.bg-preview-stars {
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+}
+
+.bg-preview-grid {
+    background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
+}
+
+.bg-preview-grass {
+    background: linear-gradient(135deg, #0a2e0a, #1b5e20);
+}
+
+.bg-preview-none {
+    background: #0d1b2a;
+    border: 1px dashed var(--card-border);
+}
+
+/* Pokeball icon in navbar */
+.pokeball-icon {
+    display: flex;
+    align-items: center;
+}
+
+.pokeball-icon img {
+    filter: brightness(1.2);
+}

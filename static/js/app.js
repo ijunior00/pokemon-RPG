@@ -13,6 +13,27 @@ socket.on('disconnect', () => {
     console.log('Desconectado do servidor');
 });
 
+// ============================================
+// THEME SYSTEM - Real-time theme updates
+// ============================================
+socket.on('theme_changed', (settings) => {
+    applyTheme(settings);
+});
+
+function applyTheme(settings) {
+    if (settings.theme) {
+        document.body.setAttribute('data-theme', settings.theme);
+    }
+    if (settings.background) {
+        document.body.setAttribute('data-bg', settings.background);
+    }
+    if (settings.mesa_name) {
+        const brand = document.querySelector('.nav-brand span:last-child');
+        if (brand) brand.textContent = settings.mesa_name;
+        document.title = document.title.replace(/^[^-]+ -/, settings.mesa_name + ' -');
+    }
+}
+
 // Tab switching
 document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
