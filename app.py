@@ -306,6 +306,152 @@ def delete_npc(npc_id):
     db.delete_npc(npc_id)
     return jsonify({'success': True})
 
+@app.route('/master/npcs/generate', methods=['POST'])
+@login_required
+def generate_npc():
+    """Auto-generate an NPC with themed team based on class/type."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json
+    npc_class = data.get('npc_class', 'Trainer')
+    level = int(data.get('level', 10))
+    team_size = int(data.get('team_size', 3))
+    preferred_types = data.get('types', [])  # e.g. ['fire', 'fighting']
+    
+    # NPC name generation
+    first_names = [
+        'Akira', 'Brock', 'Cynthia', 'Drake', 'Elesa', 'Flint', 'Gardenia', 
+        'Hau', 'Iris', 'Jasmine', 'Koga', 'Lance', 'Misty', 'Norman',
+        'Olivia', 'Phoebe', 'Quinn', 'Raihan', 'Sabrina', 'Tate',
+        'Uri', 'Volkner', 'Wallace', 'Xerxes', 'Yuki', 'Zinnia',
+        'Bruno', 'Clair', 'Diantha', 'Erika', 'Fantina', 'Guzma',
+        'Hex', 'Ilima', 'Jupiter', 'Karen', 'Lorelei', 'Marlon',
+        'Nessa', 'Opal', 'Piers', 'Roxie', 'Skyla', 'Thorton',
+        'Wulfric', 'Allister', 'Bea', 'Gordie', 'Melony', 'Leon'
+    ]
+    
+    titles = {
+        'Gym Leader': 'Líder ',
+        'Elite Four': 'Elite ',
+        'Champion': 'Campeão(ã) ',
+        'Trainer': '',
+        'Ranger': 'Ranger ',
+        'Rocket': 'Rocket ',
+        'Ace': 'Ás ',
+        'Breeder': 'Criador(a) ',
+        'Youngster': 'Jovem ',
+        'Hiker': 'Montanhista ',
+        'Swimmer': 'Nadador(a) ',
+        'Psychic': 'Médium ',
+        'Bug Catcher': 'Caça-insetos ',
+        'Fisherman': 'Pescador ',
+        'Beauty': '',
+        'Scientist': 'Cientista ',
+        'Blackbelt': 'Faixa Preta '
+    }
+    
+    name_prefix = titles.get(npc_class, '')
+    name = name_prefix + random.choice(first_names)
+    
+    # Determine types for team
+    class_type_map = {
+        'Gym Leader': preferred_types,
+        'Elite Four': preferred_types,
+        'Champion': [],  # mixed
+        'Trainer': [],
+        'Ranger': ['grass', 'bug', 'normal'],
+        'Rocket': ['poison', 'dark', 'ghost'],
+        'Ace': [],
+        'Breeder': ['normal', 'fairy'],
+        'Youngster': ['normal', 'bug'],
+        'Hiker': ['rock', 'ground', 'fighting'],
+        'Swimmer': ['water'],
+        'Psychic': ['psychic', 'ghost'],
+        'Bug Catcher': ['bug'],
+        'Fisherman': ['water'],
+        'Scientist': ['electric', 'steel', 'psychic'],
+        'Blackbelt': ['fighting']
+    }
+    
+    types_to_use = preferred_types if preferred_types else class_type_map.get(npc_class, [])
+    
+    # Build team
+    team = []
+    candidates = []
+    
+    if types_to_use:
+        for t in types_to_use:
+            candidates.extend(POKEMON_BY_TYPE.get(t.lower(), []))
+        # Remove duplicates
+        seen = set()
+        unique = []
+        for c in candidates:
+            if c['number'] not in seen:
+                seen.add(c['number'])
+                unique.append(c)
+        candidates = unique
+    else:
+        candidates = POKEMON_DB[:]
+    
+    # Filter by level appropriateness
+    level_filtered = [p for p in candidates if p.get('minLevel', 1) <= level]
+    if not level_filtered:
+        level_filtered = candidates[:50]
+    
+    # Prefer evolved pokemon for higher levels
+    if level >= 15:
+        evolved = [p for p in level_filtered if '/' in p.get('evolutionStage', '1/1') and int(p['evolutionStage'].split('/')[0]) >= 2]
+        if len(evolved) >= team_size:
+            level_filtered = evolved
+    
+    # Pick random team
+    pick_count = min(team_size, len(level_filtered))
+    chosen_pokemon = random.sample(level_filtered, pick_count) if pick_count > 0 else []
+    
+    for poke in chosen_pokemon:
+        # Calculate pokemon level (around NPC level ±2)
+        poke_level = max(poke.get('minLevel', 1), level + random.randint(-2, 1))
+        
+        # Build moveset
+        move_pool = list(poke.get('startingMoves', []))
+        if poke.get('levelMoves'):
+            for lv, moves in poke['levelMoves'].items():
+                if int(lv) <= poke_level:
+                    move_pool.extend(moves)
+        move_pool = [m for m in move_pool if len(m) > 2 and not m.startswith('©')]
+        move_pool = list(dict.fromkeys(move_pool))
+        moves = move_pool[-4:] if len(move_pool) > 4 else (move_pool if move_pool else ['Tackle'])
+        
+        team.append({
+            'name': poke['name'],
+            'number': poke['number'],
+            'level': poke_level,
+            'types': poke.get('types', []),
+            'hp': poke.get('hp', 20),
+            'maxHp': poke.get('hp', 20),
+            'currentHp': poke.get('hp', 20),
+            'ac': poke.get('ac', 13),
+            'stats': poke.get('stats', {}),
+            'moves': moves,
+            'speed': poke.get('speed', '30ft'),
+            'ability': poke.get('ability', {}).get('name', '') if poke.get('ability') else '',
+            'vulnerabilities': poke.get('vulnerabilities', []),
+            'resistances': poke.get('resistances', [])
+        })
+    
+    # Create NPC
+    npc = {
+        'id': secrets.token_hex(4),
+        'name': name,
+        'npc_class': npc_class + (' - ' + '/'.join(t.title() for t in types_to_use) if types_to_use else ''),
+        'level': level,
+        'team': team,
+        'notes': f'Gerado automaticamente. {team_size} Pokémon.',
+        'generated': True
+    }
+    db.save_npc(npc)
+    return jsonify(npc)
+
 @app.route('/master/xp', methods=['POST'])
 @login_required
 def give_xp():

@@ -752,3 +752,53 @@ async function saveMesaName() {
     if (!name) { alert('Digite um nome para a mesa!'); return; }
     await updateSiteSettings({ mesa_name: name });
 }
+
+
+// ============================================
+// NPC GENERATOR
+// ============================================
+async function generateNpc() {
+    const npcClass = document.getElementById('gen-npc-class').value;
+    const level = parseInt(document.getElementById('gen-npc-level').value) || 10;
+    const teamSize = parseInt(document.getElementById('gen-npc-team-size').value) || 3;
+    const typesRaw = document.getElementById('gen-npc-types').value.trim();
+    const types = typesRaw ? typesRaw.split(',').map(t => t.trim().toLowerCase()).filter(t => t) : [];
+    
+    const resultDiv = document.getElementById('gen-npc-result');
+    resultDiv.innerHTML = '<span style="color:var(--warning);">⏳ Gerando NPC...</span>';
+    
+    try {
+        const resp = await fetch('/master/npcs/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ npc_class: npcClass, level, team_size: teamSize, types })
+        });
+        const npc = await resp.json();
+        
+        if (npc.error) {
+            resultDiv.innerHTML = `<span style="color:var(--danger);">❌ ${npc.error}</span>`;
+            return;
+        }
+        
+        resultDiv.innerHTML = `
+            <div style="background:var(--darker);padding:1rem;border-radius:var(--radius);border:1px solid var(--success);">
+                <h4 style="color:var(--accent);">✅ ${npc.name}</h4>
+                <p style="color:var(--text-muted);font-size:0.85rem;">${npc.npc_class} | Nível ${npc.level}</p>
+                <div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.3rem;">
+                    ${npc.team.map(p => `
+                        <span class="team-pokemon" style="display:inline-flex;align-items:center;gap:0.3rem;">
+                            <img src="${getPokemonSpriteUrl(p.number)}" width="24" height="24" style="image-rendering:pixelated;">
+                            ${p.name} Nv.${p.level}
+                        </span>
+                    `).join('')}
+                </div>
+                <p style="margin-top:0.5rem;color:var(--success);font-size:0.8rem;">NPC salvo com sucesso!</p>
+            </div>
+        `;
+        
+        // Refresh NPC list
+        loadNpcs();
+    } catch(e) {
+        resultDiv.innerHTML = `<span style="color:var(--danger);">❌ Erro de conexão</span>`;
+    }
+}

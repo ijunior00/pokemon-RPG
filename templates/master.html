@@ -117,8 +117,53 @@
     <!-- TAB: NPCs -->
     <div class="tab-content" id="tab-npcs">
         <h2>Treinadores NPC</h2>
+        
+        <!-- NPC Generator -->
+        <div class="npc-form" style="border: 2px solid var(--accent); margin-bottom:1.5rem;">
+            <h4>⚡ Gerador Automático de NPC</h4>
+            <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Gera um NPC completo com nome e time temático automaticamente.</p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Classe do NPC</label>
+                    <select id="gen-npc-class">
+                        <option value="Trainer">Treinador Genérico</option>
+                        <option value="Gym Leader">Líder de Ginásio</option>
+                        <option value="Elite Four">Elite dos Quatro</option>
+                        <option value="Champion">Campeão</option>
+                        <option value="Ace">Treinador Ás</option>
+                        <option value="Ranger">Ranger</option>
+                        <option value="Rocket">Team Rocket</option>
+                        <option value="Breeder">Criador</option>
+                        <option value="Youngster">Jovem Treinador</option>
+                        <option value="Hiker">Montanhista</option>
+                        <option value="Swimmer">Nadador</option>
+                        <option value="Psychic">Médium</option>
+                        <option value="Bug Catcher">Caça-insetos</option>
+                        <option value="Fisherman">Pescador</option>
+                        <option value="Scientist">Cientista</option>
+                        <option value="Blackbelt">Faixa Preta</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Nível</label>
+                    <input type="number" id="gen-npc-level" value="10" min="1" max="50">
+                </div>
+                <div class="form-group">
+                    <label>Qtd Pokémon</label>
+                    <input type="number" id="gen-npc-team-size" value="3" min="1" max="6">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Tipos preferidos (opcional, separar por vírgula)</label>
+                <input type="text" id="gen-npc-types" placeholder="Ex: fire, dragon — deixe vazio para usar o padrão da classe">
+            </div>
+            <button class="btn btn-warning" onclick="generateNpc()">⚡ Gerar NPC Aleatório</button>
+            <div id="gen-npc-result" style="margin-top:0.75rem;"></div>
+        </div>
+
+        <!-- Manual NPC Form -->
         <div class="npc-form">
-            <h4>Criar Treinador NPC</h4>
+            <h4>✏️ Criar NPC Manual</h4>
             <div class="form-row">
                 <div class="form-group">
                     <label>Nome</label>
