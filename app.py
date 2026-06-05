@@ -11,6 +11,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import database as db
+import pvp_battle as pvp
 
 # ============================================================
 # APP SETUP
@@ -978,13 +979,16 @@ def handle_mega_evolve(data):
 # ============================================================
 # PVP ARENA
 # ============================================================
+# In-memory PVP battles (active battles stored here for speed)
+ACTIVE_PVP = {}  # battle_id -> battle state
+ACTIVE_TOURNAMENTS = {}  # tournament_id -> tournament state
+
 @socketio.on('pvp_join_arena')
 def handle_pvp_join(data):
-    """Player enters the PVP arena - broadcast to all players."""
+    """Player enters the PVP arena."""
     if current_user.is_authenticated:
         join_room('pvp_arena')
         users = get_users()
-        # Send list of all players to the newly joined player
         players_list = []
         for uid, u in users.items():
             if u['role'] == 'player':
@@ -996,116 +1000,364 @@ def handle_pvp_join(data):
                     'team_size': len(trainer.get('team', []))
                 })
         emit('pvp_arena_players', players_list)
-        # Notify others that someone joined
         emit('pvp_player_joined', {
             'id': current_user.id,
-            'name': current_user.username,
-            'level': current_user.trainer_data.get('level', 1) if current_user.trainer_data else 1
+            'name': current_user.username
         }, room='pvp_arena', include_self=False)
 
 @socketio.on('pvp_challenge')
 def handle_pvp_challenge(data):
-    """Send a PVP challenge to another player."""
+    """Send a PVP challenge with mode and optional bet."""
     if current_user.is_authenticated:
         target_id = data.get('target_id')
-        challenger_pokemon = data.get('pokemon_name', '')
+        mode = data.get('mode', 'street')  # official, street
+        bet_money = int(data.get('bet_money', 0))
+        bet_items = data.get('bet_items', [])
+        
         emit('pvp_challenge_received', {
             'challenger_id': current_user.id,
             'challenger_name': current_user.username,
             'challenger_level': current_user.trainer_data.get('level', 1) if current_user.trainer_data else 1,
-            'pokemon_name': challenger_pokemon
+            'mode': mode,
+            'bet_money': bet_money,
+            'bet_items': bet_items
         }, room=target_id)
-        # Also notify master
         emit('pvp_challenge_sent', {
             'challenger': current_user.username,
-            'target_id': target_id
+            'target_id': target_id,
+            'mode': mode
         }, room='master')
 
 @socketio.on('pvp_accept')
 def handle_pvp_accept(data):
-    """Accept a PVP challenge."""
+    """Accept a PVP challenge - create battle."""
     if current_user.is_authenticated:
         challenger_id = data.get('challenger_id')
-        # Create a PVP room
-        room_id = f"pvp_{secrets.token_hex(4)}"
-        game_state = get_game_state()
-        game_state.setdefault('pvp_battles', {})[room_id] = {
-            'player1': challenger_id,
-            'player2': current_user.id,
-            'turn': 'player1',
-            'round': 1,
-            'status': 'active'
+        mode = data.get('mode', 'street')
+        bet_money = int(data.get('bet_money', 0))
+        bet_items = data.get('bet_items', [])
+        
+        # Create battle
+        bets = {
+            'player1': {'money': bet_money, 'items': bet_items},
+            'player2': {'money': bet_money, 'items': bet_items}
         }
-        save_game_state(game_state)
-        # Notify both players
-        emit('pvp_battle_start', {
-            'room_id': room_id,
-            'opponent_id': current_user.id,
+        battle = pvp.create_pvp_battle(mode, challenger_id, current_user.id, bets)
+        
+        # Set teams from trainer data
+        users = get_users()
+        p1_team = users.get(challenger_id, {}).get('trainer_data', {}).get('team', [])
+        p2_team = users.get(current_user.id, {}).get('trainer_data', {}).get('team', [])
+        pvp.set_team(battle, 'player1', p1_team)
+        pvp.set_team(battle, 'player2', p2_team)
+        
+        ACTIVE_PVP[battle['id']] = battle
+        
+        # Notify both - send to selection phase
+        emit('pvp_battle_created', {
+            'battle_id': battle['id'],
+            'mode': mode,
             'opponent_name': current_user.username,
-            'you_are': 'player1'
+            'your_team': p1_team,
+            'you_are': 'player1',
+            'phase': 'selection'
         }, room=challenger_id)
-        emit('pvp_battle_start', {
-            'room_id': room_id,
-            'opponent_id': challenger_id,
+        emit('pvp_battle_created', {
+            'battle_id': battle['id'],
+            'mode': mode,
             'opponent_name': data.get('challenger_name', '???'),
-            'you_are': 'player2'
+            'your_team': p2_team,
+            'you_are': 'player2',
+            'phase': 'selection'
         }, room=current_user.id)
-        # Notify master
         emit('pvp_battle_started', {
-            'room_id': room_id,
+            'battle_id': battle['id'],
             'player1': data.get('challenger_name', '???'),
-            'player2': current_user.username
+            'player2': current_user.username,
+            'mode': mode
         }, room='master')
 
 @socketio.on('pvp_decline')
 def handle_pvp_decline(data):
-    """Decline a PVP challenge."""
     if current_user.is_authenticated:
-        challenger_id = data.get('challenger_id')
         emit('pvp_challenge_declined', {
             'decliner_name': current_user.username
-        }, room=challenger_id)
+        }, room=data.get('challenger_id'))
 
-@socketio.on('pvp_action')
-def handle_pvp_action(data):
-    """Handle a PVP battle action (similar to battle_action but for PVP)."""
+@socketio.on('pvp_select_pokemon')
+def handle_pvp_select(data):
+    """Player selects starting pokemon (blind selection)."""
     if current_user.is_authenticated:
-        room_id = data.get('room_id')
-        game_state = get_game_state()
-        battle = game_state.get('pvp_battles', {}).get(room_id)
+        battle_id = data.get('battle_id')
+        pokemon_idx = int(data.get('pokemon_idx', 0))
+        battle = ACTIVE_PVP.get(battle_id)
         if not battle:
             return
-        # Determine opponent
-        if battle['player1'] == current_user.id:
-            opponent_id = battle['player2']
-        else:
-            opponent_id = battle['player1']
-        # Forward the action to both players and master
-        action_data = {
-            'room_id': room_id,
-            'actor_id': current_user.id,
-            'actor_name': current_user.username,
-            'action_type': data.get('action_type'),
-            'move_name': data.get('move_name', ''),
-            'damage': data.get('damage', 0),
-            'message': data.get('message', '')
-        }
-        emit('pvp_battle_update', action_data, room=opponent_id)
-        emit('pvp_battle_update', action_data, room=current_user.id)
-        emit('pvp_battle_update', action_data, room='master')
+        
+        # Determine which player this is
+        player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
+        
+        success, result = pvp.select_pokemon(battle, player_key, pokemon_idx)
+        
+        if result == 'battle_start':
+            # Both ready - send full battle state to each
+            p1_state = pvp.get_battle_state_for_player(battle, 'player1')
+            p2_state = pvp.get_battle_state_for_player(battle, 'player2')
+            emit('pvp_battle_state', p1_state, room=battle['player1']['id'])
+            emit('pvp_battle_state', p2_state, room=battle['player2']['id'])
+            # Notify master
+            emit('pvp_battle_update_master', {
+                'battle_id': battle_id,
+                'event': 'battle_started',
+                'turn': battle['turn'],
+                'round': battle['round']
+            }, room='master')
+        elif result == 'waiting_opponent':
+            emit('pvp_waiting', {'message': 'Aguardando oponente escolher Pokémon...'})
 
-@socketio.on('pvp_end')
-def handle_pvp_end(data):
-    """End a PVP battle."""
+@socketio.on('pvp_attack')
+def handle_pvp_attack(data):
+    """Player attacks in PVP battle."""
     if current_user.is_authenticated:
-        room_id = data.get('room_id')
-        game_state = get_game_state()
-        if room_id in game_state.get('pvp_battles', {}):
-            del game_state['pvp_battles'][room_id]
-            save_game_state(game_state)
-        result = data.get('result', 'ended')
-        emit('pvp_battle_ended', {'room_id': room_id, 'result': result, 'ender': current_user.username}, room='pvp_arena')
-        emit('pvp_battle_ended', {'room_id': room_id, 'result': result, 'ender': current_user.username}, room='master')
+        battle_id = data.get('battle_id')
+        move_name = data.get('move_name', '')
+        damage = int(data.get('damage', 0))
+        message = data.get('message', '')
+        
+        battle = ACTIVE_PVP.get(battle_id)
+        if not battle or battle['phase'] != 'battle':
+            return
+        
+        player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
+        
+        # Validate it's this player's turn
+        if battle['turn'] != player_key:
+            emit('pvp_error', {'message': 'Não é seu turno!'})
+            return
+        
+        # Apply damage
+        result = pvp.apply_damage(battle, player_key, damage, move_name, message)
+        
+        # Send updated state to both players
+        p1_state = pvp.get_battle_state_for_player(battle, 'player1')
+        p2_state = pvp.get_battle_state_for_player(battle, 'player2')
+        emit('pvp_battle_state', p1_state, room=battle['player1']['id'])
+        emit('pvp_battle_state', p2_state, room=battle['player2']['id'])
+        
+        if result == 'battle_end':
+            handle_pvp_victory(battle)
+        elif result == 'must_switch':
+            # Notify defender they must switch
+            defender_key = 'player2' if player_key == 'player1' else 'player1'
+            defender_id = battle[defender_key]['id']
+            emit('pvp_must_switch', {
+                'battle_id': battle_id,
+                'message': 'Seu Pokémon desmaiou! Escolha o próximo.'
+            }, room=defender_id)
+            # If defender is NPC, auto-switch
+            if battle[defender_key].get('is_npc'):
+                npc_next = pvp.npc_choose_pokemon(battle, defender_key)
+                if npc_next is not None:
+                    pvp.switch_pokemon(battle, defender_key, npc_next)
+                    # Send updated state
+                    p1_state = pvp.get_battle_state_for_player(battle, 'player1')
+                    p2_state = pvp.get_battle_state_for_player(battle, 'player2')
+                    emit('pvp_battle_state', p1_state, room=battle['player1']['id'])
+                    emit('pvp_battle_state', p2_state, room=battle['player2']['id'])
+        
+        # If next turn is NPC, auto-attack
+        next_player_key = battle['turn']
+        if battle['phase'] == 'battle' and battle[next_player_key].get('is_npc'):
+            handle_npc_turn(battle, next_player_key)
+
+@socketio.on('pvp_switch')
+def handle_pvp_switch(data):
+    """Player switches pokemon in PVP."""
+    if current_user.is_authenticated:
+        battle_id = data.get('battle_id')
+        new_idx = int(data.get('pokemon_idx', 0))
+        
+        battle = ACTIVE_PVP.get(battle_id)
+        if not battle:
+            return
+        
+        player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
+        success, msg = pvp.switch_pokemon(battle, player_key, new_idx)
+        
+        if not success:
+            emit('pvp_error', {'message': msg})
+            return
+        
+        # Send updated state
+        p1_state = pvp.get_battle_state_for_player(battle, 'player1')
+        p2_state = pvp.get_battle_state_for_player(battle, 'player2')
+        emit('pvp_battle_state', p1_state, room=battle['player1']['id'])
+        emit('pvp_battle_state', p2_state, room=battle['player2']['id'])
+        
+        # If next turn is NPC
+        if battle['phase'] == 'battle' and battle[battle['turn']].get('is_npc'):
+            handle_npc_turn(battle, battle['turn'])
+
+@socketio.on('pvp_pass_turn')
+def handle_pvp_pass(data):
+    """Player passes turn."""
+    if current_user.is_authenticated:
+        battle_id = data.get('battle_id')
+        battle = ACTIVE_PVP.get(battle_id)
+        if not battle:
+            return
+        player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
+        if battle['turn'] != player_key:
+            return
+        pvp.advance_turn(battle)
+        p1_state = pvp.get_battle_state_for_player(battle, 'player1')
+        p2_state = pvp.get_battle_state_for_player(battle, 'player2')
+        emit('pvp_battle_state', p1_state, room=battle['player1']['id'])
+        emit('pvp_battle_state', p2_state, room=battle['player2']['id'])
+        
+        if battle[battle['turn']].get('is_npc'):
+            handle_npc_turn(battle, battle['turn'])
+
+@socketio.on('pvp_forfeit')
+def handle_pvp_forfeit(data):
+    """Player forfeits the battle."""
+    if current_user.is_authenticated:
+        battle_id = data.get('battle_id')
+        battle = ACTIVE_PVP.get(battle_id)
+        if not battle:
+            return
+        player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
+        winner_key = 'player2' if player_key == 'player1' else 'player1'
+        battle['phase'] = 'finished'
+        battle['winner'] = winner_key
+        handle_pvp_victory(battle)
+
+
+def handle_npc_turn(battle, npc_key):
+    """Handle NPC's automatic turn."""
+    import time
+    move = pvp.npc_choose_action(battle, npc_key)
+    # Simple damage calc for NPC: random 3-12
+    damage = random.randint(3, 12)
+    result = pvp.apply_damage(battle, npc_key, damage, move, 'NPC auto-attack')
+    
+    p1_state = pvp.get_battle_state_for_player(battle, 'player1')
+    p2_state = pvp.get_battle_state_for_player(battle, 'player2')
+    socketio.emit('pvp_battle_state', p1_state, room=battle['player1']['id'])
+    socketio.emit('pvp_battle_state', p2_state, room=battle['player2']['id'])
+    
+    if result == 'battle_end':
+        handle_pvp_victory(battle)
+    elif result == 'must_switch':
+        defender_key = 'player2' if npc_key == 'player1' else 'player1'
+        if battle[defender_key].get('is_npc'):
+            npc_next = pvp.npc_choose_pokemon(battle, defender_key)
+            if npc_next is not None:
+                pvp.switch_pokemon(battle, defender_key, npc_next)
+
+
+def handle_pvp_victory(battle):
+    """Handle battle end - distribute rewards."""
+    winner_key = battle['winner']
+    loser_key = 'player2' if winner_key == 'player1' else 'player1'
+    winner_id = battle[winner_key]['id']
+    loser_id = battle[loser_key]['id']
+    mode = battle['mode']
+    
+    users = get_users()
+    winner_trainer = users.get(winner_id, {}).get('trainer_data', {})
+    loser_trainer = users.get(loser_id, {}).get('trainer_data', {})
+    
+    rewards = {'money': 0, 'items': []}
+    
+    if mode == 'official' or mode == 'tournament':
+        # Winner gets both bets
+        p1_bet = battle['bets'].get('player1', {})
+        p2_bet = battle['bets'].get('player2', {})
+        total_money = p1_bet.get('money', 0) + p2_bet.get('money', 0)
+        total_items = p1_bet.get('items', []) + p2_bet.get('items', [])
+        
+        winner_trainer['money'] = winner_trainer.get('money', 0) + total_money
+        for item in total_items:
+            bag = winner_trainer.get('bag', [])
+            added = False
+            for bi in bag:
+                if isinstance(bi, dict) and bi.get('name', '').lower() == item.get('name', '').lower():
+                    bi['qty'] = bi.get('qty', 1) + item.get('qty', 1)
+                    added = True
+                    break
+            if not added:
+                bag.append(item)
+            winner_trainer['bag'] = bag
+        
+        rewards = {'money': total_money, 'items': total_items}
+    
+    elif mode == 'street':
+        # Winner steals 25% money + 2 random items
+        stolen_money, stolen_items = pvp.calculate_street_loot(loser_trainer)
+        
+        loser_trainer['money'] = max(0, loser_trainer.get('money', 0) - stolen_money)
+        winner_trainer['money'] = winner_trainer.get('money', 0) + stolen_money
+        
+        # Remove stolen items from loser
+        loser_bag = loser_trainer.get('bag', [])
+        for si in stolen_items:
+            for i, bi in enumerate(loser_bag):
+                if isinstance(bi, dict) and bi.get('name', '').lower() == si['name'].lower():
+                    bi['qty'] = bi.get('qty', 1) - 1
+                    if bi['qty'] <= 0:
+                        loser_bag.pop(i)
+                    break
+        loser_trainer['bag'] = loser_bag
+        
+        # Add to winner
+        winner_bag = winner_trainer.get('bag', [])
+        for si in stolen_items:
+            added = False
+            for bi in winner_bag:
+                if isinstance(bi, dict) and bi.get('name', '').lower() == si['name'].lower():
+                    bi['qty'] = bi.get('qty', 1) + 1
+                    added = True
+                    break
+            if not added:
+                winner_bag.append(si)
+        winner_trainer['bag'] = winner_bag
+        
+        rewards = {'money': stolen_money, 'items': stolen_items}
+    
+    # Save
+    if winner_id in users:
+        users[winner_id]['trainer_data'] = winner_trainer
+    if loser_id in users:
+        users[loser_id]['trainer_data'] = loser_trainer
+    save_users(users)
+    
+    # Notify players
+    socketio.emit('pvp_battle_ended', {
+        'battle_id': battle['id'],
+        'winner': winner_key,
+        'winner_name': users.get(winner_id, {}).get('username', '???'),
+        'loser_name': users.get(loser_id, {}).get('username', '???'),
+        'mode': mode,
+        'rewards': rewards
+    }, room=winner_id)
+    socketio.emit('pvp_battle_ended', {
+        'battle_id': battle['id'],
+        'winner': winner_key,
+        'winner_name': users.get(winner_id, {}).get('username', '???'),
+        'loser_name': users.get(loser_id, {}).get('username', '???'),
+        'mode': mode,
+        'lost': rewards
+    }, room=loser_id)
+    socketio.emit('pvp_battle_ended', {
+        'battle_id': battle['id'],
+        'winner_name': users.get(winner_id, {}).get('username', '???'),
+        'mode': mode
+    }, room='master')
+    
+    # Cleanup
+    if battle['id'] in ACTIVE_PVP:
+        del ACTIVE_PVP[battle['id']]
 
 # ============================================================
 # PLAYER-TO-PLAYER TRANSFERS (Money & Items)
