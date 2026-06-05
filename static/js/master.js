@@ -254,8 +254,8 @@ function masterAttack(playerId, btn) {
     if (power.includes('CAR')) moveMod = Math.max(moveMod, Math.floor(((wildStats.CHA||10) - 10) / 2));
     if (power.includes('CON')) moveMod = Math.max(moveMod, Math.floor(((wildStats.CON||10) - 10) / 2));
     
-    // Proficiency bonus
-    const profBonus = wildLevel >= 17 ? 6 : wildLevel >= 13 ? 5 : wildLevel >= 9 ? 4 : wildLevel >= 5 ? 3 : 2;
+    // Proficiency bonus (1-100 Pokemon level scale)
+    const profBonus = wildLevel >= 91 ? 10 : wildLevel >= 81 ? 9 : wildLevel >= 71 ? 8 : wildLevel >= 61 ? 7 : wildLevel >= 51 ? 6 : wildLevel >= 41 ? 5 : wildLevel >= 31 ? 4 : wildLevel >= 17 ? 3 : 2;
     
     // If no damage move (status), send directly
     if (!moveData.baseDamage && power === 'NENHUM') {
@@ -296,8 +296,9 @@ function masterAttack(playerId, btn) {
         // STAB
         const wildTypes = (wildPoke.types || []).map(t => t.toLowerCase());
         const moveType = (moveData.type || '').toLowerCase();
-        const stabTable = [0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5];
-        const stab = wildTypes.includes(moveType) ? (stabTable[wildLevel] || 0) : 0;
+        // STAB for Pokemon level 1-100
+        const getStab = (lv) => lv >= 81 ? 6 : lv >= 61 ? 5 : lv >= 41 ? 4 : lv >= 26 ? 3 : lv >= 11 ? 2 : 1;
+        const stab = wildTypes.includes(moveType) ? getStab(wildLevel) : 0;
         damage += stab;
         if (damage < 1) damage = 1;
         

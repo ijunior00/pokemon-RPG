@@ -116,20 +116,47 @@ function animateDice(result, label) {
 async function searchWildPokemon() {
     const routeId = document.getElementById('current-route').value;
     const huntMode = document.getElementById('hunt-mode').value;
-    const playerLevel = TRAINER_DATA.level || 1;
+    // Use the highest Pokemon level in team (1-100 scale), not trainer level
+    const team = playerTeam || [];
+    const highestPokeLv = team.length > 0 ? Math.max(...team.map(p => p.level || 1)) : 5;
     const response = await fetch('/api/encounter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ route_id: routeId, hunt_mode: huntMode, player_level: playerLevel })
+        body: JSON.stringify({ route_id: routeId, hunt_mode: huntMode, player_level: highestPokeLv })
     });
     const encounter = await response.json();
     if (encounter.error) { alert('Nenhum Pokémon encontrado!'); return; }
     currentEncounter = encounter;
-    displayEncounter(encounter);
+    await displayEncounter(encounter);
 }
 
-function displayEncounter(encounter) {
+async function displayEncounter(encounter) {
     const pokemon = encounter.pokemon;
+    
+    // Calculate scaled stats for the wild pokemon
+    try {
+        const resp = await fetch('/api/pokemon/stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ number: pokemon.number, level: encounter.level })
+        });
+        const scaledStats = await resp.json();
+        if (!scaledStats.error) {
+            pokemon.hp = scaledStats.hp;
+            pokemon.maxHp = scaledStats.maxHp;
+            pokemon.ac = scaledStats.ac;
+            pokemon.stats = scaledStats.stats;
+            pokemon.proficiency = scaledStats.proficiency;
+            pokemon.stab = scaledStats.stab;
+            encounter.pokemon = pokemon;
+        }
+    } catch(e) {}
+    
+    // Check if player can control (for capture preview)
+    const trainerLevel = TRAINER_DATA.level || 1;
+    const maxControlLevel = trainerLevel * 5;
+    const canControl = encounter.level <= maxControlLevel;
+    
     showElement('encounter-result');
     document.getElementById('wild-pokemon-name').textContent = `${pokemon.name} #${String(pokemon.number).padStart(3, '0')}`;
     document.getElementById('wild-pokemon-level').textContent = encounter.level;
@@ -141,6 +168,12 @@ function displayEncounter(encounter) {
     sprite.alt = pokemon.name;
     const shinyBadge = document.getElementById('shiny-badge');
     encounter.is_shiny ? shinyBadge.classList.remove('hidden') : shinyBadge.classList.add('hidden');
+    
+    // Show control warning
+    if (!canControl) {
+        addBattleLog(`⚠️ <strong>Atenção:</strong> Este Pokémon é Nv.${encounter.level} — seu limite é Nv.${maxControlLevel} (Treinador Nv.${trainerLevel}). Você pode batalhar mas NÃO controlar se capturar.`);
+    }
+    
     // Populate team select
     const select = document.getElementById('send-pokemon');
     select.innerHTML = playerTeam.length === 0 
@@ -175,21 +208,35 @@ async function startBattle() {
         if (results.length > 0) {
             const api = results[0];
             playerPokemon.number = api.number;
-            if (!playerPokemon.stats || !playerPokemon.stats.STR) playerPokemon.stats = api.stats;
             if (!playerPokemon.types || playerPokemon.types.length === 0) playerPokemon.types = api.types;
             if (!playerPokemon.speed) playerPokemon.speed = api.speed;
             if (!playerPokemon.vulnerabilities) playerPokemon.vulnerabilities = api.vulnerabilities;
             if (!playerPokemon.resistances) playerPokemon.resistances = api.resistances;
             if (!playerPokemon.immunities) playerPokemon.immunities = api.immunities;
             if (!playerPokemon.moves || playerPokemon.moves.length === 0) {
-                // Build moves from level
                 let moves = [...(api.startingMoves || [])];
                 if (api.levelMoves) {
                     for (const [lv, m] of Object.entries(api.levelMoves)) {
                         if (parseInt(lv) <= (playerPokemon.level || 1)) moves.push(...m);
                     }
                 }
-                playerPokemon.moves = moves.slice(0, 4);
+                playerPokemon.moves = moves.slice(-4);
+            }
+            
+            // Apply level scaling to player's pokemon
+            const scaledResp = await fetch('/api/pokemon/stats', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number: api.number, level: playerPokemon.level || 1 })
+            });
+            const scaled = await scaledResp.json();
+            if (!scaled.error) {
+                playerPokemon.stats = scaled.stats;
+                playerPokemon.maxHp = scaled.maxHp;
+                playerPokemon.currentHp = Math.min(playerPokemon.currentHp || scaled.hp, scaled.maxHp);
+                playerPokemon.ac = scaled.ac;
+                playerPokemon.proficiency = scaled.proficiency;
+                playerPokemon.stab = scaled.stab;
             }
         }
     } catch(e) { console.error('API fetch failed:', e); }
@@ -208,6 +255,9 @@ async function startBattle() {
         player_pokemon_idx: parseInt(selectIdx) || 0,
         wild_moves: currentEncounter.wild_moves || []
     });
+
+    // Auto-roll initiative (no longer needs master)
+    socket.emit('roll_initiative', { player_id: null, auto: true });
 
     // Switch to battle tab
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -295,6 +345,10 @@ socket.on('initiative_result', (data) => {
     addBattleLog(`➡️ <strong>${data.first_turn === 'player' ? 'Você começa!' : 'Pokémon Selvagem começa!'}</strong>`);
     window.currentTurn = data.first_turn;
     updateTurnUI();
+    // If wild goes first, auto-attack after a short delay
+    if (data.first_turn === 'wild') {
+        setTimeout(() => wildPokemonAutoAttack(), 1500);
+    }
 });
 
 // Listen for battle updates
@@ -319,6 +373,11 @@ socket.on('battle_update', (data) => {
     // Update turn
     window.currentTurn = bs.turn;
     updateTurnUI();
+    
+    // Wild Pokemon auto-attack when it's their turn
+    if (bs.turn === 'wild' && bs.wild_hp_current > 0 && bs.player_hp_current > 0 && !window.wildFainted) {
+        setTimeout(() => wildPokemonAutoAttack(), 1200);
+    }
     
     // Check faint
     if (bs.wild_hp_current <= 0) {
@@ -455,8 +514,8 @@ function useMove(moveName) {
     if (power.includes('CON')) moveMod = Math.max(moveMod, Math.floor(((stats.CON||10) - 10) / 2));
     if (power === 'NENHUM') moveMod = 0;
     
-    // Proficiency bonus based on level
-    const profBonus = pokeLevel >= 17 ? 6 : pokeLevel >= 13 ? 5 : pokeLevel >= 9 ? 4 : pokeLevel >= 5 ? 3 : 2;
+    // Proficiency bonus based on Pokemon level (1-100 scale)
+    const profBonus = poke?.proficiency || getProficiencyForLevel(pokeLevel);
     
     // If move has no damage (status move), skip attack roll
     if (!m.baseDamage && !m.attackType && power === 'NENHUM') {
@@ -483,19 +542,19 @@ function useMove(moveName) {
         addBattleLog(`❌ Falha crítica!`);
         socket.emit('battle_action', { action_by: 'player', action_type: 'attack', move_name: moveName, damage: 0, message: 'Nat 1 - Falha' });
     } else if (totalAttack >= enemyAC || isCrit) {
-        // Auto-calculate damage
-        const diceRoll = rollDamageFromString(m.baseDamage || '1d6', pokeLevel);
+        // Auto-calculate damage with level-scaled dice
+        const scaledDice = getScaledDice(m.baseDamage || '1d6', pokeLevel, m.higherLevels || '');
+        const diceRoll = rollDamageFromString(scaledDice, pokeLevel);
         let damage = diceRoll + moveMod;
         if (isCrit) {
-            const critExtra = rollDamageFromString(m.baseDamage || '1d6', pokeLevel);
+            const critExtra = rollDamageFromString(scaledDice, pokeLevel);
             damage = diceRoll + critExtra + moveMod;
         }
         
-        // STAB check
+        // STAB check (uses scaled stab from pokemon data)
         const pokeTypes = (poke?.types || []).map(t => t.toLowerCase());
         const moveType = (m.type || '').toLowerCase();
-        const stabTable = [0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5];
-        const stab = pokeTypes.includes(moveType) ? (stabTable[pokeLevel] || 0) : 0;
+        const stab = pokeTypes.includes(moveType) ? (poke?.stab || getStabForLevel(pokeLevel)) : 0;
         damage += stab;
         
         if (damage < 1) damage = 1;
@@ -543,8 +602,6 @@ function useMove(moveName) {
 
 function rollDamageFromString(diceStr, pokeLevel) {
     if (!diceStr) return 0;
-    // Adjust dice for higher levels
-    // For simplicity, use base damage (higher level scaling would need full parsing)
     const match = diceStr.match(/(\d+)d(\d+)/);
     if (!match) return 0;
     const count = parseInt(match[1]);
@@ -552,6 +609,58 @@ function rollDamageFromString(diceStr, pokeLevel) {
     let total = 0;
     for (let i = 0; i < count; i++) total += Math.floor(Math.random() * sides) + 1;
     return total;
+}
+
+function getScaledDice(baseDamage, level, higherLevelsText) {
+    // Scale damage dice based on Pokemon level (1-100)
+    if (!baseDamage) return '1d6';
+    const match = baseDamage.match(/(\d+)d(\d+)/);
+    if (!match) return baseDamage;
+    const count = parseInt(match[1]);
+    const sides = parseInt(match[2]);
+    
+    // If higherLevels text exists, parse trainer-level thresholds and multiply by 5
+    if (higherLevelsText) {
+        const lvMatches = [...higherLevelsText.matchAll(/(\d+d\d+)\s+no\s+n[ií]vel\s+(\d+)/gi)];
+        let bestDice = baseDamage;
+        for (const m of lvMatches) {
+            const pokeLv = parseInt(m[2]) * 5; // trainer lv → pokemon lv
+            if (level >= pokeLv) bestDice = m[1];
+        }
+        return bestDice;
+    }
+    
+    // Default scaling by pokemon level
+    let multiplier = 1.0;
+    if (level >= 80) multiplier = 3.0;
+    else if (level >= 60) multiplier = 2.5;
+    else if (level >= 40) multiplier = 2.0;
+    else if (level >= 20) multiplier = 1.5;
+    else if (level >= 10) multiplier = 1.25;
+    
+    const newCount = Math.max(count, Math.ceil(count * multiplier));
+    return `${newCount}d${sides}`;
+}
+
+function getStabForLevel(level) {
+    if (level >= 81) return 6;
+    if (level >= 61) return 5;
+    if (level >= 41) return 4;
+    if (level >= 26) return 3;
+    if (level >= 11) return 2;
+    return 1;
+}
+
+function getProficiencyForLevel(level) {
+    if (level >= 91) return 10;
+    if (level >= 81) return 9;
+    if (level >= 71) return 8;
+    if (level >= 61) return 7;
+    if (level >= 51) return 6;
+    if (level >= 41) return 5;
+    if (level >= 31) return 4;
+    if (level >= 17) return 3;
+    return 2;
 }
 
 function passTurn() {
@@ -1058,9 +1167,9 @@ document.addEventListener('DOMContentLoaded', () => {
         huntSelect.addEventListener('change', () => {
             const info = document.getElementById('hunt-mode-info');
             const descriptions = {
-                'normal': '🌿 <strong>Normal:</strong> Pokémon comuns, nível ±3 do seu. Shiny: 1%.',
-                'dungeon': '🏰 <strong>Dungeon:</strong> Pokémon raros e evoluídos, nível ±5 do seu. Shiny: 5%.',
-                'night': '🌙 <strong>Noturno:</strong> O terror da noite! Pokémon +3 a +10 níveis acima. Shiny: 5%.'
+                'normal': '🌿 <strong>Normal:</strong> Pokémon comuns, nível ±5 do seu Pokémon mais forte. Shiny: 1%.',
+                'dungeon': '🏰 <strong>Dungeon:</strong> Pokémon raros e evoluídos, -5 a +15 níveis. Shiny: 3%. ⚠️ Perigoso!',
+                'night': '🌙 <strong>Noturno:</strong> O terror da noite! Pokémon +10 a +30 níveis acima. Shiny: 5%. ☠️ Extremamente perigoso!'
             };
             info.innerHTML = `<p>${descriptions[huntSelect.value]}</p>`;
         });
@@ -2399,3 +2508,208 @@ const _endBattleWithStatusReset = function(result) {
     _origEndBattle(result);
 };
 // Note: endBattle is already defined, this override ensures cleanup
+
+
+// ============================================
+// WILD POKEMON AUTO-ATTACK (AI)
+// ============================================
+async function wildPokemonAutoAttack() {
+    if (!battleActive || !window.currentBattleData || window.wildFainted) return;
+    if (window.currentTurn !== 'wild') return;
+    
+    const enemy = window.currentBattleData.enemy;
+    const playerPoke = window.currentBattleData.playerPokemon;
+    const wildLevel = currentEncounter?.level || enemy?.level || 5;
+    const wildStats = enemy?.stats || {};
+    
+    // Process wild pokemon's status at turn start
+    if (window.wildPokemonStatus) {
+        try {
+            const resp = await fetch('/api/check-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'turn_start',
+                    pokemon_status: window.wildPokemonStatus,
+                    max_hp: enemy?.maxHp || enemy?.hp || 20
+                })
+            });
+            const statusResult = await resp.json();
+            statusResult.messages.forEach(msg => addBattleLog(`🔴 ${msg}`));
+            
+            if (statusResult.damage > 0) {
+                socket.emit('battle_action', {
+                    action_by: 'status', action_type: 'status_damage',
+                    move_name: `Status: ${window.wildPokemonStatus.condition}`,
+                    damage: statusResult.damage, message: 'Dano de condição no selvagem'
+                });
+            }
+            if (statusResult.status_removed) {
+                window.wildPokemonStatus = null;
+                updateStatusDisplay();
+            }
+            if (!statusResult.can_act) {
+                addBattleLog(`🔴 Pokémon Selvagem não conseguiu agir!`);
+                socket.emit('battle_action', {
+                    action_by: 'master', action_type: 'pass',
+                    move_name: 'Status impediu', damage: 0, message: 'Selvagem não pôde agir'
+                });
+                return;
+            }
+        } catch(e) {}
+    }
+    
+    // Pick a random move from the wild pokemon's moveset
+    const wildMoves = currentEncounter?.wild_moves || enemy?.startingMoves || ['Tackle'];
+    const moveName = wildMoves[Math.floor(Math.random() * wildMoves.length)];
+    
+    // Get move data from cache (load if needed)
+    if (!MOVES_CACHE[moveName]) {
+        try {
+            const resp = await fetch('/api/moves/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ moves: [moveName] })
+            });
+            const data = await resp.json();
+            Object.assign(MOVES_CACHE, data);
+        } catch(e) {}
+    }
+    
+    const moveData = MOVES_CACHE[moveName] || {};
+    
+    // Calculate move modifier
+    let moveMod = 0;
+    const power = (moveData.power || 'FOR').toUpperCase();
+    if (power.includes('FOR')) moveMod = Math.max(moveMod, Math.floor(((wildStats.STR||10) - 10) / 2));
+    if (power.includes('DES')) moveMod = Math.max(moveMod, Math.floor(((wildStats.DEX||10) - 10) / 2));
+    if (power.includes('INT')) moveMod = Math.max(moveMod, Math.floor(((wildStats.INT||10) - 10) / 2));
+    if (power.includes('SAB')) moveMod = Math.max(moveMod, Math.floor(((wildStats.WIS||10) - 10) / 2));
+    if (power.includes('CAR')) moveMod = Math.max(moveMod, Math.floor(((wildStats.CHA||10) - 10) / 2));
+    if (power.includes('CON')) moveMod = Math.max(moveMod, Math.floor(((wildStats.CON||10) - 10) / 2));
+    
+    // Proficiency for wild (1-100 scale)
+    const profBonus = getProficiencyForLevel(wildLevel);
+    
+    // Status move (no damage)
+    if (!moveData.baseDamage && (power === 'NENHUM' || power === 'Nenhum')) {
+        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> (status)!`);
+        // Check if it applies a status to the player's pokemon
+        const statusEffect = checkWildStatusMove(moveName);
+        socket.emit('battle_action', {
+            action_by: 'master', action_type: 'status',
+            move_name: moveName, damage: 0,
+            status_effect: statusEffect, message: moveData.description || ''
+        });
+        return;
+    }
+    
+    // Attack roll
+    const attackRoll = Math.floor(Math.random() * 20) + 1;
+    const isCrit = attackRoll === 20;
+    const isMiss = attackRoll === 1;
+    const totalAttack = attackRoll + moveMod + profBonus;
+    const targetAC = playerPoke?.ac || 13;
+    
+    if (isMiss) {
+        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> → d20(${attackRoll}) 💨 Falha Crítica!`);
+        socket.emit('battle_action', {
+            action_by: 'master', action_type: 'attack',
+            move_name: moveName, damage: 0, message: 'Nat 1 - Falha'
+        });
+    } else if (totalAttack >= targetAC || isCrit) {
+        // Calculate damage with scaling
+        const scaledDice = getScaledDice(moveData.baseDamage || '1d6', wildLevel, moveData.higherLevels || '');
+        let diceRoll = rollDamageFromString(scaledDice, wildLevel);
+        let damage = diceRoll + moveMod;
+        if (isCrit) {
+            const critExtra = rollDamageFromString(scaledDice, wildLevel);
+            damage = diceRoll + critExtra + moveMod;
+        }
+        
+        // STAB
+        const wildTypes = (enemy?.types || []).map(t => t.toLowerCase());
+        const moveType = (moveData.type || '').toLowerCase();
+        const stab = wildTypes.includes(moveType) ? getStabForLevel(wildLevel) : 0;
+        damage += stab;
+        
+        // Type effectiveness vs player pokemon
+        const pVulns = (playerPoke?.vulnerabilities || []).map(t => t.toLowerCase());
+        const pResists = (playerPoke?.resistances || []).map(t => t.toLowerCase());
+        const pImmunities = (playerPoke?.immunities || []).map(t => t.toLowerCase());
+        
+        let effectiveness = 1;
+        let effectLabel = '';
+        if (pImmunities.includes(moveType)) {
+            effectiveness = 0; effectLabel = '⛔ Imune';
+        } else {
+            if (pVulns.includes(moveType)) effectiveness *= 2;
+            if (pResists.includes(moveType)) effectiveness *= 0.5;
+        }
+        damage = Math.floor(damage * effectiveness);
+        if (effectiveness === 0) damage = 0;
+        if (effectiveness > 1) effectLabel = `⚡ Super Efetivo (x${effectiveness})`;
+        else if (effectiveness < 1 && effectiveness > 0) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
+        
+        if (damage < 1 && effectiveness > 0) damage = 1;
+        
+        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> → d20(${attackRoll})+${moveMod}+${profBonus}=${totalAttack} vs AC${targetAC} ✅ ${scaledDice}(${diceRoll})+MOD(${moveMod})${stab > 0 ? `+STAB(${stab})` : ''}${isCrit ? ' CRIT!' : ''}${effectLabel ? ' '+effectLabel : ''} = <strong>${damage} dano</strong>`);
+        
+        // Check if wild move inflicts status on player
+        checkWildStatusOnHit(moveName, attackRoll, damage);
+        
+        socket.emit('battle_action', {
+            action_by: 'master', action_type: 'attack',
+            move_name: moveName, damage: damage,
+            status_effect: window._wildStatusApplied || null,
+            message: `${totalAttack} vs AC ${targetAC}${isCrit ? ' Crítico!' : ''}`
+        });
+        window._wildStatusApplied = null;
+    } else {
+        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> → d20(${attackRoll})+${moveMod}+${profBonus}=${totalAttack} vs AC${targetAC} ❌ Errou!`);
+        socket.emit('battle_action', {
+            action_by: 'master', action_type: 'attack',
+            move_name: moveName, damage: 0, message: `Errou (${totalAttack} vs AC ${targetAC})`
+        });
+    }
+}
+
+function checkWildStatusMove(moveName) {
+    // Pure status moves from wild pokemon applying to player
+    const effectsData = window.statusEffectsData?.move_effects || {};
+    const effect = effectsData[moveName];
+    if (effect && effect.on === 'save_fail') {
+        // Simple: 50% chance to apply (simplified save)
+        if (Math.random() < 0.5) {
+            const cond = window.statusEffectsData?.conditions?.[effect.status];
+            window.playerPokemonStatus = { condition: effect.status, turns_active: 0 };
+            if (cond) addBattleLog(`${cond.icon} Seu Pokémon ficou <strong>${cond.name}</strong>!`);
+            updateStatusDisplay();
+            return effect.status;
+        }
+        addBattleLog(`💪 Seu Pokémon resistiu ao efeito de ${moveName}!`);
+    }
+    return null;
+}
+
+function checkWildStatusOnHit(moveName, attackRoll, damage) {
+    // Check if the wild's damaging move inflicts a status on hit
+    const effectsData = window.statusEffectsData?.move_effects || {};
+    const effect = effectsData[moveName];
+    if (!effect || damage <= 0) return;
+    
+    let inflict = false;
+    if (effect.on === 'hit') {
+        inflict = Math.random() < effect.chance;
+    } else if (effect.on === 'nat15plus' && attackRoll >= 15) {
+        inflict = Math.random() < effect.chance;
+    }
+    
+    if (inflict) {
+        const cond = window.statusEffectsData?.conditions?.[effect.status];
+        window.playerPokemonStatus = { condition: effect.status, turns_active: 0 };
+        window._wildStatusApplied = effect.status;
+        if (cond) addBattleLog(`${cond.icon} Seu Pokémon ficou <strong>${cond.name}</strong>! ${cond.description}`);
+        updateStatusDisplay();
+    }
+}

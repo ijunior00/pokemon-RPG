@@ -13,6 +13,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import database as db
 import pvp_battle as pvp
 import status_effects as effects
+import pokemon_scaling as scaling
 
 # ============================================================
 # APP SETUP
@@ -614,18 +615,29 @@ def api_mega_all():
 @app.route('/api/encounter', methods=['POST'])
 @login_required
 def api_encounter():
-    """Generate a random encounter based on route, hunt mode, rarity, variable levels."""
+    """Generate a random encounter based on route, hunt mode, rarity.
+    
+    Level scale: Pokemon 1-100.
+    player_level = highest Pokemon level in player's team.
+    
+    Modes:
+    - Normal: ±5 levels of player. Common Pokemon. Shiny 1%.
+    - Dungeon: ±15 levels, skews harder. Rare/evolved Pokemon. Shiny 3%.
+    - Night: +10 to +30 above player. Extremely dangerous. Shiny 5%.
+    """
     data = request.json
     route_id = data.get('route_id')
-    hunt_mode = data.get('hunt_mode', 'normal')  # normal, dungeon, night
-    # Legacy support
+    hunt_mode = data.get('hunt_mode', 'normal')
     if data.get('is_dungeon') and hunt_mode == 'normal':
         hunt_mode = 'dungeon'
-    player_level = data.get('player_level', 1)
+    # player_level = highest Pokemon level in team (1-100 scale)
+    player_level = int(data.get('player_level', 5))
     
     route = ROUTES_DATA.get(route_id, {})
     route_types = route.get('types', ['Normal'])
-    route_level_range = route.get('level_range', [1, 20])
+    # Scale route level range to 1-100 (original was 1-20 based)
+    raw_range = route.get('level_range', [1, 20])
+    route_level_range = [raw_range[0] * 5, min(100, raw_range[1] * 5)]
     
     # Dungeon/night use dungeon types (stronger/rarer)
     if hunt_mode in ('dungeon', 'night'):
@@ -650,37 +662,47 @@ def api_encounter():
     
     # Level filtering based on mode
     if hunt_mode == 'night':
-        min_lv = max(route_level_range[0], player_level)
-        max_lv = route_level_range[1]
+        # Night: very dangerous, +10 to +30 above player
+        min_lv = player_level + 10
+        max_lv = min(100, player_level + 30)
     elif hunt_mode == 'dungeon':
-        min_lv = route_level_range[0]
-        max_lv = route_level_range[1]
+        # Dungeon: dangerous, ±15 of player, skews up
+        min_lv = max(1, player_level - 15)
+        max_lv = min(100, player_level + 15)
     else:
-        min_lv = max(route_level_range[0], player_level - 3)
-        max_lv = min(route_level_range[1], player_level + 3)
+        # Normal: safe-ish, ±5 of player
+        min_lv = max(1, player_level - 5)
+        max_lv = min(100, player_level + 5)
     
-    filtered = [p for p in candidates if p.get('minLevel', 1) <= max_lv]
+    # Filter candidates by minLevel appropriateness
+    # minLevel in JSON is trainer-level scale (1-20), convert: minLevel * 5
+    filtered = [p for p in candidates if (p.get('minLevel', 1) * 5) <= max_lv]
     
     if not filtered:
-        filtered = sorted(candidates, key=lambda p: abs(p.get('minLevel', 1) - player_level))[:10]
+        filtered = sorted(candidates, key=lambda p: abs((p.get('minLevel', 1) * 5) - player_level))[:10]
     
     if not filtered:
         return jsonify({'error': 'No pokemon available for this route'}), 404
     
-    # Rarity weights
+    # Rarity weights - dungeon/night favors evolved/rare
     weights = []
     for p in filtered:
         stage = p.get('evolutionStage', '1/1')
         stage_num = int(stage.split('/')[0]) if '/' in stage else 1
         sr_str = p.get('sr', '1/2')
-        if '/' in sr_str:
-            sr_val = int(sr_str.split('/')[0]) / int(sr_str.split('/')[1])
+        if '/' in str(sr_str):
+            sr_val = int(str(sr_str).split('/')[0]) / int(str(sr_str).split('/')[1])
         else:
-            sr_val = int(sr_str)
+            sr_val = float(sr_str)
         
-        if hunt_mode in ('dungeon', 'night'):
-            weight = max(1, sr_val * 2 + stage_num)
+        if hunt_mode == 'night':
+            # Night: heavily favors evolved/high-SR
+            weight = max(1, sr_val * 4 + stage_num * 3)
+        elif hunt_mode == 'dungeon':
+            # Dungeon: favors evolved
+            weight = max(1, sr_val * 2 + stage_num * 2)
         else:
+            # Normal: common first-stage pokemon more likely
             weight = 10 if stage_num == 1 else (3 if stage_num == 2 else 1)
             if sr_val <= 0.5: weight *= 3
             elif sr_val <= 2: weight *= 2
@@ -689,59 +711,63 @@ def api_encounter():
     
     chosen = random.choices(filtered, weights=weights, k=1)[0]
     
-    # Encounter level based on mode
+    # Determine encounter level
     if hunt_mode == 'night':
-        # Night: +3 to +10 above player level
-        encounter_level = random.randint(player_level + 3, player_level + 10)
+        # Night: +10 to +30 above player (extremely dangerous)
+        encounter_level = random.randint(player_level + 10, min(100, player_level + 30))
     elif hunt_mode == 'dungeon':
-        # Dungeon: ±5 of player level
-        encounter_level = random.randint(max(1, player_level - 5), player_level + 5)
+        # Dungeon: -5 to +15 (skews harder)
+        encounter_level = random.randint(max(1, player_level - 5), min(100, player_level + 15))
     else:
-        # Normal: ±3 of player level within route range
-        low = max(chosen.get('minLevel', 1), min_lv, player_level - 3)
-        high = min(max_lv, player_level + 3)
-        if low > high:
-            low = chosen.get('minLevel', 1)
-            high = max(low, player_level + 1)
+        # Normal: ±5 around player level
+        low = max(1, player_level - 5)
+        high = min(100, player_level + 5)
         encounter_level = random.randint(low, high)
     
-    encounter_level = max(1, max(chosen.get('minLevel', 1), encounter_level))
+    # Ensure minimum level based on pokemon's min (scaled)
+    pokemon_min_lv = max(1, chosen.get('minLevel', 1) * 5)
+    encounter_level = max(pokemon_min_lv, encounter_level)
+    encounter_level = min(100, encounter_level)
     
-    # Shiny chance: 5% in dungeon/night, 1% normal
-    shiny_chance = 0.05 if hunt_mode in ('dungeon', 'night') else 0.01
-    is_shiny = random.random() < shiny_chance
+    # Shiny chance by mode
+    shiny_chances = {'normal': 0.01, 'dungeon': 0.03, 'night': 0.05}
+    is_shiny = random.random() < shiny_chances.get(hunt_mode, 0.01)
     
-    # Generate random moveset (4 moves from pool)
+    # Generate moveset (picks last 4 available moves for the level)
     move_pool = list(chosen.get('startingMoves', []))
     if chosen.get('levelMoves'):
         for lv, moves in chosen['levelMoves'].items():
-            if int(lv) <= encounter_level:
+            # levelMoves keys are trainer-level scale, multiply by 5
+            if int(lv) * 5 <= encounter_level:
                 move_pool.extend(moves)
     if chosen.get('eggMoves'):
         move_pool.extend(chosen['eggMoves'])
     
-    # Clean pool (remove non-move junk)
     move_pool = [m for m in move_pool if len(m) > 2 and not m.startswith('©') and not m.isdigit()]
     move_pool = list(dict.fromkeys(move_pool))
     
-    if len(move_pool) > 4:
-        starting = chosen.get('startingMoves', [])
-        guaranteed = [starting[-1]] if starting else []
-        remaining = [m for m in move_pool if m not in guaranteed]
-        random.shuffle(remaining)
-        wild_moves = guaranteed + remaining[:4 - len(guaranteed)]
-    else:
-        wild_moves = move_pool[:4] if move_pool else ['Tackle']
+    # Pick last 4 moves (highest level moves)
+    wild_moves = move_pool[-4:] if len(move_pool) > 4 else (move_pool if move_pool else ['Tackle'])
     
-    # If shiny, boost stats by 20%
-    pokemon_data = dict(chosen)  # copy
-    if is_shiny and 'stats' in pokemon_data:
-        boosted_stats = {}
-        for stat, val in pokemon_data['stats'].items():
-            boosted_stats[stat] = int(val * 1.2)
-        pokemon_data['stats'] = boosted_stats
-        pokemon_data['hp'] = int(pokemon_data.get('hp', 20) * 1.2)
-        pokemon_data['ac'] = pokemon_data.get('ac', 13) + 1
+    # Calculate scaled stats for the wild pokemon
+    scaled = scaling.calculate_pokemon_stats(chosen, encounter_level)
+    
+    # Build pokemon data with scaled stats
+    pokemon_data = dict(chosen)
+    pokemon_data['hp'] = scaled['hp']
+    pokemon_data['maxHp'] = scaled['maxHp']
+    pokemon_data['ac'] = scaled['ac']
+    pokemon_data['stats'] = scaled['stats']
+    pokemon_data['proficiency'] = scaled['proficiency']
+    pokemon_data['stab'] = scaled['stab']
+    
+    # Shiny boost: +20% HP, +2 AC, +2 all stats
+    if is_shiny:
+        pokemon_data['hp'] = int(pokemon_data['hp'] * 1.2)
+        pokemon_data['maxHp'] = pokemon_data['hp']
+        pokemon_data['ac'] += 2
+        for stat in pokemon_data['stats']:
+            pokemon_data['stats'][stat] += 2
     
     encounter = {
         'pokemon': pokemon_data,
@@ -858,6 +884,64 @@ def api_status_effects():
         'move_effects': {k: {'status': v['status'], 'chance': v['chance'], 'on': v['on']} 
                          for k, v in effects.MOVE_STATUS_EFFECTS.items()}
     })
+
+@app.route('/api/pokemon/stats', methods=['POST'])
+@login_required
+def api_pokemon_scaled_stats():
+    """Calculate Pokemon stats at a specific level."""
+    data = request.json
+    pokemon_number = data.get('number')
+    level = int(data.get('level', 1))
+    
+    base_pokemon = POKEMON_BY_NUMBER.get(pokemon_number)
+    if not base_pokemon:
+        return jsonify({'error': 'Pokemon not found'}), 404
+    
+    stats = scaling.calculate_pokemon_stats(base_pokemon, level)
+    stats['growth_rate'] = scaling.get_growth_rate(base_pokemon)
+    stats['xp_to_next'] = scaling.xp_to_next_level(level, stats['growth_rate'])
+    return jsonify(stats)
+
+@app.route('/api/pokemon/battle-xp', methods=['POST'])
+@login_required
+def api_battle_xp():
+    """Calculate XP reward for a battle result."""
+    data = request.json
+    winner_level = int(data.get('winner_level', 1))
+    loser_level = int(data.get('loser_level', 1))
+    loser_sr = data.get('loser_sr', '1/2')
+    is_wild = data.get('is_wild', True)
+    
+    xp = scaling.battle_xp_reward(winner_level, loser_level, loser_sr, is_wild)
+    return jsonify({'xp_gained': xp})
+
+@app.route('/api/pokemon/level-check', methods=['POST'])
+@login_required  
+def api_level_check():
+    """Check if trainer can control a Pokemon at given level."""
+    data = request.json
+    trainer_level = int(data.get('trainer_level', 1))
+    pokemon_level = int(data.get('pokemon_level', 1))
+    
+    can_control = scaling.can_control_pokemon(trainer_level, pokemon_level)
+    max_level = scaling.max_pokemon_level(trainer_level)
+    return jsonify({
+        'can_control': can_control,
+        'max_pokemon_level': max_level,
+        'trainer_level': trainer_level
+    })
+
+@app.route('/api/pokemon/damage-dice', methods=['POST'])
+@login_required
+def api_damage_dice():
+    """Get scaled damage dice for a move at a Pokemon level."""
+    data = request.json
+    base_damage = data.get('base_damage', '1d6')
+    level = int(data.get('level', 1))
+    higher_levels = data.get('higher_levels', '')
+    
+    scaled = scaling.get_scaled_damage_dice(base_damage, level, higher_levels)
+    return jsonify({'scaled_dice': scaled, 'base_dice': base_damage, 'level': level})
 
 @app.route('/api/check-status', methods=['POST'])
 @login_required
@@ -1006,49 +1090,63 @@ def handle_encounter(data):
 
 @socketio.on('roll_initiative')
 def handle_initiative(data):
-    """Roll initiative for battle - determines who goes first."""
-    if current_user.is_authenticated and current_user.role == 'master':
+    """Roll initiative for battle - determines who goes first.
+    Can be triggered by master OR player (auto mode)."""
+    if not current_user.is_authenticated:
+        return
+    
+    # Determine player_id: if master triggers, use data; if player triggers, use own id
+    if current_user.role == 'master':
         player_id = data.get('player_id')
-        game_state = get_game_state()
-        encounter = game_state['active_encounters'].get(player_id)
-        if not encounter:
-            return
-        
-        wild_pokemon = encounter['pokemon']
-        player_pokemon = encounter['player_pokemon']
-        
-        # Initiative = d20 + DEX modifier
-        wild_dex = wild_pokemon.get('stats', {}).get('DEX', 10)
-        wild_mod = (wild_dex - 10) // 2
-        player_dex = player_pokemon.get('stats', {}).get('DEX', 10) if player_pokemon else 10
-        player_mod = (player_dex - 10) // 2
-        
-        import random
-        wild_init = random.randint(1, 20) + wild_mod
-        player_init = random.randint(1, 20) + player_mod
-        
-        first_turn = 'player' if player_init >= wild_init else 'wild'
-        
-        encounter['battle_state']['initiative_rolled'] = True
-        encounter['battle_state']['turn'] = first_turn
-        encounter['battle_state']['round'] = 1
-        encounter['battle_state']['wild_initiative'] = wild_init
-        encounter['battle_state']['player_initiative'] = player_init
-        
-        game_state['active_encounters'][player_id] = encounter
-        save_game_state(game_state)
-        
-        result = {
-            'player_id': player_id,
-            'wild_initiative': wild_init,
-            'wild_mod': wild_mod,
-            'player_initiative': player_init,
-            'player_mod': player_mod,
-            'first_turn': first_turn
-        }
-        
-        emit('initiative_result', result, room='master')
-        emit('initiative_result', result, room=player_id)
+    else:
+        player_id = current_user.id
+    
+    if not player_id:
+        player_id = current_user.id
+    
+    game_state = get_game_state()
+    encounter = game_state.get('active_encounters', {}).get(player_id)
+    if not encounter:
+        return
+    
+    # Don't re-roll if already rolled
+    if encounter.get('battle_state', {}).get('initiative_rolled'):
+        return
+    
+    wild_pokemon = encounter['pokemon']
+    player_pokemon = encounter.get('player_pokemon') or {}
+    
+    # Initiative = d20 + DEX modifier
+    wild_dex = wild_pokemon.get('stats', {}).get('DEX', 10)
+    wild_mod = (wild_dex - 10) // 2
+    player_dex = player_pokemon.get('stats', {}).get('DEX', 10) if player_pokemon else 10
+    player_mod = (player_dex - 10) // 2
+    
+    wild_init = random.randint(1, 20) + wild_mod
+    player_init = random.randint(1, 20) + player_mod
+    
+    first_turn = 'player' if player_init >= wild_init else 'wild'
+    
+    encounter['battle_state']['initiative_rolled'] = True
+    encounter['battle_state']['turn'] = first_turn
+    encounter['battle_state']['round'] = 1
+    encounter['battle_state']['wild_initiative'] = wild_init
+    encounter['battle_state']['player_initiative'] = player_init
+    
+    game_state['active_encounters'][player_id] = encounter
+    save_game_state(game_state)
+    
+    result = {
+        'player_id': player_id,
+        'wild_initiative': wild_init,
+        'wild_mod': wild_mod,
+        'player_initiative': player_init,
+        'player_mod': player_mod,
+        'first_turn': first_turn
+    }
+    
+    emit('initiative_result', result, room='master')
+    emit('initiative_result', result, room=player_id)
 
 @socketio.on('battle_action')
 def handle_battle_action(data):
