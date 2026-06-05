@@ -526,10 +526,15 @@ function useMove(moveName) {
         const powerLabel = m.power || 'FOR';
         addBattleLog(`✅ Acertou! (${totalAttack} vs AC ${enemyAC}) → ${m.baseDamage||'1d6'}(${diceRoll}) + MOVE/${powerLabel}(${moveMod})${stab > 0 ? ` + STAB(${stab})` : ''}${isCrit ? ' x2 CRIT' : ''}${effectLabel ? ' ' + effectLabel : ''} = <strong>${damage} dano ${m.type||''}</strong>`);
         
+        // Check for status effect
+        checkMoveStatusEffect(moveName, attackRoll, damage);
+        
         socket.emit('battle_action', {
             action_by: 'player', action_type: 'attack', move_name: moveName,
-            damage: damage, message: `${totalAttack} vs AC ${enemyAC}${isCrit ? ' Crítico!' : ''}`
+            damage: damage, message: `${totalAttack} vs AC ${enemyAC}${isCrit ? ' Crítico!' : ''}`,
+            status_effect: window._lastStatusInflicted || null
         });
+        window._lastStatusInflicted = null;
     } else {
         addBattleLog(`❌ Errou! (${totalAttack} < AC ${enemyAC})`);
         socket.emit('battle_action', { action_by: 'player', action_type: 'attack', move_name: moveName, damage: 0, message: `Errou (${totalAttack} vs AC ${enemyAC})` });
@@ -2214,3 +2219,183 @@ socket.on('tournament_prize', (data) => {
     const moneyInput = document.getElementById('trainer-money');
     if (moneyInput) moneyInput.value = TRAINER_DATA.money;
 });
+
+
+// ============================================
+// STATUS EFFECTS SYSTEM
+// ============================================
+window.statusEffectsData = null;
+window.wildPokemonStatus = null;  // {condition: 'envenenado', turns_active: 0}
+window.playerPokemonStatus = null;
+
+// Load status effects data on page load
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const resp = await fetch('/api/status-effects');
+        window.statusEffectsData = await resp.json();
+    } catch(e) { window.statusEffectsData = {conditions: {}, move_effects: {}}; }
+});
+
+async function checkMoveStatusEffect(moveName, attackRoll, damage) {
+    // Check if a move inflicts status after hitting.
+    try {
+        const resp = await fetch('/api/check-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'check_hit', move_name: moveName, attack_roll: attackRoll, damage })
+        });
+        const data = await resp.json();
+        if (data.inflicted) {
+            window.wildPokemonStatus = { condition: data.status, turns_active: 0 };
+            window._lastStatusInflicted = data.status;
+            addBattleLog(`${data.icon} <strong>${data.name}!</strong> O Pokémon selvagem ficou ${data.name.toLowerCase()}! (${data.description})`);
+            updateStatusDisplay();
+        }
+    } catch(e) {}
+}
+
+async function processPlayerTurnStart() {
+    // Process status effects at start of player turn.
+    if (!window.playerPokemonStatus) return true;
+    
+    try {
+        const resp = await fetch('/api/check-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'turn_start',
+                pokemon_status: window.playerPokemonStatus,
+                max_hp: window.currentBattleData?.playerPokemon?.maxHp || 20
+            })
+        });
+        const data = await resp.json();
+        
+        data.messages.forEach(msg => addBattleLog(msg));
+        
+        if (data.damage > 0) {
+            // Apply self-damage from status
+            const hpText = document.getElementById('battle-player-hp-text-full').textContent;
+            const hpMatch = hpText.match(/(\d+)\/(\d+)/);
+            if (hpMatch) {
+                const newHp = Math.max(0, parseInt(hpMatch[1]) - data.damage);
+                const maxHp = parseInt(hpMatch[2]);
+                document.getElementById('battle-player-hp-text-full').textContent = `${newHp}/${maxHp} HP`;
+                document.getElementById('battle-player-hp-bar-full').style.width = `${(newHp/maxHp)*100}%`;
+            }
+        }
+        
+        if (data.status_removed) {
+            window.playerPokemonStatus = null;
+            updateStatusDisplay();
+        }
+        
+        return data.can_act;
+    } catch(e) { return true; }
+}
+
+async function processWildTurnStart() {
+    // Process status effects at start of wild turn.
+    if (!window.wildPokemonStatus) return true;
+    
+    try {
+        const resp = await fetch('/api/check-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'turn_start',
+                pokemon_status: window.wildPokemonStatus,
+                max_hp: window.currentBattleData?.enemy?.hp || 20
+            })
+        });
+        const data = await resp.json();
+        
+        data.messages.forEach(msg => addBattleLog(msg));
+        
+        if (data.damage > 0) {
+            // Apply status damage to wild pokemon (via server)
+            socket.emit('battle_action', {
+                action_by: 'status',
+                action_type: 'status_damage',
+                move_name: `Status: ${window.wildPokemonStatus.condition}`,
+                damage: data.damage,
+                message: 'Dano de condição'
+            });
+        }
+        
+        if (data.status_removed) {
+            window.wildPokemonStatus = null;
+            updateStatusDisplay();
+        }
+        
+        return data.can_act;
+    } catch(e) { return true; }
+}
+
+function updateStatusDisplay() {
+    // Show status icons near HP bars
+    const enemyHpEl = document.getElementById('battle-enemy-hp-text-full');
+    const playerHpEl = document.getElementById('battle-player-hp-text-full');
+    
+    // Remove old badges
+    document.querySelectorAll('.status-badge-display').forEach(el => el.remove());
+    
+    if (window.wildPokemonStatus) {
+        const cond = window.statusEffectsData?.conditions?.[window.wildPokemonStatus.condition];
+        if (cond && enemyHpEl) {
+            const badge = document.createElement('span');
+            badge.className = 'status-badge-display';
+            badge.style.cssText = `display:inline-block;background:${cond.color};color:white;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem;margin-left:0.5rem;`;
+            badge.textContent = `${cond.icon} ${cond.name}`;
+            enemyHpEl.parentElement.appendChild(badge);
+        }
+    }
+    
+    if (window.playerPokemonStatus) {
+        const cond = window.statusEffectsData?.conditions?.[window.playerPokemonStatus.condition];
+        if (cond && playerHpEl) {
+            const badge = document.createElement('span');
+            badge.className = 'status-badge-display';
+            badge.style.cssText = `display:inline-block;background:${cond.color};color:white;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem;margin-left:0.5rem;`;
+            badge.textContent = `${cond.icon} ${cond.name}`;
+            playerHpEl.parentElement.appendChild(badge);
+        }
+    }
+}
+
+// Hook into turn change to process status effects
+const _originalUpdateTurnUI = updateTurnUI;
+updateTurnUI = async function() {
+    _originalUpdateTurnUI();
+    if (window.currentTurn === 'player' && window.playerPokemonStatus) {
+        const canAct = await processPlayerTurnStart();
+        if (!canAct) {
+            addBattleLog('⏭️ Turno perdido por condição de status!');
+            // Auto pass turn
+            socket.emit('battle_action', { action_by: 'player', action_type: 'pass', move_name: 'Status impediu', damage: 0, message: 'Não pôde agir' });
+        }
+    }
+};
+
+// When master applies status to player's pokemon (from battle_update)
+const _originalBattleUpdate = socket._callbacks?.['$battle_update'];
+socket.on('battle_update', (data) => {
+    // Check if master applied a status effect
+    if (data.status_effect && data.action_by === 'master') {
+        window.playerPokemonStatus = { condition: data.status_effect, turns_active: 0 };
+        const cond = window.statusEffectsData?.conditions?.[data.status_effect];
+        if (cond) {
+            addBattleLog(`${cond.icon} Seu Pokémon ficou <strong>${cond.name}</strong>! ${cond.description}`);
+        }
+        updateStatusDisplay();
+    }
+});
+
+// Reset statuses when battle ends
+const _origEndBattle = endBattle;
+const _endBattleWithStatusReset = function(result) {
+    window.wildPokemonStatus = null;
+    window.playerPokemonStatus = null;
+    window.wildFainted = false;
+    _origEndBattle(result);
+};
+// Note: endBattle is already defined, this override ensures cleanup

@@ -12,6 +12,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import database as db
 import pvp_battle as pvp
+import status_effects as effects
 
 # ============================================================
 # APP SETUP
@@ -846,6 +847,54 @@ def api_items_list():
             items.append({'name': name, 'file': f})
     items.sort(key=lambda x: x['name'])
     return jsonify(items)
+
+@app.route('/api/status-effects')
+@login_required
+def api_status_effects():
+    """Get status effects data for the battle system."""
+    return jsonify({
+        'conditions': {k: {'name': v['name'], 'icon': v['icon'], 'color': v['color'], 'description': v['description']} 
+                       for k, v in effects.STATUS_CONDITIONS.items()},
+        'move_effects': {k: {'status': v['status'], 'chance': v['chance'], 'on': v['on']} 
+                         for k, v in effects.MOVE_STATUS_EFFECTS.items()}
+    })
+
+@app.route('/api/check-status', methods=['POST'])
+@login_required
+def api_check_status():
+    """Check if a move inflicts status and process turn-start effects.
+    Used by the battle frontend for real-time status processing."""
+    data = request.json
+    action = data.get('action')  # 'check_hit' or 'turn_start'
+    
+    if action == 'check_hit':
+        move_name = data.get('move_name', '')
+        attack_roll = int(data.get('attack_roll', 10))
+        damage_dealt = int(data.get('damage', 0))
+        status_key, inflicted = effects.check_status_on_hit(move_name, attack_roll, damage_dealt)
+        if inflicted:
+            condition = effects.STATUS_CONDITIONS.get(status_key, {})
+            return jsonify({
+                'inflicted': True,
+                'status': status_key,
+                'name': condition.get('name', ''),
+                'icon': condition.get('icon', ''),
+                'description': condition.get('description', '')
+            })
+        return jsonify({'inflicted': False})
+    
+    elif action == 'turn_start':
+        pokemon_status = data.get('pokemon_status')  # {condition: 'envenenado', turns_active: 2}
+        max_hp = int(data.get('max_hp', 20))
+        can_act, damage, messages, removed = effects.process_turn_start(pokemon_status, max_hp)
+        return jsonify({
+            'can_act': can_act,
+            'damage': damage,
+            'messages': messages,
+            'status_removed': removed
+        })
+    
+    return jsonify({'error': 'Invalid action'}), 400
 
 @app.route('/player/pokedex/register', methods=['POST'])
 @login_required
