@@ -936,7 +936,7 @@ async function saveTrainerData() {
         proficiencies: document.getElementById('trainer-proficiencies').value,
         pokeslots: parseInt(document.getElementById('trainer-pokeslots').value) || 3,
         money: parseInt(document.getElementById('trainer-money').value) || 0,
-        bag: document.getElementById('trainer-bag').value.split('\n').filter(l => l.trim()),
+        bag: window.bagItems || [],
         notes: document.getElementById('trainer-notes').value,
         visited_routes: TRAINER_DATA.visited_routes || []
     };
@@ -1057,11 +1057,9 @@ document.addEventListener('DOMContentLoaded', () => {
 let megaUsedThisBattle = false;
 
 async function checkMegaAvailable() {
-    // Read bag from both TRAINER_DATA and the actual textarea (in case user added items without reload)
-    const bagTextarea = document.getElementById('trainer-bag');
-    const bagText = bagTextarea ? bagTextarea.value.toLowerCase() : '';
-    const bagData = (TRAINER_DATA.bag || []).join(' ').toLowerCase();
-    const bag = bagText + ' ' + bagData;
+    // Read bag from TRAINER_DATA (now array of {name, qty, file} objects)
+    const bagItems = window.bagItems || TRAINER_DATA.bag || [];
+    const bag = Array.isArray(bagItems) ? bagItems.map(i => typeof i === 'string' ? i : (i.name || '')).join(' ').toLowerCase() : '';
     
     const hasKeyStone = bag.includes('pedra-chave') || bag.includes('pedra chave') || bag.includes('key stone') || bag.includes('mega ring') || bag.includes('mega bracelete');
     
@@ -1246,3 +1244,255 @@ async function confirmSwitch(teamIdx) {
     megaUsedThisBattle = false;
     checkMegaAvailable();
 }
+
+// ============================================
+// VISUAL BAG SYSTEM
+// ============================================
+window.bagItems = [];
+window.allItemSprites = [];
+
+async function loadItemSprites() {
+    try {
+        const resp = await fetch('/api/items');
+        window.allItemSprites = await resp.json();
+    } catch(e) { window.allItemSprites = []; }
+}
+
+function initBag() {
+    // Convert legacy bag (array of strings) to new format (array of objects)
+    const rawBag = TRAINER_DATA.bag || [];
+    if (rawBag.length > 0 && typeof rawBag[0] === 'string') {
+        // Legacy format: "5 Pokébolas" or "Poção"
+        window.bagItems = rawBag.map(line => {
+            const match = line.match(/^(\d+)\s+(.+)$/);
+            if (match) {
+                return { name: match[2].trim(), qty: parseInt(match[1]), file: nameToFile(match[2].trim()) };
+            }
+            return { name: line.trim(), qty: 1, file: nameToFile(line.trim()) };
+        }).filter(i => i.name);
+    } else if (rawBag.length > 0 && typeof rawBag[0] === 'object') {
+        window.bagItems = rawBag;
+    } else {
+        window.bagItems = [];
+    }
+    renderBag();
+}
+
+function nameToFile(name) {
+    // Try to find a matching sprite file
+    const normalized = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+    const found = window.allItemSprites.find(i => 
+        i.file.replace('.png', '') === normalized ||
+        i.name.toLowerCase() === name.toLowerCase()
+    );
+    return found ? found.file : null;
+}
+
+function renderBag() {
+    const grid = document.getElementById('bag-grid');
+    if (!grid) return;
+    if (window.bagItems.length === 0) {
+        grid.innerHTML = '<p class="empty-state" style="grid-column:1/-1;">Bolsa vazia. Use a busca acima para adicionar itens.</p>';
+        return;
+    }
+    grid.innerHTML = window.bagItems.map((item, idx) => {
+        const imgSrc = item.file ? `/static/img/items/${item.file}` : '/static/img/pokeball-icon.svg';
+        return `
+            <div class="bag-item" title="${item.name}">
+                <button class="bag-item-remove" onclick="removeBagItem(${idx})">×</button>
+                <span class="bag-item-qty">${item.qty}</span>
+                <img src="${imgSrc}" alt="${item.name}" onerror="this.src='/static/img/pokeball-icon.svg'">
+                <span class="bag-item-name">${item.name}</span>
+                <div class="bag-item-qty-controls">
+                    <button onclick="changeBagQty(${idx}, -1)">−</button>
+                    <button onclick="changeBagQty(${idx}, 1)">+</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function addBagItem() {
+    const searchInput = document.getElementById('bag-item-search');
+    const qtyInput = document.getElementById('bag-item-qty');
+    const name = searchInput.value.trim();
+    const qty = parseInt(qtyInput.value) || 1;
+    if (!name) return;
+    
+    // Check if already exists
+    const existing = window.bagItems.find(i => i.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+        existing.qty += qty;
+    } else {
+        window.bagItems.push({ name, qty, file: nameToFile(name) });
+    }
+    
+    searchInput.value = '';
+    qtyInput.value = '1';
+    document.getElementById('bag-item-results').innerHTML = '';
+    renderBag();
+}
+
+function removeBagItem(idx) {
+    window.bagItems.splice(idx, 1);
+    renderBag();
+}
+
+function changeBagQty(idx, delta) {
+    window.bagItems[idx].qty = Math.max(0, window.bagItems[idx].qty + delta);
+    if (window.bagItems[idx].qty <= 0) {
+        window.bagItems.splice(idx, 1);
+    }
+    renderBag();
+}
+
+// Bag item search autocomplete
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('bag-item-search');
+    const resultsDiv = document.getElementById('bag-item-results');
+    if (!searchInput) return;
+    
+    searchInput.addEventListener('input', () => {
+        const query = searchInput.value.toLowerCase().trim();
+        if (query.length < 2) { resultsDiv.innerHTML = ''; return; }
+        
+        const matches = window.allItemSprites.filter(i => 
+            i.name.toLowerCase().includes(query)
+        ).slice(0, 12);
+        
+        resultsDiv.innerHTML = matches.map(item => `
+            <div class="autocomplete-item" onclick="selectBagItem('${item.name.replace(/'/g, "\\'")}', '${item.file}')">
+                <img src="/static/img/items/${item.file}" width="20" height="20" style="image-rendering:pixelated;vertical-align:middle;margin-right:0.5rem;">
+                ${item.name}
+            </div>
+        `).join('');
+    });
+    
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addBagItem(); }
+    });
+    
+    // Close on click outside
+    document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !resultsDiv.contains(e.target)) {
+            resultsDiv.innerHTML = '';
+        }
+    });
+});
+
+function selectBagItem(name, file) {
+    document.getElementById('bag-item-search').value = name;
+    document.getElementById('bag-item-results').innerHTML = '';
+    // Auto-set file for this item
+    window._selectedItemFile = file;
+}
+
+// Override nameToFile to use selection when available
+const _origNameToFile = nameToFile;
+function nameToFileWithCache(name) {
+    if (window._selectedItemFile) {
+        const f = window._selectedItemFile;
+        window._selectedItemFile = null;
+        return f;
+    }
+    return _origNameToFile(name);
+}
+// Patch addBagItem to use it
+const _origAddBagItem = addBagItem;
+
+// ============================================
+// AVATAR UPLOAD
+// ============================================
+async function uploadAvatar(input) {
+    if (!input.files || !input.files[0]) return;
+    const formData = new FormData();
+    formData.append('avatar', input.files[0]);
+    
+    try {
+        const resp = await fetch('/player/avatar', { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (data.success) {
+            document.getElementById('trainer-avatar-img').src = data.avatar_url + '?t=' + Date.now();
+        } else {
+            alert('Erro: ' + (data.error || 'Falha no upload'));
+        }
+    } catch(e) {
+        alert('Erro no upload da imagem');
+    }
+}
+
+// ============================================
+// SPECIALIZATION AUTOCOMPLETE
+// ============================================
+const SPECIALIZATIONS_LIST = [
+    // Treinador Ás
+    'Líder Nato', 'Estrategista', 'Comandante de Batalha',
+    // Versátil
+    'Piromaníaco', 'Nadador', 'Alpinista', 'Acrobata', 'Lutador',
+    'Naturalista', 'Músico', 'Cozinheiro', 'Inventor',
+    // Mentor Pokémon
+    'Criador', 'Curandeiro', 'Treinador de Pokémon',
+    // Pesquisador
+    'Arqueólogo', 'Biólogo', 'Paleontólogo', 'Químico', 'Meteorologista',
+    'Geólogo', 'Tecnólogo', 'Professor',
+    // Colecionador Pokémon
+    'Caçador de Shinies', 'Completista', 'Colecionador de Fósseis',
+    // Extras comuns
+    'Detetive', 'Guarda', 'Médico', 'Artista', 'Explorador',
+    'Pirata', 'Ninja', 'Cavaleiro', 'Ranger', 'Coordenador',
+    'Cientista', 'Ferreiro', 'Pescador', 'Surfista',
+    'Mergulhador', 'Ciclista', 'Corredor', 'Ladrão',
+    'Espião', 'Diplomata', 'Comerciante', 'Fazendeiro'
+];
+
+document.addEventListener('DOMContentLoaded', () => {
+    const specInput = document.getElementById('trainer-specializations');
+    const specResults = document.getElementById('spec-autocomplete');
+    if (!specInput || !specResults) return;
+    
+    specInput.addEventListener('input', () => {
+        const val = specInput.value;
+        // Get the last part after comma
+        const parts = val.split(',');
+        const query = parts[parts.length - 1].trim().toLowerCase();
+        
+        if (query.length < 1) { specResults.innerHTML = ''; return; }
+        
+        const matches = SPECIALIZATIONS_LIST.filter(s => 
+            s.toLowerCase().includes(query)
+        ).slice(0, 8);
+        
+        if (matches.length === 0) { specResults.innerHTML = ''; return; }
+        
+        specResults.innerHTML = matches.map(s => `
+            <div class="autocomplete-item" onclick="selectSpecialization('${s}')">${s}</div>
+        `).join('');
+    });
+    
+    specInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') specResults.innerHTML = '';
+    });
+    
+    document.addEventListener('click', (e) => {
+        if (!specInput.contains(e.target) && !specResults.contains(e.target)) {
+            specResults.innerHTML = '';
+        }
+    });
+});
+
+function selectSpecialization(spec) {
+    const input = document.getElementById('trainer-specializations');
+    const parts = input.value.split(',');
+    parts[parts.length - 1] = ' ' + spec;
+    input.value = parts.join(',').replace(/^,\s*/, '').replace(/\s+,/g, ',');
+    document.getElementById('spec-autocomplete').innerHTML = '';
+    input.focus();
+}
+
+// ============================================
+// INIT BAG ON PAGE LOAD
+// ============================================
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadItemSprites();
+    initBag();
+});

@@ -650,7 +650,8 @@ def update_trainer():
                          'race', 'background', 'path', 'specializations',
                          'str', 'dex', 'con', 'int', 'wis', 'cha',
                          'hp_max', 'hp_current', 'proficiencies',
-                         'money', 'pokeslots', 'pokedex_seen']
+                         'money', 'pokeslots', 'max_sr', 'pokedex_seen',
+                         'avatar']
         for field in allowed_fields:
             if field in data:
                 trainer[field] = data[field]
@@ -658,6 +659,46 @@ def update_trainer():
         save_users(users)
         return jsonify({'success': True})
     return jsonify({'error': 'User not found'}), 404
+
+@app.route('/player/avatar', methods=['POST'])
+@login_required
+def upload_avatar():
+    """Upload player avatar image."""
+    if 'avatar' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    file = request.files['avatar']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    # Validate file type
+    allowed_ext = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in allowed_ext:
+        return jsonify({'error': 'Invalid file type'}), 400
+    # Save with user-specific name
+    filename = f"{current_user.id}{ext}"
+    filepath = os.path.join('static', 'uploads', 'avatars', filename)
+    file.save(filepath)
+    # Update trainer data with avatar path
+    users = get_users()
+    if current_user.id in users:
+        users[current_user.id]['trainer_data']['avatar'] = f"/static/uploads/avatars/{filename}"
+        save_users(users)
+    return jsonify({'success': True, 'avatar_url': f"/static/uploads/avatars/{filename}"})
+
+@app.route('/api/items')
+@login_required
+def api_items_list():
+    """List available item sprites for the bag system."""
+    items_dir = os.path.join('static', 'img', 'items')
+    if not os.path.exists(items_dir):
+        return jsonify([])
+    items = []
+    for f in os.listdir(items_dir):
+        if f.endswith('.png') and not f.startswith('Bag_'):
+            name = f.replace('.png', '').replace('-', ' ').title()
+            items.append({'name': name, 'file': f})
+    items.sort(key=lambda x: x['name'])
+    return jsonify(items)
 
 @app.route('/player/pokedex/register', methods=['POST'])
 @login_required

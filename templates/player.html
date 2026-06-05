@@ -347,8 +347,15 @@
     <div class="tab-content" id="tab-trainer">
         <h2>Ficha do Treinador Pokémon</h2>
         <div class="trainer-sheet">
-            <!-- Header with XP -->
+            <!-- Header with Avatar + XP -->
             <div class="trainer-header">
+                <div class="trainer-avatar-section">
+                    <div class="trainer-avatar" id="trainer-avatar">
+                        <img src="{{ trainer.avatar or '/static/img/pokeball-icon.svg' }}" alt="Avatar" id="trainer-avatar-img">
+                        <label class="avatar-upload-btn" for="avatar-upload">📷</label>
+                        <input type="file" id="avatar-upload" accept="image/*" onchange="uploadAvatar(this)" hidden>
+                    </div>
+                </div>
                 <div class="trainer-info">
                     <input type="text" id="trainer-name-input" class="trainer-name-input" 
                            value="{{ trainer.name or current_user.username }}" placeholder="Nome do Treinador">
@@ -442,11 +449,12 @@
                             <option value="Colecionador Pokémon" {% if trainer.path == 'Colecionador Pokémon' %}selected{% endif %}>Colecionador Pokémon</option>
                         </select>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" style="position:relative;">
                         <label>Especializações</label>
                         <input type="text" id="trainer-specializations" 
                                value="{{ trainer.specializations or '' }}" 
-                               placeholder="Ex: Piromaníaco, Nadador...">
+                               placeholder="Digite para buscar..." autocomplete="off">
+                        <div id="spec-autocomplete" class="autocomplete-results"></div>
                     </div>
                 </div>
 
@@ -478,16 +486,30 @@
 
                 <div class="trainer-section">
                     <h4>🎒 Bolsa / Itens</h4>
-                    <textarea id="trainer-bag" rows="6" placeholder="Liste seus itens aqui...&#10;5 Pokébolas&#10;1 Poção&#10;Licença de Treinador&#10;Pokédex">{{ trainer.bag|join('\n') if trainer.bag else '5 Pokébolas\n1 Poção\nLicença de Treinador\nPokédex' }}</textarea>
+                    <div class="bag-controls">
+                        <div class="form-row" style="margin-bottom:0.75rem;">
+                            <div class="form-group" style="position:relative;flex:2;">
+                                <input type="text" id="bag-item-search" placeholder="Buscar item para adicionar..." autocomplete="off">
+                                <div id="bag-item-results" class="autocomplete-results"></div>
+                            </div>
+                            <div class="form-group" style="flex:0 0 80px;">
+                                <input type="number" id="bag-item-qty" value="1" min="1" max="99" placeholder="Qtd">
+                            </div>
+                            <button class="btn btn-primary btn-sm" onclick="addBagItem()">+ Adicionar</button>
+                        </div>
+                    </div>
+                    <div class="bag-grid" id="bag-grid">
+                        <!-- Items rendered by JS -->
+                    </div>
                 </div>
 
                 <div class="trainer-section">
                     <h4>🏅 Insígnias</h4>
                     <div class="badges-grid" id="badges-grid">
                         {% for i in range(8) %}
-                        <div class="badge-slot {% if trainer.badges and i < trainer.badges|length %}earned{% endif %}"
+                        <div class="badge-slot {% if trainer.badges and i in trainer.badges %}earned{% endif %}"
                              data-badge="{{ i }}" onclick="toggleBadge({{ i }})">
-                            {{ i + 1 }}
+                            <img src="{{ url_for('static', filename='img/badges/' ~ (i+1) ~ '.png') }}" alt="Insígnia {{ i+1 }}" class="badge-img">
                         </div>
                         {% endfor %}
                     </div>

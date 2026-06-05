@@ -1467,3 +1467,203 @@ body {
 .pokeball-icon img {
     filter: brightness(1.2);
 }
+
+
+/* ============================================
+   TRAINER AVATAR
+   ============================================ */
+.trainer-avatar-section {
+    display: flex;
+    align-items: center;
+}
+
+.trainer-avatar {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid var(--accent);
+    cursor: pointer;
+}
+
+.trainer-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatar-upload-btn {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    text-align: center;
+    padding: 0.15rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.trainer-avatar:hover .avatar-upload-btn {
+    opacity: 1;
+}
+
+/* ============================================
+   VISUAL BAG (INVENTORY GRID)
+   ============================================ */
+.bag-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 0.5rem;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 0.25rem;
+}
+
+.bag-item {
+    background: var(--darker);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 0.4rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.bag-item:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+}
+
+.bag-item img {
+    width: 32px;
+    height: 32px;
+    image-rendering: pixelated;
+}
+
+.bag-item-name {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-align: center;
+    line-height: 1.1;
+    max-height: 2.2em;
+    overflow: hidden;
+}
+
+.bag-item-qty {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    background: var(--primary);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: bold;
+    padding: 0.1rem 0.3rem;
+    border-radius: 8px;
+    min-width: 18px;
+    text-align: center;
+}
+
+.bag-item-remove {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    background: var(--danger);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    font-size: 0.6rem;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.bag-item:hover .bag-item-remove {
+    display: flex;
+}
+
+.bag-item-qty-controls {
+    display: flex;
+    gap: 0.2rem;
+    align-items: center;
+}
+
+.bag-item-qty-controls button {
+    background: var(--card-border);
+    border: none;
+    color: var(--text);
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.bag-item-qty-controls button:hover {
+    background: var(--accent);
+    color: var(--dark);
+}
+
+/* ============================================
+   BADGES WITH REAL IMAGES
+   ============================================ */
+.badge-slot {
+    width: 55px;
+    height: 55px;
+    border-radius: 50%;
+    background: var(--card-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+    overflow: hidden;
+}
+
+.badge-slot .badge-img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    filter: grayscale(100%) brightness(0.4);
+    transition: filter 0.3s;
+}
+
+.badge-slot.earned {
+    background: var(--card-bg);
+    border-color: var(--accent);
+    box-shadow: 0 0 8px rgba(244, 162, 97, 0.4);
+}
+
+.badge-slot.earned .badge-img {
+    filter: none;
+}
+
+.badge-slot:hover {
+    transform: scale(1.1);
+}
+
+/* ============================================
+   SPECIALIZATION AUTOCOMPLETE
+   ============================================ */
+#spec-autocomplete {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 50;
+}
