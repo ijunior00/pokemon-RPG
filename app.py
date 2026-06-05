@@ -1620,6 +1620,212 @@ def api_players_list():
     return jsonify(players)
 
 # ============================================================
+# TOURNAMENT MANAGEMENT
+# ============================================================
+@app.route('/master/tournament', methods=['POST'])
+@login_required
+def create_tournament_route():
+    """Create a new tournament."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json
+    name = data.get('name', 'Campeonato')
+    max_participants = int(data.get('max_participants', 16))
+    prizes = {
+        'first': {'money': int(data.get('prize_1_money', 0)), 'extra': data.get('prize_extra', '')},
+        'second': {'money': int(data.get('prize_2_money', 0))},
+        'third': {'money': int(data.get('prize_3_money', 0))},
+        'places': int(data.get('prize_places', 3))
+    }
+    tournament = pvp.create_tournament(name, prizes, max_participants)
+    ACTIVE_TOURNAMENTS[tournament['id']] = tournament
+    return jsonify(tournament)
+
+@app.route('/master/tournament/<tourney_id>/participants', methods=['POST'])
+@login_required
+def add_tournament_participant(tourney_id):
+    """Add a participant (player or NPC) to tournament."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    tournament = ACTIVE_TOURNAMENTS.get(tourney_id)
+    if not tournament:
+        return jsonify({'error': 'Tournament not found'}), 404
+    if tournament['status'] != 'registration':
+        return jsonify({'error': 'Tournament already started'}), 400
+    
+    data = request.json
+    participant_type = data.get('type', 'player')  # 'player' or 'npc'
+    
+    if participant_type == 'player':
+        player_id = data.get('player_id')
+        users = get_users()
+        if player_id not in users:
+            return jsonify({'error': 'Player not found'}), 404
+        user = users[player_id]
+        trainer = user.get('trainer_data', {})
+        participant = {
+            'id': player_id,
+            'name': trainer.get('name', user['username']),
+            'is_npc': False,
+            'team': trainer.get('team', [])
+        }
+    else:
+        npc_id = data.get('npc_id')
+        npcs = db.get_npcs()
+        npc = next((n for n in npcs if n.get('id') == npc_id), None)
+        if not npc:
+            return jsonify({'error': 'NPC not found'}), 404
+        participant = {
+            'id': f"npc_{npc['id']}",
+            'name': npc['name'],
+            'is_npc': True,
+            'team': npc.get('team', [])
+        }
+    
+    # Check if already registered
+    if any(p['id'] == participant['id'] for p in tournament['participants']):
+        return jsonify({'error': 'Já registrado'}), 400
+    
+    if len(tournament['participants']) >= tournament['max_participants']:
+        return jsonify({'error': 'Campeonato lotado'}), 400
+    
+    tournament['participants'].append(participant)
+    return jsonify({'success': True, 'participants': tournament['participants']})
+
+@app.route('/master/tournament/<tourney_id>/start', methods=['POST'])
+@login_required
+def start_tournament_route(tourney_id):
+    """Start the tournament - generate bracket."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    tournament = ACTIVE_TOURNAMENTS.get(tourney_id)
+    if not tournament:
+        return jsonify({'error': 'Tournament not found'}), 404
+    if len(tournament['participants']) < 2:
+        return jsonify({'error': 'Mínimo 2 participantes'}), 400
+    
+    bracket = pvp.generate_bracket(tournament)
+    
+    # Notify all players
+    for p in tournament['participants']:
+        if not p.get('is_npc'):
+            socketio.emit('tournament_started', {
+                'tournament_id': tourney_id,
+                'name': tournament['name'],
+                'participants': len(tournament['participants'])
+            }, room=p['id'])
+    
+    return jsonify({'success': True, 'bracket': bracket})
+
+@app.route('/master/tournament/<tourney_id>/bracket')
+@login_required
+def get_tournament_bracket(tourney_id):
+    """Get current bracket state."""
+    tournament = ACTIVE_TOURNAMENTS.get(tourney_id)
+    if not tournament:
+        return jsonify({'error': 'Not found'}), 404
+    return jsonify(tournament)
+
+@app.route('/master/tournament/<tourney_id>/match/<match_id>/result', methods=['POST'])
+@login_required
+def set_match_result(tourney_id, match_id):
+    """Set the winner of a tournament match."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    tournament = ACTIVE_TOURNAMENTS.get(tourney_id)
+    if not tournament:
+        return jsonify({'error': 'Tournament not found'}), 404
+    
+    data = request.json
+    winner_id = data.get('winner_id')
+    
+    # Find and update match
+    for match in tournament['bracket']:
+        if match['id'] == match_id:
+            match['winner'] = winner_id
+            break
+    
+    # Check if current round is complete
+    current_round = tournament['current_round']
+    round_matches = [m for m in tournament['bracket'] if m['round'] == current_round]
+    all_decided = all(m['winner'] is not None for m in round_matches)
+    
+    if all_decided:
+        # Generate next round
+        winners = []
+        for m in round_matches:
+            winner_participant = m['player1'] if m['player1'] and m['player1']['id'] == m['winner'] else m['player2']
+            if winner_participant:
+                winners.append(winner_participant)
+        
+        if len(winners) <= 1:
+            # Tournament over
+            tournament['status'] = 'finished'
+            tournament['results'] = {
+                'first': winners[0] if winners else None,
+                'second': None,  # loser of final
+                'third': None
+            }
+            # Find final loser
+            final_match = round_matches[0] if round_matches else None
+            if final_match:
+                loser = final_match['player1'] if final_match['player1'] and final_match['player1']['id'] != final_match['winner'] else final_match['player2']
+                tournament['results']['second'] = loser
+            
+            # Award prizes
+            award_tournament_prizes(tournament)
+            
+            return jsonify({'success': True, 'status': 'finished', 'results': tournament['results']})
+        else:
+            # Generate next round matches
+            next_round = current_round + 1
+            for i in range(0, len(winners), 2):
+                new_match = {
+                    'id': f"match_{secrets.token_hex(3)}",
+                    'round': next_round,
+                    'player1': winners[i],
+                    'player2': winners[i + 1] if i + 1 < len(winners) else None,
+                    'winner': None,
+                    'battle_id': None
+                }
+                if new_match['player2'] is None:
+                    new_match['winner'] = new_match['player1']['id']
+                tournament['bracket'].append(new_match)
+            tournament['current_round'] = next_round
+    
+    return jsonify({'success': True, 'bracket': tournament['bracket']})
+
+
+def award_tournament_prizes(tournament):
+    """Award prizes to tournament winners."""
+    prizes = tournament.get('prizes', {})
+    results = tournament.get('results', {})
+    users = get_users()
+    
+    placements = [('first', results.get('first')), ('second', results.get('second')), ('third', results.get('third'))]
+    max_places = prizes.get('places', 3)
+    
+    for i, (place, participant) in enumerate(placements):
+        if i >= max_places or not participant or participant.get('is_npc'):
+            continue
+        player_id = participant['id']
+        if player_id in users:
+            trainer = users[player_id].get('trainer_data', {})
+            prize_money = prizes.get(place, {}).get('money', 0)
+            if prize_money > 0:
+                trainer['money'] = trainer.get('money', 0) + prize_money
+            users[player_id]['trainer_data'] = trainer
+            
+            socketio.emit('tournament_prize', {
+                'tournament': tournament['name'],
+                'place': place,
+                'money': prize_money,
+                'extra': prizes.get('first', {}).get('extra', '') if place == 'first' else ''
+            }, room=player_id)
+    
+    save_users(users)
+
+# ============================================================
 # RUN
 # ============================================================
 if __name__ == '__main__':

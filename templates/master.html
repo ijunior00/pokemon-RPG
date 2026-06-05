@@ -12,6 +12,7 @@
         <button class="tab" data-tab="pokedex">📖 Pokédex</button>
         <button class="tab" data-tab="quests">📜 Quests</button>
         <button class="tab" data-tab="xp">⭐ XP</button>
+        <button class="tab" data-tab="tournament">🏆 Campeonato</button>
         <button class="tab" data-tab="map">🗺️ Mapa</button>
         <button class="tab" data-tab="settings">🎨 Visual</button>
     </div>
@@ -323,6 +324,93 @@
                 </div>
             </div>
             {% endfor %}
+        </div>
+    </div>
+
+    <!-- TAB: TOURNAMENT -->
+    <div class="tab-content" id="tab-tournament">
+        <h2>🏆 Gerenciar Campeonato</h2>
+        
+        <!-- Create Tournament -->
+        <div class="quest-form" style="border:2px solid var(--accent);">
+            <h4>Criar Novo Campeonato</h4>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nome do Campeonato</label>
+                    <input type="text" id="tourney-name" placeholder="Ex: Copa Galar 2024">
+                </div>
+                <div class="form-group" style="flex:0 0 120px;">
+                    <label>Participantes</label>
+                    <select id="tourney-size">
+                        <option value="4">4</option>
+                        <option value="8">8</option>
+                        <option value="16" selected>16</option>
+                    </select>
+                </div>
+            </div>
+            <h5 style="color:var(--accent);margin:0.75rem 0 0.5rem;">🎁 Premiação</h5>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>1º Lugar - ₽</label>
+                    <input type="number" id="tourney-prize-1-money" value="1000" min="0">
+                </div>
+                <div class="form-group">
+                    <label>2º Lugar - ₽</label>
+                    <input type="number" id="tourney-prize-2-money" value="500" min="0">
+                </div>
+                <div class="form-group">
+                    <label>3º Lugar - ₽</label>
+                    <input type="number" id="tourney-prize-3-money" value="250" min="0">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Premiação extra (itens, pokémon, etc.) — campo livre</label>
+                <input type="text" id="tourney-prize-extra" placeholder="Ex: 1 Rare Candy, 3 Ultra Ball, Pokémon Eevee Nv.10">
+            </div>
+            <div class="form-group">
+                <label>Colocações premiadas</label>
+                <select id="tourney-prize-places">
+                    <option value="1">Apenas 1º lugar</option>
+                    <option value="2">1º e 2º lugar</option>
+                    <option value="3" selected>1º, 2º e 3º lugar</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="createTournament()">🏆 Criar Campeonato</button>
+        </div>
+
+        <!-- Active Tournament -->
+        <div id="tournament-active" class="hidden" style="margin-top:1.5rem;">
+            <h3 id="tourney-active-name">Campeonato</h3>
+            
+            <!-- Registration Phase -->
+            <div id="tourney-registration" class="hidden">
+                <p style="color:var(--text-muted);margin-bottom:1rem;">Adicione jogadores e NPCs ao campeonato.</p>
+                <div class="form-row" style="margin-bottom:1rem;">
+                    <div class="form-group">
+                        <label>Adicionar Jogador</label>
+                        <select id="tourney-add-player">
+                            {% for uid, player in players.items() %}
+                            <option value="{{ uid }}">{{ player.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="tourneyAddPlayer()">+ Jogador</button>
+                    <div class="form-group">
+                        <label>Adicionar NPC</label>
+                        <select id="tourney-add-npc"></select>
+                    </div>
+                    <button class="btn btn-sm btn-warning" onclick="tourneyAddNpc()">+ NPC</button>
+                </div>
+                <div id="tourney-participants" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;"></div>
+                <button class="btn btn-success btn-lg" onclick="startTournament()">▶️ Iniciar Campeonato</button>
+            </div>
+            
+            <!-- Bracket Display -->
+            <div id="tourney-bracket" class="hidden" style="margin-top:1rem;">
+                <h4>Bracket</h4>
+                <div id="tourney-bracket-display" style="overflow-x:auto;"></div>
+                <div id="tourney-current-match" style="margin-top:1rem;"></div>
+            </div>
         </div>
     </div>
 

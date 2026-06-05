@@ -2195,3 +2195,22 @@ socket.on('transfer_received', (data) => {
         renderBag();
     }
 });
+
+
+// ============================================
+// TOURNAMENT NOTIFICATIONS (Player side)
+// ============================================
+socket.on('tournament_started', (data) => {
+    alert(`🏆 Campeonato "${data.name}" começou! ${data.participants} participantes. Prepare-se para as batalhas!`);
+});
+
+socket.on('tournament_prize', (data) => {
+    let msg = `🏆 Parabéns! Você ficou em ${data.place === 'first' ? '1º' : data.place === 'second' ? '2º' : '3º'} lugar no ${data.tournament}!`;
+    if (data.money > 0) msg += `\n💰 Prêmio: ₽${data.money}`;
+    if (data.extra) msg += `\n🎁 Extra: ${data.extra}`;
+    alert(msg);
+    // Update local money
+    TRAINER_DATA.money = (TRAINER_DATA.money || 0) + (data.money || 0);
+    const moneyInput = document.getElementById('trainer-money');
+    if (moneyInput) moneyInput.value = TRAINER_DATA.money;
+});

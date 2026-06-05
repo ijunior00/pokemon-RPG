@@ -802,3 +802,212 @@ async function generateNpc() {
         resultDiv.innerHTML = `<span style="color:var(--danger);">❌ Erro de conexão</span>`;
     }
 }
+
+
+// ============================================
+// TOURNAMENT MANAGEMENT
+// ============================================
+window.activeTournament = null;
+
+async function createTournament() {
+    const name = document.getElementById('tourney-name').value.trim();
+    const size = parseInt(document.getElementById('tourney-size').value);
+    const prize1Money = parseInt(document.getElementById('tourney-prize-1-money').value) || 0;
+    const prize2Money = parseInt(document.getElementById('tourney-prize-2-money').value) || 0;
+    const prize3Money = parseInt(document.getElementById('tourney-prize-3-money').value) || 0;
+    const prizeExtra = document.getElementById('tourney-prize-extra').value;
+    const prizePlaces = parseInt(document.getElementById('tourney-prize-places').value);
+    
+    if (!name) { alert('Digite o nome do campeonato!'); return; }
+    
+    const resp = await fetch('/master/tournament', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            name, max_participants: size,
+            prize_1_money: prize1Money, prize_2_money: prize2Money, prize_3_money: prize3Money,
+            prize_extra: prizeExtra, prize_places: prizePlaces
+        })
+    });
+    const tournament = await resp.json();
+    
+    if (tournament.error) { alert(tournament.error); return; }
+    
+    window.activeTournament = tournament;
+    showElement('tournament-active');
+    document.getElementById('tourney-active-name').textContent = `🏆 ${tournament.name}`;
+    showElement('tourney-registration');
+    
+    // Load NPCs for dropdown
+    loadTourneyNpcs();
+    renderTourneyParticipants();
+}
+
+async function loadTourneyNpcs() {
+    const resp = await fetch('/master/npcs');
+    const npcs = await resp.json();
+    const select = document.getElementById('tourney-add-npc');
+    select.innerHTML = npcs.map(n => `<option value="${n.id}">${n.name} (Nv.${n.level})</option>`).join('');
+}
+
+async function tourneyAddPlayer() {
+    const playerId = document.getElementById('tourney-add-player').value;
+    if (!playerId || !window.activeTournament) return;
+    
+    const resp = await fetch(`/master/tournament/${window.activeTournament.id}/participants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'player', player_id: playerId })
+    });
+    const data = await resp.json();
+    if (data.error) { alert(data.error); return; }
+    window.activeTournament.participants = data.participants;
+    renderTourneyParticipants();
+}
+
+async function tourneyAddNpc() {
+    const npcId = document.getElementById('tourney-add-npc').value;
+    if (!npcId || !window.activeTournament) return;
+    
+    const resp = await fetch(`/master/tournament/${window.activeTournament.id}/participants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'npc', npc_id: npcId })
+    });
+    const data = await resp.json();
+    if (data.error) { alert(data.error); return; }
+    window.activeTournament.participants = data.participants;
+    renderTourneyParticipants();
+}
+
+function renderTourneyParticipants() {
+    const container = document.getElementById('tourney-participants');
+    const t = window.activeTournament;
+    if (!t) return;
+    
+    container.innerHTML = t.participants.map((p, i) => `
+        <span style="background:${p.is_npc ? 'var(--warning)' : 'var(--secondary)'};color:${p.is_npc ? 'var(--dark)' : 'white'};padding:0.3rem 0.6rem;border-radius:4px;font-size:0.85rem;">
+            ${i + 1}. ${p.name} ${p.is_npc ? '(NPC)' : ''}
+        </span>
+    `).join('');
+    
+    container.innerHTML += `<span style="color:var(--text-muted);font-size:0.8rem;margin-left:0.5rem;">${t.participants.length}/${t.max_participants}</span>`;
+}
+
+async function startTournament() {
+    if (!window.activeTournament) return;
+    const t = window.activeTournament;
+    
+    if (t.participants.length < 2) {
+        alert('Mínimo 2 participantes para iniciar!');
+        return;
+    }
+    
+    if (!confirm(`Iniciar ${t.name} com ${t.participants.length} participantes?`)) return;
+    
+    const resp = await fetch(`/master/tournament/${t.id}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await resp.json();
+    
+    if (data.error) { alert(data.error); return; }
+    
+    window.activeTournament.bracket = data.bracket;
+    window.activeTournament.status = 'in_progress';
+    window.activeTournament.current_round = 1;
+    
+    hideElement('tourney-registration');
+    showElement('tourney-bracket');
+    renderBracket();
+}
+
+function renderBracket() {
+    const t = window.activeTournament;
+    if (!t || !t.bracket) return;
+    
+    const container = document.getElementById('tourney-bracket-display');
+    
+    // Group by round
+    const rounds = {};
+    t.bracket.forEach(m => {
+        if (!rounds[m.round]) rounds[m.round] = [];
+        rounds[m.round].push(m);
+    });
+    
+    const roundNames = { 1: 'Rodada 1', 2: 'Quartas', 3: 'Semifinal', 4: 'Final' };
+    
+    let html = '<div style="display:flex;gap:2rem;overflow-x:auto;padding:1rem 0;">';
+    
+    for (const [roundNum, matches] of Object.entries(rounds).sort((a, b) => a[0] - b[0])) {
+        html += `<div style="min-width:220px;">`;
+        html += `<h5 style="color:var(--accent);margin-bottom:0.75rem;">${roundNames[roundNum] || 'Rodada ' + roundNum}</h5>`;
+        
+        matches.forEach(match => {
+            const p1Name = match.player1 ? match.player1.name : 'BYE';
+            const p2Name = match.player2 ? match.player2.name : 'BYE';
+            const isDecided = match.winner !== null;
+            const p1Won = match.winner === (match.player1 ? match.player1.id : null);
+            const p2Won = match.winner === (match.player2 ? match.player2.id : null);
+            const canDecide = !isDecided && match.player1 && match.player2 && parseInt(roundNum) === t.current_round;
+            
+            html += `
+                <div style="background:var(--darker);border:1px solid ${isDecided ? 'var(--success)' : 'var(--card-border)'};border-radius:var(--radius);padding:0.5rem;margin-bottom:0.5rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:0.2rem 0;${p1Won ? 'color:var(--success);font-weight:bold;' : ''}">
+                        <span>${p1Name}</span>
+                        ${canDecide ? `<button class="btn btn-sm btn-success" onclick="setMatchWinner('${match.id}', '${match.player1.id}')" style="padding:0.1rem 0.4rem;font-size:0.7rem;">✓</button>` : ''}
+                        ${p1Won ? '🏆' : ''}
+                    </div>
+                    <div style="border-top:1px solid var(--card-border);margin:0.2rem 0;"></div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:0.2rem 0;${p2Won ? 'color:var(--success);font-weight:bold;' : ''}">
+                        <span>${p2Name}</span>
+                        ${canDecide ? `<button class="btn btn-sm btn-success" onclick="setMatchWinner('${match.id}', '${match.player2.id}')" style="padding:0.1rem 0.4rem;font-size:0.7rem;">✓</button>` : ''}
+                        ${p2Won ? '🏆' : ''}
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+    }
+    html += '</div>';
+    
+    // Status
+    if (t.status === 'finished') {
+        html += `<div style="text-align:center;margin-top:1rem;padding:1rem;background:var(--card-bg);border:2px solid var(--accent);border-radius:var(--radius);">
+            <h3 style="color:var(--accent);">🏆 Campeonato Finalizado!</h3>
+            ${t.results?.first ? `<p>🥇 1º: <strong>${t.results.first.name}</strong></p>` : ''}
+            ${t.results?.second ? `<p>🥈 2º: <strong>${t.results.second.name}</strong></p>` : ''}
+            ${t.results?.third ? `<p>🥉 3º: <strong>${t.results.third.name}</strong></p>` : ''}
+        </div>`;
+    }
+    
+    container.innerHTML = html;
+}
+
+async function setMatchWinner(matchId, winnerId) {
+    const t = window.activeTournament;
+    if (!t) return;
+    
+    const resp = await fetch(`/master/tournament/${t.id}/match/${matchId}/result`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ winner_id: winnerId })
+    });
+    const data = await resp.json();
+    
+    if (data.error) { alert(data.error); return; }
+    
+    if (data.status === 'finished') {
+        window.activeTournament.status = 'finished';
+        window.activeTournament.results = data.results;
+        alert('🏆 Campeonato finalizado! Prêmios distribuídos.');
+    }
+    
+    window.activeTournament.bracket = data.bracket;
+    if (data.bracket) {
+        // Update current round
+        const maxRound = Math.max(...data.bracket.map(m => m.round));
+        window.activeTournament.current_round = maxRound;
+    }
+    renderBracket();
+}
