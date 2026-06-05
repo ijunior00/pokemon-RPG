@@ -976,6 +976,252 @@ def handle_mega_evolve(data):
         emit('mega_evolved', result, room=player_id)
 
 # ============================================================
+# PVP ARENA
+# ============================================================
+@socketio.on('pvp_join_arena')
+def handle_pvp_join(data):
+    """Player enters the PVP arena - broadcast to all players."""
+    if current_user.is_authenticated:
+        join_room('pvp_arena')
+        users = get_users()
+        # Send list of all players to the newly joined player
+        players_list = []
+        for uid, u in users.items():
+            if u['role'] == 'player':
+                trainer = u.get('trainer_data', {})
+                players_list.append({
+                    'id': uid,
+                    'name': trainer.get('name', u['username']),
+                    'level': trainer.get('level', 1),
+                    'team_size': len(trainer.get('team', []))
+                })
+        emit('pvp_arena_players', players_list)
+        # Notify others that someone joined
+        emit('pvp_player_joined', {
+            'id': current_user.id,
+            'name': current_user.username,
+            'level': current_user.trainer_data.get('level', 1) if current_user.trainer_data else 1
+        }, room='pvp_arena', include_self=False)
+
+@socketio.on('pvp_challenge')
+def handle_pvp_challenge(data):
+    """Send a PVP challenge to another player."""
+    if current_user.is_authenticated:
+        target_id = data.get('target_id')
+        challenger_pokemon = data.get('pokemon_name', '')
+        emit('pvp_challenge_received', {
+            'challenger_id': current_user.id,
+            'challenger_name': current_user.username,
+            'challenger_level': current_user.trainer_data.get('level', 1) if current_user.trainer_data else 1,
+            'pokemon_name': challenger_pokemon
+        }, room=target_id)
+        # Also notify master
+        emit('pvp_challenge_sent', {
+            'challenger': current_user.username,
+            'target_id': target_id
+        }, room='master')
+
+@socketio.on('pvp_accept')
+def handle_pvp_accept(data):
+    """Accept a PVP challenge."""
+    if current_user.is_authenticated:
+        challenger_id = data.get('challenger_id')
+        # Create a PVP room
+        room_id = f"pvp_{secrets.token_hex(4)}"
+        game_state = get_game_state()
+        game_state.setdefault('pvp_battles', {})[room_id] = {
+            'player1': challenger_id,
+            'player2': current_user.id,
+            'turn': 'player1',
+            'round': 1,
+            'status': 'active'
+        }
+        save_game_state(game_state)
+        # Notify both players
+        emit('pvp_battle_start', {
+            'room_id': room_id,
+            'opponent_id': current_user.id,
+            'opponent_name': current_user.username,
+            'you_are': 'player1'
+        }, room=challenger_id)
+        emit('pvp_battle_start', {
+            'room_id': room_id,
+            'opponent_id': challenger_id,
+            'opponent_name': data.get('challenger_name', '???'),
+            'you_are': 'player2'
+        }, room=current_user.id)
+        # Notify master
+        emit('pvp_battle_started', {
+            'room_id': room_id,
+            'player1': data.get('challenger_name', '???'),
+            'player2': current_user.username
+        }, room='master')
+
+@socketio.on('pvp_decline')
+def handle_pvp_decline(data):
+    """Decline a PVP challenge."""
+    if current_user.is_authenticated:
+        challenger_id = data.get('challenger_id')
+        emit('pvp_challenge_declined', {
+            'decliner_name': current_user.username
+        }, room=challenger_id)
+
+@socketio.on('pvp_action')
+def handle_pvp_action(data):
+    """Handle a PVP battle action (similar to battle_action but for PVP)."""
+    if current_user.is_authenticated:
+        room_id = data.get('room_id')
+        game_state = get_game_state()
+        battle = game_state.get('pvp_battles', {}).get(room_id)
+        if not battle:
+            return
+        # Determine opponent
+        if battle['player1'] == current_user.id:
+            opponent_id = battle['player2']
+        else:
+            opponent_id = battle['player1']
+        # Forward the action to both players and master
+        action_data = {
+            'room_id': room_id,
+            'actor_id': current_user.id,
+            'actor_name': current_user.username,
+            'action_type': data.get('action_type'),
+            'move_name': data.get('move_name', ''),
+            'damage': data.get('damage', 0),
+            'message': data.get('message', '')
+        }
+        emit('pvp_battle_update', action_data, room=opponent_id)
+        emit('pvp_battle_update', action_data, room=current_user.id)
+        emit('pvp_battle_update', action_data, room='master')
+
+@socketio.on('pvp_end')
+def handle_pvp_end(data):
+    """End a PVP battle."""
+    if current_user.is_authenticated:
+        room_id = data.get('room_id')
+        game_state = get_game_state()
+        if room_id in game_state.get('pvp_battles', {}):
+            del game_state['pvp_battles'][room_id]
+            save_game_state(game_state)
+        result = data.get('result', 'ended')
+        emit('pvp_battle_ended', {'room_id': room_id, 'result': result, 'ender': current_user.username}, room='pvp_arena')
+        emit('pvp_battle_ended', {'room_id': room_id, 'result': result, 'ender': current_user.username}, room='master')
+
+# ============================================================
+# PLAYER-TO-PLAYER TRANSFERS (Money & Items)
+# ============================================================
+@app.route('/player/transfer', methods=['POST'])
+@login_required
+def transfer_assets():
+    """Transfer money and/or items from current player to another player."""
+    data = request.json
+    target_id = data.get('target_id')
+    money_amount = int(data.get('money', 0))
+    items_to_send = data.get('items', [])  # list of {name, qty, file}
+    
+    if not target_id:
+        return jsonify({'error': 'No target specified'}), 400
+    
+    users = get_users()
+    sender = users.get(current_user.id)
+    receiver = users.get(target_id)
+    
+    if not sender or not receiver:
+        return jsonify({'error': 'Player not found'}), 404
+    
+    sender_trainer = sender.get('trainer_data', {})
+    receiver_trainer = receiver.get('trainer_data', {})
+    
+    # Validate money
+    if money_amount > 0:
+        sender_money = sender_trainer.get('money', 0)
+        if sender_money < money_amount:
+            return jsonify({'error': f'Dinheiro insuficiente. Você tem ₽{sender_money}'}), 400
+        sender_trainer['money'] = sender_money - money_amount
+        receiver_trainer['money'] = receiver_trainer.get('money', 0) + money_amount
+    
+    # Validate and transfer items
+    sender_bag = sender_trainer.get('bag', [])
+    receiver_bag = receiver_trainer.get('bag', [])
+    
+    for item in items_to_send:
+        item_name = item.get('name', '')
+        item_qty = int(item.get('qty', 1))
+        item_file = item.get('file', '')
+        
+        # Find item in sender's bag
+        found = False
+        for i, bag_item in enumerate(sender_bag):
+            bag_name = bag_item.get('name', '') if isinstance(bag_item, dict) else bag_item
+            if bag_name.lower() == item_name.lower():
+                bag_qty = bag_item.get('qty', 1) if isinstance(bag_item, dict) else 1
+                if bag_qty < item_qty:
+                    return jsonify({'error': f'Quantidade insuficiente de {item_name}'}), 400
+                # Remove from sender
+                if bag_qty == item_qty:
+                    sender_bag.pop(i)
+                else:
+                    sender_bag[i]['qty'] = bag_qty - item_qty
+                found = True
+                break
+        
+        if not found:
+            return jsonify({'error': f'Item {item_name} não encontrado na sua bolsa'}), 400
+        
+        # Add to receiver
+        added = False
+        for bag_item in receiver_bag:
+            if isinstance(bag_item, dict) and bag_item.get('name', '').lower() == item_name.lower():
+                bag_item['qty'] = bag_item.get('qty', 1) + item_qty
+                added = True
+                break
+        if not added:
+            receiver_bag.append({'name': item_name, 'qty': item_qty, 'file': item_file})
+    
+    sender_trainer['bag'] = sender_bag
+    receiver_trainer['bag'] = receiver_bag
+    users[current_user.id]['trainer_data'] = sender_trainer
+    users[target_id]['trainer_data'] = receiver_trainer
+    save_users(users)
+    
+    # Notify both players in real-time
+    transfer_msg = []
+    if money_amount > 0:
+        transfer_msg.append(f'₽{money_amount}')
+    if items_to_send:
+        transfer_msg.append(', '.join([f"{i['qty']}x {i['name']}" for i in items_to_send]))
+    
+    socketio.emit('transfer_received', {
+        'from': current_user.username,
+        'message': ' + '.join(transfer_msg),
+        'money': money_amount,
+        'items': items_to_send
+    }, room=target_id)
+    
+    return jsonify({
+        'success': True,
+        'new_money': sender_trainer['money'],
+        'message': f'Transferido {" + ".join(transfer_msg)} para {receiver["username"]}'
+    })
+
+@app.route('/api/players')
+@login_required
+def api_players_list():
+    """List all players (for transfers/PVP)."""
+    users = get_users()
+    players = []
+    for uid, u in users.items():
+        if u['role'] == 'player' and uid != current_user.id:
+            trainer = u.get('trainer_data', {})
+            players.append({
+                'id': uid,
+                'name': trainer.get('name', u['username']),
+                'username': u['username'],
+                'level': trainer.get('level', 1)
+            })
+    return jsonify(players)
+
+# ============================================================
 # RUN
 # ============================================================
 if __name__ == '__main__':

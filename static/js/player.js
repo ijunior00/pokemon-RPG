@@ -321,7 +321,20 @@ socket.on('battle_update', (data) => {
     updateTurnUI();
     
     // Check faint
-    if (bs.wild_hp_current <= 0) addBattleLog(`<strong>💀 Pokémon Selvagem desmaiou!</strong>`);
+    if (bs.wild_hp_current <= 0) {
+        addBattleLog(`<strong>💀 Pokémon Selvagem desmaiou!</strong>`);
+        addBattleLog(`🔴 Você pode <strong>Arremessar Pokébola</strong> para tentar capturar ou clicar <strong>Derrotei</strong> para encerrar.`);
+        // Show post-defeat options, hide attack moves
+        window.currentTurn = 'player'; // Allow actions
+        window.wildFainted = true;
+        document.querySelectorAll('#battle-player-moves .selectable-move').forEach(btn => {
+            btn.style.opacity = '0.3';
+            btn.style.pointerEvents = 'none';
+        });
+        // Keep pokeball and defeated buttons visible
+        document.getElementById('btn-pass-turn')?.classList.add('hidden');
+        document.getElementById('btn-switch-pokemon')?.classList.add('hidden');
+    }
     if (bs.player_hp_current <= 0) addBattleLog(`<strong>😵 Seu Pokémon desmaiou!</strong>`);
 });
 
@@ -543,16 +556,17 @@ function passTurn() {
 }
 
 function throwPokeball() {
-    if (window.currentTurn !== 'player') { alert('Não é seu turno!'); return; }
+    // Allow pokeball at any time if enemy is fainted (HP 0)
+    const hpText = document.getElementById('battle-enemy-hp-text-full').textContent;
+    const hpMatch = hpText.match(/(\d+)\/(\d+)/);
+    const currentHp = hpMatch ? parseInt(hpMatch[1]) : 999;
+    const enemyFainted = currentHp <= 0;
+    
+    if (!enemyFainted && window.currentTurn !== 'player') { alert('Não é seu turno!'); return; }
     
     const enemy = window.currentBattleData?.enemy || {};
     const encounter = currentEncounter || {};
     const trainerLevel = TRAINER_DATA.level || 1;
-    
-    // Get current wild HP from the displayed text
-    const hpText = document.getElementById('battle-enemy-hp-text-full').textContent;
-    const hpMatch = hpText.match(/(\d+)\/(\d+)/);
-    const currentHp = hpMatch ? parseInt(hpMatch[1]) : enemy.hp || 20;
     
     // Calculate capture DC: 10 + SR(floor) + pokemon level + (currentHp / 10 floor)
     let srVal = 0;
@@ -565,7 +579,7 @@ function throwPokeball() {
     
     const pokeLevel = encounter.level || 5;
     const hpComponent = Math.floor(currentHp / 10);
-    const captureDC = 10 + srVal + pokeLevel + hpComponent;
+    const captureDC = enemyFainted ? Math.max(5, 5 + srVal) : 10 + srVal + pokeLevel + hpComponent;
     
     // Trainer's Animal Handling bonus (WIS mod + proficiency)
     const trainerWis = TRAINER_DATA.wis || 10;
@@ -573,20 +587,15 @@ function throwPokeball() {
     const profBonus = trainerLevel >= 17 ? 6 : trainerLevel >= 13 ? 5 : trainerLevel >= 9 ? 4 : trainerLevel >= 5 ? 3 : 2;
     const animalHandlingBonus = wisMod + profBonus;
     
-    // Check advantage (status effects on wild pokemon)
-    const wildStatus = document.getElementById('battle-enemy-hp-text-full')?.parentElement?.parentElement?.querySelector('.status-badge');
-    // Simpler: check battle state for status
-    const hasAdvantage = false; // Will be determined by displayed status in log
-    
     // Roll d20 (or 2d20 take highest if advantage)
     let roll1 = Math.floor(Math.random() * 20) + 1;
     let roll2 = Math.floor(Math.random() * 20) + 1;
     let finalRoll = roll1;
     let advantageText = '';
     
-    // Check if enemy has status (from battle log content)
+    // Advantage if enemy has status OR is fainted
     const logContent = document.getElementById('battle-log-full')?.innerHTML || '';
-    const hasStatusAdvantage = /Envenenado|Queimado|Paralisado|Congelado|Dormindo|Confuso/i.test(logContent);
+    const hasStatusAdvantage = enemyFainted || /Envenenado|Queimado|Paralisado|Congelado|Dormindo|Confuso/i.test(logContent);
     
     if (hasStatusAdvantage) {
         finalRoll = Math.max(roll1, roll2);
@@ -595,20 +604,20 @@ function throwPokeball() {
     
     const totalRoll = finalRoll + animalHandlingBonus;
     
-    addBattleLog(`🔴 <strong>Arremessando Pokébola!</strong>`);
-    addBattleLog(`  CD de Captura: 10 + SR(${srVal}) + Nível(${pokeLevel}) + HP÷10(${hpComponent}) = <strong>${captureDC}</strong>`);
+    addBattleLog(`🔴 <strong>Arremessando Pokébola!</strong>${enemyFainted ? ' (Pokémon desmaiado - CD reduzida)' : ''}`);
+    addBattleLog(`  CD de Captura: ${enemyFainted ? `5 + SR(${srVal})` : `10 + SR(${srVal}) + Nível(${pokeLevel}) + HP÷10(${hpComponent})`} = <strong>${captureDC}</strong>`);
     addBattleLog(`  Adestrar Animais: d20(${finalRoll})${advantageText} + SAB(${wisMod}) + Prof(${profBonus}) = <strong>${totalRoll}</strong>`);
     
     animateDice(finalRoll, 'd20');
     
     if (totalRoll >= captureDC) {
         addBattleLog(`✅ <strong>CAPTURADO!</strong> 🎉 (${totalRoll} ≥ ${captureDC})`);
-        // End battle as caught
         setTimeout(() => endBattle('caught'), 1500);
     } else {
-        addBattleLog(`❌ Escapou! (${totalRoll} < ${captureDC}) A Pokébola falhou...`);
-        // Uses the turn
-        socket.emit('battle_action', { action_by: 'player', action_type: 'item', move_name: 'Pokébola', damage: 0, message: `Captura falhou (${totalRoll} vs DC ${captureDC})` });
+        addBattleLog(`❌ A Pokébola falhou! (${totalRoll} < ${captureDC})`);
+        addBattleLog(`🏃 <strong>O Pokémon selvagem fugiu!</strong> O encontro acabou.`);
+        // Pokemon flees - end encounter automatically
+        setTimeout(() => endBattle('fled_after_capture'), 2000);
     }
 }
 
@@ -637,9 +646,11 @@ function endBattle(result) {
         'caught': '🔴 Pokémon capturado!',
         'defeated': '💀 Pokémon selvagem derrotado!',
         'fled': '🏃 Você fugiu da batalha!',
+        'fled_after_capture': '🏃 O Pokémon selvagem escapou da Pokébola e fugiu!',
         'fainted': '😵 Seu Pokémon desmaiou!'
     };
-    addBattleLog(`<strong>${messages[result]}</strong>`);
+    addBattleLog(`<strong>${messages[result] || result}</strong>`);
+    window.wildFainted = false;
     socket.emit('end_encounter', { result });
 
     // If caught, add to team
@@ -1495,4 +1506,377 @@ function selectSpecialization(spec) {
 document.addEventListener('DOMContentLoaded', async () => {
     await loadItemSprites();
     initBag();
+});
+
+
+// ============================================
+// PVP ARENA SYSTEM
+// ============================================
+window.pvpState = { inArena: false, currentBattle: null };
+
+// Join arena when tab is clicked
+document.addEventListener('DOMContentLoaded', () => {
+    const pvpTab = document.querySelector('[data-tab="pvp"]');
+    if (pvpTab) {
+        pvpTab.addEventListener('click', () => {
+            if (!window.pvpState.inArena) {
+                socket.emit('pvp_join_arena', {});
+                window.pvpState.inArena = true;
+            }
+        });
+    }
+});
+
+// Receive player list
+socket.on('pvp_arena_players', (players) => {
+    renderPvpPlayers(players);
+});
+
+socket.on('pvp_player_joined', (player) => {
+    // Just refresh the list
+    socket.emit('pvp_join_arena', {});
+});
+
+function renderPvpPlayers(players) {
+    const container = document.getElementById('pvp-players-list');
+    if (!container) return;
+    if (players.length === 0) {
+        container.innerHTML = '<p class="empty-state">Nenhum jogador disponível.</p>';
+        return;
+    }
+    const currentId = TRAINER_DATA.name || '';
+    container.innerHTML = players.map(p => {
+        const isSelf = (p.name === TRAINER_DATA.name);
+        return `
+            <div class="pvp-player-card ${isSelf ? 'is-self' : ''}">
+                <span class="pvp-player-name">${p.name}</span>
+                <span class="pvp-player-level">Nv.${p.level} | Time: ${p.team_size} Pokémon</span>
+                ${!isSelf ? `<button class="btn btn-sm btn-danger" onclick="sendPvpChallenge('${p.id}', '${p.name}')">⚔️ Desafiar</button>` : '<span style="color:var(--success);font-size:0.75rem;">Você</span>'}
+            </div>
+        `;
+    }).join('');
+}
+
+function sendPvpChallenge(targetId, targetName) {
+    const team = playerTeam || [];
+    if (team.length === 0) {
+        alert('Você precisa ter pelo menos 1 Pokémon no time para desafiar!');
+        return;
+    }
+    const pokeName = team[0]?.nickname || team[0]?.name || '???';
+    socket.emit('pvp_challenge', { target_id: targetId, pokemon_name: pokeName });
+    addPvpMessage(`⚔️ Desafio enviado para ${targetName}! Aguardando resposta...`);
+}
+
+// Receive challenge
+socket.on('pvp_challenge_received', (data) => {
+    const container = document.getElementById('pvp-challenges');
+    const emptyState = container.querySelector('.empty-state');
+    if (emptyState) emptyState.remove();
+    
+    container.innerHTML += `
+        <div class="pvp-challenge-card" id="challenge-${data.challenger_id}">
+            <div class="pvp-challenge-info">
+                <strong>⚔️ ${data.challenger_name}</strong> (Nv.${data.challenger_level}) te desafiou!
+                <span style="color:var(--text-muted);font-size:0.8rem;">Pokémon líder: ${data.pokemon_name}</span>
+            </div>
+            <div class="pvp-challenge-actions">
+                <button class="btn btn-sm btn-success" onclick="acceptPvpChallenge('${data.challenger_id}', '${data.challenger_name}')">✓ Aceitar</button>
+                <button class="btn btn-sm btn-danger" onclick="declinePvpChallenge('${data.challenger_id}')">✕ Recusar</button>
+            </div>
+        </div>
+    `;
+    playNotificationSound();
+});
+
+function acceptPvpChallenge(challengerId, challengerName) {
+    socket.emit('pvp_accept', { challenger_id: challengerId, challenger_name: challengerName });
+    const card = document.getElementById(`challenge-${challengerId}`);
+    if (card) card.remove();
+}
+
+function declinePvpChallenge(challengerId) {
+    socket.emit('pvp_decline', { challenger_id: challengerId });
+    const card = document.getElementById(`challenge-${challengerId}`);
+    if (card) card.remove();
+}
+
+// Challenge declined
+socket.on('pvp_challenge_declined', (data) => {
+    addPvpMessage(`❌ ${data.decliner_name} recusou seu desafio.`);
+});
+
+// PVP Battle starts
+socket.on('pvp_battle_start', (data) => {
+    window.pvpState.currentBattle = data;
+    const area = document.getElementById('pvp-battle-area');
+    const content = document.getElementById('pvp-battle-content');
+    area.classList.remove('hidden');
+    
+    content.innerHTML = `
+        <div style="text-align:center;padding:1rem;">
+            <h3>⚔️ Batalha PVP vs ${data.opponent_name}</h3>
+            <p>Você é: <strong>${data.you_are === 'player1' ? 'Desafiante' : 'Desafiado'}</strong></p>
+            <p style="color:var(--text-muted);">Use o sistema de batalha normal. Comuniquem os turnos via chat/voz.</p>
+            <p style="color:var(--text-muted);">O Mestre pode acompanhar a batalha pelo painel dele.</p>
+            <div class="dice-section" style="margin-top:1rem;">
+                <h4>🎲 Rolar Dados PVP</h4>
+                <div class="dice-buttons">
+                    <button class="btn btn-dice" onclick="pvpRollDice(4)">d4</button>
+                    <button class="btn btn-dice" onclick="pvpRollDice(6)">d6</button>
+                    <button class="btn btn-dice" onclick="pvpRollDice(8)">d8</button>
+                    <button class="btn btn-dice" onclick="pvpRollDice(10)">d10</button>
+                    <button class="btn btn-dice" onclick="pvpRollDice(12)">d12</button>
+                    <button class="btn btn-dice" onclick="pvpRollDice(20)">d20</button>
+                </div>
+                <div id="pvp-dice-result" style="min-height:40px;margin-top:0.5rem;"></div>
+            </div>
+            <div id="pvp-battle-log" class="battle-log-full" style="margin-top:1rem;text-align:left;"></div>
+            <div style="margin-top:1rem;">
+                <button class="btn btn-success" onclick="endPvpBattle('won')">🏆 Eu Venci!</button>
+                <button class="btn btn-danger" onclick="endPvpBattle('lost')">💀 Eu Perdi</button>
+                <button class="btn btn-secondary" onclick="endPvpBattle('draw')">🤝 Empate</button>
+            </div>
+        </div>
+    `;
+    
+    // Switch to PVP tab
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelector('[data-tab="pvp"]').classList.add('active');
+    document.getElementById('tab-pvp').classList.add('active');
+});
+
+// PVP battle updates
+socket.on('pvp_battle_update', (data) => {
+    const log = document.getElementById('pvp-battle-log');
+    if (log) {
+        let msg = `<strong>${data.actor_name}</strong>: ${data.move_name}`;
+        if (data.damage > 0) msg += ` → ${data.damage} dano`;
+        if (data.message) msg += ` (${data.message})`;
+        log.innerHTML += `<p>${msg}</p>`;
+        log.scrollTop = log.scrollHeight;
+    }
+});
+
+function pvpRollDice(sides) {
+    const result = Math.floor(Math.random() * sides) + 1;
+    const resultDiv = document.getElementById('pvp-dice-result');
+    resultDiv.innerHTML = `<span class="dice-value">d${sides}: ${result}</span>${result === 20 ? ' 💥 CRIT!' : ''}${result === 1 ? ' 💨 Falha!' : ''}`;
+    
+    // Share with opponent
+    if (window.pvpState.currentBattle) {
+        socket.emit('pvp_action', {
+            room_id: window.pvpState.currentBattle.room_id,
+            action_type: 'dice',
+            move_name: `🎲 d${sides}: ${result}`,
+            damage: 0,
+            message: result === 20 ? 'CRIT!' : (result === 1 ? 'Falha!' : '')
+        });
+    }
+}
+
+function endPvpBattle(result) {
+    if (!window.pvpState.currentBattle) return;
+    if (!confirm(`Encerrar batalha como: ${result}?`)) return;
+    
+    socket.emit('pvp_end', { room_id: window.pvpState.currentBattle.room_id, result });
+    window.pvpState.currentBattle = null;
+    document.getElementById('pvp-battle-area').classList.add('hidden');
+    addPvpMessage(`Batalha PVP encerrada: ${result}`);
+}
+
+socket.on('pvp_battle_ended', (data) => {
+    window.pvpState.currentBattle = null;
+    document.getElementById('pvp-battle-area')?.classList.add('hidden');
+    addPvpMessage(`Batalha encerrada por ${data.ender}: ${data.result}`);
+});
+
+function addPvpMessage(msg) {
+    const container = document.getElementById('pvp-challenges');
+    if (container) {
+        const p = document.createElement('p');
+        p.style.color = 'var(--text-muted)';
+        p.style.fontSize = '0.85rem';
+        p.innerHTML = msg;
+        container.appendChild(p);
+    }
+}
+
+
+// ============================================
+// TRANSFER SYSTEM (Money & Items)
+// ============================================
+window.transferItems = [];
+
+// Load players for transfer dropdown
+async function loadTransferTargets() {
+    try {
+        const resp = await fetch('/api/players');
+        const players = await resp.json();
+        const select = document.getElementById('transfer-target');
+        if (!select) return;
+        select.innerHTML = '<option value="">Selecionar jogador...</option>' + 
+            players.map(p => `<option value="${p.id}">${p.name} (Nv.${p.level})</option>`).join('');
+    } catch(e) {}
+}
+
+// Search items from player's own bag for transfer
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('transfer-item-search');
+    const resultsDiv = document.getElementById('transfer-item-results');
+    if (!searchInput || !resultsDiv) return;
+    
+    searchInput.addEventListener('input', () => {
+        const query = searchInput.value.toLowerCase().trim();
+        if (query.length < 1) { resultsDiv.innerHTML = ''; return; }
+        
+        const bag = window.bagItems || [];
+        const matches = bag.filter(i => i.name.toLowerCase().includes(query)).slice(0, 8);
+        
+        if (matches.length === 0) {
+            resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted)">Nenhum item encontrado na bolsa</div>';
+            return;
+        }
+        
+        resultsDiv.innerHTML = matches.map(item => `
+            <div class="autocomplete-item" onclick="selectTransferItem('${item.name.replace(/'/g, "\\'")}', '${item.file || ''}', ${item.qty})">
+                ${item.file ? `<img src="/static/img/items/${item.file}" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle;margin-right:0.4rem;">` : ''}
+                ${item.name} (x${item.qty})
+            </div>
+        `).join('');
+    });
+    
+    document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !resultsDiv.contains(e.target)) {
+            resultsDiv.innerHTML = '';
+        }
+    });
+    
+    // Load transfer targets when PVP tab opens
+    const pvpTab = document.querySelector('[data-tab="pvp"]');
+    if (pvpTab) {
+        pvpTab.addEventListener('click', loadTransferTargets);
+    }
+});
+
+function selectTransferItem(name, file, maxQty) {
+    document.getElementById('transfer-item-search').value = name;
+    document.getElementById('transfer-item-results').innerHTML = '';
+    document.getElementById('transfer-item-qty').max = maxQty;
+    window._transferSelectedFile = file;
+}
+
+function addTransferItem() {
+    const name = document.getElementById('transfer-item-search').value.trim();
+    const qty = parseInt(document.getElementById('transfer-item-qty').value) || 1;
+    if (!name) return;
+    
+    // Validate against bag
+    const bag = window.bagItems || [];
+    const bagItem = bag.find(i => i.name.toLowerCase() === name.toLowerCase());
+    if (!bagItem) { alert('Item não encontrado na sua bolsa!'); return; }
+    if (qty > bagItem.qty) { alert(`Você só tem ${bagItem.qty}x ${name}`); return; }
+    
+    // Check if already in transfer list
+    const existing = window.transferItems.find(i => i.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+        existing.qty += qty;
+    } else {
+        window.transferItems.push({ name, qty, file: window._transferSelectedFile || bagItem.file || '' });
+    }
+    
+    document.getElementById('transfer-item-search').value = '';
+    document.getElementById('transfer-item-qty').value = '1';
+    renderTransferItems();
+}
+
+function renderTransferItems() {
+    const container = document.getElementById('transfer-items-list');
+    container.innerHTML = window.transferItems.map((item, idx) => `
+        <span style="background:var(--darker);padding:0.2rem 0.5rem;border-radius:4px;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.3rem;">
+            ${item.file ? `<img src="/static/img/items/${item.file}" width="14" height="14" style="image-rendering:pixelated;">` : ''}
+            ${item.qty}x ${item.name}
+            <button onclick="removeTransferItem(${idx})" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.7rem;">✕</button>
+        </span>
+    `).join('');
+}
+
+function removeTransferItem(idx) {
+    window.transferItems.splice(idx, 1);
+    renderTransferItems();
+}
+
+async function executeTransfer() {
+    const targetId = document.getElementById('transfer-target').value;
+    const money = parseInt(document.getElementById('transfer-money').value) || 0;
+    const items = window.transferItems;
+    
+    if (!targetId) { alert('Selecione um jogador!'); return; }
+    if (money <= 0 && items.length === 0) { alert('Selecione dinheiro ou itens para enviar!'); return; }
+    
+    // Confirm
+    let confirmMsg = 'Confirmar transferência:\n';
+    if (money > 0) confirmMsg += `💰 ₽${money}\n`;
+    items.forEach(i => confirmMsg += `📦 ${i.qty}x ${i.name}\n`);
+    if (!confirm(confirmMsg)) return;
+    
+    const statusDiv = document.getElementById('transfer-status');
+    statusDiv.innerHTML = '<span style="color:var(--warning);">Processando...</span>';
+    
+    try {
+        const resp = await fetch('/player/transfer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target_id: targetId, money, items })
+        });
+        const data = await resp.json();
+        
+        if (data.success) {
+            statusDiv.innerHTML = `<span style="color:var(--success);">✅ ${data.message}</span>`;
+            // Update local money display
+            TRAINER_DATA.money = data.new_money;
+            const moneyInput = document.getElementById('trainer-money');
+            if (moneyInput) moneyInput.value = data.new_money;
+            // Remove items from local bag
+            items.forEach(sentItem => {
+                const bagIdx = window.bagItems.findIndex(i => i.name.toLowerCase() === sentItem.name.toLowerCase());
+                if (bagIdx >= 0) {
+                    window.bagItems[bagIdx].qty -= sentItem.qty;
+                    if (window.bagItems[bagIdx].qty <= 0) window.bagItems.splice(bagIdx, 1);
+                }
+            });
+            renderBag();
+            // Clear form
+            window.transferItems = [];
+            renderTransferItems();
+            document.getElementById('transfer-money').value = '0';
+        } else {
+            statusDiv.innerHTML = `<span style="color:var(--danger);">❌ ${data.error}</span>`;
+        }
+    } catch(e) {
+        statusDiv.innerHTML = `<span style="color:var(--danger);">❌ Erro de conexão</span>`;
+    }
+}
+
+// Listen for incoming transfers
+socket.on('transfer_received', (data) => {
+    alert(`💸 Transferência recebida de ${data.from}!\n${data.message}`);
+    // Refresh bag data
+    if (data.money > 0) {
+        TRAINER_DATA.money = (TRAINER_DATA.money || 0) + data.money;
+        const moneyInput = document.getElementById('trainer-money');
+        if (moneyInput) moneyInput.value = TRAINER_DATA.money;
+    }
+    if (data.items && data.items.length > 0) {
+        data.items.forEach(item => {
+            const existing = window.bagItems.find(i => i.name.toLowerCase() === item.name.toLowerCase());
+            if (existing) {
+                existing.qty += item.qty;
+            } else {
+                window.bagItems.push({ name: item.name, qty: item.qty, file: item.file || '' });
+            }
+        });
+        renderBag();
+    }
 });

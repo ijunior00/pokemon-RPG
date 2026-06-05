@@ -8,6 +8,7 @@
     <div class="tabs">
         <button class="tab active" data-tab="encounter">🔍 Caça Pokémon</button>
         <button class="tab" data-tab="battle">⚔️ Batalha</button>
+        <button class="tab" data-tab="pvp">🏆 PVP Arena</button>
         <button class="tab" data-tab="team">🔴 Time</button>
         <button class="tab" data-tab="trainer">🎒 Treinador</button>
         <button class="tab" data-tab="pokedex">📖 Pokédex</button>
@@ -187,6 +188,66 @@
                         <div id="switch-pokemon-list"></div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB: PVP ARENA -->
+    <div class="tab-content" id="tab-pvp">
+        <h2>🏆 Arena PVP</h2>
+        <p style="color:var(--text-muted);margin-bottom:1rem;">Desafie outros treinadores para batalhas! O Mestre também pode colocar NPCs na arena.</p>
+        
+        <div class="pvp-arena">
+            <!-- Online Players -->
+            <div class="pvp-section">
+                <h4>⚡ Treinadores na Arena</h4>
+                <div id="pvp-players-list" class="pvp-players-grid">
+                    <p class="empty-state">Carregando jogadores online...</p>
+                </div>
+            </div>
+
+            <!-- Active Challenges -->
+            <div class="pvp-section">
+                <h4>📨 Desafios</h4>
+                <div id="pvp-challenges" class="pvp-challenges-list">
+                    <p class="empty-state">Nenhum desafio pendente.</p>
+                </div>
+            </div>
+
+            <!-- Transfer Panel -->
+            <div class="pvp-section">
+                <h4>💸 Transferir Dinheiro / Itens</h4>
+                <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Envie dinheiro ou itens para outro jogador (apostas, comércio, presentes).</p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Para quem</label>
+                        <select id="transfer-target">
+                            <option value="">Selecionar jogador...</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:0 0 140px;">
+                        <label>₽ Dinheiro</label>
+                        <input type="number" id="transfer-money" value="0" min="0" placeholder="0">
+                    </div>
+                </div>
+                <div class="form-group" style="position:relative;">
+                    <label>Enviar Item (buscar)</label>
+                    <div class="form-row">
+                        <input type="text" id="transfer-item-search" placeholder="Buscar item da sua bolsa..." autocomplete="off" style="flex:2;">
+                        <input type="number" id="transfer-item-qty" value="1" min="1" max="99" style="flex:0 0 60px;">
+                        <button class="btn btn-sm btn-secondary" onclick="addTransferItem()">+</button>
+                    </div>
+                    <div id="transfer-item-results" class="autocomplete-results"></div>
+                </div>
+                <div id="transfer-items-list" style="margin:0.5rem 0;display:flex;flex-wrap:wrap;gap:0.3rem;"></div>
+                <button class="btn btn-primary" onclick="executeTransfer()">💸 Enviar Transferência</button>
+                <div id="transfer-status" style="margin-top:0.5rem;font-size:0.85rem;"></div>
+            </div>
+
+            <!-- PVP Battle Area -->
+            <div id="pvp-battle-area" class="pvp-battle hidden">
+                <h4>⚔️ Batalha PVP em Andamento</h4>
+                <div id="pvp-battle-content"></div>
             </div>
         </div>
     </div>

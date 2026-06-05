@@ -1667,3 +1667,105 @@ body {
     right: 0;
     z-index: 50;
 }
+
+
+/* ============================================
+   PVP ARENA
+   ============================================ */
+.pvp-arena {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.pvp-section {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+}
+
+.pvp-section h4 {
+    color: var(--accent);
+    margin-bottom: 1rem;
+}
+
+.pvp-players-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem;
+}
+
+.pvp-player-card {
+    background: var(--darker);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+}
+
+.pvp-player-card:hover {
+    border-color: var(--accent);
+}
+
+.pvp-player-card .pvp-player-name {
+    font-weight: bold;
+    color: var(--text);
+}
+
+.pvp-player-card .pvp-player-level {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.pvp-player-card.is-self {
+    border-color: var(--success);
+    opacity: 0.7;
+}
+
+.pvp-player-card.is-npc {
+    border-color: var(--warning);
+}
+
+.pvp-challenges-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.pvp-challenge-card {
+    background: var(--darker);
+    border: 2px solid var(--warning);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+    0%, 100% { border-color: var(--warning); }
+    50% { border-color: var(--accent); }
+}
+
+.pvp-challenge-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.pvp-challenge-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.pvp-battle {
+    background: var(--card-bg);
+    border: 2px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+}
