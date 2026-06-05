@@ -1510,9 +1510,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
 // ============================================
-// PVP ARENA SYSTEM
+// PVP ARENA SYSTEM (Full Battle UI)
 // ============================================
-window.pvpState = { inArena: false, currentBattle: null };
+window.pvpState = { inArena: false, battleId: null, youAre: null, battleData: null };
 
 // Join arena when tab is clicked
 document.addEventListener('DOMContentLoaded', () => {
@@ -1523,6 +1523,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 socket.emit('pvp_join_arena', {});
                 window.pvpState.inArena = true;
             }
+            loadTransferTargets();
         });
     }
 });
@@ -1532,8 +1533,7 @@ socket.on('pvp_arena_players', (players) => {
     renderPvpPlayers(players);
 });
 
-socket.on('pvp_player_joined', (player) => {
-    // Just refresh the list
+socket.on('pvp_player_joined', () => {
     socket.emit('pvp_join_arena', {});
 });
 
@@ -1544,28 +1544,42 @@ function renderPvpPlayers(players) {
         container.innerHTML = '<p class="empty-state">Nenhum jogador disponível.</p>';
         return;
     }
-    const currentId = TRAINER_DATA.name || '';
     container.innerHTML = players.map(p => {
         const isSelf = (p.name === TRAINER_DATA.name);
         return `
             <div class="pvp-player-card ${isSelf ? 'is-self' : ''}">
                 <span class="pvp-player-name">${p.name}</span>
-                <span class="pvp-player-level">Nv.${p.level} | Time: ${p.team_size} Pokémon</span>
-                ${!isSelf ? `<button class="btn btn-sm btn-danger" onclick="sendPvpChallenge('${p.id}', '${p.name}')">⚔️ Desafiar</button>` : '<span style="color:var(--success);font-size:0.75rem;">Você</span>'}
+                <span class="pvp-player-level">Nv.${p.level} | ${p.team_size} Pokémon</span>
+                ${!isSelf ? `
+                    <div style="display:flex;gap:0.3rem;margin-top:0.3rem;">
+                        <button class="btn btn-sm btn-danger" onclick="sendPvpChallenge('${p.id}', '${p.name}', 'official')">⚔️ Oficial</button>
+                        <button class="btn btn-sm btn-warning" onclick="sendPvpChallenge('${p.id}', '${p.name}', 'street')">🥊 Rua</button>
+                    </div>
+                ` : '<span style="color:var(--success);font-size:0.75rem;">Você</span>'}
             </div>
         `;
     }).join('');
 }
 
-function sendPvpChallenge(targetId, targetName) {
+function sendPvpChallenge(targetId, targetName, mode) {
     const team = playerTeam || [];
     if (team.length === 0) {
-        alert('Você precisa ter pelo menos 1 Pokémon no time para desafiar!');
+        alert('Você precisa ter pelo menos 1 Pokémon no time!');
         return;
     }
-    const pokeName = team[0]?.nickname || team[0]?.name || '???';
-    socket.emit('pvp_challenge', { target_id: targetId, pokemon_name: pokeName });
-    addPvpMessage(`⚔️ Desafio enviado para ${targetName}! Aguardando resposta...`);
+    let betMoney = 0;
+    let betItems = [];
+    if (mode === 'official') {
+        const bet = prompt('Quanto quer apostar em ₽? (0 para nenhuma aposta)');
+        if (bet === null) return;
+        betMoney = parseInt(bet) || 0;
+        if (betMoney > (TRAINER_DATA.money || 0)) {
+            alert(`Você só tem ₽${TRAINER_DATA.money}!`);
+            return;
+        }
+    }
+    socket.emit('pvp_challenge', { target_id: targetId, mode, bet_money: betMoney, bet_items: betItems });
+    addPvpLog(`⚔️ Desafio ${mode === 'official' ? 'Oficial' : 'de Rua'} enviado para ${targetName}!${betMoney > 0 ? ` Aposta: ₽${betMoney}` : ''}`);
 }
 
 // Receive challenge
@@ -1574,14 +1588,15 @@ socket.on('pvp_challenge_received', (data) => {
     const emptyState = container.querySelector('.empty-state');
     if (emptyState) emptyState.remove();
     
+    const modeLabel = data.mode === 'official' ? '⚔️ Oficial' : '🥊 Rua';
     container.innerHTML += `
         <div class="pvp-challenge-card" id="challenge-${data.challenger_id}">
             <div class="pvp-challenge-info">
-                <strong>⚔️ ${data.challenger_name}</strong> (Nv.${data.challenger_level}) te desafiou!
-                <span style="color:var(--text-muted);font-size:0.8rem;">Pokémon líder: ${data.pokemon_name}</span>
+                <strong>${modeLabel} — ${data.challenger_name}</strong> (Nv.${data.challenger_level}) te desafiou!
+                ${data.bet_money > 0 ? `<span style="color:var(--accent);font-size:0.8rem;">Aposta: ₽${data.bet_money}</span>` : ''}
             </div>
             <div class="pvp-challenge-actions">
-                <button class="btn btn-sm btn-success" onclick="acceptPvpChallenge('${data.challenger_id}', '${data.challenger_name}')">✓ Aceitar</button>
+                <button class="btn btn-sm btn-success" onclick="acceptPvpChallenge('${data.challenger_id}', '${data.challenger_name}', '${data.mode}', ${data.bet_money})">✓ Aceitar</button>
                 <button class="btn btn-sm btn-danger" onclick="declinePvpChallenge('${data.challenger_id}')">✕ Recusar</button>
             </div>
         </div>
@@ -1589,54 +1604,58 @@ socket.on('pvp_challenge_received', (data) => {
     playNotificationSound();
 });
 
-function acceptPvpChallenge(challengerId, challengerName) {
-    socket.emit('pvp_accept', { challenger_id: challengerId, challenger_name: challengerName });
-    const card = document.getElementById(`challenge-${challengerId}`);
-    if (card) card.remove();
+function acceptPvpChallenge(challengerId, challengerName, mode, betMoney) {
+    if (mode === 'official' && betMoney > 0) {
+        if ((TRAINER_DATA.money || 0) < betMoney) {
+            alert(`Você precisa de ₽${betMoney} para aceitar este desafio!`);
+            return;
+        }
+    }
+    socket.emit('pvp_accept', { challenger_id: challengerId, challenger_name: challengerName, mode, bet_money: betMoney });
+    document.getElementById(`challenge-${challengerId}`)?.remove();
 }
 
 function declinePvpChallenge(challengerId) {
     socket.emit('pvp_decline', { challenger_id: challengerId });
-    const card = document.getElementById(`challenge-${challengerId}`);
-    if (card) card.remove();
+    document.getElementById(`challenge-${challengerId}`)?.remove();
 }
 
-// Challenge declined
 socket.on('pvp_challenge_declined', (data) => {
-    addPvpMessage(`❌ ${data.decliner_name} recusou seu desafio.`);
+    addPvpLog(`❌ ${data.decliner_name} recusou seu desafio.`);
 });
 
-// PVP Battle starts
-socket.on('pvp_battle_start', (data) => {
-    window.pvpState.currentBattle = data;
+// ============================================
+// PVP BATTLE - SELECTION PHASE
+// ============================================
+socket.on('pvp_battle_created', (data) => {
+    window.pvpState.battleId = data.battle_id;
+    window.pvpState.youAre = data.you_are;
+    
     const area = document.getElementById('pvp-battle-area');
     const content = document.getElementById('pvp-battle-content');
     area.classList.remove('hidden');
     
+    const modeLabel = data.mode === 'official' ? '⚔️ Batalha Oficial' : '🥊 Batalha de Rua';
+    const team = data.your_team || [];
+    
     content.innerHTML = `
         <div style="text-align:center;padding:1rem;">
-            <h3>⚔️ Batalha PVP vs ${data.opponent_name}</h3>
-            <p>Você é: <strong>${data.you_are === 'player1' ? 'Desafiante' : 'Desafiado'}</strong></p>
-            <p style="color:var(--text-muted);">Use o sistema de batalha normal. Comuniquem os turnos via chat/voz.</p>
-            <p style="color:var(--text-muted);">O Mestre pode acompanhar a batalha pelo painel dele.</p>
-            <div class="dice-section" style="margin-top:1rem;">
-                <h4>🎲 Rolar Dados PVP</h4>
-                <div class="dice-buttons">
-                    <button class="btn btn-dice" onclick="pvpRollDice(4)">d4</button>
-                    <button class="btn btn-dice" onclick="pvpRollDice(6)">d6</button>
-                    <button class="btn btn-dice" onclick="pvpRollDice(8)">d8</button>
-                    <button class="btn btn-dice" onclick="pvpRollDice(10)">d10</button>
-                    <button class="btn btn-dice" onclick="pvpRollDice(12)">d12</button>
-                    <button class="btn btn-dice" onclick="pvpRollDice(20)">d20</button>
-                </div>
-                <div id="pvp-dice-result" style="min-height:40px;margin-top:0.5rem;"></div>
+            <h3>${modeLabel} vs ${data.opponent_name}</h3>
+            <p style="color:var(--warning);margin:1rem 0;">🔒 Seleção Cega — Escolha seu primeiro Pokémon. Seu oponente não verá sua escolha até ambos confirmarem.</p>
+            <div class="pvp-selection-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:0.75rem;margin:1rem 0;">
+                ${team.map((p, i) => `
+                    <div class="pvp-select-card" onclick="pvpSelectPokemon(${i})" id="pvp-select-${i}" 
+                         style="background:var(--darker);border:2px solid var(--card-border);border-radius:var(--radius);padding:0.75rem;text-align:center;cursor:pointer;transition:all 0.2s;">
+                        <img src="${getPokemonSpriteUrl(p.number || 0)}" width="48" height="48" style="image-rendering:pixelated;">
+                        <div style="font-weight:bold;">${p.nickname || p.name}</div>
+                        <div style="font-size:0.8rem;color:var(--text-muted);">Nv.${p.level} | HP:${p.currentHp || p.maxHp}/${p.maxHp}</div>
+                        <div class="type-badges" style="justify-content:center;">${formatTypes(p.types || [])}</div>
+                    </div>
+                `).join('')}
             </div>
-            <div id="pvp-battle-log" class="battle-log-full" style="margin-top:1rem;text-align:left;"></div>
-            <div style="margin-top:1rem;">
-                <button class="btn btn-success" onclick="endPvpBattle('won')">🏆 Eu Venci!</button>
-                <button class="btn btn-danger" onclick="endPvpBattle('lost')">💀 Eu Perdi</button>
-                <button class="btn btn-secondary" onclick="endPvpBattle('draw')">🤝 Empate</button>
-            </div>
+            <button class="btn btn-primary btn-lg" id="pvp-confirm-btn" onclick="pvpConfirmSelection()" disabled>
+                Confirmar Pokémon Selecionado
+            </button>
         </div>
     `;
     
@@ -1647,61 +1666,357 @@ socket.on('pvp_battle_start', (data) => {
     document.getElementById('tab-pvp').classList.add('active');
 });
 
-// PVP battle updates
-socket.on('pvp_battle_update', (data) => {
-    const log = document.getElementById('pvp-battle-log');
-    if (log) {
-        let msg = `<strong>${data.actor_name}</strong>: ${data.move_name}`;
-        if (data.damage > 0) msg += ` → ${data.damage} dano`;
-        if (data.message) msg += ` (${data.message})`;
-        log.innerHTML += `<p>${msg}</p>`;
-        log.scrollTop = log.scrollHeight;
-    }
+window._pvpSelectedIdx = null;
+
+function pvpSelectPokemon(idx) {
+    // Deselect previous
+    document.querySelectorAll('.pvp-select-card').forEach(c => c.style.borderColor = 'var(--card-border)');
+    // Select this one
+    document.getElementById(`pvp-select-${idx}`).style.borderColor = 'var(--accent)';
+    window._pvpSelectedIdx = idx;
+    document.getElementById('pvp-confirm-btn').disabled = false;
+}
+
+function pvpConfirmSelection() {
+    if (window._pvpSelectedIdx === null) return;
+    socket.emit('pvp_select_pokemon', {
+        battle_id: window.pvpState.battleId,
+        pokemon_idx: window._pvpSelectedIdx
+    });
+    document.getElementById('pvp-battle-content').innerHTML = `
+        <div style="text-align:center;padding:2rem;">
+            <h3>⏳ Aguardando oponente escolher...</h3>
+            <p style="color:var(--text-muted);">Seu Pokémon foi selecionado. A batalha começará assim que o oponente confirmar.</p>
+        </div>
+    `;
+}
+
+socket.on('pvp_waiting', (data) => {
+    // Already handled by pvpConfirmSelection
 });
+
+// ============================================
+// PVP BATTLE - BATTLE PHASE (Real-time state updates)
+// ============================================
+
+function renderPvpBattle(state) {
+    const content = document.getElementById('pvp-battle-content');
+    if (!content) return;
+    
+    const isMyTurn = state.turn === state.you_are;
+    const myTeam = state.your_team || [];
+    const myActive = myTeam[state.your_active_idx] || {};
+    const opponent = state.opponent_active || {};
+    const myHpPct = myActive.maxHp ? (myActive.currentHp / myActive.maxHp * 100) : 100;
+    const oppHpPct = opponent.maxHp ? (opponent.currentHp / opponent.maxHp * 100) : 100;
+    
+    // Build moves
+    const moves = myActive.moves || [];
+    
+    content.innerHTML = `
+        <div class="battle-field-full">
+            <!-- Opponent Side -->
+            <div class="battle-side-full enemy-side">
+                <h3>🔴 Oponente</h3>
+                <div class="battle-pokemon-full">
+                    <img src="${getPokemonSpriteUrl(opponent.number || 0)}" class="battle-sprite">
+                    <h4>${opponent.nickname || opponent.name || '???'} Nv.${opponent.level || '?'}</h4>
+                    <div class="type-badges" style="justify-content:center;">${formatTypes(opponent.types || [])}</div>
+                    <div class="hp-bar-container">
+                        <div class="hp-bar enemy-hp" style="width:${oppHpPct}%"></div>
+                    </div>
+                    <span class="hp-text">${opponent.currentHp || '?'}/${opponent.maxHp || '?'} HP</span>
+                    <div class="battle-stats-mini">
+                        <span>AC: ${opponent.ac || '?'}</span>
+                        <span>SPD: ${opponent.speed || '?'}</span>
+                    </div>
+                    ${opponent.stats ? `<div class="mini-stats" style="justify-content:center;margin-top:0.3rem;">${Object.entries(opponent.stats).map(([k,v]) => `<span>${k}:${v}</span>`).join('')}</div>` : ''}
+                </div>
+                <p style="text-align:center;font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;">Pokémon restantes: ${state.opponent_alive_count || '?'}</p>
+            </div>
+            
+            <!-- VS -->
+            <div class="battle-vs">${isMyTurn ? '⚡' : '⏳'}</div>
+            
+            <!-- Your Side -->
+            <div class="battle-side-full player-side">
+                <h3>🟢 Seu Pokémon</h3>
+                <div class="battle-pokemon-full">
+                    <img src="${getPokemonSpriteUrl(myActive.number || 0)}" class="battle-sprite">
+                    <h4>${myActive.nickname || myActive.name || '???'} Nv.${myActive.level || '?'}</h4>
+                    <div class="type-badges" style="justify-content:center;">${formatTypes(myActive.types || [])}</div>
+                    <div class="hp-bar-container">
+                        <div class="hp-bar player-hp" style="width:${myHpPct}%"></div>
+                    </div>
+                    <span class="hp-text">${myActive.currentHp || 0}/${myActive.maxHp || 0} HP</span>
+                    <div class="battle-stats-mini">
+                        <span>AC: ${myActive.ac || 10}</span>
+                        <span>SPD: ${myActive.speed || '30ft'}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Turn Indicator -->
+        <div style="text-align:center;margin:0.75rem 0;">
+            <span class="turn-indicator" style="font-size:1rem;padding:0.5rem 1.5rem;">
+                ${isMyTurn ? '🟢 SEU TURNO — Escolha uma ação!' : '🔴 Turno do Oponente — Aguarde...'}
+            </span>
+            <span style="display:block;margin-top:0.3rem;font-size:0.8rem;color:var(--text-muted);">Round ${state.round || 1}</span>
+        </div>
+        
+        <!-- Actions (only if my turn) -->
+        <div style="text-align:center;margin:1rem 0;">
+            <h4 style="color:var(--accent);margin-bottom:0.5rem;">Moves:</h4>
+            <div class="battle-moves-list" style="justify-content:center;gap:0.5rem;">
+                ${moves.map(m => `
+                    <span class="move-btn selectable-move" style="${isMyTurn ? '' : 'opacity:0.4;pointer-events:none;'}"
+                          onclick="pvpUseMove('${m.replace(/'/g, "\\'")}')">
+                        ${m}
+                    </span>
+                `).join('')}
+            </div>
+        </div>
+        
+        <!-- Dice + Extra actions -->
+        <div class="dice-section" style="margin:1rem 0;">
+            <div class="dice-buttons">
+                <button class="btn btn-dice" onclick="pvpRollDice(20)">d20</button>
+                <button class="btn btn-dice" onclick="pvpRollDice(6)">d6</button>
+                <button class="btn btn-dice" onclick="pvpRollDice(8)">d8</button>
+                <button class="btn btn-dice" onclick="pvpRollDice(10)">d10</button>
+                <button class="btn btn-dice" onclick="pvpRollDice(12)">d12</button>
+            </div>
+            <div id="pvp-dice-result" style="min-height:30px;margin-top:0.3rem;"></div>
+        </div>
+        
+        <!-- Battle Log -->
+        <div class="battle-log-full" id="pvp-battle-log" style="max-height:150px;">
+            ${(state.log || []).map(l => renderPvpLogEntry(l, state.you_are)).join('')}
+        </div>
+        
+        <!-- Action buttons -->
+        <div class="battle-end-actions" style="margin-top:1rem;">
+            ${isMyTurn ? `<button class="btn btn-secondary" onclick="pvpSwitchPokemon()">🔄 Trocar Pokémon</button>` : ''}
+            ${isMyTurn ? `<button class="btn btn-secondary" onclick="pvpPassTurn()">⏭️ Passar Turno</button>` : ''}
+            <button class="btn btn-danger" onclick="pvpForfeit()">🏳️ Desistir</button>
+        </div>
+    `;
+    
+    // Scroll log to bottom
+    const log = document.getElementById('pvp-battle-log');
+    if (log) log.scrollTop = log.scrollHeight;
+}
+
+function renderPvpLogEntry(entry, youAre) {
+    if (entry.type === 'initiative') {
+        return `<p>🎲 Iniciativa — P1: ${entry.player1_roll} | P2: ${entry.player2_roll} → ${entry.first === youAre ? 'Você' : 'Oponente'} começa!</p>`;
+    }
+    if (entry.type === 'attack') {
+        const who = entry.attacker === youAre ? '🟢 Você' : '🔴 Oponente';
+        return `<p>${who} usou <strong>${entry.move}</strong> → ${entry.damage} dano! ${entry.message || ''}</p>`;
+    }
+    if (entry.type === 'faint') {
+        const who = entry.player === youAre ? '😵 Seu Pokémon' : '💀 Pokémon do oponente';
+        return `<p><strong>${who} desmaiou!</strong></p>`;
+    }
+    return '';
+}
+
+function pvpUseMove(moveName) {
+    const state = window.pvpState.battleData;
+    if (!state || state.turn !== state.you_are) { alert('Não é seu turno!'); return; }
+    
+    const myActive = state.your_team[state.your_active_idx] || {};
+    const stats = myActive.stats || {};
+    const level = myActive.level || 1;
+    
+    // Get move data from cache
+    const m = MOVES_CACHE[moveName] || {};
+    
+    // Calculate attack roll
+    let moveMod = 0;
+    const power = (m.power || 'FOR').toUpperCase();
+    if (power.includes('FOR')) moveMod = Math.max(moveMod, Math.floor(((stats.STR||10) - 10) / 2));
+    if (power.includes('DES')) moveMod = Math.max(moveMod, Math.floor(((stats.DEX||10) - 10) / 2));
+    if (power.includes('INT')) moveMod = Math.max(moveMod, Math.floor(((stats.INT||10) - 10) / 2));
+    if (power.includes('SAB')) moveMod = Math.max(moveMod, Math.floor(((stats.WIS||10) - 10) / 2));
+    if (power.includes('CAR')) moveMod = Math.max(moveMod, Math.floor(((stats.CHA||10) - 10) / 2));
+    if (power.includes('CON')) moveMod = Math.max(moveMod, Math.floor(((stats.CON||10) - 10) / 2));
+    
+    const profBonus = level >= 17 ? 6 : level >= 13 ? 5 : level >= 9 ? 4 : level >= 5 ? 3 : 2;
+    const attackRoll = Math.floor(Math.random() * 20) + 1;
+    const isCrit = attackRoll === 20;
+    const totalAttack = attackRoll + moveMod + profBonus;
+    
+    const opponentAC = state.opponent_active?.ac || 13;
+    
+    let damage = 0;
+    let message = '';
+    
+    if (attackRoll === 1) {
+        message = `d20(1) Falha Crítica!`;
+    } else if (totalAttack >= opponentAC || isCrit) {
+        // Calculate damage
+        const diceRoll = rollDamageFromString(m.baseDamage || '1d6', level);
+        damage = diceRoll + moveMod;
+        if (isCrit) {
+            damage = diceRoll + rollDamageFromString(m.baseDamage || '1d6', level) + moveMod;
+        }
+        // STAB
+        const pokeTypes = (myActive.types || []).map(t => t.toLowerCase());
+        const moveType = (m.type || '').toLowerCase();
+        const stabTable = [0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5];
+        const stab = pokeTypes.includes(moveType) ? (stabTable[level] || 0) : 0;
+        damage += stab;
+        if (damage < 1) damage = 1;
+        message = `d20(${attackRoll})+${moveMod}+${profBonus}=${totalAttack} vs AC${opponentAC} ✅ ${damage}dano${isCrit ? ' CRIT!' : ''}`;
+    } else {
+        message = `d20(${attackRoll})+${moveMod}+${profBonus}=${totalAttack} vs AC${opponentAC} ❌ Errou`;
+    }
+    
+    // Send to server
+    socket.emit('pvp_attack', {
+        battle_id: window.pvpState.battleId,
+        move_name: moveName,
+        damage: damage,
+        message: message
+    });
+}
 
 function pvpRollDice(sides) {
     const result = Math.floor(Math.random() * sides) + 1;
-    const resultDiv = document.getElementById('pvp-dice-result');
-    resultDiv.innerHTML = `<span class="dice-value">d${sides}: ${result}</span>${result === 20 ? ' 💥 CRIT!' : ''}${result === 1 ? ' 💨 Falha!' : ''}`;
+    document.getElementById('pvp-dice-result').innerHTML = `<span class="dice-value">d${sides}: ${result}</span>${result === 20 ? ' 💥' : ''}${result === 1 ? ' 💨' : ''}`;
+}
+
+function pvpSwitchPokemon() {
+    const state = window.pvpState.battleData;
+    if (!state) return;
     
-    // Share with opponent
-    if (window.pvpState.currentBattle) {
-        socket.emit('pvp_action', {
-            room_id: window.pvpState.currentBattle.room_id,
-            action_type: 'dice',
-            move_name: `🎲 d${sides}: ${result}`,
-            damage: 0,
-            message: result === 20 ? 'CRIT!' : (result === 1 ? 'Falha!' : '')
-        });
+    const team = state.your_team || [];
+    const used = state.your_used_pokemon || [];
+    const mode = state.mode;
+    
+    let html = '<h3>🔄 Escolha um Pokémon</h3>';
+    if (mode === 'official' || mode === 'tournament') {
+        html += '<p style="color:var(--warning);font-size:0.8rem;">⚠️ Modo Oficial: Pokémon trocado voluntariamente fica bloqueado para esta batalha.</p>';
     }
-}
-
-function endPvpBattle(result) {
-    if (!window.pvpState.currentBattle) return;
-    if (!confirm(`Encerrar batalha como: ${result}?`)) return;
+    html += '<div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem;">';
     
-    socket.emit('pvp_end', { room_id: window.pvpState.currentBattle.room_id, result });
-    window.pvpState.currentBattle = null;
-    document.getElementById('pvp-battle-area').classList.add('hidden');
-    addPvpMessage(`Batalha PVP encerrada: ${result}`);
+    team.forEach((p, i) => {
+        const isCurrent = i === state.your_active_idx;
+        const isFainted = (p.currentHp || 0) <= 0;
+        const isBlocked = (mode === 'official' || mode === 'tournament') && used.includes(i) && !isCurrent;
+        const canSelect = !isCurrent && !isFainted && !isBlocked;
+        
+        html += `
+            <div class="switch-option ${isCurrent ? 'current' : ''} ${isFainted ? 'fainted' : ''} ${isBlocked ? 'fainted' : ''}"
+                 ${canSelect ? `onclick="pvpConfirmSwitch(${i})"` : ''} style="cursor:${canSelect ? 'pointer' : 'default'};">
+                <strong>${p.nickname || p.name}</strong> Nv.${p.level} — HP: ${p.currentHp || 0}/${p.maxHp || 0}
+                ${isCurrent ? '<em>(ativo)</em>' : ''}
+                ${isFainted ? '<em>(desmaiado)</em>' : ''}
+                ${isBlocked ? '<em>(bloqueado)</em>' : ''}
+            </div>
+        `;
+    });
+    html += '</div>';
+    
+    // Show in a modal-like overlay in the battle area
+    const area = document.getElementById('pvp-battle-content');
+    const originalHtml = area.innerHTML;
+    area.innerHTML = html + `<button class="btn btn-secondary" style="margin-top:1rem;" onclick="renderPvpBattle(window.pvpState.battleData)">Cancelar</button>`;
 }
 
-socket.on('pvp_battle_ended', (data) => {
-    window.pvpState.currentBattle = null;
-    document.getElementById('pvp-battle-area')?.classList.add('hidden');
-    addPvpMessage(`Batalha encerrada por ${data.ender}: ${data.result}`);
+function pvpConfirmSwitch(idx) {
+    socket.emit('pvp_switch', {
+        battle_id: window.pvpState.battleId,
+        pokemon_idx: idx
+    });
+}
+
+function pvpPassTurn() {
+    socket.emit('pvp_pass_turn', { battle_id: window.pvpState.battleId });
+}
+
+function pvpForfeit() {
+    if (!confirm('Desistir desta batalha? Você perderá automaticamente.')) return;
+    socket.emit('pvp_forfeit', { battle_id: window.pvpState.battleId });
+}
+
+// Must switch (pokemon fainted)
+socket.on('pvp_must_switch', (data) => {
+    alert('😵 Seu Pokémon desmaiou! Escolha o próximo.');
+    pvpSwitchPokemon();
 });
 
-function addPvpMessage(msg) {
-    const container = document.getElementById('pvp-challenges');
-    if (container) {
-        const p = document.createElement('p');
-        p.style.color = 'var(--text-muted)';
-        p.style.fontSize = '0.85rem';
-        p.innerHTML = msg;
-        container.appendChild(p);
+// Battle ended
+socket.on('pvp_battle_ended', (data) => {
+    const content = document.getElementById('pvp-battle-content');
+    const isWinner = data.winner === window.pvpState.youAre;
+    
+    let rewardsHtml = '';
+    if (isWinner && data.rewards) {
+        rewardsHtml = '<div style="margin-top:1rem;background:var(--darker);padding:1rem;border-radius:var(--radius);">';
+        rewardsHtml += '<h4 style="color:var(--accent);">💰 Recompensas:</h4>';
+        if (data.rewards.money > 0) rewardsHtml += `<p>₽${data.rewards.money}</p>`;
+        if (data.rewards.items && data.rewards.items.length > 0) {
+            rewardsHtml += data.rewards.items.map(i => `<p>📦 ${i.qty}x ${i.name}</p>`).join('');
+        }
+        rewardsHtml += '</div>';
+    } else if (!isWinner && data.lost) {
+        rewardsHtml = '<div style="margin-top:1rem;background:var(--darker);padding:1rem;border-radius:var(--radius);border:1px solid var(--danger);">';
+        rewardsHtml += '<h4 style="color:var(--danger);">💸 Perdas:</h4>';
+        if (data.lost.money > 0) rewardsHtml += `<p>-₽${data.lost.money}</p>`;
+        if (data.lost.items && data.lost.items.length > 0) {
+            rewardsHtml += data.lost.items.map(i => `<p>📦 -${i.qty}x ${i.name}</p>`).join('');
+        }
+        rewardsHtml += '</div>';
     }
+    
+    if (content) {
+        content.innerHTML = `
+            <div style="text-align:center;padding:2rem;">
+                <h2 style="color:${isWinner ? 'var(--success)' : 'var(--danger)'};">${isWinner ? '🏆 VITÓRIA!' : '💀 DERROTA'}</h2>
+                <p>${isWinner ? `Você venceu ${data.loser_name}!` : `${data.winner_name} venceu.`}</p>
+                <p style="color:var(--text-muted);">Modo: ${data.mode === 'official' ? '⚔️ Oficial' : '🥊 Rua'}</p>
+                ${rewardsHtml}
+                <button class="btn btn-primary" style="margin-top:1.5rem;" onclick="closePvpBattle()">Fechar</button>
+            </div>
+        `;
+    }
+    
+    window.pvpState.battleId = null;
+    window.pvpState.battleData = null;
+});
+
+socket.on('pvp_error', (data) => {
+    alert('PVP Erro: ' + data.message);
+});
+
+function closePvpBattle() {
+    document.getElementById('pvp-battle-area')?.classList.add('hidden');
+    document.getElementById('pvp-battle-content').innerHTML = '';
 }
+
+function addPvpLog(msg) {
+    const container = document.getElementById('pvp-challenges');
+    if (!container) return;
+    const p = document.createElement('p');
+    p.style.cssText = 'color:var(--text-muted);font-size:0.85rem;margin-top:0.3rem;';
+    p.innerHTML = msg;
+    container.appendChild(p);
+}
+
+// Load moves for PVP on battle start
+socket.on('pvp_battle_state', async (state) => {
+    // Ensure moves are cached
+    const myActive = (state.your_team || [])[state.your_active_idx];
+    if (myActive && myActive.moves) {
+        await loadMovesData(myActive.moves);
+    }
+    window.pvpState.battleData = state;
+    renderPvpBattle(state);
+});
 
 
 // ============================================
