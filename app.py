@@ -662,13 +662,13 @@ def api_encounter():
     
     # Level filtering based on mode
     if hunt_mode == 'night':
-        # Night: very dangerous, +10 to +30 above player
-        min_lv = player_level + 10
-        max_lv = min(100, player_level + 30)
+        # Night: dangerous, -10 to +20 (mixes weak and strong)
+        min_lv = max(1, player_level - 10)
+        max_lv = min(100, player_level + 20)
     elif hunt_mode == 'dungeon':
-        # Dungeon: dangerous, ±15 of player, skews up
-        min_lv = max(1, player_level - 15)
-        max_lv = min(100, player_level + 15)
+        # Dungeon: varied, -10 to +10 (mix of strong and weak)
+        min_lv = max(1, player_level - 10)
+        max_lv = min(100, player_level + 10)
     else:
         # Normal: safe-ish, ±5 of player
         min_lv = max(1, player_level - 5)
@@ -713,11 +713,11 @@ def api_encounter():
     
     # Determine encounter level
     if hunt_mode == 'night':
-        # Night: +10 to +30 above player (extremely dangerous)
-        encounter_level = random.randint(player_level + 10, min(100, player_level + 30))
+        # Night: -10 to +20 (varied, skews dangerous)
+        encounter_level = random.randint(max(1, player_level - 10), min(100, player_level + 20))
     elif hunt_mode == 'dungeon':
-        # Dungeon: -5 to +15 (skews harder)
-        encounter_level = random.randint(max(1, player_level - 5), min(100, player_level + 15))
+        # Dungeon: -10 to +10 (varied mix)
+        encounter_level = random.randint(max(1, player_level - 10), min(100, player_level + 10))
     else:
         # Normal: ±5 around player level
         low = max(1, player_level - 5)
@@ -979,6 +979,24 @@ def api_check_status():
         })
     
     return jsonify({'error': 'Invalid action'}), 400
+
+@app.route('/api/process-status-move', methods=['POST'])
+@login_required
+def api_process_status_move():
+    """Process a status move - auto-detects effect from move description.
+    Handles ALL status moves by parsing their descriptions."""
+    data = request.json
+    move_name = data.get('move_name', '')
+    attacker_stats = data.get('attacker_stats', {})
+    target_stats = data.get('target_stats', {})
+    
+    # Get move data from database
+    move_data = MOVES_DB.get(move_name) or MOVES_BY_NAME.get(move_name.lower())
+    if not move_data:
+        return jsonify({'success': False, 'message': f'Move {move_name} não encontrado'})
+    
+    result = effects.process_status_move(move_data, attacker_stats, target_stats)
+    return jsonify(result)
 
 @app.route('/player/pokedex/register', methods=['POST'])
 @login_required

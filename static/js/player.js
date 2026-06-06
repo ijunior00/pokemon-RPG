@@ -517,13 +517,9 @@ function useMove(moveName) {
     // Proficiency bonus based on Pokemon level (1-100 scale)
     const profBonus = poke?.proficiency || getProficiencyForLevel(pokeLevel);
     
-    // If move has no damage (status move), skip attack roll
-    if (!m.baseDamage && !m.attackType && power === 'NENHUM') {
-        addBattleLog(`▶️ <strong>${moveName}</strong> usado! (Move de status)`);
-        socket.emit('battle_action', {
-            action_by: 'player', action_type: 'status',
-            move_name: moveName, damage: 0, message: m.description || ''
-        });
+    // If move has no baseDamage, it's a status/utility move - process via server
+    if (!m.baseDamage) {
+        await processStatusMove(moveName, poke, window.currentBattleData?.enemy);
         return;
     }
     
@@ -765,7 +761,14 @@ function endBattle(result) {
     };
     addBattleLog(`<strong>${messages[result] || result}</strong>`);
     window.wildFainted = false;
+    window.wildPokemonStatus = null;
+    window.playerPokemonStatus = null;
     socket.emit('end_encounter', { result });
+    
+    // Award XP to the Pokemon that fought (if won)
+    if ((result === 'defeated' || result === 'caught') && currentEncounter && window.currentBattleData) {
+        awardPokemonBattleXP();
+    }
 
     // If caught, add to team
     if (result === 'caught' && currentEncounter) {
@@ -2591,16 +2594,9 @@ async function wildPokemonAutoAttack() {
     // Proficiency for wild (1-100 scale)
     const profBonus = getProficiencyForLevel(wildLevel);
     
-    // Status move (no damage)
-    if (!moveData.baseDamage && (power === 'NENHUM' || power === 'Nenhum')) {
-        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> (status)!`);
-        // Check if it applies a status to the player's pokemon
-        const statusEffect = checkWildStatusMove(moveName);
-        socket.emit('battle_action', {
-            action_by: 'master', action_type: 'status',
-            move_name: moveName, damage: 0,
-            status_effect: statusEffect, message: moveData.description || ''
-        });
+    // Status/utility move (no baseDamage = no damage regardless of power field)
+    if (!moveData.baseDamage) {
+        await processWildStatusMove(moveName);
         return;
     }
     
@@ -2711,5 +2707,438 @@ function checkWildStatusOnHit(moveName, attackRoll, damage) {
         window._wildStatusApplied = effect.status;
         if (cond) addBattleLog(`${cond.icon} Seu Pokémon ficou <strong>${cond.name}</strong>! ${cond.description}`);
         updateStatusDisplay();
+    }
+}
+
+
+// ============================================
+// POKEMON XP & LEVEL UP SYSTEM
+// ============================================
+async function awardPokemonBattleXP() {
+    // Award XP to the Pokemon that participated in the battle
+    const battleData = window.currentBattleData;
+    if (!battleData) return;
+    
+    const playerPoke = battleData.playerPokemon;
+    const enemyLevel = currentEncounter?.level || 5;
+    const enemySR = battleData.enemy?.sr || '1/2';
+    
+    // Calculate XP via server
+    try {
+        const resp = await fetch('/api/pokemon/battle-xp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                winner_level: playerPoke.level || 1,
+                loser_level: enemyLevel,
+                loser_sr: enemySR,
+                is_wild: true
+            })
+        });
+        const data = await resp.json();
+        const xpGained = data.xp_gained || 0;
+        
+        // Find this pokemon in the team and add XP
+        const teamIdx = playerTeam.findIndex(p => 
+            (p.nickname || p.name) === (playerPoke.nickname || playerPoke.name) && p.level === playerPoke.level
+        );
+        
+        if (teamIdx >= 0) {
+            const poke = playerTeam[teamIdx];
+            poke.xp = (poke.xp || 0) + xpGained;
+            poke.totalXp = (poke.totalXp || 0) + xpGained;
+            
+            // Check level up
+            const leveledUp = checkPokemonLevelUp(poke);
+            
+            addBattleLog(`⭐ ${poke.nickname || poke.name} ganhou <strong>${xpGained} XP</strong>!${leveledUp ? ' 🎉 SUBIU DE NÍVEL!' : ''}`);
+            
+            if (leveledUp) {
+                addBattleLog(`📈 ${poke.nickname || poke.name} agora é <strong>Nv.${poke.level}</strong>!`);
+            }
+            
+            // Save team
+            await saveTeam();
+        }
+    } catch(e) { console.error('XP award failed:', e); }
+}
+
+function checkPokemonLevelUp(poke) {
+    // XP table for Pokemon (cubic growth, medium rate)
+    // Level^3 = total XP needed
+    const currentLevel = poke.level || 1;
+    if (currentLevel >= 100) return false;
+    
+    const totalXp = poke.totalXp || 0;
+    const xpForNext = Math.pow(currentLevel + 1, 3);
+    
+    if (totalXp >= xpForNext) {
+        poke.level = currentLevel + 1;
+        // Gain stat points on level up (player can distribute later)
+        poke.statPointsAvailable = (poke.statPointsAvailable || 0) + 1;
+        // Every 5 levels, gain extra stat point
+        if (poke.level % 5 === 0) poke.statPointsAvailable += 1;
+        // Recalculate HP for new level
+        const conMod = Math.floor(((poke.stats?.CON || 10) - 10) / 2);
+        poke.maxHp = (poke.baseHp || 20) + (conMod * poke.level) + (poke.level * 2);
+        poke.currentHp = poke.maxHp; // Full heal on level up
+        // Check for further level ups (if got a lot of XP)
+        checkPokemonLevelUp(poke);
+        return true;
+    }
+    
+    // Update xp to next for display
+    poke.xpToNext = xpForNext - totalXp;
+    return false;
+}
+
+// When trainer receives XP from master (quests), distribute to Pokemon team
+const _origXpHandler = socket._callbacks?.['$xp_update'];
+socket.on('xp_update', async (data) => {
+    // Distribute XP to pokemon team
+    if (data.xp && playerTeam.length > 0) {
+        // XP per pokemon = total XP gained / number of pokemon in team
+        const xpPerPoke = Math.floor((data.xp - (TRAINER_DATA.xp || 0)) / playerTeam.length);
+        if (xpPerPoke > 0) {
+            let anyLevelUp = false;
+            playerTeam.forEach(poke => {
+                poke.xp = (poke.xp || 0) + xpPerPoke;
+                poke.totalXp = (poke.totalXp || 0) + xpPerPoke;
+                if (checkPokemonLevelUp(poke)) anyLevelUp = true;
+            });
+            if (anyLevelUp) {
+                alert('🎉 Um ou mais Pokémon subiram de nível! Verifique o time.');
+            }
+            await saveTeam();
+        }
+        // Update trainer data
+        TRAINER_DATA.xp = data.xp;
+        TRAINER_DATA.level = data.level;
+        TRAINER_DATA.xp_to_next = data.xp_to_next;
+    }
+});
+
+
+// ============================================
+// BATTLE ITEMS (Use items during battle)
+// ============================================
+const BATTLE_ITEMS = {
+    'Potion': { type: 'heal', heal: 20, description: 'Cura 20 HP' },
+    'Super Potion': { type: 'heal', heal: 50, description: 'Cura 50 HP' },
+    'Hyper Potion': { type: 'heal', heal: 200, description: 'Cura 200 HP' },
+    'Max Potion': { type: 'heal', heal: 9999, description: 'Cura todo HP' },
+    'Full Restore': { type: 'full_restore', heal: 9999, description: 'Cura todo HP e remove status' },
+    'Full Heal': { type: 'cure_status', description: 'Remove qualquer status' },
+    'Antidote': { type: 'cure_specific', cures: ['envenenado', 'badly_poisoned'], description: 'Cura veneno' },
+    'Burn Heal': { type: 'cure_specific', cures: ['queimado'], description: 'Cura queimadura' },
+    'Ice Heal': { type: 'cure_specific', cures: ['congelado'], description: 'Cura congelamento' },
+    'Awakening': { type: 'cure_specific', cures: ['dormindo'], description: 'Acorda o Pokémon' },
+    'Paralyze Heal': { type: 'cure_specific', cures: ['paralisado'], description: 'Cura paralisia' },
+    'Revive': { type: 'revive', heal_pct: 0.5, description: 'Revive com 50% HP' },
+    'Max Revive': { type: 'revive', heal_pct: 1.0, description: 'Revive com 100% HP' },
+    'Rare Candy': { type: 'level_up', description: 'Sobe 1 nível' },
+    'X Attack': { type: 'buff', stat: 'STR', value: 3, description: '+3 STR nesta batalha' },
+    'X Defense': { type: 'buff', stat: 'AC', value: 2, description: '+2 AC nesta batalha' },
+    'X Speed': { type: 'buff', stat: 'DEX', value: 3, description: '+3 DEX nesta batalha' },
+    'X Sp. Atk': { type: 'buff', stat: 'INT', value: 3, description: '+3 INT nesta batalha' },
+};
+
+function openBattleItems() {
+    if (window.currentTurn !== 'player' && !window.wildFainted) {
+        alert('Não é seu turno!'); return;
+    }
+    
+    const bag = window.bagItems || [];
+    const usableItems = bag.filter(item => {
+        const normalized = item.name.toLowerCase().replace(/\s+/g, ' ');
+        return Object.keys(BATTLE_ITEMS).some(k => k.toLowerCase() === normalized);
+    });
+    
+    if (usableItems.length === 0) {
+        alert('Nenhum item utilizável em batalha na sua bolsa!');
+        return;
+    }
+    
+    let html = '<h3>🎒 Usar Item</h3><p style="color:var(--text-muted);font-size:0.8rem;">Usar um item gasta seu turno.</p>';
+    html += '<div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem;">';
+    
+    usableItems.forEach(item => {
+        const itemData = Object.entries(BATTLE_ITEMS).find(([k]) => k.toLowerCase() === item.name.toLowerCase().replace(/\s+/g, ' '));
+        const info = itemData ? itemData[1] : {};
+        html += `
+            <div class="switch-option" onclick="useBattleItem('${item.name.replace(/'/g, "\\'")}')">
+                ${item.file ? `<img src="/static/img/items/${item.file}" width="24" height="24" style="image-rendering:pixelated;vertical-align:middle;margin-right:0.5rem;">` : ''}
+                <strong>${item.name}</strong> (x${item.qty}) — ${info.description || ''}
+            </div>
+        `;
+    });
+    html += '</div>';
+    
+    // Show in battle log area temporarily
+    const log = document.getElementById('battle-log-full');
+    const originalLog = log.innerHTML;
+    log.innerHTML = html + `<button class="btn btn-secondary" style="margin-top:1rem;" onclick="document.getElementById('battle-log-full').innerHTML='${originalLog.replace(/'/g, "\\'")}'; ">Cancelar</button>`;
+}
+
+function useBattleItem(itemName) {
+    const itemData = Object.entries(BATTLE_ITEMS).find(([k]) => k.toLowerCase() === itemName.toLowerCase().replace(/\s+/g, ' '));
+    if (!itemData) return;
+    const [, info] = itemData;
+    const poke = window.currentBattleData?.playerPokemon;
+    if (!poke) return;
+    
+    // Apply item effect
+    if (info.type === 'heal') {
+        const oldHp = poke.currentHp || 0;
+        const maxHp = poke.maxHp || 20;
+        poke.currentHp = Math.min(maxHp, oldHp + info.heal);
+        const healed = poke.currentHp - oldHp;
+        addBattleLog(`🧪 Usou <strong>${itemName}</strong>! ${poke.nickname || poke.name} recuperou ${healed} HP. (${poke.currentHp}/${maxHp})`);
+        document.getElementById('battle-player-hp-text-full').textContent = `${poke.currentHp}/${maxHp} HP`;
+        document.getElementById('battle-player-hp-bar-full').style.width = `${(poke.currentHp/maxHp)*100}%`;
+    } else if (info.type === 'full_restore') {
+        poke.currentHp = poke.maxHp || 20;
+        window.playerPokemonStatus = null;
+        updateStatusDisplay();
+        addBattleLog(`🧪 Usou <strong>${itemName}</strong>! HP cheio + status curado!`);
+        document.getElementById('battle-player-hp-text-full').textContent = `${poke.currentHp}/${poke.maxHp} HP`;
+        document.getElementById('battle-player-hp-bar-full').style.width = '100%';
+    } else if (info.type === 'cure_status' || info.type === 'cure_specific') {
+        if (window.playerPokemonStatus) {
+            if (info.type === 'cure_status' || (info.cures && info.cures.includes(window.playerPokemonStatus.condition))) {
+                addBattleLog(`🧪 Usou <strong>${itemName}</strong>! Status curado!`);
+                window.playerPokemonStatus = null;
+                updateStatusDisplay();
+            } else {
+                addBattleLog(`❌ ${itemName} não cura esta condição.`);
+                return; // Don't consume
+            }
+        } else {
+            addBattleLog(`❌ Seu Pokémon não tem nenhuma condição.`);
+            return;
+        }
+    } else if (info.type === 'buff') {
+        if (poke.stats && info.stat !== 'AC') {
+            poke.stats[info.stat] = (poke.stats[info.stat] || 10) + info.value;
+            addBattleLog(`🧪 Usou <strong>${itemName}</strong>! ${info.stat} +${info.value}!`);
+        } else if (info.stat === 'AC') {
+            poke.ac = (poke.ac || 13) + info.value;
+            addBattleLog(`🧪 Usou <strong>${itemName}</strong>! AC +${info.value}! (AC agora: ${poke.ac})`);
+        }
+    }
+    
+    // Consume item from bag
+    const bagIdx = window.bagItems.findIndex(i => i.name.toLowerCase() === itemName.toLowerCase());
+    if (bagIdx >= 0) {
+        window.bagItems[bagIdx].qty -= 1;
+        if (window.bagItems[bagIdx].qty <= 0) window.bagItems.splice(bagIdx, 1);
+    }
+    
+    // Using item costs the turn (emit pass)
+    socket.emit('battle_action', {
+        action_by: 'player', action_type: 'item',
+        move_name: `Usou ${itemName}`, damage: 0,
+        message: info.description
+    });
+    
+    // Restore battle log view
+    const log = document.getElementById('battle-log-full');
+    if (log && !log.querySelector('.battle-end-actions')) {
+        // Log is back to normal after battle_update processes
+    }
+}
+
+
+// ============================================
+// PROCESS STATUS MOVES (calls server for auto-detection)
+// ============================================
+async function processStatusMove(moveName, attackerPoke, targetPoke) {
+    // Build attacker stats for the server
+    const attackerStats = {
+        level: attackerPoke?.level || 1,
+        proficiency: attackerPoke?.proficiency || getProficiencyForLevel(attackerPoke?.level || 1),
+        maxHp: attackerPoke?.maxHp || 20,
+        STR: attackerPoke?.stats?.STR || 10,
+        DEX: attackerPoke?.stats?.DEX || 10,
+        CON: attackerPoke?.stats?.CON || 10,
+        INT: attackerPoke?.stats?.INT || 10,
+        WIS: attackerPoke?.stats?.WIS || 10,
+        CHA: attackerPoke?.stats?.CHA || 10
+    };
+    const targetStats = {
+        level: targetPoke?.level || currentEncounter?.level || 5,
+        STR: targetPoke?.stats?.STR || 10,
+        DEX: targetPoke?.stats?.DEX || 10,
+        CON: targetPoke?.stats?.CON || 10,
+        INT: targetPoke?.stats?.INT || 10,
+        WIS: targetPoke?.stats?.WIS || 10,
+        CHA: targetPoke?.stats?.CHA || 10
+    };
+    
+    try {
+        const resp = await fetch('/api/process-status-move', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ move_name: moveName, attacker_stats: attackerStats, target_stats: targetStats })
+        });
+        const result = await resp.json();
+        
+        addBattleLog(`▶️ <strong>${moveName}</strong> → ${result.message}`);
+        
+        // Apply effects based on result
+        if (result.status_applied) {
+            window.wildPokemonStatus = { condition: result.status_applied, turns_active: 0 };
+            const cond = window.statusEffectsData?.conditions?.[result.status_applied];
+            if (cond) addBattleLog(`${cond.icon} Pokémon selvagem ficou <strong>${cond.name}</strong>!`);
+            updateStatusDisplay();
+        }
+        
+        if (result.stat_changes) {
+            // Apply stat changes to target (enemy)
+            for (const [stat, value] of Object.entries(result.stat_changes)) {
+                if (stat === 'attack_roll') {
+                    // Store accuracy debuff
+                    window.wildAccuracyMod = (window.wildAccuracyMod || 0) + value;
+                    addBattleLog(`🎯 Precisão do selvagem: ${value} (total: ${window.wildAccuracyMod})`);
+                } else if (targetPoke?.stats && stat in targetPoke.stats) {
+                    targetPoke.stats[stat] = (targetPoke.stats[stat] || 10) + value;
+                    addBattleLog(`📊 ${stat} do selvagem: ${value > 0 ? '+' : ''}${value}`);
+                } else if (stat === 'AC') {
+                    if (targetPoke) targetPoke.ac = (targetPoke.ac || 13) + value;
+                    addBattleLog(`🛡️ AC do selvagem: ${value > 0 ? '+' : ''}${value} (agora ${targetPoke?.ac})`);
+                }
+            }
+        }
+        
+        if (result.effect_type === 'heal' && result.heal) {
+            // Heal the attacker (player's pokemon)
+            const poke = window.currentBattleData?.playerPokemon;
+            if (poke) {
+                const oldHp = poke.currentHp || 0;
+                poke.currentHp = Math.min(poke.maxHp || 20, oldHp + result.heal);
+                addBattleLog(`💚 Recuperou ${poke.currentHp - oldHp} HP! (${poke.currentHp}/${poke.maxHp})`);
+                document.getElementById('battle-player-hp-text-full').textContent = `${poke.currentHp}/${poke.maxHp} HP`;
+                document.getElementById('battle-player-hp-bar-full').style.width = `${(poke.currentHp/poke.maxHp)*100}%`;
+            }
+        }
+        
+        if (result.effect_type === 'buff' && result.stat_changes) {
+            // Buff self (player's pokemon)
+            const poke = window.currentBattleData?.playerPokemon;
+            if (poke) {
+                for (const [stat, value] of Object.entries(result.stat_changes)) {
+                    if (stat === 'AC') {
+                        poke.ac = (poke.ac || 13) + value;
+                        addBattleLog(`🛡️ Sua AC: +${value} (agora ${poke.ac})`);
+                    } else if (stat === 'STAB') {
+                        poke.stab = (poke.stab || 1) + value;
+                        addBattleLog(`⚡ Seu STAB: +${value}`);
+                    } else if (poke.stats && stat in poke.stats) {
+                        poke.stats[stat] = (poke.stats[stat] || 10) + value;
+                        addBattleLog(`📊 Seu ${stat}: +${value} (agora ${poke.stats[stat]})`);
+                    }
+                }
+            }
+        }
+        
+        // Emit to server (costs turn)
+        socket.emit('battle_action', {
+            action_by: 'player', action_type: 'status',
+            move_name: moveName, damage: 0,
+            status_effect: result.status_applied || null,
+            message: result.message
+        });
+        
+    } catch(e) {
+        addBattleLog(`▶️ <strong>${moveName}</strong> usado! (efeito de utilidade)`);
+        socket.emit('battle_action', {
+            action_by: 'player', action_type: 'status',
+            move_name: moveName, damage: 0, message: 'Move de status'
+        });
+    }
+}
+
+// Same for wild pokemon using status moves
+async function processWildStatusMove(moveName) {
+    const enemy = window.currentBattleData?.enemy;
+    const playerPoke = window.currentBattleData?.playerPokemon;
+    const wildLevel = currentEncounter?.level || 5;
+    
+    const attackerStats = {
+        level: wildLevel,
+        proficiency: getProficiencyForLevel(wildLevel),
+        maxHp: enemy?.maxHp || enemy?.hp || 20,
+        STR: enemy?.stats?.STR || 10,
+        DEX: enemy?.stats?.DEX || 10,
+        CON: enemy?.stats?.CON || 10,
+        INT: enemy?.stats?.INT || 10,
+        WIS: enemy?.stats?.WIS || 10,
+        CHA: enemy?.stats?.CHA || 10
+    };
+    const targetStats = {
+        level: playerPoke?.level || 1,
+        STR: playerPoke?.stats?.STR || 10,
+        DEX: playerPoke?.stats?.DEX || 10,
+        CON: playerPoke?.stats?.CON || 10,
+        INT: playerPoke?.stats?.INT || 10,
+        WIS: playerPoke?.stats?.WIS || 10,
+        CHA: playerPoke?.stats?.CHA || 10
+    };
+    
+    try {
+        const resp = await fetch('/api/process-status-move', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ move_name: moveName, attacker_stats: attackerStats, target_stats: targetStats })
+        });
+        const result = await resp.json();
+        
+        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> → ${result.message}`);
+        
+        if (result.status_applied) {
+            window.playerPokemonStatus = { condition: result.status_applied, turns_active: 0 };
+            const cond = window.statusEffectsData?.conditions?.[result.status_applied];
+            if (cond) addBattleLog(`${cond.icon} Seu Pokémon ficou <strong>${cond.name}</strong>!`);
+            updateStatusDisplay();
+        }
+        
+        if (result.stat_changes) {
+            const poke = window.currentBattleData?.playerPokemon;
+            for (const [stat, value] of Object.entries(result.stat_changes)) {
+                if (stat === 'attack_roll') {
+                    window.playerAccuracyMod = (window.playerAccuracyMod || 0) + value;
+                    addBattleLog(`🎯 Sua precisão: ${value} (total: ${window.playerAccuracyMod})`);
+                } else if (stat === 'AC' && poke) {
+                    poke.ac = (poke.ac || 13) + value;
+                    addBattleLog(`🛡️ Sua AC: ${value} (agora ${poke.ac})`);
+                } else if (poke?.stats && stat in poke.stats) {
+                    poke.stats[stat] = (poke.stats[stat] || 10) + value;
+                    addBattleLog(`📊 Seu ${stat}: ${value}`);
+                }
+            }
+        }
+        
+        if (result.effect_type === 'heal' && result.heal) {
+            // Wild heals itself
+            addBattleLog(`💚 Selvagem recuperou ${result.heal} HP!`);
+            socket.emit('battle_action', {
+                action_by: 'master', action_type: 'heal',
+                move_name: moveName, heal: result.heal, damage: 0, message: result.message
+            });
+            return;
+        }
+        
+        socket.emit('battle_action', {
+            action_by: 'master', action_type: 'status',
+            move_name: moveName, damage: 0,
+            status_effect: result.status_applied || null,
+            message: result.message
+        });
+    } catch(e) {
+        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong>! (status)`);
+        socket.emit('battle_action', {
+            action_by: 'master', action_type: 'status',
+            move_name: moveName, damage: 0, message: 'Status move'
+        });
     }
 }
