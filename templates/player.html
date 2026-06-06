@@ -33,14 +33,14 @@
                 <div class="form-group">
                     <label>Modo</label>
                     <select id="hunt-mode">
-                        <option value="normal">🌿 Normal (±3 níveis)</option>
-                        <option value="dungeon">🏰 Dungeon (±5 níveis, raros)</option>
-                        <option value="night">🌙 Noturno (+3 a +10 níveis)</option>
+                        <option value="normal">🌿 Normal (-50% a +5 níveis)</option>
+                        <option value="dungeon">🏰 Dungeon (-10 a +10 níveis)</option>
+                        <option value="night">🌙 Noturno (-10 a +20 níveis)</option>
                     </select>
                 </div>
             </div>
             <div class="hunt-mode-info" id="hunt-mode-info">
-                <p>🌿 <strong>Normal:</strong> Pokémon comuns, nível ±3 do seu.</p>
+                <p>🌿 <strong>Normal:</strong> Pokémon variados, de metade do seu nível até +5.</p>
             </div>
             <button class="btn btn-primary btn-lg" onclick="searchWildPokemon()">
                 🔍 Procurar Pokémon Selvagem
@@ -302,34 +302,34 @@
                         </div>
                         <div class="form-group">
                             <label>Nível</label>
-                            <input type="number" id="poke-level" value="1" min="1" max="50">
+                            <input type="number" id="poke-level" value="1" min="1" max="100" readonly>
                         </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label>HP Atual</label>
-                            <input type="number" id="poke-current-hp" value="0">
+                            <input type="number" id="poke-current-hp" value="0" readonly>
                         </div>
                         <div class="form-group">
                             <label>HP Máximo</label>
-                            <input type="number" id="poke-max-hp" value="0">
+                            <input type="number" id="poke-max-hp" value="0" readonly>
                         </div>
                         <div class="form-group">
                             <label>AC</label>
-                            <input type="number" id="poke-ac" value="10">
+                            <input type="number" id="poke-ac" value="10" readonly>
                         </div>
                         <div class="form-group">
                             <label>Hit Dice</label>
-                            <input type="text" id="poke-hit-dice" placeholder="d6">
+                            <input type="text" id="poke-hit-dice" placeholder="d6" readonly>
                         </div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group"><label>STR</label><input type="number" id="poke-str" value="10"></div>
-                        <div class="form-group"><label>DEX</label><input type="number" id="poke-dex" value="10"></div>
-                        <div class="form-group"><label>CON</label><input type="number" id="poke-con" value="10"></div>
-                        <div class="form-group"><label>INT</label><input type="number" id="poke-int" value="10"></div>
-                        <div class="form-group"><label>WIS</label><input type="number" id="poke-wis" value="10"></div>
-                        <div class="form-group"><label>CHA</label><input type="number" id="poke-cha" value="10"></div>
+                        <div class="form-group"><label>ATK</label><input type="number" id="poke-str" value="10" readonly></div>
+                        <div class="form-group"><label>DEF</label><input type="number" id="poke-dex" value="10" readonly></div>
+                        <div class="form-group"><label>SPA</label><input type="number" id="poke-con" value="10" readonly></div>
+                        <div class="form-group"><label>SPD</label><input type="number" id="poke-int" value="10" readonly></div>
+                        <div class="form-group"><label>SPE</label><input type="number" id="poke-wis" value="10" readonly></div>
+                        <div class="form-group"><label>HP</label><input type="number" id="poke-cha" value="10" readonly></div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
@@ -407,28 +407,28 @@
                         <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;">A cada nível seu Pokémon ganha 1 ponto (bônus a cada 5 níveis). Distribua entre os stats para especializar.</p>
                         <div class="form-row" id="poke-stat-distribute">
                             <div class="form-group" style="text-align:center;flex:0 0 70px;">
-                                <label>STR</label>
-                                <button class="btn btn-sm btn-success" onclick="distributeStat('STR')">+1</button>
+                                <label>ATK</label>
+                                <button class="btn btn-sm btn-success" onclick="distributeStat('ATK')">+1</button>
                             </div>
                             <div class="form-group" style="text-align:center;flex:0 0 70px;">
-                                <label>DEX</label>
-                                <button class="btn btn-sm btn-success" onclick="distributeStat('DEX')">+1</button>
+                                <label>DEF</label>
+                                <button class="btn btn-sm btn-success" onclick="distributeStat('DEF')">+1</button>
                             </div>
                             <div class="form-group" style="text-align:center;flex:0 0 70px;">
-                                <label>CON</label>
-                                <button class="btn btn-sm btn-success" onclick="distributeStat('CON')">+1</button>
+                                <label>SPA</label>
+                                <button class="btn btn-sm btn-success" onclick="distributeStat('SPA')">+1</button>
                             </div>
                             <div class="form-group" style="text-align:center;flex:0 0 70px;">
-                                <label>INT</label>
-                                <button class="btn btn-sm btn-success" onclick="distributeStat('INT')">+1</button>
+                                <label>SPD</label>
+                                <button class="btn btn-sm btn-success" onclick="distributeStat('SPD')">+1</button>
                             </div>
                             <div class="form-group" style="text-align:center;flex:0 0 70px;">
-                                <label>WIS</label>
-                                <button class="btn btn-sm btn-success" onclick="distributeStat('WIS')">+1</button>
+                                <label>SPE</label>
+                                <button class="btn btn-sm btn-success" onclick="distributeStat('SPE')">+1</button>
                             </div>
                             <div class="form-group" style="text-align:center;flex:0 0 70px;">
-                                <label>CHA</label>
-                                <button class="btn btn-sm btn-success" onclick="distributeStat('CHA')">+1</button>
+                                <label>HP</label>
+                                <button class="btn btn-sm btn-success" onclick="distributeStat('HP')">+1</button>
                             </div>
                         </div>
                     </div>
@@ -484,32 +484,32 @@
                 <div class="attributes-grid">
                     <div class="attr-box">
                         <label>FOR</label>
-                        <input type="number" id="trainer-str" value="{{ trainer.str or 10 }}" class="attr-input">
+                        <input type="number" id="trainer-str" value="{{ trainer.str or 10 }}" class="attr-input" readonly>
                         <span class="attr-mod" id="mod-str"></span>
                     </div>
                     <div class="attr-box">
                         <label>DES</label>
-                        <input type="number" id="trainer-dex" value="{{ trainer.dex or 10 }}" class="attr-input">
+                        <input type="number" id="trainer-dex" value="{{ trainer.dex or 10 }}" class="attr-input" readonly>
                         <span class="attr-mod" id="mod-dex"></span>
                     </div>
                     <div class="attr-box">
                         <label>CON</label>
-                        <input type="number" id="trainer-con" value="{{ trainer.con or 10 }}" class="attr-input">
+                        <input type="number" id="trainer-con" value="{{ trainer.con or 10 }}" class="attr-input" readonly>
                         <span class="attr-mod" id="mod-con"></span>
                     </div>
                     <div class="attr-box">
                         <label>INT</label>
-                        <input type="number" id="trainer-int" value="{{ trainer.int or 10 }}" class="attr-input">
+                        <input type="number" id="trainer-int" value="{{ trainer.int or 10 }}" class="attr-input" readonly>
                         <span class="attr-mod" id="mod-int"></span>
                     </div>
                     <div class="attr-box">
                         <label>SAB</label>
-                        <input type="number" id="trainer-wis" value="{{ trainer.wis or 10 }}" class="attr-input">
+                        <input type="number" id="trainer-wis" value="{{ trainer.wis or 10 }}" class="attr-input" readonly>
                         <span class="attr-mod" id="mod-wis"></span>
                     </div>
                     <div class="attr-box">
                         <label>CAR</label>
-                        <input type="number" id="trainer-cha" value="{{ trainer.cha or 10 }}" class="attr-input">
+                        <input type="number" id="trainer-cha" value="{{ trainer.cha or 10 }}" class="attr-input" readonly>
                         <span class="attr-mod" id="mod-cha"></span>
                     </div>
                 </div>
@@ -526,11 +526,11 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label>HP Máximo</label>
-                            <input type="number" id="trainer-hp-max" value="{{ trainer.hp_max or 8 }}">
+                            <input type="number" id="trainer-hp-max" value="{{ trainer.hp_max or 8 }}" readonly>
                         </div>
                         <div class="form-group">
                             <label>HP Atual</label>
-                            <input type="number" id="trainer-hp-current" value="{{ trainer.hp_current or 8 }}">
+                            <input type="number" id="trainer-hp-current" value="{{ trainer.hp_current or 8 }}" readonly>
                         </div>
                     </div>
                     <div class="form-group">
