@@ -825,7 +825,7 @@ def update_trainer():
                          'str', 'dex', 'con', 'int', 'wis', 'cha',
                          'hp_max', 'hp_current', 'proficiencies',
                          'money', 'pokeslots', 'max_sr', 'pokedex_seen',
-                         'avatar']
+                         'avatar', 'trainerStatPointsUsed']
         for field in allowed_fields:
             if field in data:
                 trainer[field] = data[field]

@@ -503,16 +503,15 @@ function useMove(moveName) {
     const stats = poke?.stats || {};
     const pokeLevel = poke?.level || 1;
     
-    // Determine MOVE modifier based on move's power stat
+    // NEW STAT SYSTEM: Physical (ATK vs DEF) or Special (SPA vs SPD)
+    const moveCategory = m.category || 'physical'; // 'physical', 'special', 'status'
     let moveMod = 0;
-    const power = (m.power || 'FOR').toUpperCase();
-    if (power.includes('FOR')) moveMod = Math.max(moveMod, Math.floor(((stats.STR||10) - 10) / 2));
-    if (power.includes('DES')) moveMod = Math.max(moveMod, Math.floor(((stats.DEX||10) - 10) / 2));
-    if (power.includes('INT')) moveMod = Math.max(moveMod, Math.floor(((stats.INT||10) - 10) / 2));
-    if (power.includes('SAB')) moveMod = Math.max(moveMod, Math.floor(((stats.WIS||10) - 10) / 2));
-    if (power.includes('CAR')) moveMod = Math.max(moveMod, Math.floor(((stats.CHA||10) - 10) / 2));
-    if (power.includes('CON')) moveMod = Math.max(moveMod, Math.floor(((stats.CON||10) - 10) / 2));
-    if (power === 'NENHUM') moveMod = 0;
+    
+    if (moveCategory === 'physical') {
+        moveMod = Math.floor(((stats.ATK || stats.STR || 10) - 10) / 2);
+    } else if (moveCategory === 'special') {
+        moveMod = Math.floor(((stats.SPA || stats.INT || 10) - 10) / 2);
+    }
     
     // Proficiency bonus based on Pokemon level (1-100 scale)
     const profBonus = poke?.proficiency || getProficiencyForLevel(pokeLevel);
@@ -523,16 +522,37 @@ function useMove(moveName) {
         return;
     }
     
+    // Determine enemy's AC based on move category and dodge state
+    const enemy = window.currentBattleData?.enemy || {};
+    const enemyStats = enemy.stats || {};
+    let enemyAC;
+    let defenseType;
+    
+    if (window.enemyDodging) {
+        // Enemy is dodging: use SPE-based AC, but hits deal 1.25x damage
+        enemyAC = 8 + Math.floor(((enemyStats.SPE || 10) - 10) / 2) + getProficiencyForLevel(currentEncounter?.level || 5) / 2;
+        defenseType = '🏃 Esquiva';
+    } else if (moveCategory === 'physical') {
+        enemyAC = 8 + Math.floor(((enemyStats.DEF || 10) - 10) / 2) + Math.floor(getProficiencyForLevel(currentEncounter?.level || 5) / 2);
+        defenseType = '🛡️ DEF';
+    } else {
+        enemyAC = 8 + Math.floor(((enemyStats.SPD || 10) - 10) / 2) + Math.floor(getProficiencyForLevel(currentEncounter?.level || 5) / 2);
+        defenseType = '✨ SPD';
+    }
+    enemyAC = Math.max(8, Math.floor(enemyAC));
+    
     // Roll d20 for attack
     const attackRoll = Math.floor(Math.random() * 20) + 1;
     const isCrit = attackRoll === 20;
     const isMiss = attackRoll === 1;
-    const totalAttack = attackRoll + moveMod + profBonus;
+    // Apply accuracy mod (from Smokescreen etc.)
+    const accMod = window.playerAccuracyMod || 0;
+    const totalAttack = attackRoll + moveMod + profBonus + accMod;
     
-    addBattleLog(`▶️ <strong>${moveName}</strong> → d20(${attackRoll}) + MOD(${moveMod}) + Prof(${profBonus}) = <strong>${totalAttack}</strong>${isCrit ? ' 💥 CRÍTICO!' : ''}${isMiss ? ' 💨 Falha!' : ''}`);
+    const categoryLabel = moveCategory === 'physical' ? '⚔️ Físico' : '✨ Especial';
+    const statLabel = moveCategory === 'physical' ? 'ATK' : 'SPA';
+    addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) + ${statLabel}(${moveMod}) + Prof(${profBonus})${accMod ? ` + Acc(${accMod})` : ''} = <strong>${totalAttack}</strong> vs ${defenseType}(${enemyAC})${isCrit ? ' 💥 CRÍTICO!' : ''}${isMiss ? ' 💨 Falha!' : ''}`);
     animateDice(attackRoll, 'd20');
-    
-    const enemyAC = window.currentBattleData?.enemy?.ac || 13;
     
     if (isMiss) {
         addBattleLog(`❌ Falha crítica!`);
@@ -555,9 +575,15 @@ function useMove(moveName) {
         
         if (damage < 1) damage = 1;
         
+        // Dodge penalty: if enemy was dodging and got hit, 1.25x damage
+        if (window.enemyDodging) {
+            damage = Math.floor(damage * 1.25);
+            addBattleLog(`🏃 Acertou em esquiva! Dano ×1.25 → ${damage}`);
+        }
+        
         // Type effectiveness vs enemy
-        const enemy = window.currentBattleData?.enemy || {};
-        const enemyTypes = (enemy.types || []).map(t => t.toLowerCase());
+        const enemyForType = window.currentBattleData?.enemy || {}; 
+        const enemyTypes = (enemyForType.types || []).map(t => t.toLowerCase());
         const enemyVulns = (enemy.vulnerabilities || []).map(t => t.toLowerCase());
         const enemyResists = (enemy.resistances || []).map(t => t.toLowerCase());
         const enemyImmunities = (enemy.immunities || []).map(t => t.toLowerCase());
@@ -890,6 +916,31 @@ function editPokemon(slot) {
     document.getElementById('poke-vulnerabilities').value = (pokemon.vulnerabilities || []).join(', ');
     document.getElementById('poke-resistances').value = (pokemon.resistances || []).join(', ');
     document.getElementById('poke-notes').value = pokemon.notes || '';
+    
+    // Show stat points if available
+    const statPoints = pokemon.statPointsAvailable || 0;
+    const statSection = document.getElementById('poke-stat-points-section');
+    if (statPoints > 0) {
+        statSection.classList.remove('hidden');
+        document.getElementById('poke-stat-points-available').textContent = statPoints;
+    } else {
+        statSection.classList.add('hidden');
+    }
+    
+    // Show XP bar
+    const totalXp = pokemon.totalXp || 0;
+    const level = pokemon.level || 1;
+    const xpForCurrent = Math.pow(level, 3);
+    const xpForNext = Math.pow(level + 1, 3);
+    const xpInLevel = totalXp - xpForCurrent;
+    const xpNeeded = xpForNext - xpForCurrent;
+    const pct = level >= 100 ? 100 : Math.min(100, Math.max(0, (xpInLevel / xpNeeded) * 100));
+    document.getElementById('poke-xp-bar').style.width = `${pct}%`;
+    document.getElementById('poke-xp-text').textContent = level >= 100 ? 'MAX' : `${totalXp} / ${xpForNext} XP (próx. nível)`;
+    
+    // Store current editing slot for stat distribution
+    window._editingPokeSlot = slot;
+    
     showElement('pokemon-edit-modal');
 }
 
@@ -907,6 +958,10 @@ function clearPokemonForm() {
 
 async function savePokemon() {
     const slot = parseInt(document.getElementById('poke-slot').value);
+    
+    // Preserve existing XP/stat data if editing
+    const existingPoke = (slot < playerTeam.length) ? playerTeam[slot] : {};
+    
     const pokemon = {
         name: document.getElementById('poke-species').value,
         nickname: document.getElementById('poke-nickname').value,
@@ -933,7 +988,13 @@ async function savePokemon() {
         vulnerabilities: document.getElementById('poke-vulnerabilities').value.split(',').map(m => m.trim()).filter(m => m),
         resistances: document.getElementById('poke-resistances').value.split(',').map(m => m.trim()).filter(m => m),
         notes: document.getElementById('poke-notes').value,
-        types: []
+        types: [],
+        // Preserve XP/Level data
+        xp: existingPoke.xp || 0,
+        totalXp: existingPoke.totalXp || 0,
+        xpToNext: existingPoke.xpToNext || 0,
+        statPointsAvailable: existingPoke.statPointsAvailable || 0,
+        baseHp: existingPoke.baseHp || 0
     };
     // Auto-fill from API
     try {
@@ -943,7 +1004,8 @@ async function savePokemon() {
             const r = results[0];
             pokemon.types = r.types;
             pokemon.number = r.number;
-            if (!pokemon.maxHp) { pokemon.maxHp = r.hp; pokemon.currentHp = r.hp; }
+            if (!pokemon.baseHp) pokemon.baseHp = r.hp;
+            if (!pokemon.maxHp || pokemon.maxHp === 0) { pokemon.maxHp = r.hp; pokemon.currentHp = r.hp; }
             if (pokemon.ac === 10) pokemon.ac = r.ac;
         }
     } catch(e) {}
@@ -972,12 +1034,23 @@ function refreshTeamDisplay() {
         slot.className = 'team-slot';
         if (i < playerTeam.length && playerTeam[i]) {
             const poke = playerTeam[i];
+            const totalXp = poke.totalXp || 0;
+            const xpForNext = Math.pow((poke.level || 1) + 1, 3);
+            const xpForCurrent = Math.pow(poke.level || 1, 3);
+            const xpPct = poke.level >= 100 ? 100 : Math.min(100, ((totalXp - xpForCurrent) / (xpForNext - xpForCurrent)) * 100);
+            const hasPoints = (poke.statPointsAvailable || 0) > 0;
+            
             slot.innerHTML = `
                 <div class="team-pokemon-card filled">
                     <h4>${poke.nickname || poke.name}</h4>
                     <span class="level-badge">Nv. ${poke.level}</span>
                     <div class="type-badges">${formatTypes(poke.types || [])}</div>
                     <small>HP: ${poke.currentHp}/${poke.maxHp} | AC: ${poke.ac}</small>
+                    <div class="xp-bar-container" style="height:8px;margin:0.3rem 0;">
+                        <div class="xp-bar" style="width:${xpPct}%"></div>
+                    </div>
+                    <small style="color:var(--text-muted);">${poke.level >= 100 ? 'MAX' : `XP: ${totalXp}/${xpForNext}`}</small>
+                    ${hasPoints ? `<small style="color:var(--accent);display:block;">⬆️ ${poke.statPointsAvailable} pontos!</small>` : ''}
                     <div style="margin-top:0.5rem;">
                         <button class="btn btn-sm btn-secondary" onclick="editPokemon(${i})">Editar</button>
                         <button class="btn btn-sm btn-danger" onclick="removePokemon(${i})">✕</button>
@@ -2581,34 +2654,53 @@ async function wildPokemonAutoAttack() {
     
     const moveData = MOVES_CACHE[moveName] || {};
     
-    // Calculate move modifier
+    // NEW STAT SYSTEM: Physical (ATK) or Special (SPA)
+    const moveCategory = moveData.category || 'physical';
     let moveMod = 0;
-    const power = (moveData.power || 'FOR').toUpperCase();
-    if (power.includes('FOR')) moveMod = Math.max(moveMod, Math.floor(((wildStats.STR||10) - 10) / 2));
-    if (power.includes('DES')) moveMod = Math.max(moveMod, Math.floor(((wildStats.DEX||10) - 10) / 2));
-    if (power.includes('INT')) moveMod = Math.max(moveMod, Math.floor(((wildStats.INT||10) - 10) / 2));
-    if (power.includes('SAB')) moveMod = Math.max(moveMod, Math.floor(((wildStats.WIS||10) - 10) / 2));
-    if (power.includes('CAR')) moveMod = Math.max(moveMod, Math.floor(((wildStats.CHA||10) - 10) / 2));
-    if (power.includes('CON')) moveMod = Math.max(moveMod, Math.floor(((wildStats.CON||10) - 10) / 2));
+    if (moveCategory === 'physical') {
+        moveMod = Math.floor(((wildStats.ATK || wildStats.STR || 10) - 10) / 2);
+    } else {
+        moveMod = Math.floor(((wildStats.SPA || wildStats.INT || 10) - 10) / 2);
+    }
     
     // Proficiency for wild (1-100 scale)
     const profBonus = getProficiencyForLevel(wildLevel);
     
-    // Status/utility move (no baseDamage = no damage regardless of power field)
+    // Status/utility move (no baseDamage = no damage)
     if (!moveData.baseDamage) {
         await processWildStatusMove(moveName);
         return;
     }
     
+    // Determine player's AC based on move category and dodge
+    const playerStats = playerPoke?.stats || {};
+    let targetAC;
+    let defLabel;
+    if (window.playerDodging) {
+        targetAC = 8 + Math.floor(((playerStats.SPE || 10) - 10) / 2) + Math.floor(getProficiencyForLevel(playerPoke?.level || 1) / 2);
+        defLabel = '🏃 Esquiva';
+    } else if (moveCategory === 'physical') {
+        targetAC = 8 + Math.floor(((playerStats.DEF || 10) - 10) / 2) + Math.floor(getProficiencyForLevel(playerPoke?.level || 1) / 2);
+        defLabel = '🛡️ DEF';
+    } else {
+        targetAC = 8 + Math.floor(((playerStats.SPD || 10) - 10) / 2) + Math.floor(getProficiencyForLevel(playerPoke?.level || 1) / 2);
+        defLabel = '✨ SPD';
+    }
+    targetAC = Math.max(8, Math.floor(targetAC));
+    
+    // Wild accuracy mod (from player's Smokescreen etc.)
+    const wildAccMod = window.wildAccuracyMod || 0;
+    
     // Attack roll
     const attackRoll = Math.floor(Math.random() * 20) + 1;
     const isCrit = attackRoll === 20;
     const isMiss = attackRoll === 1;
-    const totalAttack = attackRoll + moveMod + profBonus;
-    const targetAC = playerPoke?.ac || 13;
+    const totalAttack = attackRoll + moveMod + profBonus + wildAccMod;
+    
+    const categoryLabel = moveCategory === 'physical' ? '⚔️' : '✨';
     
     if (isMiss) {
-        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> → d20(${attackRoll}) 💨 Falha Crítica!`);
+        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> ${categoryLabel} → d20(${attackRoll}) 💨 Falha Crítica!`);
         socket.emit('battle_action', {
             action_by: 'master', action_type: 'attack',
             move_name: moveName, damage: 0, message: 'Nat 1 - Falha'
@@ -2621,6 +2713,11 @@ async function wildPokemonAutoAttack() {
         if (isCrit) {
             const critExtra = rollDamageFromString(scaledDice, wildLevel);
             damage = diceRoll + critExtra + moveMod;
+        }
+        
+        // Dodge penalty: 1.25x if player was dodging
+        if (window.playerDodging) {
+            damage = Math.floor(damage * 1.25);
         }
         
         // STAB
@@ -2649,7 +2746,7 @@ async function wildPokemonAutoAttack() {
         
         if (damage < 1 && effectiveness > 0) damage = 1;
         
-        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> → d20(${attackRoll})+${moveMod}+${profBonus}=${totalAttack} vs AC${targetAC} ✅ ${scaledDice}(${diceRoll})+MOD(${moveMod})${stab > 0 ? `+STAB(${stab})` : ''}${isCrit ? ' CRIT!' : ''}${effectLabel ? ' '+effectLabel : ''} = <strong>${damage} dano</strong>`);
+        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> ${categoryLabel} → d20(${attackRoll})+${moveMod}+${profBonus}${wildAccMod ? `+Acc(${wildAccMod})` : ''}=${totalAttack} vs ${defLabel}(${targetAC}) ✅ ${scaledDice}(${diceRoll})+MOD(${moveMod})${stab > 0 ? `+STAB(${stab})` : ''}${window.playerDodging ? ' ×1.25(esquiva)' : ''}${isCrit ? ' CRIT!' : ''}${effectLabel ? ' '+effectLabel : ''} = <strong>${damage} dano</strong>`);
         
         // Check if wild move inflicts status on player
         checkWildStatusOnHit(moveName, attackRoll, damage);
@@ -2662,7 +2759,7 @@ async function wildPokemonAutoAttack() {
         });
         window._wildStatusApplied = null;
     } else {
-        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> → d20(${attackRoll})+${moveMod}+${profBonus}=${totalAttack} vs AC${targetAC} ❌ Errou!`);
+        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> ${categoryLabel} → d20(${attackRoll})+${moveMod}+${profBonus}${wildAccMod ? `+Acc(${wildAccMod})` : ''}=${totalAttack} vs ${defLabel}(${targetAC}) ❌ Errou!${window.playerDodging ? ' (esquivou!)' : ''}`);
         socket.emit('battle_action', {
             action_by: 'master', action_type: 'attack',
             move_name: moveName, damage: 0, message: `Errou (${totalAttack} vs AC ${targetAC})`
@@ -3140,5 +3237,183 @@ async function processWildStatusMove(moveName) {
             action_by: 'master', action_type: 'status',
             move_name: moveName, damage: 0, message: 'Status move'
         });
+    }
+}
+
+
+// ============================================
+// STAT POINT DISTRIBUTION (Pokemon)
+// ============================================
+function distributeStat(stat) {
+    const slot = window._editingPokeSlot;
+    if (slot === undefined || slot === null) return;
+    const poke = playerTeam[slot];
+    if (!poke) return;
+    
+    const available = poke.statPointsAvailable || 0;
+    if (available <= 0) {
+        alert('Sem pontos disponíveis!');
+        return;
+    }
+    
+    // Apply +1 to the stat
+    if (!poke.stats) poke.stats = {};
+    poke.stats[stat] = (poke.stats[stat] || 10) + 1;
+    poke.statPointsAvailable = available - 1;
+    
+    // If CON changed, recalculate HP
+    if (stat === 'CON') {
+        const conMod = Math.floor((poke.stats.CON - 10) / 2);
+        const baseHp = poke.baseHp || 20;
+        poke.maxHp = baseHp + (conMod * poke.level) + (poke.level * 2);
+        poke.currentHp = Math.min(poke.currentHp || poke.maxHp, poke.maxHp);
+        document.getElementById('poke-max-hp').value = poke.maxHp;
+        document.getElementById('poke-current-hp').value = poke.currentHp;
+    }
+    
+    // Update form display
+    document.getElementById(`poke-${stat.toLowerCase()}`).value = poke.stats[stat];
+    document.getElementById('poke-stat-points-available').textContent = poke.statPointsAvailable;
+    
+    if (poke.statPointsAvailable <= 0) {
+        document.getElementById('poke-stat-points-section').classList.add('hidden');
+    }
+    
+    // Auto-save
+    saveTeam();
+}
+
+// ============================================
+// TRAINER LEVEL UP REWARDS
+// ============================================
+// Trainer gains points per level based on Pokemon 5e rules:
+// Each level: +1 to one attribute OR +1 proficiency
+// Every 4 levels (4, 8, 12, 16, 20): +2 to attributes (Ability Score Improvement)
+const TRAINER_LEVEL_REWARDS = {
+    // Regular levels give 1 feature/choice, ASI levels give stat points
+    4: { stat_points: 2, description: 'Melhoria de Atributo: +2 em stats (distribuir)' },
+    8: { stat_points: 2, description: 'Melhoria de Atributo: +2 em stats' },
+    12: { stat_points: 2, description: 'Melhoria de Atributo: +2 em stats' },
+    16: { stat_points: 2, description: 'Melhoria de Atributo: +2 em stats' },
+    19: { stat_points: 2, description: 'Melhoria de Atributo: +2 em stats' },
+    20: { stat_points: 2, description: 'Melhoria de Atributo: +2 em stats (nível máximo!)' }
+};
+
+// Check if trainer has undistributed points on page load
+document.addEventListener('DOMContentLoaded', () => {
+    const trainerLevel = TRAINER_DATA.level || 1;
+    const usedPoints = TRAINER_DATA.trainerStatPointsUsed || 0;
+    
+    // Calculate total points available at current level
+    let totalPoints = 0;
+    for (const [lv, reward] of Object.entries(TRAINER_LEVEL_REWARDS)) {
+        if (parseInt(lv) <= trainerLevel) {
+            totalPoints += reward.stat_points;
+        }
+    }
+    
+    const available = totalPoints - usedPoints;
+    if (available > 0) {
+        // Show notification
+        const trainerSection = document.getElementById('tab-trainer');
+        if (trainerSection) {
+            const notice = document.createElement('div');
+            notice.id = 'trainer-points-notice';
+            notice.style.cssText = 'background:var(--accent);color:var(--dark);padding:0.75rem 1rem;border-radius:var(--radius);margin-bottom:1rem;font-weight:bold;text-align:center;';
+            notice.innerHTML = `⬆️ Você tem <strong>${available}</strong> ponto(s) de atributo para distribuir! Clique nos + abaixo dos atributos.`;
+            trainerSection.insertBefore(notice, trainerSection.firstChild.nextSibling);
+            
+            // Add +1 buttons to trainer attributes
+            document.querySelectorAll('.attr-box').forEach(box => {
+                const label = box.querySelector('label')?.textContent?.trim();
+                const statMap = { 'FOR': 'str', 'DES': 'dex', 'CON': 'con', 'INT': 'int', 'SAB': 'wis', 'CAR': 'cha' };
+                const statKey = statMap[label];
+                if (statKey && !box.querySelector('.trainer-stat-btn')) {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-sm btn-success trainer-stat-btn';
+                    btn.style.cssText = 'margin-top:0.3rem;width:100%;';
+                    btn.textContent = '+1';
+                    btn.onclick = () => distributeTrainerStat(statKey, label);
+                    box.appendChild(btn);
+                }
+            });
+        }
+    }
+});
+
+function distributeTrainerStat(statKey, label) {
+    const trainerLevel = TRAINER_DATA.level || 1;
+    const usedPoints = TRAINER_DATA.trainerStatPointsUsed || 0;
+    
+    let totalPoints = 0;
+    for (const [lv, reward] of Object.entries(TRAINER_LEVEL_REWARDS)) {
+        if (parseInt(lv) <= trainerLevel) totalPoints += reward.stat_points;
+    }
+    
+    const available = totalPoints - usedPoints;
+    if (available <= 0) {
+        alert('Sem pontos disponíveis!');
+        return;
+    }
+    
+    // Apply
+    const input = document.getElementById(`trainer-${statKey}`);
+    const current = parseInt(input.value) || 10;
+    input.value = current + 1;
+    TRAINER_DATA[statKey] = current + 1;
+    TRAINER_DATA.trainerStatPointsUsed = usedPoints + 1;
+    
+    // Update modifier display
+    updateModifiers();
+    
+    // Update notice
+    const newAvailable = available - 1;
+    const notice = document.getElementById('trainer-points-notice');
+    if (newAvailable <= 0) {
+        if (notice) notice.remove();
+        document.querySelectorAll('.trainer-stat-btn').forEach(b => b.remove());
+    } else {
+        if (notice) notice.innerHTML = `⬆️ Você tem <strong>${newAvailable}</strong> ponto(s) de atributo para distribuir!`;
+    }
+    
+    // Save
+    saveTrainerData();
+}
+
+
+// ============================================
+// DODGE SYSTEM
+// ============================================
+window.playerDodging = false;
+window.enemyDodging = false;
+
+function toggleDodge() {
+    window.playerDodging = !window.playerDodging;
+    const btn = document.getElementById('btn-dodge');
+    if (window.playerDodging) {
+        btn.textContent = '🏃 Esquiva: ON';
+        btn.style.background = 'var(--accent)';
+        btn.style.color = 'var(--dark)';
+        addBattleLog('🏃 Modo Esquiva ATIVADO! AC usa SPE. Se acertado: ×1.25 dano.');
+    } else {
+        btn.textContent = '🏃 Esquiva: OFF';
+        btn.style.background = '';
+        btn.style.color = '';
+        addBattleLog('🛡️ Modo Defesa normal. AC usa DEF/SPD.');
+    }
+}
+
+// Wild pokemon randomly decides to dodge (30% chance for high SPE pokemon)
+function wildDecideDodge() {
+    const enemy = window.currentBattleData?.enemy;
+    if (!enemy) return;
+    const spe = enemy.stats?.SPE || 10;
+    const def = enemy.stats?.DEF || 10;
+    // Dodge if SPE is significantly higher than DEF
+    if (spe > def + 3 && Math.random() < 0.35) {
+        window.enemyDodging = true;
+        addBattleLog('🏃 Pokémon selvagem está esquivando! (AC baseada em SPE, dano ×1.25 se acertar)');
+    } else {
+        window.enemyDodging = false;
     }
 }

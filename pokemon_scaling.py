@@ -244,27 +244,41 @@ def can_control_pokemon(trainer_level, pokemon_level):
 def calculate_pokemon_stats(base_pokemon, level):
     """Calculate all stats for a Pokemon at a given level.
     
-    base_pokemon: dict with base stats from JSON (hp, ac, stats: {STR, DEX, CON, INT, WIS, CHA})
-    level: 1-100
-    
-    Returns dict with all calculated combat stats.
+    New Pokemon stat system: ATK, DEF, SPA, SPD, SPE, HP
+    - ATK: Physical attack power
+    - DEF: Physical defense (AC vs physical moves)
+    - SPA: Special attack power  
+    - SPD: Special defense (AC vs special moves)
+    - SPE: Speed (initiative + dodge AC)
+    - HP: Hit points bonus
     """
     base_stats = base_pokemon.get('stats', {})
     base_hp = base_pokemon.get('hp', 20)
     base_ac = base_pokemon.get('ac', 13)
-    con = base_stats.get('CON', 10)
-    dex = base_stats.get('DEX', 10)
+    hp_stat = base_stats.get('HP', base_stats.get('CON', 10))
     
     stats = {}
-    for stat_name in ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA']:
+    for stat_name in ['ATK', 'DEF', 'SPA', 'SPD', 'SPE', 'HP']:
         base = base_stats.get(stat_name, 10)
         stats[stat_name] = calculate_stat(base, level)
     
+    # Calculate actual HP
+    hp_mod = (stats['HP'] - 10) // 2
+    actual_hp = calculate_hp(base_hp, level, hp_stat)
+    
+    # AC values: physical AC based on DEF, special AC based on SPD
+    phys_ac = 8 + ((stats['DEF'] - 10) // 2) + calculate_proficiency(level) // 2
+    spec_ac = 8 + ((stats['SPD'] - 10) // 2) + calculate_proficiency(level) // 2
+    dodge_ac = 8 + ((stats['SPE'] - 10) // 2) + calculate_proficiency(level) // 2
+    
     return {
         'level': level,
-        'hp': calculate_hp(base_hp, level, con),
-        'maxHp': calculate_hp(base_hp, level, con),
-        'ac': calculate_ac(base_ac, level, dex),
+        'hp': actual_hp,
+        'maxHp': actual_hp,
+        'ac': base_ac,  # legacy field
+        'phys_ac': phys_ac,
+        'spec_ac': spec_ac,
+        'dodge_ac': dodge_ac,
         'stats': stats,
         'proficiency': calculate_proficiency(level),
         'stab': calculate_stab(level),

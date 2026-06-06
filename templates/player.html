@@ -174,6 +174,7 @@
                     <button class="btn btn-accent hidden" id="btn-mega-evolve" onclick="megaEvolve()">🔮 Mega Evoluir!</button>
                     <button class="btn btn-secondary" id="btn-switch-pokemon" onclick="switchPokemon()">🔄 Trocar Pokémon</button>
                     <button class="btn btn-warning" id="btn-use-item" onclick="openBattleItems()">🎒 Usar Item</button>
+                    <button class="btn btn-secondary" id="btn-dodge" onclick="toggleDodge()" style="border:2px solid var(--accent);">🏃 Esquiva: OFF</button>
                     <button class="btn btn-danger" id="btn-throw-pokeball" onclick="throwPokeball()">🔴 Arremessar Pokébola</button>
                     <button class="btn btn-success" onclick="endBattle('defeated')">💀 Derrotei!</button>
                     <button class="btn btn-secondary" onclick="endBattle('fled')">🏃 Fugir</button>
@@ -399,6 +400,50 @@
                         <label>Notas</label>
                         <textarea id="poke-notes" rows="2" placeholder="Anotações..."></textarea>
                     </div>
+                    
+                    <!-- Stat Point Distribution -->
+                    <div id="poke-stat-points-section" class="hidden" style="background:var(--card-bg);padding:1rem;border-radius:var(--radius);margin:1rem 0;border:2px solid var(--accent);">
+                        <h4 style="color:var(--accent);margin-bottom:0.5rem;">⬆️ Pontos de Atributo Disponíveis: <span id="poke-stat-points-available">0</span></h4>
+                        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;">A cada nível seu Pokémon ganha 1 ponto (bônus a cada 5 níveis). Distribua entre os stats para especializar.</p>
+                        <div class="form-row" id="poke-stat-distribute">
+                            <div class="form-group" style="text-align:center;flex:0 0 70px;">
+                                <label>STR</label>
+                                <button class="btn btn-sm btn-success" onclick="distributeStat('STR')">+1</button>
+                            </div>
+                            <div class="form-group" style="text-align:center;flex:0 0 70px;">
+                                <label>DEX</label>
+                                <button class="btn btn-sm btn-success" onclick="distributeStat('DEX')">+1</button>
+                            </div>
+                            <div class="form-group" style="text-align:center;flex:0 0 70px;">
+                                <label>CON</label>
+                                <button class="btn btn-sm btn-success" onclick="distributeStat('CON')">+1</button>
+                            </div>
+                            <div class="form-group" style="text-align:center;flex:0 0 70px;">
+                                <label>INT</label>
+                                <button class="btn btn-sm btn-success" onclick="distributeStat('INT')">+1</button>
+                            </div>
+                            <div class="form-group" style="text-align:center;flex:0 0 70px;">
+                                <label>WIS</label>
+                                <button class="btn btn-sm btn-success" onclick="distributeStat('WIS')">+1</button>
+                            </div>
+                            <div class="form-group" style="text-align:center;flex:0 0 70px;">
+                                <label>CHA</label>
+                                <button class="btn btn-sm btn-success" onclick="distributeStat('CHA')">+1</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- XP Bar for Pokemon -->
+                    <div id="poke-xp-section" style="margin:0.75rem 0;padding:0.75rem;background:var(--darker);border-radius:var(--radius);">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">
+                            <span style="font-size:0.85rem;color:var(--text-muted);">Experiência</span>
+                            <span id="poke-xp-text" style="font-size:0.8rem;color:var(--accent);">0 / 0 XP</span>
+                        </div>
+                        <div class="xp-bar-container" style="height:12px;">
+                            <div class="xp-bar" id="poke-xp-bar" style="width:0%"></div>
+                        </div>
+                    </div>
+                    
                     <button type="button" class="btn btn-primary" onclick="savePokemon()">Salvar Pokémon</button>
                 </form>
             </div>
