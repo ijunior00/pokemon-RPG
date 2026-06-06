@@ -1296,7 +1296,7 @@ document.addEventListener('DOMContentLoaded', () => {
         huntSelect.addEventListener('change', () => {
             const info = document.getElementById('hunt-mode-info');
             const descriptions = {
-                'normal': '🌿 <strong>Normal:</strong> Pokémon comuns, nível ±5 do seu Pokémon mais forte. Shiny: 1%.',
+                'normal': '🌿 <strong>Normal:</strong> Pokémon variados, de metade do seu nível até +5. Shiny: 1%.',
                 'dungeon': '🏰 <strong>Dungeon:</strong> Pokémon raros e evoluídos, -5 a +15 níveis. Shiny: 3%. ⚠️ Perigoso!',
                 'night': '🌙 <strong>Noturno:</strong> O terror da noite! Pokémon +10 a +30 níveis acima. Shiny: 5%. ☠️ Extremamente perigoso!'
             };

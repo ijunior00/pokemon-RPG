@@ -670,8 +670,8 @@ def api_encounter():
         min_lv = max(1, player_level - 10)
         max_lv = min(100, player_level + 10)
     else:
-        # Normal: safe-ish, ±5 of player
-        min_lv = max(1, player_level - 5)
+        # Normal: -50% of player level to +5 levels
+        min_lv = max(1, player_level // 2)
         max_lv = min(100, player_level + 5)
     
     # Filter candidates by minLevel appropriateness
@@ -719,8 +719,8 @@ def api_encounter():
         # Dungeon: -10 to +10 (varied mix)
         encounter_level = random.randint(max(1, player_level - 10), min(100, player_level + 10))
     else:
-        # Normal: ±5 around player level
-        low = max(1, player_level - 5)
+        # Normal: -50% of player level to +5
+        low = max(1, player_level // 2)
         high = min(100, player_level + 5)
         encounter_level = random.randint(low, high)
     
