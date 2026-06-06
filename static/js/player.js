@@ -548,7 +548,7 @@ function showMoveModal(moveName) {
     modal.classList.remove('hidden');
 }
 
-function useMove(moveName) {
+async function useMove(moveName) {
     if (window.currentTurn !== 'player') { alert('Não é seu turno!'); return; }
     
     const m = MOVES_CACHE[moveName] || {};
