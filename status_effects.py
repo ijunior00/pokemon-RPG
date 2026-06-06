@@ -367,109 +367,225 @@ def get_stat_modifiers(pokemon_status):
 import re
 
 def auto_detect_move_effect(move_data):
-    """Analyze a move's description to determine what effect it should have.
+    """Analyze a move's description (PT/EN) and name to determine what effect it should have.
     Returns a dict describing the effect, or None if no effect detected.
     
-    This handles ALL 244+ status moves by parsing their Portuguese descriptions.
+    Bilingual: checks Portuguese AND English keywords.
+    Also uses move name as fallback for known moves.
     """
     if not move_data:
         return None
     
     desc = (move_data.get('description', '') or '').lower()
-    name = move_data.get('name', '')
+    name = (move_data.get('name', '') or '')
+    name_lower = name.lower()
     
-    # Status conditions (inflict on target)
-    if 'envenenad' in desc or 'veneno' in desc:
-        if 'gravemente' in desc or name == 'Toxic':
+    # ========== KNOWN MOVES BY NAME (highest priority) ==========
+    KNOWN_EFFECTS = {
+        # Confusion
+        'supersonic': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
+        'confuse ray': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
+        'swagger': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
+        'flatter': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
+        'sweet kiss': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
+        'teeter dance': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
+        # Sleep
+        'hypnosis': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'WIS'},
+        'sleep powder': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'CON'},
+        'spore': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'CON'},
+        'sing': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'WIS'},
+        'grass whistle': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'WIS'},
+        'lovely kiss': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'WIS'},
+        'dark void': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'WIS'},
+        'yawn': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'CON'},
+        # Paralysis
+        'thunder wave': {'type': 'inflict_status', 'status': 'paralisado', 'save': 'CON'},
+        'stun spore': {'type': 'inflict_status', 'status': 'paralisado', 'save': 'CON'},
+        'glare': {'type': 'inflict_status', 'status': 'paralisado', 'save': 'CON'},
+        'nuzzle': {'type': 'inflict_status', 'status': 'paralisado', 'save': 'CON'},
+        # Poison
+        'toxic': {'type': 'inflict_status', 'status': 'badly_poisoned', 'save': 'CON'},
+        'poison powder': {'type': 'inflict_status', 'status': 'envenenado', 'save': 'CON'},
+        'poison gas': {'type': 'inflict_status', 'status': 'envenenado', 'save': 'CON'},
+        # Burn
+        'will-o-wisp': {'type': 'inflict_status', 'status': 'queimado', 'save': 'DEX'},
+        # Accuracy down
+        'smokescreen': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -3, 'save': 'CON', 'duration': 3},
+        'sand attack': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -3, 'save': 'DEX', 'duration': 3},
+        'flash': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -3, 'save': 'CON', 'duration': 3},
+        'kinesis': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 3},
+        'mud-slap': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'DEX', 'duration': 3},
+        'muddy water': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -1, 'save': 'DEX', 'duration': 2},
+        'octazooka': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'DEX', 'duration': 3},
+        # Attack down
+        'growl': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'WIS', 'duration': 3},
+        'charm': {'type': 'debuff_target', 'stat': 'ATK', 'value': -3, 'save': 'WIS', 'duration': 3},
+        'baby-doll eyes': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'WIS', 'duration': 3},
+        'feather dance': {'type': 'debuff_target', 'stat': 'ATK', 'value': -3, 'save': 'WIS', 'duration': 3},
+        'tickle': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'WIS', 'duration': 3},
+        # Defense down
+        'leer': {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'save': 'WIS', 'duration': 3},
+        'tail whip': {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'save': 'WIS', 'duration': 3},
+        'screech': {'type': 'debuff_target', 'stat': 'DEF', 'value': -3, 'save': 'CON', 'duration': 3},
+        'fake tears': {'type': 'debuff_target', 'stat': 'SPD', 'value': -3, 'save': 'WIS', 'duration': 3},
+        'metal sound': {'type': 'debuff_target', 'stat': 'SPD', 'value': -3, 'save': 'CON', 'duration': 3},
+        # Speed down
+        'scary face': {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'save': 'WIS', 'duration': 3},
+        'string shot': {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'save': 'DEX', 'duration': 3},
+        'cotton spore': {'type': 'debuff_target', 'stat': 'SPE', 'value': -4, 'save': 'DEX', 'duration': 3},
+        'sticky web': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'save': 'DEX', 'duration': 5},
+        'electroweb': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'save': 'DEX', 'duration': 3},
+        # Flinch/Fear
+        'fake out': {'type': 'inflict_status', 'status': 'atordoado', 'save': 'CON'},
+        # Self buffs - Attack
+        'swords dance': {'type': 'buff_self', 'stat': 'ATK', 'value': 4, 'duration': 3},
+        'howl': {'type': 'buff_self', 'stat': 'ATK', 'value': 2, 'duration': 3},
+        'hone claws': {'type': 'buff_self', 'stat': 'ATK', 'value': 2, 'duration': 3},
+        'work up': {'type': 'buff_self', 'stat': 'ATK', 'value': 2, 'duration': 3},
+        'belly drum': {'type': 'buff_self', 'stat': 'ATK', 'value': 6, 'duration': 5},
+        'dragon dance': {'type': 'buff_self', 'stat': 'ATK', 'value': 2, 'duration': 3},
+        'bulk up': {'type': 'buff_self', 'stat': 'ATK', 'value': 2, 'duration': 3},
+        # Self buffs - Sp.Attack
+        'nasty plot': {'type': 'buff_self', 'stat': 'SPA', 'value': 4, 'duration': 3},
+        'calm mind': {'type': 'buff_self', 'stat': 'SPA', 'value': 2, 'duration': 3},
+        'quiver dance': {'type': 'buff_self', 'stat': 'SPA', 'value': 2, 'duration': 3},
+        'tail glow': {'type': 'buff_self', 'stat': 'SPA', 'value': 4, 'duration': 3},
+        # Self buffs - Defense
+        'barrier': {'type': 'buff_self', 'stat': 'DEF', 'value': 3, 'duration': 3},
+        'iron defense': {'type': 'buff_self', 'stat': 'DEF', 'value': 3, 'duration': 3},
+        'harden': {'type': 'buff_self', 'stat': 'DEF', 'value': 2, 'duration': 3},
+        'withdraw': {'type': 'buff_self', 'stat': 'DEF', 'value': 2, 'duration': 3},
+        'acid armor': {'type': 'buff_self', 'stat': 'DEF', 'value': 3, 'duration': 3},
+        'cotton guard': {'type': 'buff_self', 'stat': 'DEF', 'value': 4, 'duration': 3},
+        'defend order': {'type': 'buff_self', 'stat': 'DEF', 'value': 2, 'duration': 3},
+        'cosmic power': {'type': 'buff_self', 'stat': 'DEF', 'value': 2, 'duration': 3},
+        # Self buffs - Sp.Defense
+        'amnesia': {'type': 'buff_self', 'stat': 'SPD', 'value': 3, 'duration': 3},
+        'light screen': {'type': 'buff_self', 'stat': 'SPD', 'value': 3, 'duration': 5},
+        'reflect': {'type': 'buff_self', 'stat': 'DEF', 'value': 3, 'duration': 5},
+        # Self buffs - Speed
+        'agility': {'type': 'buff_self', 'stat': 'SPE', 'value': 4, 'duration': 3},
+        'rock polish': {'type': 'buff_self', 'stat': 'SPE', 'value': 4, 'duration': 3},
+        'autotomize': {'type': 'buff_self', 'stat': 'SPE', 'value': 4, 'duration': 3},
+        'shell smash': {'type': 'buff_self', 'stat': 'SPE', 'value': 3, 'duration': 3},
+        'shift gear': {'type': 'buff_self', 'stat': 'SPE', 'value': 3, 'duration': 3},
+        # Self buffs - Evasion/AC
+        'double team': {'type': 'buff_self', 'stat': 'AC', 'value': 2, 'duration': 3},
+        'minimize': {'type': 'buff_self', 'stat': 'AC', 'value': 3, 'duration': 3},
+        # Healing
+        'recover': {'type': 'heal_self', 'amount': 'half'},
+        'roost': {'type': 'heal_self', 'amount': 'half'},
+        'soft-boiled': {'type': 'heal_self', 'amount': 'half'},
+        'milk drink': {'type': 'heal_self', 'amount': 'half'},
+        'synthesis': {'type': 'heal_self', 'amount': 'half'},
+        'moonlight': {'type': 'heal_self', 'amount': 'half'},
+        'morning sun': {'type': 'heal_self', 'amount': 'half'},
+        'slack off': {'type': 'heal_self', 'amount': 'half'},
+        'rest': {'type': 'heal_self', 'amount': 'full'},
+        'wish': {'type': 'heal_self', 'amount': 'half'},
+        'heal order': {'type': 'heal_self', 'amount': 'half'},
+        # Protect
+        'protect': {'type': 'protect', 'duration': 1},
+        'detect': {'type': 'protect', 'duration': 1},
+        'endure': {'type': 'protect', 'duration': 1},
+        'spiky shield': {'type': 'protect', 'duration': 1},
+        'king\'s shield': {'type': 'protect', 'duration': 1},
+        'baneful bunker': {'type': 'protect', 'duration': 1},
+        # Weather
+        'rain dance': {'type': 'weather', 'weather': 'rain', 'duration': 5},
+        'sunny day': {'type': 'weather', 'weather': 'sun', 'duration': 5},
+        'sandstorm': {'type': 'weather', 'weather': 'sandstorm', 'duration': 5},
+        'hail': {'type': 'weather', 'weather': 'hail', 'duration': 5},
+        # Taunt/Encore
+        'taunt': {'type': 'debuff_target', 'stat': 'no_status_moves', 'value': -1, 'save': 'WIS', 'duration': 3},
+        'encore': {'type': 'debuff_target', 'stat': 'locked_move', 'value': -1, 'save': 'WIS', 'duration': 3},
+        'disable': {'type': 'debuff_target', 'stat': 'locked_move', 'value': -1, 'save': 'WIS', 'duration': 3},
+        'torment': {'type': 'debuff_target', 'stat': 'locked_move', 'value': -1, 'save': 'WIS', 'duration': 3},
+        # Attract
+        'attract': {'type': 'inflict_status', 'status': 'amedrontado', 'save': 'WIS'},
+    }
+    
+    # Check by name first
+    if name_lower in KNOWN_EFFECTS:
+        return KNOWN_EFFECTS[name_lower]
+    
+    # ========== DESCRIPTION-BASED DETECTION (PT + EN) ==========
+    
+    # Confusion
+    if any(kw in desc for kw in ['confus', 'confused', 'confusion']):
+        return {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'}
+    
+    # Sleep
+    if any(kw in desc for kw in ['dormir', 'adormecer', 'sono', 'durma', 'sleep', 'asleep', 'drowsy']):
+        return {'type': 'inflict_status', 'status': 'dormindo', 'save': 'WIS'}
+    
+    # Paralysis
+    if any(kw in desc for kw in ['paralis', 'paralyz', 'paralyze']):
+        return {'type': 'inflict_status', 'status': 'paralisado', 'save': 'CON'}
+    
+    # Poison
+    if any(kw in desc for kw in ['envenenad', 'veneno', 'poison', 'toxic']):
+        if 'gravemente' in desc or 'badly' in desc:
             return {'type': 'inflict_status', 'status': 'badly_poisoned', 'save': 'CON'}
         return {'type': 'inflict_status', 'status': 'envenenado', 'save': 'CON'}
     
-    if 'queimad' in desc and ('alvo' in desc or 'criatura' in desc):
+    # Burn
+    if any(kw in desc for kw in ['queimad', 'queimadura', 'burn', 'burned']):
         return {'type': 'inflict_status', 'status': 'queimado', 'save': 'DEX'}
     
-    if 'paralis' in desc and ('alvo' in desc or 'criatura' in desc or 'atacante' in desc):
-        return {'type': 'inflict_status', 'status': 'paralisado', 'save': 'CON'}
-    
-    if ('dormir' in desc or 'adormecer' in desc or 'sono' in desc or 'durma' in desc) and 'alvo' in desc:
-        return {'type': 'inflict_status', 'status': 'dormindo', 'save': 'WIS'}
-    
-    if 'confus' in desc and ('alvo' in desc or 'criatura' in desc or 'falha' in desc):
-        return {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'}
-    
-    if 'congel' in desc:
+    # Freeze
+    if any(kw in desc for kw in ['congel', 'frozen', 'freeze']):
         return {'type': 'inflict_status', 'status': 'congelado', 'save': 'CON'}
     
-    # Accuracy debuffs (smokescreen, sand attack, flash, kinesis)
-    if 'fumaça' in desc or 'areia nos olhos' in desc or 'precisão' in desc or ('acurácia' in desc and 'reduz' in desc):
+    # Fear/Flinch
+    if any(kw in desc for kw in ['amedront', 'frightened', 'flinch', 'assustador']):
+        return {'type': 'inflict_status', 'status': 'amedrontado', 'save': 'WIS'}
+    
+    # Accuracy debuffs
+    if any(kw in desc for kw in ['fumaça', 'areia', 'cegar', 'blind', 'accuracy', 'precisão']):
         return {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -3, 'save': 'CON', 'duration': 3}
     
-    # Evasion buffs (double team, minimize)
-    if 'evas' in desc or 'cópias' in desc or 'ilusóri' in desc or 'tamanho para' in desc:
-        return {'type': 'buff_self', 'stat': 'AC', 'value': 2, 'duration': 3}
+    # Attack debuffs
+    if any(kw in desc for kw in ['ataque que fizer', 'attack.*lower', 'rosnado', 'intimidador']):
+        return {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'WIS', 'duration': 3}
     
-    # Attack debuffs (growl, charm, baby-doll eyes)
-    if ('-1 a qualquer ataque que fizer' in desc) or ('ataque que fizer' in desc and '-1' in desc):
-        return {'type': 'debuff_target', 'stat': 'STR', 'value': -1, 'save': 'WIS', 'duration': 3}
-    if ('-2' in desc and 'ataque' in desc and 'alvo' in desc):
-        return {'type': 'debuff_target', 'stat': 'STR', 'value': -2, 'save': 'WIS', 'duration': 3}
+    # Defense debuffs
+    if any(kw in desc for kw in ['defesas', 'ataque que o alvo sofrer', 'defense.*lower']):
+        return {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'save': 'WIS', 'duration': 3}
     
-    # Defense debuffs (leer, tail whip, screech)
-    if '+1 a qualquer ataque que o alvo sofrer' in desc or ('defesas' in desc and 'abrindo' in desc):
-        return {'type': 'debuff_target', 'stat': 'AC', 'value': -1, 'save': 'WIS', 'duration': 3}
-    if 'ca' in desc and '-2' in desc:
-        return {'type': 'debuff_target', 'stat': 'AC', 'value': -2, 'save': 'CON', 'duration': 3}
+    # Speed debuffs
+    if any(kw in desc for kw in ['velocidade', 'speed']) and any(kw in desc for kw in ['reduz', 'diminui', 'lower', 'decrease']):
+        return {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'save': 'DEX', 'duration': 3}
     
-    # Speed debuffs (scary face, string shot, cotton spore)
-    if 'velocidade' in desc and ('reduz' in desc or 'diminui' in desc or 'perde' in desc):
-        return {'type': 'debuff_target', 'stat': 'DEX', 'value': -3, 'save': 'DEX', 'duration': 3}
+    # Self speed buff
+    if any(kw in desc for kw in ['velocidade', 'speed']) and any(kw in desc for kw in ['aument', 'increase', 'raise', 'percorrer']):
+        return {'type': 'buff_self', 'stat': 'SPE', 'value': 4, 'duration': 3}
     
-    # Self buffs - Attack up (swords dance, howl, hone claws)
-    if ('espada' in desc or 'ataque' in desc) and 'aument' in desc and ('seu' in desc or 'você' in desc):
-        return {'type': 'buff_self', 'stat': 'STR', 'value': 3, 'duration': 3}
+    # Self attack buff
+    if any(kw in desc for kw in ['espada', 'sword', 'attack.*raise']) and any(kw in desc for kw in ['aument', 'raise', 'boost']):
+        return {'type': 'buff_self', 'stat': 'ATK', 'value': 3, 'duration': 3}
     
-    # Self buffs - Defense up (barrier, iron defense, harden, acid armor)
-    if ('ca' in desc or 'defesa' in desc or 'barreira' in desc) and ('aument' in desc or 'ca em' in desc):
-        return {'type': 'buff_self', 'stat': 'AC', 'value': 2, 'duration': 3}
+    # Self defense buff
+    if any(kw in desc for kw in ['ca em', 'ca aument', 'defense.*raise', 'barreira', 'barrier', 'harden', 'endurec']):
+        return {'type': 'buff_self', 'stat': 'DEF', 'value': 2, 'duration': 3}
     
-    # Self buffs - Speed up (agility, rock polish, autotomize)
-    if 'velocidade' in desc and ('aument' in desc or 'percorrer' in desc or '20 pés' in desc or '10 pés' in desc):
-        return {'type': 'buff_self', 'stat': 'DEX', 'value': 4, 'duration': 3}
+    # STAB buff
+    if 'stab' in desc and any(kw in desc for kw in ['dobr', 'double', 'aument']):
+        return {'type': 'buff_self', 'stat': 'SPA', 'value': 3, 'duration': 3}
     
-    # Self buffs - Sp.Atk up (calm mind, nasty plot)
-    if 'stab' in desc and ('dobr' in desc or 'aument' in desc):
-        return {'type': 'buff_self', 'stat': 'STAB', 'value': 2, 'duration': 3}
-    
-    # Self buffs - Sp.Def up (amnesia)
-    if ('resistência' in desc or 'sp. def' in desc) and 'aument' in desc:
-        return {'type': 'buff_self', 'stat': 'WIS', 'value': 3, 'duration': 3}
-    
-    # Healing moves (recover, rest, roost, synthesis, moonlight, etc.)
-    if 'recupera' in desc or 'cura' in desc or 'restaura' in desc:
-        if 'metade' in desc or '50%' in desc or 'half' in desc:
+    # Healing
+    if any(kw in desc for kw in ['recupera', 'cura', 'restaura', 'heal', 'restore', 'recover']):
+        if any(kw in desc for kw in ['metade', '50%', 'half']):
             return {'type': 'heal_self', 'amount': 'half'}
-        if 'todo' in desc or 'total' in desc or 'máximo' in desc:
+        if any(kw in desc for kw in ['todo', 'total', 'máximo', 'full']):
             return {'type': 'heal_self', 'amount': 'full'}
         return {'type': 'heal_self', 'amount': 'quarter'}
     
-    # Protect moves (protect, detect, spiky shield, baneful bunker)
-    if 'evitar automaticamente sofrer dano' in desc or 'proteg' in desc or 'invulnerável' in desc:
+    # Protect
+    if any(kw in desc for kw in ['evitar automaticamente sofrer dano', 'proteg', 'invulnerável', 'protect', 'shields']):
         return {'type': 'protect', 'duration': 1}
     
-    # Weather
-    if 'chuva' in desc or 'chover' in desc:
-        return {'type': 'weather', 'weather': 'rain', 'duration': 5}
-    if 'sol' in desc and ('intenso' in desc or 'brilha' in desc):
-        return {'type': 'weather', 'weather': 'sun', 'duration': 5}
-    if 'granizo' in desc:
-        return {'type': 'weather', 'weather': 'hail', 'duration': 5}
-    if 'tempestade de areia' in desc:
-        return {'type': 'weather', 'weather': 'sandstorm', 'duration': 5}
-    
-    # Attract/Taunt
-    if 'atraíd' in desc or 'apaixon' in desc:
-        return {'type': 'inflict_status', 'status': 'amedrontado', 'save': 'WIS'}
-    
-    # If nothing detected, it's a utility move with no combat effect (like Teleport, Baton Pass, etc.)
+    # If nothing detected
     return None
 
 
@@ -489,7 +605,7 @@ def process_status_move(move_data, attacker_stats, target_stats):
         return {
             'success': True,
             'effect_type': 'utility',
-            'message': f"{move_data.get('name', '???')} foi usado! (utilidade)',",
+            'message': f"{move_data.get('name', '???')} foi usado! (utilidade)",
             'status_applied': None,
             'stat_changes': None
         }
