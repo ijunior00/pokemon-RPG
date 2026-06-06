@@ -2881,8 +2881,7 @@ async function awardPokemonBattleXP() {
             body: JSON.stringify({
                 winner_level: playerPoke.level || 1,
                 loser_level: enemyLevel,
-                loser_sr: enemySR,
-                is_wild: true
+                battle_type: 'wild'
             })
         });
         const data = await resp.json();
@@ -2914,25 +2913,31 @@ async function awardPokemonBattleXP() {
 }
 
 function checkPokemonLevelUp(poke) {
-    // XP table for Pokemon (cubic growth, medium rate)
-    // Level^3 = total XP needed
+    // XP table matching server (per-level XP needed)
+    const XP_TABLE = [5,7,9,11,14,17,21,25,29,35,42,50,60,72,86,102,121,142,166,192,221,254,289,327,369,413,461,511,565,623,683,747,815,886,961,1040,1123,1210,1301,1397,1498,1603,1718,1841,1973,2115,2267,2430,2604,2791,2991,3206,3436,3683,3948,4232,4536,4862,5212,5587,5989,6420,6882,7377,7908,8477,9087,9741,10442,11193,11998,12861,13786,14778,15842,16982,18204,19514,20919,22425,24039,25769,27624,29612,31744,34029,36479,39105,41920,44938,48173,51641,55359,59344,63616,68196,73106,78369,84011,90059];
+    
     const currentLevel = poke.level || 1;
     if (currentLevel >= 100) return false;
     
     const totalXp = poke.totalXp || 0;
-    const xpForNext = Math.pow(currentLevel + 1, 3);
+    // Calculate total XP needed to reach next level
+    let xpNeededForCurrent = 0;
+    for (let i = 0; i < currentLevel - 1 && i < XP_TABLE.length; i++) {
+        xpNeededForCurrent += XP_TABLE[i];
+    }
+    const xpForNext = xpNeededForCurrent + XP_TABLE[currentLevel - 1];
     
     if (totalXp >= xpForNext) {
         poke.level = currentLevel + 1;
-        // Gain stat points on level up (player can distribute later)
+        // Gain stat points on level up
         poke.statPointsAvailable = (poke.statPointsAvailable || 0) + 1;
         // Every 5 levels, gain extra stat point
         if (poke.level % 5 === 0) poke.statPointsAvailable += 1;
-        // Recalculate HP for new level
-        const conMod = Math.floor(((poke.stats?.CON || 10) - 10) / 2);
-        poke.maxHp = (poke.baseHp || 20) + (conMod * poke.level) + (poke.level * 2);
+        // Recalculate HP for new level (HP stat bonus)
+        const hpMod = Math.floor(((poke.stats?.HP || poke.stats?.CON || 10) - 10) / 2);
+        poke.maxHp = (poke.baseHp || 20) + (hpMod * poke.level) + (poke.level * 2);
         poke.currentHp = poke.maxHp; // Full heal on level up
-        // Check for further level ups (if got a lot of XP)
+        // Check for further level ups
         checkPokemonLevelUp(poke);
         return true;
     }

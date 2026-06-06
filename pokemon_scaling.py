@@ -13,33 +13,97 @@ Pokemon max controllable level = Trainer Level × 5
 import math
 
 # ============================================================
-# GROWTH RATES - XP required per level
+# XP TABLE - Per level (index 0 = Nv1->2, index 99 = Nv99->100)
+# Matches reference curve exactly for 1-42, extrapolated 43-100
 # ============================================================
+POKEMON_XP_PER_LEVEL = [5, 7, 9, 11, 14, 17, 21, 25, 29, 35, 42, 50, 60, 72, 86, 102, 121, 142, 166, 192, 221, 254, 289, 327, 369, 413, 461, 511, 565, 623, 683, 747, 815, 886, 961, 1040, 1123, 1210, 1301, 1397, 1498, 1603, 1718, 1841, 1973, 2115, 2267, 2430, 2604, 2791, 2991, 3206, 3436, 3683, 3948, 4232, 4536, 4862, 5212, 5587, 5989, 6420, 6882, 7377, 7908, 8477, 9087, 9741, 10442, 11193, 11998, 12861, 13786, 14778, 15842, 16982, 18204, 19514, 20919, 22425, 24039, 25769, 27624, 29612, 31744, 34029, 36479, 39105, 41920, 44938, 48173, 51641, 55359, 59344, 63616, 68196, 73106, 78369, 84011, 90059]
+
+
 def xp_for_level(level, growth_rate='medium'):
-    """Calculate total XP needed to reach a given level."""
+    """XP needed to go from (level) to (level+1)."""
+    if level < 1 or level >= 100:
+        return 0
+    idx = level - 1
+    base = POKEMON_XP_PER_LEVEL[idx]
+    # Growth rate modifiers
+    if growth_rate == 'fast':
+        return int(base * 0.7)
+    elif growth_rate == 'slow':
+        return int(base * 1.4)
+    return base
+
+
+def total_xp_for_level(level, growth_rate='medium'):
+    """Total accumulated XP to reach this level from Nv.1."""
     if level <= 1:
         return 0
-    if growth_rate == 'fast':
-        return int((4 * level ** 3) / 5)
-    elif growth_rate == 'slow':
-        return int((5 * level ** 3) / 4)
-    else:  # medium
-        return int(level ** 3)
+    total = 0
+    for lv in range(1, level):
+        total += xp_for_level(lv, growth_rate)
+    return total
 
 
 def level_from_xp(total_xp, growth_rate='medium'):
-    """Get level from total XP."""
+    """Get level from total accumulated XP."""
     level = 1
-    while xp_for_level(level + 1, growth_rate) <= total_xp and level < 100:
+    accumulated = 0
+    while level < 100:
+        needed = xp_for_level(level, growth_rate)
+        if accumulated + needed > total_xp:
+            break
+        accumulated += needed
         level += 1
     return level
 
 
 def xp_to_next_level(current_level, growth_rate='medium'):
     """XP needed from current level to next."""
-    if current_level >= 100:
-        return 0
-    return xp_for_level(current_level + 1, growth_rate) - xp_for_level(current_level, growth_rate)
+    return xp_for_level(current_level, growth_rate)
+
+
+# ============================================================
+# BATTLE XP REWARDS
+# Formula: wild_pokemon_level x multiplier
+# Multipliers: wild=2, official_pvp=3, street_pvp=4, gym_leader=5
+# ============================================================
+def battle_xp_reward(winner_level, loser_level, battle_type='wild'):
+    """Calculate XP reward for winning a battle.
+    
+    Formula: loser_level x multiplier
+    battle_type: 'wild', 'official', 'street', 'gym_leader', 'elite', 'champion'
+    """
+    multipliers = {
+        'wild': 2,
+        'official': 3,
+        'street': 4,
+        'gym_leader': 5,
+        'elite': 6,
+        'champion': 8
+    }
+    mult = multipliers.get(battle_type, 2)
+    base_xp = loser_level * mult
+    
+    # Bonus for fighting stronger opponents
+    level_diff = loser_level - winner_level
+    if level_diff > 20:
+        base_xp = int(base_xp * 2.0)
+    elif level_diff > 10:
+        base_xp = int(base_xp * 1.5)
+    elif level_diff > 5:
+        base_xp = int(base_xp * 1.2)
+    # Penalty for fighting much weaker
+    elif level_diff < -20:
+        base_xp = max(1, int(base_xp * 0.2))
+    elif level_diff < -10:
+        base_xp = max(1, int(base_xp * 0.5))
+    
+    return max(1, base_xp)
+
+
+def trainer_level_up_xp(trainer_new_level):
+    """XP given to all pokemon when trainer levels up.
+    Each pokemon gets: trainer_level x 10."""
+    return trainer_new_level * 10
 
 
 # ============================================================
@@ -164,64 +228,6 @@ def get_scaled_damage_dice(base_damage, level, higher_levels_text=''):
     
     new_count = max(count, math.ceil(count * multiplier))
     return f"{new_count}d{sides}"
-
-
-# ============================================================
-# XP REWARDS
-# ============================================================
-def battle_xp_reward(winner_level, loser_level, loser_sr='1/2', is_wild=True):
-    """Calculate XP reward for winning a battle.
-    
-    Base XP = loser_level × SR_value × 10
-    Difficulty modifier:
-    - loser > winner+10: ×2.0 (very hard)
-    - loser > winner+5: ×1.5 (hard)  
-    - loser within ±5: ×1.0 (normal)
-    - loser < winner-5: ×0.5 (easy)
-    - loser < winner-10: ×0.25 (trivial)
-    
-    Wild pokemon give base XP. Trainer battles give ×1.5.
-    """
-    # Parse SR
-    sr_val = 0.5
-    if isinstance(loser_sr, str):
-        if '/' in loser_sr:
-            parts = loser_sr.split('/')
-            sr_val = int(parts[0]) / int(parts[1])
-        else:
-            try:
-                sr_val = float(loser_sr)
-            except:
-                sr_val = 0.5
-    else:
-        sr_val = float(loser_sr)
-    
-    base_xp = int(loser_level * max(sr_val, 0.5) * 10)
-    
-    # Difficulty modifier
-    level_diff = loser_level - winner_level
-    if level_diff > 10:
-        modifier = 2.0
-    elif level_diff > 5:
-        modifier = 1.5
-    elif level_diff >= -5:
-        modifier = 1.0
-    elif level_diff >= -10:
-        modifier = 0.5
-    else:
-        modifier = 0.25
-    
-    # Trainer vs wild
-    trainer_bonus = 1.0 if is_wild else 1.5
-    
-    total = int(base_xp * modifier * trainer_bonus)
-    return max(1, total)
-
-
-def trainer_level_up_xp(trainer_new_level):
-    """Large XP dump to all pokemon when trainer levels up.
-    Gives each Pokemon XP equal to their current level × 50."""
-    return trainer_new_level * 50
 
 
 # ============================================================

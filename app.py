@@ -905,15 +905,16 @@ def api_pokemon_scaled_stats():
 @app.route('/api/pokemon/battle-xp', methods=['POST'])
 @login_required
 def api_battle_xp():
-    """Calculate XP reward for a battle result."""
+    """Calculate XP reward for a battle result.
+    Formula: loser_level x multiplier (2=wild, 3=official, 4=street, 5=gym)"""
     data = request.json
     winner_level = int(data.get('winner_level', 1))
     loser_level = int(data.get('loser_level', 1))
-    loser_sr = data.get('loser_sr', '1/2')
-    is_wild = data.get('is_wild', True)
+    battle_type = data.get('battle_type', 'wild')  # wild, official, street, gym_leader
     
-    xp = scaling.battle_xp_reward(winner_level, loser_level, loser_sr, is_wild)
-    return jsonify({'xp_gained': xp})
+    xp = scaling.battle_xp_reward(winner_level, loser_level, battle_type)
+    xp_to_next = scaling.xp_to_next_level(winner_level)
+    return jsonify({'xp_gained': xp, 'xp_to_next': xp_to_next})
 
 @app.route('/api/pokemon/level-check', methods=['POST'])
 @login_required  
