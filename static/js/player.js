@@ -442,20 +442,73 @@ function renderMoveButton(moveName, clickable) {
     const m = MOVES_CACHE[moveName] || {};
     const typeClass = m.type ? `type-${m.type.toLowerCase()}` : '';
     const dmgLabel = m.baseDamage ? ` (${m.baseDamage})` : '';
+    const catIcon = m.category === 'special' ? '✨' : m.category === 'status' ? '◉' : '⚔️';
+    const escapedName = moveName.replace(/'/g, "\\'");
+    
     if (clickable) {
         return `<span class="move-btn selectable-move ${typeClass}" 
                       data-move="${moveName}"
-                      onclick="useMove('${moveName.replace(/'/g, "\\'")}')"
-                      onmouseenter="showMoveTooltip(event, '${moveName.replace(/'/g, "\\'")}')"
+                      onclick="handleMoveTap('${escapedName}')"
+                      onmouseenter="showMoveTooltip(event, '${escapedName}')"
                       onmouseleave="hideMoveTooltip()"
-                      ontouchstart="showMoveModal('${moveName.replace(/'/g, "\\'")}')"
-                >${moveName}${dmgLabel}</span>`;
+                      ontouchstart="startMoveHold(event, '${escapedName}')"
+                      ontouchend="endMoveHold(event, '${escapedName}')"
+                      ontouchcancel="cancelMoveHold()"
+                >${catIcon} ${moveName}${dmgLabel}</span>`;
     }
     return `<span class="move-btn ${typeClass}"
-                  onmouseenter="showMoveTooltip(event, '${moveName.replace(/'/g, "\\'")}')"
+                  onmouseenter="showMoveTooltip(event, '${escapedName}')"
                   onmouseleave="hideMoveTooltip()"
-                  ontouchstart="showMoveModal('${moveName.replace(/'/g, "\\'")}')"
-            >${moveName}${dmgLabel}</span>`;
+                  ontouchstart="startMoveHold(event, '${escapedName}')"
+                  ontouchend="endMoveHoldInfo(event, '${escapedName}')"
+                  ontouchcancel="cancelMoveHold()"
+            >${catIcon} ${moveName}${dmgLabel}</span>`;
+}
+
+// Mobile long-press handling: tap = attack, hold 1.5s = show info
+let _moveHoldTimer = null;
+let _moveHoldTriggered = false;
+
+function startMoveHold(event, moveName) {
+    event.preventDefault();
+    _moveHoldTriggered = false;
+    _moveHoldTimer = setTimeout(() => {
+        _moveHoldTriggered = true;
+        showMoveModal(moveName);
+        // Vibrate on long press if supported
+        if (navigator.vibrate) navigator.vibrate(50);
+    }, 1500);
+}
+
+function endMoveHold(event, moveName) {
+    event.preventDefault();
+    clearTimeout(_moveHoldTimer);
+    if (!_moveHoldTriggered) {
+        // Short tap = attack
+        useMove(moveName);
+    }
+    _moveHoldTriggered = false;
+}
+
+function endMoveHoldInfo(event, moveName) {
+    // For non-clickable moves (enemy moves), tap shows info
+    event.preventDefault();
+    clearTimeout(_moveHoldTimer);
+    if (!_moveHoldTriggered) {
+        showMoveModal(moveName);
+    }
+    _moveHoldTriggered = false;
+}
+
+function cancelMoveHold() {
+    clearTimeout(_moveHoldTimer);
+    _moveHoldTriggered = false;
+}
+
+function handleMoveTap(moveName) {
+    // Desktop click handler (mouse only, touch is handled by touchstart/end)
+    if (_moveHoldTriggered) return; // Ignore if long-press was triggered
+    useMove(moveName);
 }
 
 function showMoveTooltip(event, moveName) {
