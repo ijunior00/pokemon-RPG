@@ -361,21 +361,24 @@ socket.on('battle_update', (data) => {
     document.getElementById('battle-player-hp-bar-full').style.width = `${(bs.player_hp_current / bs.player_hp_max) * 100}%`;
     document.getElementById('battle-player-hp-text-full').textContent = `${bs.player_hp_current}/${bs.player_hp_max} HP`;
     
-    // Log action
-    const who = data.action_by === 'player' ? '🟢 Seu Pokémon' : '🔴 Selvagem';
-    let msg = `${who} usou <strong>${data.move_name}</strong>`;
-    if (data.damage > 0) msg += ` → ${data.damage} de dano!`;
-    if (data.heal > 0) msg += ` → curou ${data.heal} HP!`;
-    if (data.status_effect) msg += ` → ${data.status_effect}!`;
-    if (data.message) msg += ` <em>(${data.message})</em>`;
-    addBattleLog(msg);
+    // Log action (only if not already logged locally by wild auto-attack)
+    if (!window._wildIsActing || data.action_by === 'player') {
+        const who = data.action_by === 'player' ? '🟢 Seu Pokémon' : '🔴 Selvagem';
+        let msg = `${who} usou <strong>${data.move_name}</strong>`;
+        if (data.damage > 0) msg += ` → ${data.damage} de dano!`;
+        if (data.heal > 0) msg += ` → curou ${data.heal} HP!`;
+        if (data.status_effect) msg += ` → ${data.status_effect}!`;
+        if (data.message) msg += ` <em>(${data.message})</em>`;
+        addBattleLog(msg);
+    }
     
     // Update turn
     window.currentTurn = bs.turn;
     updateTurnUI();
     
     // Wild Pokemon auto-attack when it's their turn
-    if (bs.turn === 'wild' && bs.wild_hp_current > 0 && bs.player_hp_current > 0 && !window.wildFainted) {
+    // Only trigger if the wild is NOT already acting (prevents re-entry loop)
+    if (bs.turn === 'wild' && bs.wild_hp_current > 0 && bs.player_hp_current > 0 && !window.wildFainted && !window._wildIsActing) {
         setTimeout(() => wildPokemonAutoAttack(), 1200);
     }
     
@@ -583,7 +586,8 @@ async function useMove(moveName) {
         'scary face', 'string shot', 'cotton spore', 'growl', 'leer', 'tail whip', 'screech',
         'smokescreen', 'sand attack', 'flash', 'charm', 'fake tears', 'metal sound',
         'rain dance', 'sunny day', 'sandstorm', 'hail', 'attract', 'taunt', 'encore',
-        'disable', 'torment', 'spite', 'wish', 'heal bell', 'aromatherapy'];
+        'disable', 'torment', 'spite', 'wish', 'heal bell', 'aromatherapy',
+        'venom drench', 'toxic spikes', 'spikes', 'stealth rock', 'sticky web'];
     
     if (!m.baseDamage || PLAYER_STATUS_MOVES.includes(moveName.toLowerCase())) {
         await processStatusMove(moveName, poke, window.currentBattleData?.enemy);
@@ -865,6 +869,8 @@ function endBattle(result) {
     window.wildFainted = false;
     window.wildPokemonStatus = null;
     window.playerPokemonStatus = null;
+    window._wildIsActing = false;
+    window._processingPlayerStatus = false;
     socket.emit('end_encounter', { result });
     
     // Award XP to the Pokemon that fought (if won)
@@ -2489,6 +2495,8 @@ socket.on('tournament_prize', (data) => {
 window.statusEffectsData = null;
 window.wildPokemonStatus = null;  // {condition: 'envenenado', turns_active: 0}
 window.playerPokemonStatus = null;
+window._wildIsActing = false;
+window._processingPlayerStatus = false;
 
 // Load status effects data on page load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -2574,14 +2582,16 @@ async function processWildTurnStart() {
         data.messages.forEach(msg => addBattleLog(msg));
         
         if (data.damage > 0) {
-            // Apply status damage to wild pokemon (via server)
-            socket.emit('battle_action', {
-                action_by: 'status',
-                action_type: 'status_damage',
-                move_name: `Status: ${window.wildPokemonStatus.condition}`,
-                damage: data.damage,
-                message: 'Dano de condição'
-            });
+            // Apply status damage locally (no server round-trip to avoid duplication)
+            const hpEl = document.getElementById('battle-enemy-hp-text-full');
+            if (hpEl) {
+                const match = hpEl.textContent.match(/(\d+)\/(\d+)/);
+                if (match) {
+                    const newHp = Math.max(0, parseInt(match[1]) - data.damage);
+                    hpEl.textContent = `${newHp}/${match[2]} HP`;
+                    document.getElementById('battle-enemy-hp-bar-full').style.width = `${(newHp/parseInt(match[2]))*100}%`;
+                }
+            }
         }
         
         if (data.status_removed) {
@@ -2629,10 +2639,14 @@ const _originalUpdateTurnUI = updateTurnUI;
 updateTurnUI = async function() {
     _originalUpdateTurnUI();
     // Process PLAYER's status effects at the START of PLAYER's turn (before player acts)
-    if (window.currentTurn === 'player' && window.playerPokemonStatus) {
+    // This is a "pre-turn" step: status resolves, then the pokemon acts (or can't)
+    if (window.currentTurn === 'player' && window.playerPokemonStatus && !window._processingPlayerStatus) {
+        window._processingPlayerStatus = true;
         const canAct = await processPlayerTurnStart();
+        window._processingPlayerStatus = false;
         if (!canAct) {
             addBattleLog('⏭️ Seu Pokémon não conseguiu agir por causa do status!');
+            // Pass the turn (this will trigger server to switch to wild turn)
             socket.emit('battle_action', { action_by: 'player', action_type: 'pass', move_name: 'Status impediu', damage: 0, message: 'Não pôde agir' });
         }
     }
@@ -2658,6 +2672,8 @@ const _endBattleWithStatusReset = function(result) {
     window.wildPokemonStatus = null;
     window.playerPokemonStatus = null;
     window.wildFainted = false;
+    window._wildIsActing = false;
+    window._processingPlayerStatus = false;
     _origEndBattle(result);
 };
 // Note: endBattle is already defined, this override ensures cleanup
@@ -2669,13 +2685,25 @@ const _endBattleWithStatusReset = function(result) {
 async function wildPokemonAutoAttack() {
     if (!battleActive || !window.currentBattleData || window.wildFainted) return;
     if (window.currentTurn !== 'wild') return;
+    // Prevent re-entry: if the wild is already acting, exit
+    if (window._wildIsActing) return;
+    window._wildIsActing = true;
     
+    try {
+        await _executeWildTurn();
+    } finally {
+        // Release the flag after a delay to prevent the battle_update response from re-triggering
+        setTimeout(() => { window._wildIsActing = false; }, 600);
+    }
+}
+
+async function _executeWildTurn() {
     const enemy = window.currentBattleData.enemy;
     const playerPoke = window.currentBattleData.playerPokemon;
     const wildLevel = currentEncounter?.level || enemy?.level || 5;
     const wildStats = enemy?.stats || {};
     
-    // Process wild pokemon's status at turn start (before it acts)
+    // === PRE-TURN: Process wild pokemon's status (poison/burn damage, paralysis/sleep/freeze check) ===
     if (window.wildPokemonStatus) {
         try {
             const resp = await fetch('/api/check-status', {
@@ -2699,12 +2727,15 @@ async function wildPokemonAutoAttack() {
                     const maxHp = parseInt(hpMatch[2]);
                     document.getElementById('battle-enemy-hp-text-full').textContent = `${newHp}/${maxHp} HP`;
                     document.getElementById('battle-enemy-hp-bar-full').style.width = `${(newHp/maxHp)*100}%`;
-                    // Also emit to server to sync state
-                    socket.emit('battle_action', {
-                        action_by: 'status', action_type: 'status_damage',
-                        move_name: `Dano: ${window.wildPokemonStatus.condition}`,
-                        damage: statusResult.damage, message: 'Dano de condição'
-                    });
+                    addBattleLog(`🔴 Dano: ${window.wildPokemonStatus.condition} → ${statusResult.damage} de dano! (Dano de condição)`);
+                    // Check if wild fainted from status damage
+                    if (newHp <= 0) {
+                        addBattleLog(`💀 Pokémon Selvagem desmaiou pelo veneno/queimadura!`);
+                        window.wildFainted = true;
+                        window.currentTurn = 'player';
+                        updateTurnUI();
+                        return;
+                    }
                 }
             }
             if (statusResult.status_removed) {
@@ -2713,17 +2744,22 @@ async function wildPokemonAutoAttack() {
             }
             if (!statusResult.can_act) {
                 addBattleLog(`🔴 Pokémon Selvagem não conseguiu agir!`);
+                // Pass the turn to player without attacking
                 socket.emit('battle_action', {
                     action_by: 'master', action_type: 'pass',
                     move_name: 'Status impediu', damage: 0, message: 'Selvagem não pôde agir'
                 });
                 return;
             }
-        } catch(e) {}
+        } catch(e) { console.error('Wild status check failed:', e); }
     }
     
-    // Pick a random move from the wild pokemon's moveset
-    const wildMoves = currentEncounter?.wild_moves || enemy?.startingMoves || ['Tackle'];
+    // === MAIN TURN: Pick a move and attack ===
+    let wildMoves = currentEncounter?.wild_moves || enemy?.startingMoves || ['Tackle'];
+    // Filter out junk entries (single common words that are parts of move names, copyright text)
+    const junkWords = ['down', 'up', 'out', 'off', 'in', 'on', 'by', 'to', 'the', 'a', 'an', 'or', 'and', 'is', 'not', 'this', 'of', 'for'];
+    wildMoves = wildMoves.filter(m => m && m.length > 2 && !junkWords.includes(m.toLowerCase()) && !m.includes('©') && !m.toLowerCase().includes('unofficial') && !m.toLowerCase().includes('wizards') && !m.toLowerCase().includes('nintendo') && !m.toLowerCase().includes('portions'));
+    if (wildMoves.length === 0) wildMoves = ['Tackle'];
     const moveName = wildMoves[Math.floor(Math.random() * wildMoves.length)];
     
     // Get move data from cache (load if needed)
@@ -2740,6 +2776,16 @@ async function wildPokemonAutoAttack() {
     }
     
     const moveData = MOVES_CACHE[moveName] || {};
+    
+    // If move not found in cache, skip it (bad data)
+    if (!moveData.name && !moveData.baseDamage && !moveData.type) {
+        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> → Move ${moveName} não encontrado`);
+        socket.emit('battle_action', {
+            action_by: 'master', action_type: 'attack',
+            move_name: moveName, damage: 0, message: `Move ${moveName} não encontrado`
+        });
+        return;
+    }
     
     // NEW STAT SYSTEM: Physical (ATK) or Special (SPA)
     const moveCategory = moveData.category || 'physical';
@@ -2767,7 +2813,8 @@ async function wildPokemonAutoAttack() {
         'scary face', 'string shot', 'cotton spore', 'growl', 'leer', 'tail whip', 'screech',
         'smokescreen', 'sand attack', 'flash', 'charm', 'fake tears', 'metal sound',
         'rain dance', 'sunny day', 'sandstorm', 'hail', 'attract', 'taunt', 'encore',
-        'disable', 'torment', 'spite', 'wish', 'heal bell', 'aromatherapy'];
+        'disable', 'torment', 'spite', 'wish', 'heal bell', 'aromatherapy',
+        'venom drench', 'toxic spikes', 'spikes', 'stealth rock', 'sticky web'];
     
     if (!moveData.baseDamage || ALWAYS_STATUS_MOVES.includes(moveName.toLowerCase())) {
         await processWildStatusMove(moveName);

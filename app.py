@@ -782,6 +782,9 @@ def api_encounter():
     move_pool = [m for m in move_pool if len(m) > 2 and not m.startswith('©') and not m.isdigit() and 'unofficial' not in m.lower() and 'wizards' not in m.lower() and 'nintendo' not in m.lower() and 'portions' not in m.lower() and '©' not in m and len(m) < 30]
     move_pool = list(dict.fromkeys(move_pool))
     
+    # Validate moves against database - only keep moves that actually exist
+    move_pool = [m for m in move_pool if m.lower() in MOVES_BY_NAME or m in MOVES_DB]
+    
     # Pick last 4 moves (highest level moves)
     wild_moves = move_pool[-4:] if len(move_pool) > 4 else (move_pool if move_pool else ['Tackle'])
     
