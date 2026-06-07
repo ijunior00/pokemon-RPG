@@ -887,7 +887,6 @@ function throwPokeball() {
     }
     
     // Pokeball type bonus
-    const ballType = document.getElementById('pokeball-select')?.value || 'pokeball';
     const ballNames = { pokeball: '🔴 Pokébola', greatball: '🔵 Great Ball', ultraball: '⚫ Ultra Ball', masterball: '🟣 Master Ball' };
     const ballBonus = { pokeball: 0, greatball: 2, ultraball: 4, masterball: 999 };
     const bonus = ballBonus[ballType] || 0;
