@@ -635,21 +635,29 @@ async function useMove(moveName) {
         }
         
         // Type effectiveness vs enemy
+        // Move types are in PT (Fogo, Grama, etc.) but vulnerabilities are in EN (Fire, Grass, etc.)
+        const typeMapPtToEn = {
+            'fogo':'fire', 'água':'water', 'grama':'grass', 'elétrico':'electric',
+            'gelo':'ice', 'lutador':'fighting', 'venenoso':'poison', 'terra':'ground',
+            'voador':'flying', 'psíquico':'psychic', 'inseto':'bug', 'pedra':'rock',
+            'fantasma':'ghost', 'dragão':'dragon', 'sombrio':'dark', 'aço':'steel',
+            'fada':'fairy', 'normal':'normal'
+        };
+        const moveTypeEn = typeMapPtToEn[moveType] || moveType;
+        
         const enemyForType = window.currentBattleData?.enemy || {}; 
-        const enemyTypes = (enemyForType.types || []).map(t => t.toLowerCase());
-        const enemyVulns = (enemy.vulnerabilities || []).map(t => t.toLowerCase());
-        const enemyResists = (enemy.resistances || []).map(t => t.toLowerCase());
-        const enemyImmunities = (enemy.immunities || []).map(t => t.toLowerCase());
+        const enemyVulns = (enemyForType.vulnerabilities || []).map(t => t.toLowerCase());
+        const enemyResists = (enemyForType.resistances || []).map(t => t.toLowerCase());
+        const enemyImmunities = (enemyForType.immunities || []).map(t => t.toLowerCase());
         
         let effectiveness = 1;
         let effectLabel = '';
-        if (enemyImmunities.includes(moveType)) {
+        if (enemyImmunities.includes(moveTypeEn)) {
             effectiveness = 0;
             effectLabel = '⛔ IMUNE (0x)';
         } else {
-            // Count how many of enemy's types are vulnerable/resistant
-            if (enemyVulns.includes(moveType)) effectiveness *= 2;
-            if (enemyResists.includes(moveType)) effectiveness *= 0.5;
+            if (enemyVulns.includes(moveTypeEn)) effectiveness *= 2;
+            if (enemyResists.includes(moveTypeEn)) effectiveness *= 0.5;
         }
         
         damage = Math.floor(damage * effectiveness);
@@ -657,8 +665,8 @@ async function useMove(moveName) {
         if (effectiveness > 1) effectLabel = `⚡ Super Efetivo (x${effectiveness})`;
         else if (effectiveness < 1 && effectiveness > 0) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
         
-        const powerLabel = m.power || 'FOR';
-        addBattleLog(`✅ Acertou! (${totalAttack} vs AC ${enemyAC}) → ${m.baseDamage||'1d6'}(${diceRoll}) + MOVE/${powerLabel}(${moveMod})${stab > 0 ? ` + STAB(${stab})` : ''}${isCrit ? ' x2 CRIT' : ''}${effectLabel ? ' ' + effectLabel : ''} = <strong>${damage} dano ${m.type||''}</strong>`);
+        const statUsed = moveCategory === 'physical' ? 'ATK' : 'SPA';
+        addBattleLog(`✅ Acertou! (${totalAttack} vs AC ${enemyAC}) → ${scaledDice}(${diceRoll}) + ${statUsed}(${moveMod})${stab > 0 ? ` + STAB(${stab})` : ''}${isCrit ? ' ×2 CRIT' : ''}${window.enemyDodging ? ' ×1.25(esquiva)' : ''}${effectLabel ? ' ' + effectLabel : ''} = <strong>${damage} dano ${m.type||''}</strong>`);
         
         // Check for status effect
         checkMoveStatusEffect(moveName, attackRoll, damage);
@@ -2779,18 +2787,27 @@ async function wildPokemonAutoAttack() {
         const stab = wildTypes.includes(moveType) ? getStabForLevel(wildLevel) : 0;
         damage += stab;
         
-        // Type effectiveness vs player pokemon
+        // Type effectiveness vs player pokemon (move types in PT, vulnerabilities in EN)
+        const typeMapPtToEn2 = {
+            'fogo':'fire', 'água':'water', 'grama':'grass', 'elétrico':'electric',
+            'gelo':'ice', 'lutador':'fighting', 'venenoso':'poison', 'terra':'ground',
+            'voador':'flying', 'psíquico':'psychic', 'inseto':'bug', 'pedra':'rock',
+            'fantasma':'ghost', 'dragão':'dragon', 'sombrio':'dark', 'aço':'steel',
+            'fada':'fairy', 'normal':'normal'
+        };
+        const wildMoveTypeEn = typeMapPtToEn2[moveType] || moveType;
+        
         const pVulns = (playerPoke?.vulnerabilities || []).map(t => t.toLowerCase());
         const pResists = (playerPoke?.resistances || []).map(t => t.toLowerCase());
         const pImmunities = (playerPoke?.immunities || []).map(t => t.toLowerCase());
         
         let effectiveness = 1;
         let effectLabel = '';
-        if (pImmunities.includes(moveType)) {
+        if (pImmunities.includes(wildMoveTypeEn)) {
             effectiveness = 0; effectLabel = '⛔ Imune';
         } else {
-            if (pVulns.includes(moveType)) effectiveness *= 2;
-            if (pResists.includes(moveType)) effectiveness *= 0.5;
+            if (pVulns.includes(wildMoveTypeEn)) effectiveness *= 2;
+            if (pResists.includes(wildMoveTypeEn)) effectiveness *= 0.5;
         }
         damage = Math.floor(damage * effectiveness);
         if (effectiveness === 0) damage = 0;
