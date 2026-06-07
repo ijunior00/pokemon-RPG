@@ -569,8 +569,23 @@ async function useMove(moveName) {
     // Proficiency bonus based on Pokemon level (1-100 scale)
     const profBonus = poke?.proficiency || getProficiencyForLevel(pokeLevel);
     
-    // If move has no baseDamage, it's a status/utility move - process via server
-    if (!m.baseDamage) {
+    // If move has no baseDamage OR is known as a status move, process as status
+    const PLAYER_STATUS_MOVES = ['harden', 'withdraw', 'iron defense', 'acid armor', 'barrier', 'cotton guard',
+        'cosmic power', 'defend order', 'swords dance', 'bulk up', 'calm mind', 'dragon dance',
+        'nasty plot', 'quiver dance', 'shell smash', 'work up', 'curse', 'stockpile',
+        'amnesia', 'double team', 'minimize', 'growth', 'meditate', 'sharpen',
+        'belly drum', 'coil', 'shift gear', 'autotomize', 'rock polish', 'agility',
+        'light screen', 'reflect', 'safeguard', 'mist', 'aurora veil',
+        'rest', 'recover', 'roost', 'synthesis', 'moonlight', 'soft-boiled', 'milk drink',
+        'protect', 'detect', 'endure', 'spiky shield', 'baneful bunker',
+        'toxic', 'will-o-wisp', 'thunder wave', 'hypnosis', 'sleep powder', 'stun spore',
+        'confuse ray', 'swagger', 'supersonic', 'sweet kiss', 'sing', 'grass whistle',
+        'scary face', 'string shot', 'cotton spore', 'growl', 'leer', 'tail whip', 'screech',
+        'smokescreen', 'sand attack', 'flash', 'charm', 'fake tears', 'metal sound',
+        'rain dance', 'sunny day', 'sandstorm', 'hail', 'attract', 'taunt', 'encore',
+        'disable', 'torment', 'spite', 'wish', 'heal bell', 'aromatherapy'];
+    
+    if (!m.baseDamage || PLAYER_STATUS_MOVES.includes(moveName.toLowerCase())) {
         await processStatusMove(moveName, poke, window.currentBattleData?.enemy);
         return;
     }
@@ -2612,11 +2627,11 @@ function updateStatusDisplay() {
 const _originalUpdateTurnUI = updateTurnUI;
 updateTurnUI = async function() {
     _originalUpdateTurnUI();
+    // Process PLAYER's status effects at the START of PLAYER's turn (before player acts)
     if (window.currentTurn === 'player' && window.playerPokemonStatus) {
         const canAct = await processPlayerTurnStart();
         if (!canAct) {
-            addBattleLog('⏭️ Turno perdido por condição de status!');
-            // Auto pass turn
+            addBattleLog('⏭️ Seu Pokémon não conseguiu agir por causa do status!');
             socket.emit('battle_action', { action_by: 'player', action_type: 'pass', move_name: 'Status impediu', damage: 0, message: 'Não pôde agir' });
         }
     }
@@ -2659,7 +2674,7 @@ async function wildPokemonAutoAttack() {
     const wildLevel = currentEncounter?.level || enemy?.level || 5;
     const wildStats = enemy?.stats || {};
     
-    // Process wild pokemon's status at turn start
+    // Process wild pokemon's status at turn start (before it acts)
     if (window.wildPokemonStatus) {
         try {
             const resp = await fetch('/api/check-status', {
@@ -2675,11 +2690,21 @@ async function wildPokemonAutoAttack() {
             statusResult.messages.forEach(msg => addBattleLog(`🔴 ${msg}`));
             
             if (statusResult.damage > 0) {
-                socket.emit('battle_action', {
-                    action_by: 'status', action_type: 'status_damage',
-                    move_name: `Status: ${window.wildPokemonStatus.condition}`,
-                    damage: statusResult.damage, message: 'Dano de condição no selvagem'
-                });
+                // Apply status damage directly to wild HP display (no server round-trip)
+                const hpText = document.getElementById('battle-enemy-hp-text-full')?.textContent || '';
+                const hpMatch = hpText.match(/(\d+)\/(\d+)/);
+                if (hpMatch) {
+                    const newHp = Math.max(0, parseInt(hpMatch[1]) - statusResult.damage);
+                    const maxHp = parseInt(hpMatch[2]);
+                    document.getElementById('battle-enemy-hp-text-full').textContent = `${newHp}/${maxHp} HP`;
+                    document.getElementById('battle-enemy-hp-bar-full').style.width = `${(newHp/maxHp)*100}%`;
+                    // Also emit to server to sync state
+                    socket.emit('battle_action', {
+                        action_by: 'status', action_type: 'status_damage',
+                        move_name: `Dano: ${window.wildPokemonStatus.condition}`,
+                        damage: statusResult.damage, message: 'Dano de condição'
+                    });
+                }
             }
             if (statusResult.status_removed) {
                 window.wildPokemonStatus = null;
@@ -2727,8 +2752,23 @@ async function wildPokemonAutoAttack() {
     // Proficiency for wild (1-100 scale)
     const profBonus = getProficiencyForLevel(wildLevel);
     
-    // Status/utility move (no baseDamage = no damage)
-    if (!moveData.baseDamage) {
+    // Status/utility move - check by name first (some status moves have baseDamage in JSON for reduction purposes)
+    const ALWAYS_STATUS_MOVES = ['harden', 'withdraw', 'iron defense', 'acid armor', 'barrier', 'cotton guard',
+        'cosmic power', 'defend order', 'swords dance', 'bulk up', 'calm mind', 'dragon dance', 
+        'nasty plot', 'quiver dance', 'shell smash', 'work up', 'curse', 'stockpile',
+        'amnesia', 'double team', 'minimize', 'growth', 'meditate', 'sharpen',
+        'belly drum', 'coil', 'shift gear', 'autotomize', 'rock polish', 'agility',
+        'light screen', 'reflect', 'safeguard', 'mist', 'aurora veil',
+        'rest', 'recover', 'roost', 'synthesis', 'moonlight', 'soft-boiled', 'milk drink',
+        'protect', 'detect', 'endure', 'spiky shield', 'baneful bunker',
+        'toxic', 'will-o-wisp', 'thunder wave', 'hypnosis', 'sleep powder', 'stun spore',
+        'confuse ray', 'swagger', 'supersonic', 'sweet kiss', 'sing', 'grass whistle',
+        'scary face', 'string shot', 'cotton spore', 'growl', 'leer', 'tail whip', 'screech',
+        'smokescreen', 'sand attack', 'flash', 'charm', 'fake tears', 'metal sound',
+        'rain dance', 'sunny day', 'sandstorm', 'hail', 'attract', 'taunt', 'encore',
+        'disable', 'torment', 'spite', 'wish', 'heal bell', 'aromatherapy'];
+    
+    if (!moveData.baseDamage || ALWAYS_STATUS_MOVES.includes(moveName.toLowerCase())) {
         await processWildStatusMove(moveName);
         return;
     }
