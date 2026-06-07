@@ -420,7 +420,7 @@ def generate_npc():
             for lv, moves in poke['levelMoves'].items():
                 if int(lv) <= poke_level:
                     move_pool.extend(moves)
-        move_pool = [m for m in move_pool if len(m) > 2 and not m.startswith('©')]
+        move_pool = [m for m in move_pool if len(m) > 2 and not m.startswith('©') and '©' not in m and 'unofficial' not in m.lower() and 'wizards' not in m.lower() and 'nintendo' not in m.lower() and 'portions' not in m.lower() and len(m) < 30]
         move_pool = list(dict.fromkeys(move_pool))
         moves = move_pool[-4:] if len(move_pool) > 4 else (move_pool if move_pool else ['Tackle'])
         
@@ -743,7 +743,7 @@ def api_encounter():
     if chosen.get('eggMoves'):
         move_pool.extend(chosen['eggMoves'])
     
-    move_pool = [m for m in move_pool if len(m) > 2 and not m.startswith('©') and not m.isdigit()]
+    move_pool = [m for m in move_pool if len(m) > 2 and not m.startswith('©') and not m.isdigit() and 'unofficial' not in m.lower() and 'wizards' not in m.lower() and 'nintendo' not in m.lower() and 'portions' not in m.lower() and '©' not in m and len(m) < 30]
     move_pool = list(dict.fromkeys(move_pool))
     
     # Pick last 4 moves (highest level moves)

@@ -3319,18 +3319,21 @@ function distributeStat(stat) {
     poke.stats[stat] = (poke.stats[stat] || 10) + 1;
     poke.statPointsAvailable = available - 1;
     
-    // If CON changed, recalculate HP
-    if (stat === 'CON') {
-        const conMod = Math.floor((poke.stats.CON - 10) / 2);
+    // If HP stat changed, recalculate max HP
+    if (stat === 'HP') {
+        const hpMod = Math.floor((poke.stats.HP - 10) / 2);
         const baseHp = poke.baseHp || 20;
-        poke.maxHp = baseHp + (conMod * poke.level) + (poke.level * 2);
+        poke.maxHp = baseHp + (hpMod * poke.level) + (poke.level * 2);
         poke.currentHp = Math.min(poke.currentHp || poke.maxHp, poke.maxHp);
         document.getElementById('poke-max-hp').value = poke.maxHp;
         document.getElementById('poke-current-hp').value = poke.currentHp;
     }
     
-    // Update form display
-    document.getElementById(`poke-${stat.toLowerCase()}`).value = poke.stats[stat];
+    // Map new stat names to input IDs (inputs still use old IDs)
+    const statToInput = { 'ATK': 'poke-str', 'DEF': 'poke-dex', 'SPA': 'poke-con', 'SPD': 'poke-int', 'SPE': 'poke-wis', 'HP': 'poke-cha' };
+    const inputId = statToInput[stat];
+    if (inputId) document.getElementById(inputId).value = poke.stats[stat];
+    
     document.getElementById('poke-stat-points-available').textContent = poke.statPointsAvailable;
     
     if (poke.statPointsAvailable <= 0) {

@@ -5,6 +5,7 @@ Defines conditions, their effects per turn, and which moves apply them.
 Based on Pokemon 5e rules + PokemonDB general mechanics.
 """
 import random
+import re
 
 # ============================================================
 # STATUS CONDITIONS
@@ -364,7 +365,6 @@ def get_stat_modifiers(pokemon_status):
 # AUTO-DETECT STATUS EFFECT FROM MOVE DESCRIPTION
 # For moves not explicitly in MOVE_STATUS_EFFECTS
 # ============================================================
-import re
 
 def auto_detect_move_effect(move_data):
     """Analyze a move's description (PT/EN) and name to determine what effect it should have.
