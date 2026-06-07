@@ -1012,3 +1012,156 @@ async function setMatchWinner(matchId, winnerId) {
     }
     renderBracket();
 }
+
+
+// ============================================
+// MASTER EDIT PLAYER (Full access to all fields)
+// ============================================
+let _editingPlayerId = null;
+let _editingPlayerData = null;
+
+async function openMasterEdit(playerId, playerName) {
+    _editingPlayerId = playerId;
+    
+    // Fetch full player data
+    const resp = await fetch(`/master/players/${playerId}`);
+    const playerData = await resp.json();
+    _editingPlayerData = playerData;
+    const trainer = playerData.trainer_data || {};
+    const team = trainer.team || [];
+    
+    document.getElementById('master-edit-title').textContent = `✏️ Editar: ${playerName}`;
+    
+    const content = document.getElementById('master-edit-content');
+    content.innerHTML = `
+        <div style="display:grid;gap:1rem;">
+            <!-- Trainer Info -->
+            <div style="background:var(--darker);padding:1rem;border-radius:var(--radius);">
+                <h4 style="color:var(--accent);">📋 Dados do Treinador</h4>
+                <div class="form-row">
+                    <div class="form-group"><label>Nome</label><input type="text" id="me-name" value="${trainer.name || ''}"></div>
+                    <div class="form-group"><label>Nível</label><input type="number" id="me-level" value="${trainer.level || 1}"></div>
+                    <div class="form-group"><label>XP</label><input type="number" id="me-xp" value="${trainer.xp || 0}"></div>
+                    <div class="form-group"><label>XP Próx</label><input type="number" id="me-xp-next" value="${trainer.xp_to_next || 100}"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>FOR</label><input type="number" id="me-str" value="${trainer.str || 10}"></div>
+                    <div class="form-group"><label>DES</label><input type="number" id="me-dex" value="${trainer.dex || 10}"></div>
+                    <div class="form-group"><label>CON</label><input type="number" id="me-con" value="${trainer.con || 10}"></div>
+                    <div class="form-group"><label>INT</label><input type="number" id="me-int" value="${trainer.int || 10}"></div>
+                    <div class="form-group"><label>SAB</label><input type="number" id="me-wis" value="${trainer.wis || 10}"></div>
+                    <div class="form-group"><label>CAR</label><input type="number" id="me-cha" value="${trainer.cha || 10}"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>HP Máx</label><input type="number" id="me-hp-max" value="${trainer.hp_max || 8}"></div>
+                    <div class="form-group"><label>HP Atual</label><input type="number" id="me-hp-current" value="${trainer.hp_current || 8}"></div>
+                    <div class="form-group"><label>₽ Dinheiro</label><input type="number" id="me-money" value="${trainer.money || 0}"></div>
+                    <div class="form-group"><label>Pokéslots</label><input type="number" id="me-pokeslots" value="${trainer.pokeslots || 3}"></div>
+                </div>
+                <button class="btn btn-primary" onclick="saveMasterEditTrainer()">💾 Salvar Treinador</button>
+            </div>
+            
+            <!-- Pokemon Team -->
+            <div style="background:var(--darker);padding:1rem;border-radius:var(--radius);">
+                <h4 style="color:var(--accent);">🔴 Time Pokémon (${team.length})</h4>
+                <div id="me-team-list">
+                    ${team.map((p, i) => `
+                        <div style="background:var(--card-bg);padding:0.75rem;border-radius:var(--radius);margin-bottom:0.5rem;border:1px solid var(--card-border);">
+                            <div class="form-row">
+                                <div class="form-group"><label>Nome</label><input type="text" id="me-poke-${i}-name" value="${p.name || ''}"></div>
+                                <div class="form-group"><label>Apelido</label><input type="text" id="me-poke-${i}-nick" value="${p.nickname || ''}"></div>
+                                <div class="form-group"><label>Nível</label><input type="number" id="me-poke-${i}-level" value="${p.level || 1}"></div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group"><label>HP Atual</label><input type="number" id="me-poke-${i}-hp" value="${p.currentHp || 0}"></div>
+                                <div class="form-group"><label>HP Máx</label><input type="number" id="me-poke-${i}-maxhp" value="${p.maxHp || 0}"></div>
+                                <div class="form-group"><label>AC</label><input type="number" id="me-poke-${i}-ac" value="${p.ac || 10}"></div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group"><label>ATK</label><input type="number" id="me-poke-${i}-atk" value="${p.stats?.ATK || p.stats?.STR || 10}"></div>
+                                <div class="form-group"><label>DEF</label><input type="number" id="me-poke-${i}-def" value="${p.stats?.DEF || p.stats?.DEX || 10}"></div>
+                                <div class="form-group"><label>SPA</label><input type="number" id="me-poke-${i}-spa" value="${p.stats?.SPA || p.stats?.CON || 10}"></div>
+                                <div class="form-group"><label>SPD</label><input type="number" id="me-poke-${i}-spd" value="${p.stats?.SPD || p.stats?.INT || 10}"></div>
+                                <div class="form-group"><label>SPE</label><input type="number" id="me-poke-${i}-spe" value="${p.stats?.SPE || p.stats?.WIS || 10}"></div>
+                                <div class="form-group"><label>HP Stat</label><input type="number" id="me-poke-${i}-hpstat" value="${p.stats?.HP || p.stats?.CHA || 10}"></div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group"><label>XP Total</label><input type="number" id="me-poke-${i}-xp" value="${p.totalXp || 0}"></div>
+                                <div class="form-group"><label>Pontos Disp.</label><input type="number" id="me-poke-${i}-points" value="${p.statPointsAvailable || 0}"></div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <button class="btn btn-primary" onclick="saveMasterEditTeam()">💾 Salvar Time</button>
+            </div>
+        </div>
+    `;
+    
+    showElement('master-edit-modal');
+}
+
+async function saveMasterEditTrainer() {
+    const data = {
+        name: document.getElementById('me-name').value,
+        level: parseInt(document.getElementById('me-level').value) || 1,
+        xp: parseInt(document.getElementById('me-xp').value) || 0,
+        xp_to_next: parseInt(document.getElementById('me-xp-next').value) || 100,
+        str: parseInt(document.getElementById('me-str').value) || 10,
+        dex: parseInt(document.getElementById('me-dex').value) || 10,
+        con: parseInt(document.getElementById('me-con').value) || 10,
+        int: parseInt(document.getElementById('me-int').value) || 10,
+        wis: parseInt(document.getElementById('me-wis').value) || 10,
+        cha: parseInt(document.getElementById('me-cha').value) || 10,
+        hp_max: parseInt(document.getElementById('me-hp-max').value) || 8,
+        hp_current: parseInt(document.getElementById('me-hp-current').value) || 8,
+        money: parseInt(document.getElementById('me-money').value) || 0,
+        pokeslots: parseInt(document.getElementById('me-pokeslots').value) || 3
+    };
+    
+    const resp = await fetch(`/master/players/${_editingPlayerId}/edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    const result = await resp.json();
+    if (result.success) {
+        alert('✅ Treinador atualizado!');
+    } else {
+        alert('❌ Erro: ' + (result.error || 'Falha'));
+    }
+}
+
+async function saveMasterEditTeam() {
+    const team = _editingPlayerData.trainer_data.team || [];
+    
+    for (let i = 0; i < team.length; i++) {
+        team[i].name = document.getElementById(`me-poke-${i}-name`).value;
+        team[i].nickname = document.getElementById(`me-poke-${i}-nick`).value;
+        team[i].level = parseInt(document.getElementById(`me-poke-${i}-level`).value) || 1;
+        team[i].currentHp = parseInt(document.getElementById(`me-poke-${i}-hp`).value) || 0;
+        team[i].maxHp = parseInt(document.getElementById(`me-poke-${i}-maxhp`).value) || 0;
+        team[i].ac = parseInt(document.getElementById(`me-poke-${i}-ac`).value) || 10;
+        team[i].totalXp = parseInt(document.getElementById(`me-poke-${i}-xp`).value) || 0;
+        team[i].statPointsAvailable = parseInt(document.getElementById(`me-poke-${i}-points`).value) || 0;
+        team[i].stats = {
+            ATK: parseInt(document.getElementById(`me-poke-${i}-atk`).value) || 10,
+            DEF: parseInt(document.getElementById(`me-poke-${i}-def`).value) || 10,
+            SPA: parseInt(document.getElementById(`me-poke-${i}-spa`).value) || 10,
+            SPD: parseInt(document.getElementById(`me-poke-${i}-spd`).value) || 10,
+            SPE: parseInt(document.getElementById(`me-poke-${i}-spe`).value) || 10,
+            HP: parseInt(document.getElementById(`me-poke-${i}-hpstat`).value) || 10
+        };
+    }
+    
+    const resp = await fetch(`/master/players/${_editingPlayerId}/team`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ team })
+    });
+    const result = await resp.json();
+    if (result.success) {
+        alert('✅ Time atualizado!');
+    } else {
+        alert('❌ Erro: ' + (result.error || 'Falha'));
+    }
+}

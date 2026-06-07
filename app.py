@@ -272,6 +272,42 @@ def master_view_player(player_id):
         return jsonify(users[player_id])
     return jsonify({'error': 'Player not found'}), 404
 
+@app.route('/master/players/<player_id>/edit', methods=['POST'])
+@login_required
+def master_edit_player(player_id):
+    """Master can edit ANY field of any player's trainer data. No restrictions."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    users = get_users()
+    if player_id not in users:
+        return jsonify({'error': 'Player not found'}), 404
+    
+    data = request.json
+    trainer = users[player_id].get('trainer_data', {})
+    
+    # Master can edit everything - no field restrictions
+    for key, value in data.items():
+        trainer[key] = value
+    
+    users[player_id]['trainer_data'] = trainer
+    save_users(users)
+    return jsonify({'success': True, 'trainer_data': trainer})
+
+@app.route('/master/players/<player_id>/team', methods=['POST'])
+@login_required
+def master_edit_team(player_id):
+    """Master can edit a player's Pokemon team directly."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    users = get_users()
+    if player_id not in users:
+        return jsonify({'error': 'Player not found'}), 404
+    
+    data = request.json
+    users[player_id]['trainer_data']['team'] = data.get('team', [])
+    save_users(users)
+    return jsonify({'success': True})
+
 # ============================================================
 # NPC MANAGEMENT
 # ============================================================

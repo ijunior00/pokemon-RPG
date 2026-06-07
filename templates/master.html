@@ -59,6 +59,7 @@
                     <h3>{{ player.username }}</h3>
                     <span class="level-badge">Nv. {{ player.trainer_data.level if player.trainer_data else 1 }}</span>
                     <button class="btn btn-sm btn-secondary" onclick="togglePlayerDetails('{{ uid }}')">Expandir</button>
+                    <button class="btn btn-sm btn-warning" onclick="openMasterEdit('{{ uid }}', '{{ player.username }}')">✏️ Editar</button>
                 </div>
                 <div class="player-summary">
                     <span>XP: {{ player.trainer_data.xp if player.trainer_data else 0 }}</span>
@@ -525,6 +526,15 @@
                 </div>
                 <button class="btn btn-primary" onclick="saveMesaName()">Salvar Nome</button>
             </div>
+        </div>
+    </div>
+</div>
+    <!-- MASTER EDIT MODAL -->
+    <div id="master-edit-modal" class="modal hidden">
+        <div class="modal-content modal-lg" style="max-height:90vh;overflow-y:auto;">
+            <button class="modal-close" onclick="hideElement('master-edit-modal')">&times;</button>
+            <h3 id="master-edit-title">Editar Jogador</h3>
+            <div id="master-edit-content"></div>
         </div>
     </div>
 </div>
