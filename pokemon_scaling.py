@@ -13,6 +13,46 @@ Pokemon max controllable level = Trainer Level × 5
 import math
 
 # ============================================================
+# NATURE MODIFIERS
+# Each nature boosts one stat by +10% and lowers another by -10%.
+# Neutral natures (Hardy, Docile, Bashful, Quirky, Serious) have no effect.
+# ============================================================
+NATURE_MODIFIERS = {
+    'Adamant':  {'ATK': 1.1, 'SPA': 0.9},
+    'Modest':   {'SPA': 1.1, 'ATK': 0.9},
+    'Jolly':    {'SPE': 1.1, 'SPA': 0.9},
+    'Timid':    {'SPE': 1.1, 'ATK': 0.9},
+    'Bold':     {'DEF': 1.1, 'ATK': 0.9},
+    'Impish':   {'DEF': 1.1, 'SPA': 0.9},
+    'Calm':     {'SPD': 1.1, 'ATK': 0.9},
+    'Careful':  {'SPD': 1.1, 'SPA': 0.9},
+    'Brave':    {'ATK': 1.1, 'SPE': 0.9},
+    'Quiet':    {'SPA': 1.1, 'SPE': 0.9},
+    'Relaxed':  {'DEF': 1.1, 'SPE': 0.9},
+    'Sassy':    {'SPD': 1.1, 'SPE': 0.9},
+    'Lonely':   {'ATK': 1.1, 'DEF': 0.9},
+    'Naughty':  {'ATK': 1.1, 'SPD': 0.9},
+    'Mild':     {'SPA': 1.1, 'DEF': 0.9},
+    'Rash':     {'SPA': 1.1, 'SPD': 0.9},
+    'Lax':      {'DEF': 1.1, 'SPD': 0.9},
+    'Gentle':   {'SPD': 1.1, 'DEF': 0.9},
+    'Hasty':    {'SPE': 1.1, 'DEF': 0.9},
+    'Naive':    {'SPE': 1.1, 'SPD': 0.9},
+}
+
+
+def apply_nature(stats, nature):
+    """Return a copy of stats with nature multipliers applied (±10%)."""
+    if not nature or nature not in NATURE_MODIFIERS:
+        return stats
+    result = dict(stats)
+    for stat, mult in NATURE_MODIFIERS[nature].items():
+        if stat in result:
+            result[stat] = int(result[stat] * mult)
+    return result
+
+
+# ============================================================
 # XP TABLE - Per level (index 0 = Nv1->2, index 99 = Nv99->100)
 # Matches reference curve exactly for 1-42, extrapolated 43-100
 # ============================================================
@@ -247,13 +287,13 @@ def can_control_pokemon(trainer_level, pokemon_level):
 # ============================================================
 # FULL POKEMON STAT BLOCK AT LEVEL
 # ============================================================
-def calculate_pokemon_stats(base_pokemon, level):
+def calculate_pokemon_stats(base_pokemon, level, nature=None):
     """Calculate all stats for a Pokemon at a given level.
-    
+
     New Pokemon stat system: ATK, DEF, SPA, SPD, SPE, HP
     - ATK: Physical attack power
     - DEF: Physical defense (AC vs physical moves)
-    - SPA: Special attack power  
+    - SPA: Special attack power
     - SPD: Special defense (AC vs special moves)
     - SPE: Speed (initiative + dodge AC)
     - HP: Hit points bonus
@@ -262,11 +302,16 @@ def calculate_pokemon_stats(base_pokemon, level):
     base_hp = base_pokemon.get('hp', 20)
     base_ac = base_pokemon.get('ac', 13)
     hp_stat = base_stats.get('HP', base_stats.get('CON', 10))
-    
+
     stats = {}
     for stat_name in ['ATK', 'DEF', 'SPA', 'SPD', 'SPE', 'HP']:
         base = base_stats.get(stat_name, 10)
         stats[stat_name] = calculate_stat(base, level)
+
+    # Apply nature modifier if provided
+    effective_nature = nature or base_pokemon.get('nature')
+    if effective_nature:
+        stats = apply_nature(stats, effective_nature)
     
     # Calculate actual HP
     hp_mod = (stats['HP'] - 10) // 2

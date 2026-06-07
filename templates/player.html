@@ -175,7 +175,13 @@
                     <button class="btn btn-secondary" id="btn-switch-pokemon" onclick="switchPokemon()">🔄 Trocar Pokémon</button>
                     <button class="btn btn-warning" id="btn-use-item" onclick="openBattleItems()">🎒 Usar Item</button>
                     <button class="btn btn-secondary" id="btn-dodge" onclick="toggleDodge()" style="border:2px solid var(--accent);">🏃 Esquiva: OFF</button>
-                    <button class="btn btn-danger" id="btn-throw-pokeball" onclick="throwPokeball()">🔴 Arremessar Pokébola</button>
+                    <select id="pokeball-select" style="background:var(--card-bg);color:var(--text);border:1px solid var(--card-border);border-radius:var(--radius);padding:0.3rem 0.5rem;font-size:0.85rem;">
+                        <option value="pokeball">🔴 Pokébola (+0)</option>
+                        <option value="greatball">🔵 Great Ball (+2)</option>
+                        <option value="ultraball">⚫ Ultra Ball (+4)</option>
+                        <option value="masterball">🟣 Master Ball (Auto)</option>
+                    </select>
+                    <button class="btn btn-danger" id="btn-throw-pokeball" onclick="throwPokeball()">Arremessar</button>
                     <button class="btn btn-success" onclick="endBattle('defeated')">💀 Derrotei!</button>
                     <button class="btn btn-secondary" onclick="endBattle('fled')">🏃 Fugir</button>
                     <button class="btn btn-warning" onclick="endBattle('fainted')">😵 Meu Pokémon Desmaiou</button>
@@ -250,6 +256,12 @@
             <div id="pvp-battle-area" class="pvp-battle hidden">
                 <h4>⚔️ Batalha PVP em Andamento</h4>
                 <div id="pvp-battle-content"></div>
+            </div>
+
+            <!-- Tournament Bracket (shown when a tournament is active) -->
+            <div id="tournament-panel" class="pvp-section hidden" style="margin-top:1rem;">
+                <h4>🏆 Campeonato em Andamento: <span id="tournament-panel-name"></span></h4>
+                <div id="tournament-bracket-player" style="overflow-x:auto;"></div>
             </div>
         </div>
     </div>
@@ -683,6 +695,7 @@
 <script>
     const TRAINER_DATA = {{ trainer|tojson }};
     const ROUTES_DATA = {{ routes|tojson }};
+    window.CURRENT_USER_ID = "{{ current_user.id }}";
     let MOVES_CACHE = {};
 </script>
 <script src="{{ url_for('static', filename='js/player.js') }}"></script>

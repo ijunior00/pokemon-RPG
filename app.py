@@ -490,6 +490,63 @@ def generate_npc():
     db.save_npc(npc)
     return jsonify(npc)
 
+def check_and_evolve_pokemon(pokemon):
+    """Check if a Pokemon should evolve based on its current level.
+    Returns (evolved_pokemon_data, evolved_name) or (None, None) if no evolution."""
+    import re
+    info = pokemon.get('evolutionInfo', '') or ''
+    if not info:
+        return None, None
+
+    # Parse: "X can evolve into Y at level N and above."
+    match = re.search(r'evolve into ([A-Za-z\-\s]+?) at (?:trainer )?level (\d+)', info, re.IGNORECASE)
+    if not match:
+        match = re.search(r'evolve into ([A-Za-z\-\s]+?) at level (\d+)', info, re.IGNORECASE)
+    if not match:
+        return None, None
+
+    evolved_name = match.group(1).strip()
+    evo_trainer_level = int(match.group(2))
+    evo_pokemon_level = evo_trainer_level * 5  # trainer level scale to pokemon level scale
+
+    current_level = pokemon.get('level', 1)
+    if current_level < evo_pokemon_level:
+        return None, None
+
+    evolved_base = POKEMON_BY_NAME.get(evolved_name.lower())
+    if not evolved_base:
+        return None, None
+
+    # Build evolved pokemon, preserving player-specific data
+    scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'))
+    evolved = {
+        'name': evolved_base['name'],
+        'number': evolved_base['number'],
+        'types': evolved_base.get('types', pokemon.get('types', [])),
+        'level': current_level,
+        'hp': scaled['hp'],
+        'maxHp': scaled['maxHp'],
+        'currentHp': min(pokemon.get('currentHp', scaled['hp']), scaled['hp']),
+        'ac': scaled['ac'],
+        'stats': scaled['stats'],
+        'proficiency': scaled['proficiency'],
+        'stab': scaled['stab'],
+        'speed': evolved_base.get('speed', pokemon.get('speed', '30ft')),
+        'ability': evolved_base.get('ability', {}).get('name', '') if evolved_base.get('ability') else pokemon.get('ability', ''),
+        'vulnerabilities': evolved_base.get('vulnerabilities', []),
+        'resistances': evolved_base.get('resistances', []),
+        'evolutionInfo': evolved_base.get('evolutionInfo', ''),
+        'evolutionStage': evolved_base.get('evolutionStage', ''),
+        # Preserve player-specific fields
+        'nickname': pokemon.get('nickname', ''),
+        'nature': pokemon.get('nature', ''),
+        'moves': pokemon.get('moves', []),
+        'heldItem': pokemon.get('heldItem', ''),
+        'notes': pokemon.get('notes', ''),
+    }
+    return evolved, evolved_base['name']
+
+
 @app.route('/master/xp', methods=['POST'])
 @login_required
 def give_xp():
@@ -516,21 +573,28 @@ def give_xp():
         trainer['level'] = new_level
         trainer['xp_to_next'] = xp_table[min(new_level, len(xp_table)-1)] if new_level < len(xp_table) else 99999
         
-        # Auto-level Pokemon (trainer level - 2, min 1)
-        for pokemon in trainer.get('team', []):
+        # Auto-level Pokemon (trainer level - 2, min 1) and check evolution
+        evolutions = []
+        for i, pokemon in enumerate(trainer.get('team', [])):
             if pokemon.get('level', 1) < new_level - 2:
                 pokemon['level'] = max(1, new_level - 2)
-        
+            evolved, evolved_name = check_and_evolve_pokemon(pokemon)
+            if evolved:
+                old_name = pokemon.get('name', '')
+                trainer['team'][i] = evolved
+                evolutions.append({'from': old_name, 'to': evolved_name, 'slot': i})
+
         users[player_id]['trainer_data'] = trainer
         save_users(users)
-        
+
         # Emit XP update to specific player
         socketio.emit('xp_update', {
             'player_id': player_id,
             'xp': trainer['xp'],
             'level': trainer['level'],
             'xp_to_next': trainer['xp_to_next'],
-            'leveled_up': new_level > old_level
+            'leveled_up': new_level > old_level,
+            'evolutions': evolutions
         }, room=player_id)
         
         # Also notify master
@@ -838,6 +902,14 @@ def player_dashboard():
                          trainer=trainer_data, 
                          quests=my_quests,
                          routes=ROUTES_DATA)
+
+@app.route('/player/team-data')
+@login_required
+def get_team_data():
+    """Return the current player's team (for live refresh after evolution)."""
+    users = get_users()
+    team = users.get(current_user.id, {}).get('trainer_data', {}).get('team', [])
+    return jsonify(team)
 
 @app.route('/player/team', methods=['POST'])
 @login_required
@@ -1920,16 +1992,17 @@ def start_tournament_route(tourney_id):
         return jsonify({'error': 'Mínimo 2 participantes'}), 400
     
     bracket = pvp.generate_bracket(tournament)
-    
-    # Notify all players
-    for p in tournament['participants']:
-        if not p.get('is_npc'):
-            socketio.emit('tournament_started', {
-                'tournament_id': tourney_id,
-                'name': tournament['name'],
-                'participants': len(tournament['participants'])
-            }, room=p['id'])
-    
+
+    # Notify all players with full bracket so they can display it
+    socketio.emit('tournament_bracket_update', {
+        'tournament_id': tourney_id,
+        'name': tournament['name'],
+        'bracket': bracket,
+        'status': tournament['status'],
+        'current_round': tournament['current_round'],
+        'participants_count': len(tournament['participants'])
+    }, room='players')
+
     return jsonify({'success': True, 'bracket': bracket})
 
 @app.route('/master/tournament/<tourney_id>/bracket')
@@ -1940,6 +2013,21 @@ def get_tournament_bracket(tourney_id):
     if not tournament:
         return jsonify({'error': 'Not found'}), 404
     return jsonify(tournament)
+
+@app.route('/api/natures')
+@login_required
+def api_natures():
+    """List all natures with their stat modifiers."""
+    return jsonify(scaling.NATURE_MODIFIERS)
+
+@app.route('/api/tournament/active')
+@login_required
+def get_active_tournament():
+    """Get the current active tournament (for players to poll on load)."""
+    for t in ACTIVE_TOURNAMENTS.values():
+        if t['status'] in ('in_progress', 'registration'):
+            return jsonify(t)
+    return jsonify(None)
 
 @app.route('/master/tournament/<tourney_id>/match/<match_id>/result', methods=['POST'])
 @login_required
@@ -1986,10 +2074,19 @@ def set_match_result(tourney_id, match_id):
             if final_match:
                 loser = final_match['player1'] if final_match['player1'] and final_match['player1']['id'] != final_match['winner'] else final_match['player2']
                 tournament['results']['second'] = loser
-            
+
             # Award prizes
             award_tournament_prizes(tournament)
-            
+
+            socketio.emit('tournament_bracket_update', {
+                'tournament_id': tourney_id,
+                'name': tournament['name'],
+                'bracket': tournament['bracket'],
+                'status': 'finished',
+                'current_round': tournament['current_round'],
+                'results': tournament['results']
+            }, room='players')
+
             return jsonify({'success': True, 'status': 'finished', 'results': tournament['results']})
         else:
             # Generate next round matches
@@ -2007,7 +2104,15 @@ def set_match_result(tourney_id, match_id):
                     new_match['winner'] = new_match['player1']['id']
                 tournament['bracket'].append(new_match)
             tournament['current_round'] = next_round
-    
+
+    socketio.emit('tournament_bracket_update', {
+        'tournament_id': tourney_id,
+        'name': tournament['name'],
+        'bracket': tournament['bracket'],
+        'status': tournament['status'],
+        'current_round': tournament['current_round']
+    }, room='players')
+
     return jsonify({'success': True, 'bracket': tournament['bracket']})
 
 

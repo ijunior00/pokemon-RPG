@@ -6,6 +6,26 @@ let currentEncounter = null;
 let playerTeam = TRAINER_DATA.team || [];
 let battleActive = false;
 
+// Nature modifiers: +10% boosted stat, -10% lowered stat
+const NATURE_MODIFIERS = {
+    Adamant:{ATK:1.1,SPA:0.9}, Modest:{SPA:1.1,ATK:0.9}, Jolly:{SPE:1.1,SPA:0.9},
+    Timid:{SPE:1.1,ATK:0.9},  Bold:{DEF:1.1,ATK:0.9},   Impish:{DEF:1.1,SPA:0.9},
+    Calm:{SPD:1.1,ATK:0.9},   Careful:{SPD:1.1,SPA:0.9}, Brave:{ATK:1.1,SPE:0.9},
+    Quiet:{SPA:1.1,SPE:0.9},  Relaxed:{DEF:1.1,SPE:0.9}, Sassy:{SPD:1.1,SPE:0.9},
+    Lonely:{ATK:1.1,DEF:0.9}, Naughty:{ATK:1.1,SPD:0.9}, Mild:{SPA:1.1,DEF:0.9},
+    Rash:{SPA:1.1,SPD:0.9},   Lax:{DEF:1.1,SPD:0.9},     Gentle:{SPD:1.1,DEF:0.9},
+    Hasty:{SPE:1.1,DEF:0.9},  Naive:{SPE:1.1,SPD:0.9}
+};
+
+function applyNatureToStats(stats, nature) {
+    if (!nature || !NATURE_MODIFIERS[nature]) return stats;
+    const result = {...stats};
+    for (const [stat, mult] of Object.entries(NATURE_MODIFIERS[nature])) {
+        if (result[stat] != null) result[stat] = Math.round(result[stat] * mult);
+    }
+    return result;
+}
+
 // ============================================
 // SOCKET EVENTS
 // ============================================
@@ -23,6 +43,22 @@ socket.on('xp_update', (data) => {
             setTimeout(() => badge.classList.remove('level-up-animation'), 1000);
         }
         alert(`🎉 Parabéns! Você subiu para o Nível ${data.level}!`);
+    }
+    // Show evolution notifications and refresh team
+    if (data.evolutions && data.evolutions.length > 0) {
+        for (const evo of data.evolutions) {
+            setTimeout(() => {
+                alert(`✨ Seu ${evo.from} evoluiu para ${evo.to}!`);
+            }, 500);
+        }
+        // Reload team from server to reflect evolved data
+        fetch('/player/team-data').then(r => r.json()).then(team => {
+            if (team && !team.error) {
+                playerTeam = team;
+                TRAINER_DATA.team = team;
+                if (typeof renderTeam === 'function') renderTeam();
+            }
+        }).catch(() => {});
     }
 });
 
@@ -231,7 +267,7 @@ async function startBattle() {
             });
             const scaled = await scaledResp.json();
             if (!scaled.error) {
-                playerPokemon.stats = scaled.stats;
+                playerPokemon.stats = applyNatureToStats(scaled.stats, playerPokemon.nature);
                 playerPokemon.maxHp = scaled.maxHp;
                 playerPokemon.currentHp = Math.min(playerPokemon.currentHp || scaled.hp, scaled.maxHp);
                 playerPokemon.ac = scaled.ac;
@@ -819,21 +855,34 @@ function throwPokeball() {
         advantageText = ` (Vantagem! ${roll1}, ${roll2} → ${finalRoll})`;
     }
     
-    const totalRoll = finalRoll + animalHandlingBonus;
-    
-    addBattleLog(`🔴 <strong>Arremessando Pokébola!</strong>${enemyFainted ? ' (Pokémon desmaiado - CD reduzida)' : ''}`);
+    // Pokeball type bonus
+    const ballType = document.getElementById('pokeball-select')?.value || 'pokeball';
+    const ballNames = { pokeball: '🔴 Pokébola', greatball: '🔵 Great Ball', ultraball: '⚫ Ultra Ball', masterball: '🟣 Master Ball' };
+    const ballBonus = { pokeball: 0, greatball: 2, ultraball: 4, masterball: 999 };
+    const bonus = ballBonus[ballType] || 0;
+    const ballLabel = ballNames[ballType] || 'Pokébola';
+
+    const totalRoll = finalRoll + animalHandlingBonus + bonus;
+
+    addBattleLog(`${ballLabel} <strong>arremessada!</strong>${enemyFainted ? ' (Pokémon desmaiado - CD reduzida)' : ''}${bonus > 0 ? ` [+${bonus} bônus]` : ''}`);
+
+    if (ballType === 'masterball') {
+        addBattleLog(`✅ <strong>CAPTURADO!</strong> 🎉 (Master Ball — captura garantida!)`);
+        setTimeout(() => endBattle('caught'), 1500);
+        return;
+    }
+
     addBattleLog(`  CD de Captura: ${enemyFainted ? `5 + SR(${srVal})` : `10 + SR(${srVal}) + Nível(${pokeLevel}) + HP÷10(${hpComponent})`} = <strong>${captureDC}</strong>`);
-    addBattleLog(`  Adestrar Animais: d20(${finalRoll})${advantageText} + SAB(${wisMod}) + Prof(${profBonus}) = <strong>${totalRoll}</strong>`);
-    
+    addBattleLog(`  Adestrar Animais: d20(${finalRoll})${advantageText} + SAB(${wisMod}) + Prof(${profBonus})${bonus > 0 ? ` + Bola(${bonus})` : ''} = <strong>${totalRoll}</strong>`);
+
     animateDice(finalRoll, 'd20');
-    
+
     if (totalRoll >= captureDC) {
         addBattleLog(`✅ <strong>CAPTURADO!</strong> 🎉 (${totalRoll} ≥ ${captureDC})`);
         setTimeout(() => endBattle('caught'), 1500);
     } else {
-        addBattleLog(`❌ A Pokébola falhou! (${totalRoll} < ${captureDC})`);
+        addBattleLog(`❌ ${ballLabel} falhou! (${totalRoll} < ${captureDC})`);
         addBattleLog(`🏃 <strong>O Pokémon selvagem fugiu!</strong> O encontro acabou.`);
-        // Pokemon flees - end encounter automatically
         setTimeout(() => endBattle('fled_after_capture'), 2000);
     }
 }
@@ -1176,28 +1225,29 @@ document.getElementById('poke-species').addEventListener('input', function() {
 });
 
 function selectSpecies(pokemon) {
-    document.getElementById('poke-species').value = pokemon.name;
-    document.getElementById('poke-species-results').innerHTML = '';
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    set('poke-species', pokemon.name);
+    const results = document.getElementById('poke-species-results');
+    if (results) results.innerHTML = '';
     if (pokemon.stats) {
-        // Stats are now ATK/DEF/SPA/SPD/SPE/HP (inputs still use old IDs)
-        document.getElementById('poke-str').value = pokemon.stats.ATK || pokemon.stats.STR || 10;
-        document.getElementById('poke-dex').value = pokemon.stats.DEF || pokemon.stats.DEX || 10;
-        document.getElementById('poke-con').value = pokemon.stats.SPA || pokemon.stats.CON || 10;
-        document.getElementById('poke-int').value = pokemon.stats.SPD || pokemon.stats.INT || 10;
-        document.getElementById('poke-wis').value = pokemon.stats.SPE || pokemon.stats.WIS || 10;
-        document.getElementById('poke-cha').value = pokemon.stats.HP || pokemon.stats.CHA || 10;
+        set('poke-str', pokemon.stats.ATK || pokemon.stats.STR || 10);
+        set('poke-dex', pokemon.stats.DEF || pokemon.stats.DEX || 10);
+        set('poke-con', pokemon.stats.SPA || pokemon.stats.CON || 10);
+        set('poke-int', pokemon.stats.SPD || pokemon.stats.INT || 10);
+        set('poke-wis', pokemon.stats.SPE || pokemon.stats.WIS || 10);
+        set('poke-cha', pokemon.stats.HP  || pokemon.stats.CHA  || 10);
     }
-    document.getElementById('poke-max-hp').value = pokemon.hp || 0;
-    document.getElementById('poke-current-hp').value = pokemon.hp || 0;
-    document.getElementById('poke-ac').value = pokemon.ac || 10;
-    document.getElementById('poke-hit-dice').value = pokemon.hitDice || '';
-    document.getElementById('poke-speed').value = pokemon.speed || '';
-    if (pokemon.startingMoves) document.getElementById('poke-moves').value = pokemon.startingMoves.join(', ');
-    if (pokemon.ability) document.getElementById('poke-ability').value = pokemon.ability.name || '';
-    if (pokemon.hiddenAbility) document.getElementById('poke-hidden-ability').value = pokemon.hiddenAbility.name || '';
-    if (pokemon.vulnerabilities) document.getElementById('poke-vulnerabilities').value = pokemon.vulnerabilities.join(', ');
-    if (pokemon.resistances) document.getElementById('poke-resistances').value = pokemon.resistances.join(', ');
-    if (pokemon.savingThrows) document.getElementById('poke-saves').value = pokemon.savingThrows.join(', ');
+    set('poke-max-hp', pokemon.hp || 0);
+    set('poke-current-hp', pokemon.hp || 0);
+    set('poke-ac', pokemon.ac || 10);
+    set('poke-hit-dice', pokemon.hitDice || '');
+    set('poke-speed', pokemon.speed || '');
+    if (pokemon.startingMoves) set('poke-moves', pokemon.startingMoves.join(', '));
+    if (pokemon.ability)       set('poke-ability', pokemon.ability.name || '');
+    if (pokemon.hiddenAbility) set('poke-hidden-ability', pokemon.hiddenAbility.name || '');
+    if (pokemon.vulnerabilities) set('poke-vulnerabilities', pokemon.vulnerabilities.join(', '));
+    if (pokemon.resistances)     set('poke-resistances', pokemon.resistances.join(', '));
+    if (pokemon.savingThrows)    set('poke-saves', pokemon.savingThrows.join(', '));
 }
 
 // ============================================
@@ -2474,9 +2524,91 @@ socket.on('transfer_received', (data) => {
 // ============================================
 // TOURNAMENT NOTIFICATIONS (Player side)
 // ============================================
-socket.on('tournament_started', (data) => {
-    alert(`🏆 Campeonato "${data.name}" começou! ${data.participants} participantes. Prepare-se para as batalhas!`);
+window.playerTournament = null;
+
+socket.on('tournament_bracket_update', (data) => {
+    window.playerTournament = data;
+    renderPlayerBracket(data);
+    // Show panel and switch to PVP tab if not already there
+    const panel = document.getElementById('tournament-panel');
+    if (panel) panel.classList.remove('hidden');
+    if (data.status === 'finished') {
+        const first = data.results?.first;
+        const second = data.results?.second;
+        let msg = `🏆 Campeonato "${data.name}" finalizado!`;
+        if (first) msg += `\n🥇 1º: ${first.name}`;
+        if (second) msg += `\n🥈 2º: ${second.name}`;
+        alert(msg);
+    }
 });
+
+function renderPlayerBracket(t) {
+    const container = document.getElementById('tournament-bracket-player');
+    const nameEl = document.getElementById('tournament-panel-name');
+    if (!container || !t) return;
+    if (nameEl) nameEl.textContent = t.name || '';
+
+    const myId = window.CURRENT_USER_ID;
+    const roundNames = { 1: 'Rodada 1', 2: 'Quartas', 3: 'Semifinal', 4: 'Final' };
+
+    const rounds = {};
+    (t.bracket || []).forEach(m => {
+        if (!rounds[m.round]) rounds[m.round] = [];
+        rounds[m.round].push(m);
+    });
+
+    let html = '<div style="display:flex;gap:1.5rem;overflow-x:auto;padding:0.75rem 0;">';
+    for (const [roundNum, matches] of Object.entries(rounds).sort((a, b) => a[0] - b[0])) {
+        html += `<div style="min-width:200px;">`;
+        html += `<h5 style="color:var(--accent);margin-bottom:0.5rem;">${roundNames[roundNum] || 'Rodada ' + roundNum}</h5>`;
+        matches.forEach(match => {
+            const p1 = match.player1;
+            const p2 = match.player2;
+            const p1Name = p1 ? p1.name : 'BYE';
+            const p2Name = p2 ? p2.name : 'BYE';
+            const p1Won = match.winner && p1 && match.winner === p1.id;
+            const p2Won = match.winner && p2 && match.winner === p2.id;
+            const myMatch = myId && ((p1 && p1.id === myId) || (p2 && p2.id === myId));
+            const borderColor = myMatch ? 'var(--accent)' : (match.winner ? 'var(--success)' : 'var(--card-border)');
+            html += `
+                <div style="background:var(--darker);border:2px solid ${borderColor};border-radius:var(--radius);padding:0.4rem 0.6rem;margin-bottom:0.5rem;">
+                    <div style="padding:0.15rem 0;${p1Won ? 'color:var(--success);font-weight:bold;' : ''}">
+                        ${p1Won ? '🏆 ' : ''}${p1Name}
+                    </div>
+                    <div style="border-top:1px solid var(--card-border);margin:0.2rem 0;"></div>
+                    <div style="padding:0.15rem 0;${p2Won ? 'color:var(--success);font-weight:bold;' : ''}">
+                        ${p2Won ? '🏆 ' : ''}${p2Name}
+                    </div>
+                </div>`;
+        });
+        html += '</div>';
+    }
+    html += '</div>';
+
+    if (t.status === 'finished' && t.results) {
+        html += `<div style="text-align:center;padding:0.75rem;background:var(--card-bg);border:2px solid var(--accent);border-radius:var(--radius);margin-top:0.5rem;">
+            <strong style="color:var(--accent);">🏆 Campeonato Finalizado!</strong>
+            ${t.results.first ? `<div>🥇 ${t.results.first.name}</div>` : ''}
+            ${t.results.second ? `<div>🥈 ${t.results.second.name}</div>` : ''}
+        </div>`;
+    }
+
+    container.innerHTML = html;
+}
+
+// Load active tournament on page load
+(async () => {
+    try {
+        const resp = await fetch('/api/tournament/active');
+        const t = await resp.json();
+        if (t && t.bracket) {
+            window.playerTournament = t;
+            const panel = document.getElementById('tournament-panel');
+            if (panel) panel.classList.remove('hidden');
+            renderPlayerBracket(t);
+        }
+    } catch(e) {}
+})();
 
 socket.on('tournament_prize', (data) => {
     let msg = `🏆 Parabéns! Você ficou em ${data.place === 'first' ? '1º' : data.place === 'second' ? '2º' : '3º'} lugar no ${data.tournament}!`;
