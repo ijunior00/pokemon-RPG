@@ -164,7 +164,7 @@ async function displayEncounter(encounter) {
     document.getElementById('wild-pokemon-ac').textContent = pokemon.ac;
     document.getElementById('wild-pokemon-types').innerHTML = formatTypes(pokemon.types);
     const sprite = document.getElementById('wild-pokemon-sprite');
-    sprite.src = getPokemonSpriteUrl(pokemon.number);
+    sprite.src = getPokemonSpriteUrl(pokemon.number, encounter.is_shiny);
     sprite.alt = pokemon.name;
     const shinyBadge = document.getElementById('shiny-badge');
     encounter.is_shiny ? shinyBadge.classList.remove('hidden') : shinyBadge.classList.add('hidden');
@@ -275,7 +275,7 @@ async function startBattle() {
     window.currentBattleData = { enemy, playerPokemon, level: currentEncounter.level };
 
     // Fill enemy data
-    document.getElementById('battle-enemy-sprite').src = getPokemonSpriteUrl(enemy.number);
+    document.getElementById('battle-enemy-sprite').src = getPokemonSpriteUrl(enemy.number, currentEncounter.is_shiny);
     document.getElementById('battle-enemy-name-full').textContent = `${enemy.name} Nv.${currentEncounter.level}`;
     document.getElementById('battle-enemy-types').innerHTML = formatTypes(enemy.types);
     document.getElementById('battle-enemy-hp-text-full').textContent = `${enemy.hp}/${enemy.hp} HP`;
@@ -3495,3 +3495,37 @@ function wildDecideDodge() {
         window.enemyDodging = false;
     }
 }
+
+
+// ============================================
+// STAT MIGRATION HELPER (convert old STR/DEX/CON/INT/WIS/CHA to ATK/DEF/SPA/SPD/SPE/HP)
+// ============================================
+function migrateStats(stats) {
+    if (!stats) return { ATK: 10, DEF: 10, SPA: 10, SPD: 10, SPE: 10, HP: 10 };
+    // If already has new format, return as-is
+    if (stats.ATK !== undefined) return stats;
+    // Convert from old format
+    return {
+        ATK: stats.STR || 10,
+        DEF: stats.CON || 10,
+        SPA: stats.INT || 10,
+        SPD: stats.WIS || 10,
+        SPE: stats.DEX || 10,
+        HP: stats.CON || 10
+    };
+}
+
+// Auto-migrate team stats on load
+document.addEventListener('DOMContentLoaded', () => {
+    let migrated = false;
+    playerTeam.forEach(poke => {
+        if (poke.stats && poke.stats.STR !== undefined && poke.stats.ATK === undefined) {
+            poke.stats = migrateStats(poke.stats);
+            migrated = true;
+        }
+    });
+    if (migrated) {
+        saveTeam();
+        console.log('Stats migrados para novo formato (ATK/DEF/SPA/SPD/SPE/HP)');
+    }
+});

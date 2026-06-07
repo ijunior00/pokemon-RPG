@@ -797,13 +797,14 @@ def api_encounter():
     pokemon_data['proficiency'] = scaled['proficiency']
     pokemon_data['stab'] = scaled['stab']
     
-    # Shiny boost: +20% HP, +2 AC, +2 all stats
+    # Shiny boost: +20% em todos os stats, +20% HP, +2 AC
     if is_shiny:
         pokemon_data['hp'] = int(pokemon_data['hp'] * 1.2)
         pokemon_data['maxHp'] = pokemon_data['hp']
         pokemon_data['ac'] += 2
         for stat in pokemon_data['stats']:
-            pokemon_data['stats'][stat] += 2
+            pokemon_data['stats'][stat] = int(pokemon_data['stats'][stat] * 1.2)
+        pokemon_data['is_shiny'] = True
     
     encounter = {
         'pokemon': pokemon_data,

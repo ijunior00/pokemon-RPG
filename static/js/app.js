@@ -64,8 +64,11 @@ function formatTypes(types) {
     ).join('');
 }
 
-function getPokemonSpriteUrl(number) {
-    // Using PokeAPI sprites
+function getPokemonSpriteUrl(number, shiny = false) {
+    // Using PokeAPI sprites - shiny uses /shiny/ path
+    if (shiny) {
+        return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${number}.png`;
+    }
     return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${number}.png`;
 }
 

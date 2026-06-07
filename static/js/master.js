@@ -510,12 +510,12 @@ async function showPokemonDetail(number) {
                 <div class="stat-item"><div class="stat-label">AC</div><div class="stat-value">${p.ac}</div></div>
                 <div class="stat-item"><div class="stat-label">Speed</div><div class="stat-value">${p.speed || '-'}</div></div>
                 ${p.stats ? `
-                <div class="stat-item"><div class="stat-label">STR</div><div class="stat-value">${p.stats.STR}</div></div>
-                <div class="stat-item"><div class="stat-label">DEX</div><div class="stat-value">${p.stats.DEX}</div></div>
-                <div class="stat-item"><div class="stat-label">CON</div><div class="stat-value">${p.stats.CON}</div></div>
-                <div class="stat-item"><div class="stat-label">INT</div><div class="stat-value">${p.stats.INT}</div></div>
-                <div class="stat-item"><div class="stat-label">WIS</div><div class="stat-value">${p.stats.WIS}</div></div>
-                <div class="stat-item"><div class="stat-label">CHA</div><div class="stat-value">${p.stats.CHA}</div></div>
+                <div class="stat-item"><div class="stat-label">ATK</div><div class="stat-value">${p.stats.ATK || p.stats.STR || '-'}</div></div>
+                <div class="stat-item"><div class="stat-label">DEF</div><div class="stat-value">${p.stats.DEF || p.stats.DEX || '-'}</div></div>
+                <div class="stat-item"><div class="stat-label">SPA</div><div class="stat-value">${p.stats.SPA || p.stats.INT || '-'}</div></div>
+                <div class="stat-item"><div class="stat-label">SPD</div><div class="stat-value">${p.stats.SPD || p.stats.WIS || '-'}</div></div>
+                <div class="stat-item"><div class="stat-label">SPE</div><div class="stat-value">${p.stats.SPE || p.stats.CON || '-'}</div></div>
+                <div class="stat-item"><div class="stat-label">HP</div><div class="stat-value">${p.stats.HP || p.stats.CHA || '-'}</div></div>
                 ` : ''}
             </div>
             
