@@ -1172,12 +1172,13 @@ function selectSpecies(pokemon) {
     document.getElementById('poke-species').value = pokemon.name;
     document.getElementById('poke-species-results').innerHTML = '';
     if (pokemon.stats) {
-        document.getElementById('poke-str').value = pokemon.stats.STR;
-        document.getElementById('poke-dex').value = pokemon.stats.DEX;
-        document.getElementById('poke-con').value = pokemon.stats.CON;
-        document.getElementById('poke-int').value = pokemon.stats.INT;
-        document.getElementById('poke-wis').value = pokemon.stats.WIS;
-        document.getElementById('poke-cha').value = pokemon.stats.CHA;
+        // Stats are now ATK/DEF/SPA/SPD/SPE/HP (inputs still use old IDs)
+        document.getElementById('poke-str').value = pokemon.stats.ATK || pokemon.stats.STR || 10;
+        document.getElementById('poke-dex').value = pokemon.stats.DEF || pokemon.stats.DEX || 10;
+        document.getElementById('poke-con').value = pokemon.stats.SPA || pokemon.stats.CON || 10;
+        document.getElementById('poke-int').value = pokemon.stats.SPD || pokemon.stats.INT || 10;
+        document.getElementById('poke-wis').value = pokemon.stats.SPE || pokemon.stats.WIS || 10;
+        document.getElementById('poke-cha').value = pokemon.stats.HP || pokemon.stats.CHA || 10;
     }
     document.getElementById('poke-max-hp').value = pokemon.hp || 0;
     document.getElementById('poke-current-hp').value = pokemon.hp || 0;
