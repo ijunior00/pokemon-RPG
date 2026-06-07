@@ -14,6 +14,7 @@
         <button class="tab" data-tab="pokedex">📖 Pokédex</button>
         <button class="tab" data-tab="quests">📜 Quests</button>
         <button class="tab" data-tab="map">🗺️ Mapa</button>
+        <button class="tab" data-tab="gyms">🏟️ Ginásios</button>
     </div>
 
     <!-- TAB: ENCOUNTER -->
@@ -73,6 +74,10 @@
                     </div>
                     <button class="btn btn-danger" onclick="startBattle()">⚔️ Batalhar!</button>
                     <button class="btn btn-secondary" onclick="fleeBattle()">🏃 Fugir</button>
+                    <button class="btn btn-secondary" id="btn-register-pokedex-encounter" onclick="registerEncounterPokedex()" title="Registrar este Pokémon na sua Pokédex">
+                        📖 Registrar Pokédex
+                    </button>
+                    <span id="pokedex-register-feedback" style="font-size:0.8rem;color:var(--success);display:none;"></span>
                 </div>
             </div>
         </div>
@@ -185,6 +190,7 @@
                     <button class="btn btn-success" onclick="endBattle('defeated')">💀 Derrotei!</button>
                     <button class="btn btn-secondary" onclick="endBattle('fled')">🏃 Fugir</button>
                     <button class="btn btn-warning" onclick="endBattle('fainted')">😵 Meu Pokémon Desmaiou</button>
+                    <button class="btn btn-secondary" onclick="registerBattlePokedex()" title="Registrar Pokémon na Pokédex" style="font-size:0.8rem;">📖 +Pokédex</button>
                 </div>
                 
                 <!-- Switch Pokemon Modal -->
@@ -687,6 +693,38 @@
                  class="galar-map" id="galar-map">
         </div>
         <div class="visited-routes" id="map-routes-section"></div>
+    </div>
+
+    <!-- TAB: GINÁSIOS & LIGA -->
+    <div class="tab-content" id="tab-gyms">
+        <div class="card" style="margin-bottom:1rem;">
+            <h3>🏅 Minhas Insígnias</h3>
+            <div id="player-badges-display" style="display:flex;flex-wrap:wrap;gap:0.5rem;min-height:2rem;">
+                <em style="color:var(--muted)">Nenhuma insígnia ainda.</em>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom:1rem;">
+            <h3>🏟️ Ginásios</h3>
+            <div id="gyms-list" style="display:flex;flex-direction:column;gap:0.75rem;">
+                <em style="color:var(--muted)">Carregando ginásios...</em>
+            </div>
+        </div>
+
+        <div class="card" id="league-panel">
+            <h3>🌟 Liga Pokémon</h3>
+            <div id="league-status-msg" style="color:var(--muted);margin-bottom:0.5rem;">
+                Conquiste todas as insígnias para desafiar a Liga.
+            </div>
+            <div id="league-slots-display" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;"></div>
+            <button id="btn-league-start" class="btn btn-primary hidden" onclick="startLeagueChallenge()">
+                ⚔️ Desafiar a Liga
+            </button>
+            <div id="league-run-progress" class="hidden" style="margin-top:0.75rem;padding:0.75rem;background:var(--darker);border-radius:var(--radius);">
+                <strong>Tentativa em andamento:</strong>
+                <span id="league-run-slot-label"></span>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

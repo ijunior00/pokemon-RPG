@@ -185,3 +185,55 @@ def save_site_settings(settings):
     conn.commit()
     cur.close()
     conn.close()
+
+# ============================================================
+# GYMS
+# Stored as game_state key 'gyms' → list of gym dicts
+# ============================================================
+def get_gyms():
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT value FROM game_state WHERE key = 'gyms'")
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if row and row['value']:
+        return row['value'] if isinstance(row['value'], list) else []
+    return []
+
+def save_gyms(gyms_list):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('''
+        INSERT INTO game_state (key, value) VALUES ('gyms', %s)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    ''', (json.dumps(gyms_list),))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+# ============================================================
+# LEAGUE
+# Stored as game_state key 'league' → dict with slots + active runs
+# ============================================================
+def get_league():
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT value FROM game_state WHERE key = 'league'")
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if row and row['value']:
+        return row['value']
+    return {'slots': [], 'active_runs': {}}
+
+def save_league(league):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('''
+        INSERT INTO game_state (key, value) VALUES ('league', %s)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    ''', (json.dumps(league),))
+    conn.commit()
+    cur.close()
+    conn.close()

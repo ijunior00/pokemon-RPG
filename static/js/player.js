@@ -87,9 +87,16 @@ socket.on('quest_completed', (data) => {
 
 socket.on('master_action', (data) => {
     if (data.type === 'forced_encounter') {
-        currentEncounter = { pokemon: data.pokemon, level: data.level, is_shiny: false };
+        const flags = [data.is_shiny ? '✨ SHINY' : '', data.is_mega ? '🔮 MEGA' : ''].filter(Boolean).join(' + ');
+        currentEncounter = {
+            pokemon:  data.pokemon,
+            level:    data.level,
+            is_shiny: data.is_shiny || false,
+            is_mega:  data.is_mega  || false,
+            wild_moves: data.pokemon?.startingMoves?.slice(-4) || []
+        };
         displayEncounter(currentEncounter);
-        alert(`⚠️ O Mestre enviou um Pokémon selvagem!`);
+        alert(`⚠️ O Mestre enviou um Pokémon Selvagem!${flags ? ' ' + flags : ''}`);
     }
 });
 
@@ -306,6 +313,8 @@ async function startBattle() {
     showElement('battle-area');
     hideElement('encounter-result');
     battleActive = true;
+    window._permadeathTriggered = false;
+    window._masterBallCapture   = false;
 
     // Store current battle data
     window.currentBattleData = { enemy, playerPokemon, level: currentEncounter.level };
@@ -433,7 +442,14 @@ socket.on('battle_update', (data) => {
         document.getElementById('btn-pass-turn')?.classList.add('hidden');
         document.getElementById('btn-switch-pokemon')?.classList.add('hidden');
     }
-    if (bs.player_hp_current <= 0) addBattleLog(`<strong>😵 Seu Pokémon desmaiou!</strong>`);
+    if (bs.player_hp_current <= 0 && bs.player_hp_current > -10) {
+        addBattleLog(`<strong>😵 Seu Pokémon desmaiou!</strong>`);
+    }
+    // Morte permanente: HP chegou a -10 ou abaixo
+    if (bs.player_hp_current <= -10 && !window._permadeathTriggered) {
+        window._permadeathTriggered = true;
+        triggerPermanentDeath();
+    }
 });
 
 function updateTurnUI() {
@@ -809,12 +825,27 @@ function passTurn() {
 }
 
 function throwPokeball() {
+    // Validate ball exists in bag
+    const ballType = document.getElementById('pokeball-select')?.value || 'pokeball';
+    const ballItemNames = {
+        pokeball:   ['Pokébola', 'Poke Ball', 'Pokeball'],
+        greatball:  ['Great Ball', 'Bola Super', 'Super Ball'],
+        ultraball:  ['Ultra Ball', 'Bola Ultra'],
+        masterball: ['Master Ball', 'Bola Master']
+    };
+    const bagNames = (ballItemNames[ballType] || []).map(n => n.toLowerCase());
+    const bagItem  = (window.bagItems || []).find(i => bagNames.includes((i.name || '').toLowerCase()));
+    if (!bagItem || (bagItem.qty || 0) < 1) {
+        alert(`Você não tem ${document.getElementById('pokeball-select')?.options[document.getElementById('pokeball-select')?.selectedIndex]?.text.replace(/\s*\(.*\)/, '') || 'esta Pokébola'} na bolsa!`);
+        return;
+    }
+
     // Allow pokeball at any time if enemy is fainted (HP 0)
     const hpText = document.getElementById('battle-enemy-hp-text-full').textContent;
     const hpMatch = hpText.match(/(\d+)\/(\d+)/);
     const currentHp = hpMatch ? parseInt(hpMatch[1]) : 999;
     const enemyFainted = currentHp <= 0;
-    
+
     if (!enemyFainted && window.currentTurn !== 'player') { alert('Não é seu turno!'); return; }
     
     const enemy = window.currentBattleData?.enemy || {};
@@ -864,11 +895,33 @@ function throwPokeball() {
 
     const totalRoll = finalRoll + animalHandlingBonus + bonus;
 
+    // Consume 1 ball from bag
+    bagItem.qty -= 1;
+    if (bagItem.qty <= 0) {
+        window.bagItems = window.bagItems.filter(i => i !== bagItem);
+    }
+    saveBag();
+
     addBattleLog(`${ballLabel} <strong>arremessada!</strong>${enemyFainted ? ' (Pokémon desmaiado - CD reduzida)' : ''}${bonus > 0 ? ` [+${bonus} bônus]` : ''}`);
 
+    // Master Ball: captura garantida + concede XP
     if (ballType === 'masterball') {
         addBattleLog(`✅ <strong>CAPTURADO!</strong> 🎉 (Master Ball — captura garantida!)`);
+        window._masterBallCapture = true;
         setTimeout(() => endBattle('caught'), 1500);
+        return;
+    }
+
+    // Regra dos 40%: pokébola quebra automaticamente se o poke tem >40% do HP máximo
+    const wildMaxHp  = parseInt(document.getElementById('battle-enemy-hp-text-full').textContent.split('/')[1]) || 1;
+    const hpPct      = currentHp / wildMaxHp;
+    if (hpPct > 0.40) {
+        addBattleLog(`💥 <strong>A Pokébola quebrou!</strong> O Pokémon selvagem ainda está com ${Math.round(hpPct*100)}% do HP — enfraquece-o abaixo de 40% primeiro!`);
+        // Pokébola foi consumida mas não funcionou, selvagem foge
+        setTimeout(() => {
+            addBattleLog(`🏃 O Pokémon selvagem fugiu após a Pokébola falhar!`);
+            endBattle('fled_after_capture');
+        }, 1500);
         return;
     }
 
@@ -923,10 +976,12 @@ function endBattle(result) {
     window._processingPlayerStatus = false;
     socket.emit('end_encounter', { result });
     
-    // Award XP to the Pokemon that fought (if won)
-    if ((result === 'defeated' || result === 'caught') && currentEncounter && window.currentBattleData) {
+    // XP só para vitória real: derrotou o selvagem OU capturou com Master Ball
+    const earnedXP = result === 'defeated' || (result === 'caught' && window._masterBallCapture);
+    if (earnedXP && currentEncounter && window.currentBattleData) {
         awardPokemonBattleXP();
     }
+    window._masterBallCapture = false;
 
     // If caught, add to team
     if (result === 'caught' && currentEncounter) {
@@ -970,8 +1025,61 @@ function endBattle(result) {
 }
 
 // ============================================
+// MORTE PERMANENTE
+// ============================================
+window._permadeathTriggered = false;
+
+async function triggerPermanentDeath() {
+    const battleData  = window.currentBattleData;
+    const deadPokemon = battleData?.playerPokemon;
+    if (!deadPokemon) return;
+
+    const name = deadPokemon.nickname || deadPokemon.name || 'Seu Pokémon';
+
+    addBattleLog(`💀💔 <strong>${name} atingiu -10 HP e morreu permanentemente!</strong>`);
+    addBattleLog(`😢 ${name} foi apagado do seu time para sempre.`);
+
+    // Remove from team
+    const idxToRemove = playerTeam.findIndex(p =>
+        (p.nickname || p.name) === (deadPokemon.nickname || deadPokemon.name) &&
+        p.level === deadPokemon.level
+    );
+    if (idxToRemove >= 0) {
+        playerTeam.splice(idxToRemove, 1);
+        await saveTeam();
+        refreshTeamDisplay();
+    }
+
+    // Wait a beat then end battle
+    setTimeout(() => {
+        alert(`💀 ${name} morreu permanentemente e foi removido do seu time.`);
+        endBattle('fainted');
+    }, 2000);
+}
+
+// ============================================
 // POKEDEX REGISTRATION
 // ============================================
+async function registerBattlePokedex() {
+    const pokemon = window.currentBattleData?.enemy || currentEncounter?.pokemon;
+    if (!pokemon) return;
+    const result = await registerPokedex(pokemon.number);
+    const msg = result?.already_registered ? `✓ ${pokemon.name} já estava na Pokédex` : `✓ ${pokemon.name} registrado! +10 XP`;
+    addBattleLog(`📖 ${msg}`);
+}
+
+async function registerEncounterPokedex() {
+    const pokemon = currentEncounter?.pokemon;
+    if (!pokemon) return;
+    const result = await registerPokedex(pokemon.number);
+    const feedback = document.getElementById('pokedex-register-feedback');
+    if (feedback) {
+        feedback.textContent = result?.already_registered ? '✓ Já registrado' : `✓ ${pokemon.name} registrado! +10 XP`;
+        feedback.style.display = 'inline';
+        setTimeout(() => { feedback.style.display = 'none'; }, 3000);
+    }
+}
+
 async function registerPokedex(pokemonNumber) {
     const response = await fetch('/player/pokedex/register', {
         method: 'POST',
@@ -982,7 +1090,10 @@ async function registerPokedex(pokemonNumber) {
     if (result.success && !result.already_registered) {
         const counter = document.getElementById('pokedex-count');
         if (counter) counter.textContent = result.total_seen;
+        if (!TRAINER_DATA.pokedex_seen) TRAINER_DATA.pokedex_seen = [];
+        if (!TRAINER_DATA.pokedex_seen.includes(pokemonNumber)) TRAINER_DATA.pokedex_seen.push(pokemonNumber);
     }
+    return result;
 }
 
 async function searchPlayerPokedex() {
@@ -1253,6 +1364,17 @@ function selectSpecies(pokemon) {
 // ============================================
 // TRAINER DATA SAVE
 // ============================================
+async function saveBag() {
+    try {
+        await fetch('/player/trainer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bag: window.bagItems || [] })
+        });
+        renderBagGrid();
+    } catch(e) {}
+}
+
 async function saveTrainerData() {
     const data = {
         name: document.getElementById('trainer-name-input').value,
@@ -3771,6 +3893,211 @@ function migrateStats(stats) {
         HP: stats.CON || 10
     };
 }
+
+// ============================================================
+// GYMS & LEAGUE
+// ============================================================
+
+let allGyms = [];
+let leagueData = null;
+
+async function loadGyms() {
+    try {
+        const res = await fetch('/api/gyms');
+        allGyms = await res.json();
+        renderGyms();
+    } catch(e) { console.error('loadGyms', e); }
+}
+
+async function loadLeague() {
+    try {
+        const res = await fetch('/api/league');
+        leagueData = await res.json();
+        renderLeague();
+    } catch(e) { console.error('loadLeague', e); }
+}
+
+function renderBadges() {
+    const badges = TRAINER_DATA.badges || [];
+    const el = document.getElementById('player-badges-display');
+    if (!el) return;
+    if (!badges.length) {
+        el.innerHTML = '<em style="color:var(--muted)">Nenhuma insígnia ainda.</em>';
+        return;
+    }
+    el.innerHTML = badges.map(b => {
+        const gym = allGyms.find(g => g.badge_name === b);
+        const icon = gym ? gym.badge_icon : '🏅';
+        return `<span title="${b}" style="font-size:1.6rem;cursor:default">${icon}</span>
+                <span style="font-size:0.8rem;color:var(--muted)">${b}</span>`;
+    }).join('');
+}
+
+function renderGyms() {
+    const el = document.getElementById('gyms-list');
+    if (!el) return;
+    if (!allGyms.length) {
+        el.innerHTML = '<em style="color:var(--muted)">Nenhum ginásio configurado pelo Mestre ainda.</em>';
+        renderBadges();
+        return;
+    }
+    const badges = TRAINER_DATA.badges || [];
+    const sorted = [...allGyms].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    el.innerHTML = sorted.map(gym => {
+        const conquered = badges.includes(gym.badge_name);
+        const reqMet = (gym.required_badges || []).every(b => badges.includes(b));
+        const locked = !reqMet && !conquered;
+
+        let statusBadge = '';
+        if (conquered)      statusBadge = '<span style="color:#4caf50;font-weight:bold">✅ Conquistado</span>';
+        else if (locked)    statusBadge = '<span style="color:#f44336">🔒 Bloqueado</span>';
+        else                statusBadge = '<span style="color:#ff9800">⚔️ Disponível</span>';
+
+        const reqText = gym.required_badges?.length
+            ? `<div style="font-size:0.8rem;color:var(--muted)">Requer: ${gym.required_badges.join(', ')}</div>` : '';
+
+        const challengeBtn = (!conquered && !locked)
+            ? `<button class="btn btn-sm btn-primary" onclick="challengeGym('${gym.id}')">⚔️ Desafiar</button>` : '';
+
+        return `<div style="display:flex;align-items:center;gap:1rem;padding:0.75rem;background:var(--darker);border-radius:var(--radius);${locked?'opacity:0.6':''}">
+            <span style="font-size:2rem">${gym.badge_icon || '🏅'}</span>
+            <div style="flex:1">
+                <div style="font-weight:bold">${gym.name}</div>
+                <div style="font-size:0.85rem;color:var(--muted)">Líder: ${gym.leader_name} • Tipo: ${gym.type} • Insígnia: ${gym.badge_name}</div>
+                ${reqText}
+                ${gym.description ? `<div style="font-size:0.8rem;color:var(--muted)">${gym.description}</div>` : ''}
+            </div>
+            <div style="text-align:right">
+                ${statusBadge}
+                <div style="margin-top:0.25rem">${challengeBtn}</div>
+            </div>
+        </div>`;
+    }).join('');
+
+    renderBadges();
+    checkLeagueUnlock();
+}
+
+function checkLeagueUnlock() {
+    const badges = TRAINER_DATA.badges || [];
+    const allBadges = allGyms.map(g => g.badge_name);
+    const hasAll = allBadges.length > 0 && allBadges.every(b => badges.includes(b));
+    const btn = document.getElementById('btn-league-start');
+    const msg = document.getElementById('league-status-msg');
+    if (btn) btn.classList.toggle('hidden', !hasAll);
+    if (msg && hasAll) msg.textContent = 'Você tem todas as insígnias! Está pronto para desafiar a Liga.';
+}
+
+function renderLeague() {
+    if (!leagueData) return;
+    const slots = leagueData.slots || [];
+    const run   = leagueData.my_run;
+    const slotsEl = document.getElementById('league-slots-display');
+    if (slotsEl) {
+        if (!slots.length) {
+            slotsEl.innerHTML = '<em style="color:var(--muted)">Liga não configurada ainda.</em>';
+        } else {
+            slotsEl.innerHTML = slots.map((s, i) => {
+                const done = run && run.current_slot > i && run.status !== 'failed';
+                const isCurrent = run && run.current_slot === i && run.status === 'in_progress';
+                const label = s.is_champion ? '👑 Campeão' : `Elite ${i+1}`;
+                return `<div style="padding:0.4rem 0.8rem;background:var(--darker);border-radius:var(--radius);font-size:0.85rem;${done?'border:1px solid #4caf50':''}${isCurrent?'border:1px solid #ff9800':''}">
+                    ${done ? '✅' : isCurrent ? '⚔️' : '◻️'} ${label}: ${s.leader_name || s.title || `Membro ${i+1}`}
+                </div>`;
+            }).join('');
+        }
+    }
+
+    const progress = document.getElementById('league-run-progress');
+    const slotLabel = document.getElementById('league-run-slot-label');
+    if (run && run.status === 'in_progress' && progress && slotLabel) {
+        const cur = slots[run.current_slot];
+        slotLabel.textContent = cur ? ` ${cur.title || cur.leader_name || `Membro ${run.current_slot+1}`}` : '';
+        progress.classList.remove('hidden');
+        document.getElementById('btn-league-start')?.classList.add('hidden');
+    }
+}
+
+function challengeGym(gymId) {
+    socket.emit('gym_challenge', { gym_id: gymId });
+}
+
+function startLeagueChallenge() {
+    socket.emit('league_challenge_start', {});
+}
+
+// Socket handlers for gyms/league
+socket.on('gyms_updated', data => {
+    allGyms = data.gyms || [];
+    renderGyms();
+});
+
+socket.on('gym_error', data => {
+    showNotification(data.msg || 'Erro no ginásio', 'error');
+});
+
+socket.on('gym_challenge_sent', data => {
+    showNotification(data.msg, 'info');
+});
+
+socket.on('gym_challenge_incoming', data => {
+    if (confirm(`${data.challenger_name} quer desafiar seu ginásio "${data.gym_name}"!\nAceitar o desafio?`)) {
+        socket.emit('gym_challenge_accept', { gym_id: data.gym_id, challenger_id: data.challenger_id });
+    }
+});
+
+socket.on('badge_awarded', data => {
+    if (!TRAINER_DATA.badges) TRAINER_DATA.badges = [];
+    if (!TRAINER_DATA.badges.includes(data.badge)) {
+        TRAINER_DATA.badges.push(data.badge);
+    }
+    renderGyms();
+    showNotification(`🏅 Insígnia conquistada: ${data.icon} ${data.badge} (${data.gym_name})`, 'success');
+    // Switch to gyms tab to show new badge
+    document.querySelector('[data-tab="gyms"]')?.click();
+});
+
+socket.on('league_error', data => {
+    showNotification(data.msg, 'error');
+});
+
+socket.on('league_run_started', data => {
+    leagueData = { ...(leagueData || {}), slots: data.slots, my_run: data.run };
+    renderLeague();
+    showNotification('🌟 Tentativa na Liga iniciada! Boa sorte!', 'info');
+});
+
+socket.on('league_next_battle', data => {
+    if (leagueData?.my_run) {
+        leagueData.my_run.current_slot = data.slot;
+    }
+    renderLeague();
+    const label = data.is_champion ? '👑 Campeão' : data.slot_title;
+    showNotification(`✅ Vitória! Próxima batalha: ${label}`, 'success');
+});
+
+socket.on('league_victory', data => {
+    if (leagueData?.my_run) leagueData.my_run.status = 'completed';
+    renderLeague();
+    showNotification('🏆🌟 CAMPEÃO DA LIGA! Você venceu todos os membros!', 'success');
+    alert('🏆 PARABÉNS! Você se tornou o Campeão da Liga Pokémon!');
+});
+
+socket.on('league_failed', data => {
+    if (leagueData?.my_run) leagueData.my_run.status = 'failed';
+    renderLeague();
+    showNotification(`💀 Derrota contra ${data.slot_title}. Tentativa encerrada.`, 'error');
+    loadLeague();
+});
+
+// Load gyms/league when tab is opened
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelector('[data-tab="gyms"]')?.addEventListener('click', () => {
+        loadGyms();
+        loadLeague();
+    });
+});
 
 // Auto-migrate team stats on load
 document.addEventListener('DOMContentLoaded', () => {

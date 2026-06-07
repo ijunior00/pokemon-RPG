@@ -14,6 +14,7 @@
         <button class="tab" data-tab="xp">⭐ XP</button>
         <button class="tab" data-tab="tournament">🏆 Campeonato</button>
         <button class="tab" data-tab="map">🗺️ Mapa</button>
+        <button class="tab" data-tab="gyms">🏟️ Ginásios</button>
         <button class="tab" data-tab="settings">🎨 Visual</button>
     </div>
 
@@ -42,6 +43,14 @@
                         <option value="{{ uid }}">{{ player.username }}</option>
                         {% endfor %}
                     </select>
+                </div>
+                <div class="form-group" style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;">
+                    <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+                        <input type="checkbox" id="manual-shiny"> ✨ Shiny
+                    </label>
+                    <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+                        <input type="checkbox" id="manual-mega"> 🔮 Mega
+                    </label>
                 </div>
                 <button class="btn btn-primary" onclick="sendManualEncounter()">Enviar Encontro</button>
             </div>
@@ -412,6 +421,84 @@
                 <div id="tourney-bracket-display" style="overflow-x:auto;"></div>
                 <div id="tourney-current-match" style="margin-top:1rem;"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- TAB: GINÁSIOS & LIGA -->
+    <div class="tab-content" id="tab-gyms">
+        <h2>🏟️ Gerenciar Ginásios & Liga</h2>
+
+        <!-- Create gym form -->
+        <div class="card" style="margin-bottom:1.5rem;">
+            <h3>➕ Criar Ginásio</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+                <div>
+                    <label>Nome do Ginásio</label>
+                    <input type="text" id="gym-name" class="form-input" placeholder="ex: Ginásio de Pewter City">
+                </div>
+                <div>
+                    <label>Nome da Insígnia</label>
+                    <input type="text" id="gym-badge-name" class="form-input" placeholder="ex: Insígnia de Pedra">
+                </div>
+                <div>
+                    <label>Ícone (emoji)</label>
+                    <input type="text" id="gym-badge-icon" class="form-input" placeholder="🏅" maxlength="4" value="🏅">
+                </div>
+                <div>
+                    <label>Tipo</label>
+                    <input type="text" id="gym-type" class="form-input" placeholder="ex: Rock, Fire, Water...">
+                </div>
+                <div>
+                    <label>Nome do Líder</label>
+                    <input type="text" id="gym-leader-name" class="form-input" placeholder="ex: Brock">
+                </div>
+                <div>
+                    <label>Líder NPC</label>
+                    <select id="gym-leader-npc" class="form-input">
+                        <option value="">— Sem NPC —</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Líder Jogador</label>
+                    <select id="gym-leader-player" class="form-input">
+                        <option value="">— Sem Jogador —</option>
+                        {% for uid, player in players.items() %}
+                        <option value="{{ uid }}">{{ player.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label>Nível recomendado do Treinador</label>
+                    <input type="number" id="gym-level-cap" class="form-input" value="5" min="1" max="20">
+                </div>
+                <div style="grid-column:span 2;">
+                    <label>Insígnias necessárias (separadas por vírgula)</label>
+                    <input type="text" id="gym-required-badges" class="form-input" placeholder="ex: Insígnia de Pedra, Insígnia de Cascata">
+                </div>
+                <div style="grid-column:span 2;">
+                    <label>Descrição (opcional)</label>
+                    <input type="text" id="gym-description" class="form-input" placeholder="Descrição do ginásio...">
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="createGym()">✅ Criar Ginásio</button>
+        </div>
+
+        <!-- Gyms list -->
+        <div class="card" style="margin-bottom:1.5rem;">
+            <h3>🏟️ Ginásios Cadastrados</h3>
+            <div id="master-gyms-list" style="display:flex;flex-direction:column;gap:0.75rem;">
+                <em style="color:var(--muted)">Nenhum ginásio ainda.</em>
+            </div>
+        </div>
+
+        <!-- League config -->
+        <div class="card">
+            <h3>🌟 Configurar Liga Pokémon</h3>
+            <p style="color:var(--muted);font-size:0.9rem;">Configure os membros da Elite 4 e o Campeão em ordem.</p>
+            <div id="league-slots-editor" style="display:flex;flex-direction:column;gap:0.75rem;margin-bottom:1rem;"></div>
+            <button class="btn btn-secondary" onclick="addLeagueSlot()" style="margin-right:0.5rem;">➕ Adicionar Membro</button>
+            <button class="btn btn-primary" onclick="saveLeagueSlots()">💾 Salvar Liga</button>
+            <div id="league-save-msg" style="color:#4caf50;margin-top:0.5rem;display:none">✅ Liga salva!</div>
         </div>
     </div>
 

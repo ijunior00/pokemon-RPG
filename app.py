@@ -1651,6 +1651,83 @@ def handle_pvp_pass(data):
         if battle[battle['turn']].get('is_npc'):
             handle_npc_turn(battle, battle['turn'])
 
+@socketio.on('tournament_start_match')
+def handle_tournament_start_match(data):
+    """Master initiates a tournament match — creates an official PVP battle between participants."""
+    if not current_user.is_authenticated or current_user.role != 'master':
+        return
+    tourney_id = data.get('tournament_id')
+    match_id   = data.get('match_id')
+    tournament = ACTIVE_TOURNAMENTS.get(tourney_id)
+    if not tournament:
+        return
+
+    match = next((m for m in tournament['bracket'] if m['id'] == match_id), None)
+    if not match or match['winner'] or not match['player1'] or not match['player2']:
+        return
+
+    p1 = match['player1']
+    p2 = match['player2']
+
+    users = get_users()
+    battle = pvp.create_pvp_battle('tournament', p1['id'], p2['id'])
+    battle['tournament_id']   = tourney_id
+    battle['tournament_match_id'] = match_id
+
+    # Load teams (NPC participants store team directly on participant dict)
+    p1_team = p1.get('team') or users.get(p1['id'], {}).get('trainer_data', {}).get('team', [])
+    p2_team = p2.get('team') or users.get(p2['id'], {}).get('trainer_data', {}).get('team', [])
+    pvp.set_team(battle, 'player1', p1_team)
+    pvp.set_team(battle, 'player2', p2_team)
+
+    # Mark NPC players
+    if p1.get('is_npc'):
+        battle['player1']['is_npc'] = True
+    if p2.get('is_npc'):
+        battle['player2']['is_npc'] = True
+
+    ACTIVE_PVP[battle['id']] = battle
+    match['battle_id'] = battle['id']
+
+    # Notify human players
+    for side, participant in [('player1', p1), ('player2', p2)]:
+        if not participant.get('is_npc'):
+            opponent = p2 if side == 'player1' else p1
+            my_team  = p1_team if side == 'player1' else p2_team
+            socketio.emit('pvp_battle_created', {
+                'battle_id': battle['id'],
+                'mode': 'tournament',
+                'opponent_name': opponent['name'],
+                'your_team': my_team,
+                'you_are': side,
+                'phase': 'selection',
+                'tournament_name': tournament['name']
+            }, room=participant['id'])
+
+    # If both are NPCs, auto-resolve immediately
+    if p1.get('is_npc') and p2.get('is_npc'):
+        winner_key = random.choice(['player1', 'player2'])
+        battle['winner'] = winner_key
+        battle['phase']  = 'finished'
+        handle_pvp_victory(battle)
+    elif p1.get('is_npc'):
+        # Auto-select for NPC player1 then wait for human p2
+        if p1_team:
+            pvp.select_pokemon(battle, 'player1', 0)
+            battle['player1']['is_npc'] = True
+    elif p2.get('is_npc'):
+        if p2_team:
+            pvp.select_pokemon(battle, 'player2', 0)
+            battle['player2']['is_npc'] = True
+
+    socketio.emit('tournament_match_started', {
+        'match_id': match_id,
+        'battle_id': battle['id'],
+        'p1_name': p1['name'],
+        'p2_name': p2['name']
+    }, room='master')
+
+
 @socketio.on('pvp_forfeit')
 def handle_pvp_forfeit(data):
     """Player forfeits the battle."""
@@ -1788,6 +1865,15 @@ def handle_pvp_victory(battle):
         'mode': mode
     }, room='master')
     
+    # Auto-report tournament result
+    tourney_id  = battle.get('tournament_id')
+    match_id_bt = battle.get('tournament_match_id')
+    if tourney_id and match_id_bt:
+        tournament = ACTIVE_TOURNAMENTS.get(tourney_id)
+        if tournament:
+            winner_participant_id = battle[winner_key]['id']
+            _apply_tournament_match_result(tournament, tourney_id, match_id_bt, winner_participant_id)
+
     # Cleanup
     if battle['id'] in ACTIVE_PVP:
         del ACTIVE_PVP[battle['id']]
@@ -1993,15 +2079,16 @@ def start_tournament_route(tourney_id):
     
     bracket = pvp.generate_bracket(tournament)
 
-    # Notify all players with full bracket so they can display it
-    socketio.emit('tournament_bracket_update', {
+    payload = {
         'tournament_id': tourney_id,
         'name': tournament['name'],
         'bracket': bracket,
         'status': tournament['status'],
         'current_round': tournament['current_round'],
         'participants_count': len(tournament['participants'])
-    }, room='players')
+    }
+    socketio.emit('tournament_bracket_update', payload, room='players')
+    socketio.emit('tournament_bracket_update', payload, room='master')
 
     return jsonify({'success': True, 'bracket': bracket})
 
@@ -2029,90 +2116,111 @@ def get_active_tournament():
             return jsonify(t)
     return jsonify(None)
 
+def _apply_tournament_match_result(tournament, tourney_id, match_id, winner_id):
+    """Core logic: record match winner, advance bracket, emit updates. Returns status string."""
+    for match in tournament['bracket']:
+        if match['id'] == match_id:
+            if match['winner']:
+                return 'already_decided'
+            match['winner'] = winner_id
+            break
+
+    current_round = tournament['current_round']
+    round_matches = [m for m in tournament['bracket'] if m['round'] == current_round]
+    all_decided = all(m['winner'] is not None for m in round_matches)
+
+    if not all_decided:
+        socketio.emit('tournament_bracket_update', {
+            'tournament_id': tourney_id,
+            'name': tournament['name'],
+            'bracket': tournament['bracket'],
+            'status': tournament['status'],
+            'current_round': current_round
+        }, room='players')
+        socketio.emit('tournament_bracket_update', {
+            'tournament_id': tourney_id,
+            'name': tournament['name'],
+            'bracket': tournament['bracket'],
+            'status': tournament['status'],
+            'current_round': current_round
+        }, room='master')
+        return 'round_in_progress'
+
+    # Round complete — compute winners list
+    winners = []
+    for m in round_matches:
+        wp = m['player1'] if m['player1'] and m['player1']['id'] == m['winner'] else m['player2']
+        if wp:
+            winners.append(wp)
+
+    if len(winners) <= 1:
+        tournament['status'] = 'finished'
+        tournament['results'] = {
+            'first': winners[0] if winners else None,
+            'second': None,
+            'third': None
+        }
+        final_match = round_matches[0] if round_matches else None
+        if final_match:
+            loser = final_match['player1'] if final_match['player1'] and final_match['player1']['id'] != final_match['winner'] else final_match['player2']
+            tournament['results']['second'] = loser
+        award_tournament_prizes(tournament)
+
+        payload = {
+            'tournament_id': tourney_id,
+            'name': tournament['name'],
+            'bracket': tournament['bracket'],
+            'status': 'finished',
+            'current_round': tournament['current_round'],
+            'results': tournament['results']
+        }
+        socketio.emit('tournament_bracket_update', payload, room='players')
+        socketio.emit('tournament_bracket_update', payload, room='master')
+        return 'finished'
+    else:
+        next_round = current_round + 1
+        for i in range(0, len(winners), 2):
+            new_match = {
+                'id': f"match_{secrets.token_hex(3)}",
+                'round': next_round,
+                'player1': winners[i],
+                'player2': winners[i + 1] if i + 1 < len(winners) else None,
+                'winner': None,
+                'battle_id': None
+            }
+            if new_match['player2'] is None:
+                new_match['winner'] = new_match['player1']['id']
+            tournament['bracket'].append(new_match)
+        tournament['current_round'] = next_round
+
+        payload = {
+            'tournament_id': tourney_id,
+            'name': tournament['name'],
+            'bracket': tournament['bracket'],
+            'status': tournament['status'],
+            'current_round': next_round
+        }
+        socketio.emit('tournament_bracket_update', payload, room='players')
+        socketio.emit('tournament_bracket_update', payload, room='master')
+        return 'next_round'
+
+
 @app.route('/master/tournament/<tourney_id>/match/<match_id>/result', methods=['POST'])
 @login_required
 def set_match_result(tourney_id, match_id):
-    """Set the winner of a tournament match."""
+    """Set the winner of a tournament match (manual override by master)."""
     if current_user.role != 'master':
         return jsonify({'error': 'Unauthorized'}), 403
     tournament = ACTIVE_TOURNAMENTS.get(tourney_id)
     if not tournament:
         return jsonify({'error': 'Tournament not found'}), 404
-    
+
     data = request.json
     winner_id = data.get('winner_id')
-    
-    # Find and update match
-    for match in tournament['bracket']:
-        if match['id'] == match_id:
-            match['winner'] = winner_id
-            break
-    
-    # Check if current round is complete
-    current_round = tournament['current_round']
-    round_matches = [m for m in tournament['bracket'] if m['round'] == current_round]
-    all_decided = all(m['winner'] is not None for m in round_matches)
-    
-    if all_decided:
-        # Generate next round
-        winners = []
-        for m in round_matches:
-            winner_participant = m['player1'] if m['player1'] and m['player1']['id'] == m['winner'] else m['player2']
-            if winner_participant:
-                winners.append(winner_participant)
-        
-        if len(winners) <= 1:
-            # Tournament over
-            tournament['status'] = 'finished'
-            tournament['results'] = {
-                'first': winners[0] if winners else None,
-                'second': None,  # loser of final
-                'third': None
-            }
-            # Find final loser
-            final_match = round_matches[0] if round_matches else None
-            if final_match:
-                loser = final_match['player1'] if final_match['player1'] and final_match['player1']['id'] != final_match['winner'] else final_match['player2']
-                tournament['results']['second'] = loser
+    status = _apply_tournament_match_result(tournament, tourney_id, match_id, winner_id)
 
-            # Award prizes
-            award_tournament_prizes(tournament)
-
-            socketio.emit('tournament_bracket_update', {
-                'tournament_id': tourney_id,
-                'name': tournament['name'],
-                'bracket': tournament['bracket'],
-                'status': 'finished',
-                'current_round': tournament['current_round'],
-                'results': tournament['results']
-            }, room='players')
-
-            return jsonify({'success': True, 'status': 'finished', 'results': tournament['results']})
-        else:
-            # Generate next round matches
-            next_round = current_round + 1
-            for i in range(0, len(winners), 2):
-                new_match = {
-                    'id': f"match_{secrets.token_hex(3)}",
-                    'round': next_round,
-                    'player1': winners[i],
-                    'player2': winners[i + 1] if i + 1 < len(winners) else None,
-                    'winner': None,
-                    'battle_id': None
-                }
-                if new_match['player2'] is None:
-                    new_match['winner'] = new_match['player1']['id']
-                tournament['bracket'].append(new_match)
-            tournament['current_round'] = next_round
-
-    socketio.emit('tournament_bracket_update', {
-        'tournament_id': tourney_id,
-        'name': tournament['name'],
-        'bracket': tournament['bracket'],
-        'status': tournament['status'],
-        'current_round': tournament['current_round']
-    }, room='players')
-
+    if status == 'finished':
+        return jsonify({'success': True, 'status': 'finished', 'results': tournament['results']})
     return jsonify({'success': True, 'bracket': tournament['bracket']})
 
 
@@ -2144,6 +2252,464 @@ def award_tournament_prizes(tournament):
             }, room=player_id)
     
     save_users(users)
+
+# ============================================================
+# GYMS
+# ============================================================
+
+@app.route('/api/gyms')
+@login_required
+def api_get_gyms():
+    gyms = db.get_gyms()
+    # Attach conquered status per player
+    if current_user.role == 'player':
+        trainer = get_users().get(current_user.id, {}).get('trainer_data', {})
+        badges = trainer.get('badges', [])
+        for g in gyms:
+            g['conquered'] = g['badge_name'] in badges
+    return jsonify(gyms)
+
+
+@app.route('/api/gyms', methods=['POST'])
+@login_required
+def api_create_gym():
+    if current_user.role != 'master':
+        return jsonify({'error': 'Acesso negado'}), 403
+    data = request.json or {}
+    required = ['name', 'badge_name', 'type', 'leader_name']
+    for f in required:
+        if not data.get(f):
+            return jsonify({'error': f'Campo obrigatório: {f}'}), 400
+
+    gyms = db.get_gyms()
+    gym_id = f"gym_{secrets.token_hex(4)}"
+    gym = {
+        'id': gym_id,
+        'name': data['name'],
+        'badge_name': data['badge_name'],
+        'badge_icon': data.get('badge_icon', '🏅'),
+        'type': data['type'],
+        'leader_name': data['leader_name'],
+        'leader_npc_id': data.get('leader_npc_id'),
+        'leader_player_id': data.get('leader_player_id'),
+        'required_badges': data.get('required_badges', []),
+        'level_cap': int(data.get('level_cap', 5)),
+        'order': len(gyms) + 1,
+        'description': data.get('description', ''),
+        'active_battles': {}
+    }
+    gyms.append(gym)
+    db.save_gyms(gyms)
+    socketio.emit('gyms_updated', {'gyms': gyms}, room='players')
+    socketio.emit('gyms_updated', {'gyms': gyms}, room='master')
+    return jsonify(gym), 201
+
+
+@app.route('/api/gyms/<gym_id>', methods=['PUT'])
+@login_required
+def api_update_gym(gym_id):
+    if current_user.role != 'master':
+        return jsonify({'error': 'Acesso negado'}), 403
+    gyms = db.get_gyms()
+    gym = next((g for g in gyms if g['id'] == gym_id), None)
+    if not gym:
+        return jsonify({'error': 'Ginásio não encontrado'}), 404
+    data = request.json or {}
+    for field in ['name', 'badge_name', 'badge_icon', 'type', 'leader_name',
+                  'leader_npc_id', 'leader_player_id', 'required_badges',
+                  'level_cap', 'order', 'description']:
+        if field in data:
+            gym[field] = data[field]
+    db.save_gyms(gyms)
+    socketio.emit('gyms_updated', {'gyms': gyms}, room='players')
+    socketio.emit('gyms_updated', {'gyms': gyms}, room='master')
+    return jsonify(gym)
+
+
+@app.route('/api/gyms/<gym_id>', methods=['DELETE'])
+@login_required
+def api_delete_gym(gym_id):
+    if current_user.role != 'master':
+        return jsonify({'error': 'Acesso negado'}), 403
+    gyms = db.get_gyms()
+    gyms = [g for g in gyms if g['id'] != gym_id]
+    db.save_gyms(gyms)
+    socketio.emit('gyms_updated', {'gyms': gyms}, room='players')
+    socketio.emit('gyms_updated', {'gyms': gyms}, room='master')
+    return jsonify({'ok': True})
+
+
+@socketio.on('gym_challenge')
+@login_required
+def handle_gym_challenge(data):
+    """Player challenges a gym. Creates an official PVP battle vs leader."""
+    gym_id = data.get('gym_id')
+    gyms = db.get_gyms()
+    gym = next((g for g in gyms if g['id'] == gym_id), None)
+    if not gym:
+        emit('gym_error', {'msg': 'Ginásio não encontrado'})
+        return
+
+    # Check badge requirements
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    badges = trainer.get('badges', [])
+    for req in gym.get('required_badges', []):
+        if req not in badges:
+            emit('gym_error', {'msg': f'Você precisa da insígnia "{req}" antes de desafiar este ginásio.'})
+            return
+
+    # Check if already conquered
+    if gym['badge_name'] in badges:
+        emit('gym_error', {'msg': 'Você já conquistou esta insígnia!'})
+        return
+
+    # Determine leader
+    leader_npc_id   = gym.get('leader_npc_id')
+    leader_player_id = gym.get('leader_player_id')
+
+    if leader_player_id and leader_player_id in users:
+        # Human leader — send challenge invite
+        battle_id = f"gym_{gym_id}_{secrets.token_hex(4)}"
+        pending = {
+            'battle_id': battle_id,
+            'gym_id': gym_id,
+            'gym_name': gym['name'],
+            'challenger_id': current_user.id,
+            'challenger_name': trainer.get('name', current_user.username)
+        }
+        socketio.emit('gym_challenge_incoming', pending, room=leader_player_id)
+        emit('gym_challenge_sent', {'msg': f'Desafio enviado para {gym["leader_name"]}!'})
+        return
+
+    # NPC leader
+    npcs = db.get_npcs()
+    npc = next((n for n in npcs if n['id'] == leader_npc_id), None) if leader_npc_id else None
+
+    if not npc:
+        npc = {'id': f'npc_leader_{gym_id}', 'name': gym['leader_name'], 'team': [], 'is_npc': True}
+
+    battle = pvp.create_pvp_battle('official', current_user.id, npc['id'])
+    battle['gym_id']    = gym_id
+    battle['gym_badge'] = gym['badge_name']
+    battle['gym_icon']  = gym.get('badge_icon', '🏅')
+    battle['extra']     = {'gym_id': gym_id, 'gym_badge': gym['badge_name'], 'gym_icon': gym.get('badge_icon', '🏅')}
+    pvp.set_team(battle, 'player1', trainer.get('team', []))
+    pvp.set_team(battle, 'player2', npc.get('team', []))
+    battle['player2']['is_npc'] = True
+    if npc.get('team'):
+        pvp.select_pokemon(battle, 'player2', 0)
+
+    ACTIVE_PVP[battle['id']] = battle
+
+    emit('pvp_battle_created', {
+        'battle_id':     battle['id'],
+        'opponent_name': gym['leader_name'],
+        'mode':          'official',
+        'gym_id':        gym_id,
+        'gym_name':      gym['name'],
+        'your_team':     trainer.get('team', []),
+        'you_are':       'player1',
+        'phase':         'selection'
+    })
+
+
+@socketio.on('gym_challenge_accept')
+@login_required
+def handle_gym_challenge_accept(data):
+    """Human leader accepts a gym challenge."""
+    gym_id       = data.get('gym_id')
+    challenger_id = data.get('challenger_id')
+    gyms = db.get_gyms()
+    gym = next((g for g in gyms if g['id'] == gym_id), None)
+    if not gym:
+        return
+
+    users = get_users()
+    challenger_trainer = users.get(challenger_id, {}).get('trainer_data', {})
+    leader_trainer     = users.get(current_user.id, {}).get('trainer_data', {})
+
+    battle = pvp.create_pvp_battle('official', challenger_id, current_user.id)
+    battle['extra'] = {'gym_id': gym_id, 'gym_badge': gym['badge_name'], 'gym_icon': gym.get('badge_icon', '🏅')}
+    pvp.set_team(battle, 'player1', challenger_trainer.get('team', []))
+    pvp.set_team(battle, 'player2', leader_trainer.get('team', []))
+    ACTIVE_PVP[battle['id']] = battle
+
+    challenger_name = challenger_trainer.get('name', users[challenger_id]['username'])
+    leader_name_str = leader_trainer.get('name', current_user.username)
+    socketio.emit('pvp_battle_created', {
+        'battle_id':     battle['id'],
+        'opponent_name': gym['leader_name'],
+        'mode':          'official',
+        'gym_id':        gym_id,
+        'gym_name':      gym['name'],
+        'your_team':     challenger_trainer.get('team', []),
+        'you_are':       'player1',
+        'phase':         'selection'
+    }, room=challenger_id)
+    socketio.emit('pvp_battle_created', {
+        'battle_id':     battle['id'],
+        'opponent_name': challenger_name,
+        'mode':          'official',
+        'gym_id':        gym_id,
+        'gym_name':      gym['name'],
+        'your_team':     leader_trainer.get('team', []),
+        'you_are':       'player2',
+        'phase':         'selection'
+    }, room=current_user.id)
+
+
+def _award_gym_badge(winner_id, gym_id):
+    """Called after gym battle is won. Awards badge and XP multiplier."""
+    gyms = db.get_gyms()
+    gym  = next((g for g in gyms if g['id'] == gym_id), None)
+    if not gym:
+        return
+
+    users = get_users()
+    if winner_id not in users:
+        return
+
+    trainer = users[winner_id].get('trainer_data', {})
+    badges  = trainer.get('badges', [])
+    badge   = gym['badge_name']
+
+    if badge not in badges:
+        badges.append(badge)
+        trainer['badges'] = badges
+        users[winner_id]['trainer_data'] = trainer
+        save_users(users)
+
+        socketio.emit('badge_awarded', {
+            'gym_id':    gym_id,
+            'gym_name':  gym['name'],
+            'badge':     badge,
+            'icon':      gym.get('badge_icon', '🏅'),
+            'badges_total': len(badges)
+        }, room=winner_id)
+
+        socketio.emit('master_action', {
+            'type': 'badge_awarded',
+            'player': trainer.get('name', users[winner_id]['username']),
+            'badge': badge,
+            'gym': gym['name']
+        }, room='master')
+
+
+# ============================================================
+# LEAGUE
+# ============================================================
+
+@app.route('/api/league')
+@login_required
+def api_get_league():
+    league = db.get_league()
+    if current_user.role == 'player':
+        run = league.get('active_runs', {}).get(current_user.id)
+        return jsonify({'slots': league.get('slots', []), 'my_run': run})
+    return jsonify(league)
+
+
+@app.route('/api/league/slots', methods=['POST'])
+@login_required
+def api_save_league_slots():
+    if current_user.role != 'master':
+        return jsonify({'error': 'Acesso negado'}), 403
+    data = request.json or {}
+    league = db.get_league()
+    league['slots'] = data.get('slots', [])
+    db.save_league(league)
+    socketio.emit('league_updated', {'slots': league['slots']}, room='players')
+    socketio.emit('league_updated', {'slots': league['slots']}, room='master')
+    return jsonify({'ok': True})
+
+
+@socketio.on('league_challenge_start')
+@login_required
+def handle_league_start(data):
+    """Player starts a League run. Must have all required badges."""
+    league = db.get_league()
+    slots  = league.get('slots', [])
+    if not slots:
+        emit('league_error', {'msg': 'A Liga ainda não foi configurada pelo Mestre.'})
+        return
+
+    users   = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    badges  = trainer.get('badges', [])
+
+    # Check all gym badges that have "required_for_league" or just all gym badges
+    gyms = db.get_gyms()
+    gym_badges = [g['badge_name'] for g in gyms]
+    missing = [b for b in gym_badges if b not in badges]
+    if missing:
+        emit('league_error', {'msg': f'Você ainda precisa das insígnias: {", ".join(missing)}'})
+        return
+
+    # Check if already has an active run
+    active_runs = league.get('active_runs', {})
+    if current_user.id in active_runs and active_runs[current_user.id].get('status') == 'in_progress':
+        emit('league_error', {'msg': 'Você já tem uma tentativa em andamento!'})
+        return
+
+    run = {
+        'player_id':   current_user.id,
+        'player_name': trainer.get('name', current_user.username),
+        'current_slot': 0,
+        'status':       'in_progress',
+        'battle_id':    None
+    }
+    active_runs[current_user.id] = run
+    league['active_runs'] = active_runs
+    db.save_league(league)
+    emit('league_run_started', {'run': run, 'slots': slots})
+    _start_league_battle(current_user.id, 0)
+
+
+def _start_league_battle(player_id, slot_index):
+    """Creates a battle between the player and the current league slot opponent."""
+    league = db.get_league()
+    slots  = league.get('slots', [])
+    if slot_index >= len(slots):
+        return
+
+    slot = slots[slot_index]
+    users = get_users()
+    trainer = users.get(player_id, {}).get('trainer_data', {})
+
+    leader_player_id = slot.get('leader_player_id')
+    leader_npc_id    = slot.get('leader_npc_id')
+
+    if leader_player_id and leader_player_id in users:
+        leader_trainer = users[leader_player_id].get('trainer_data', {})
+        leader_team    = leader_trainer.get('team', [])
+        leader_name    = leader_trainer.get('name', users[leader_player_id]['username'])
+        is_npc_battle  = False
+        opponent_id    = leader_player_id
+    else:
+        npcs = db.get_npcs()
+        npc  = next((n for n in npcs if n['id'] == leader_npc_id), None) if leader_npc_id else None
+        if not npc:
+            npc = {'id': f'npc_league_{slot_index}', 'name': slot.get('leader_name', f'Elite {slot_index+1}'), 'team': [], 'is_npc': True}
+        leader_team   = npc.get('team', [])
+        leader_name   = npc.get('name', slot.get('leader_name', f'Membro da Liga {slot_index+1}'))
+        is_npc_battle = True
+        opponent_id   = npc['id']
+
+    battle = pvp.create_pvp_battle('official', player_id, opponent_id)
+    battle['extra'] = {
+        'league_slot':  slot_index,
+        'league_total': len(slots),
+        'slot_title':   slot.get('title', f'Membro {slot_index+1}'),
+        'is_champion':  slot.get('is_champion', False)
+    }
+    pvp.set_team(battle, 'player1', trainer.get('team', []))
+    pvp.set_team(battle, 'player2', leader_team)
+    if is_npc_battle:
+        battle['player2']['is_npc'] = True
+        if leader_team:
+            pvp.select_pokemon(battle, 'player2', 0)
+
+    ACTIVE_PVP[battle['id']] = battle
+
+    # Store battle_id in run
+    league['active_runs'][player_id]['battle_id'] = battle['id']
+    db.save_league(league)
+
+    socketio.emit('pvp_battle_created', {
+        'battle_id':     battle['id'],
+        'opponent_name': leader_name,
+        'mode':          'official',
+        'league_slot':   slot_index,
+        'slot_title':    slot.get('title', f'Membro {slot_index+1}'),
+        'is_champion':   slot.get('is_champion', False),
+        'your_team':     trainer.get('team', []),
+        'you_are':       'player1',
+        'phase':         'selection'
+    }, room=player_id)
+
+    if not is_npc_battle:
+        socketio.emit('pvp_battle_created', {
+            'battle_id':     battle['id'],
+            'opponent_name': trainer.get('name', users[player_id]['username']),
+            'mode':          'official',
+            'league_slot':   slot_index,
+            'your_team':     leader_team,
+            'you_are':       'player2',
+            'phase':         'selection'
+        }, room=opponent_id)
+
+
+# Patch handle_pvp_victory to handle gym and league battles
+_original_handle_pvp_victory = handle_pvp_victory  # noqa: F821
+
+
+def _extended_handle_pvp_victory(battle):
+    """Wraps the original pvp victory handler to also process gym/league results."""
+    extra = battle.get('extra', {})
+    winner_key = battle.get('winner', 'player1')
+    winner_id  = battle.get(winner_key, {}).get('id') if winner_key in battle else None
+
+    player1_id = battle.get('player1', {}).get('id')
+
+    # Gym battle
+    if extra.get('gym_id'):
+        # Only award if the challenger (player1) won
+        if winner_id == player1_id:
+            _award_gym_badge(winner_id, extra['gym_id'])
+
+    # League battle
+    league_slot = extra.get('league_slot')
+    if league_slot is not None:
+        player_id = player1_id
+        league    = db.get_league()
+        run       = league.get('active_runs', {}).get(player_id)
+        if run and run.get('status') == 'in_progress':
+            slots = league.get('slots', [])
+            if winner_id == player_id:
+                next_slot = league_slot + 1
+                if next_slot >= len(slots):
+                    # Champion defeated — league cleared!
+                    run['status']       = 'completed'
+                    run['current_slot'] = next_slot
+                    league['active_runs'][player_id] = run
+                    db.save_league(league)
+                    socketio.emit('league_completed', {
+                        'player_name': run['player_name']
+                    }, room='players')
+                    socketio.emit('league_completed', {
+                        'player_name': run['player_name']
+                    }, room='master')
+                    socketio.emit('league_victory', {
+                        'slots_total': len(slots)
+                    }, room=player_id)
+                else:
+                    run['current_slot'] = next_slot
+                    run['battle_id']    = None
+                    league['active_runs'][player_id] = run
+                    db.save_league(league)
+                    socketio.emit('league_next_battle', {
+                        'slot': next_slot,
+                        'slot_title': slots[next_slot].get('title', f'Membro {next_slot+1}'),
+                        'is_champion': slots[next_slot].get('is_champion', False),
+                        'total': len(slots)
+                    }, room=player_id)
+                    _start_league_battle(player_id, next_slot)
+            else:
+                # Player lost — reset run
+                run['status'] = 'failed'
+                league['active_runs'][player_id] = run
+                db.save_league(league)
+                socketio.emit('league_failed', {
+                    'slot': league_slot,
+                    'slot_title': extra.get('slot_title', '')
+                }, room=player_id)
+
+    _original_handle_pvp_victory(battle)
+
+
+# Replace the global reference used by socket handlers
+handle_pvp_victory = _extended_handle_pvp_victory  # noqa: F811
 
 # ============================================================
 # RUN

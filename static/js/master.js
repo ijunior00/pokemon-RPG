@@ -442,23 +442,64 @@ document.getElementById('manual-pokemon-search').addEventListener('input', async
     }
 });
 
-function sendManualEncounter() {
-    if (!manualPokemonData) {
-        alert('Busque um Pokémon primeiro!');
-        return;
-    }
-    
-    const level = parseInt(document.getElementById('manual-pokemon-level').value);
+async function sendManualEncounter() {
+    if (!manualPokemonData) { alert('Busque um Pokémon primeiro!'); return; }
+
+    const level       = parseInt(document.getElementById('manual-pokemon-level').value);
     const targetPlayer = document.getElementById('manual-target-player').value;
-    
+    const isShiny     = document.getElementById('manual-shiny')?.checked || false;
+    const isMega      = document.getElementById('manual-mega')?.checked  || false;
+
+    let pokemon = { ...manualPokemonData };
+
+    // Apply shiny boost: +20% HP/stats, +2 AC
+    if (isShiny) {
+        pokemon.hp    = Math.round((pokemon.hp || 20) * 1.2);
+        pokemon.maxHp = pokemon.hp;
+        pokemon.ac    = (pokemon.ac || 13) + 2;
+        if (pokemon.stats) {
+            pokemon.stats = Object.fromEntries(
+                Object.entries(pokemon.stats).map(([k, v]) => [k, Math.round(v * 1.2)])
+            );
+        }
+        pokemon.is_shiny = true;
+    }
+
+    // Apply mega evolution if available
+    let megaData = null;
+    if (isMega) {
+        try {
+            const resp = await fetch(`/api/mega/${encodeURIComponent(pokemon.name)}`);
+            const megas = await resp.json();
+            if (megas && megas.length > 0) {
+                megaData = megas[0];
+                pokemon.mega = megaData;
+                pokemon.name = megaData.megaName || pokemon.name;
+                // Apply stat bonuses
+                if (megaData.bonuses) {
+                    if (megaData.bonuses.ac) pokemon.ac = (pokemon.ac || 13) + megaData.bonuses.ac;
+                    if (megaData.bonuses.hp) pokemon.hp = Math.round((pokemon.hp || 20) * (1 + megaData.bonuses.hp / 100));
+                    if (pokemon.stats && megaData.bonuses.atk) pokemon.stats.ATK = Math.round((pokemon.stats.ATK || 10) * (1 + megaData.bonuses.atk / 100));
+                }
+                if (megaData.newTypes) pokemon.types = megaData.newTypes;
+            } else {
+                alert(`${manualPokemonData.name} não possui Mega Evolução.`);
+                document.getElementById('manual-mega').checked = false;
+            }
+        } catch(e) {}
+    }
+
     socket.emit('master_action', {
         type: 'forced_encounter',
         player_id: targetPlayer,
-        pokemon: manualPokemonData,
-        level: level
+        pokemon,
+        level,
+        is_shiny: isShiny,
+        is_mega: !!megaData
     });
-    
-    alert(`Encontro enviado para o jogador!`);
+
+    const flags = [isShiny ? '✨ Shiny' : '', megaData ? '🔮 Mega' : ''].filter(Boolean).join(' + ');
+    alert(`Encontro enviado!${flags ? ' (' + flags + ')' : ''}`);
 }
 
 // ============================================
@@ -926,64 +967,94 @@ async function startTournament() {
 function renderBracket() {
     const t = window.activeTournament;
     if (!t || !t.bracket) return;
-    
+
     const container = document.getElementById('tourney-bracket-display');
-    
-    // Group by round
     const rounds = {};
     t.bracket.forEach(m => {
         if (!rounds[m.round]) rounds[m.round] = [];
         rounds[m.round].push(m);
     });
-    
+
     const roundNames = { 1: 'Rodada 1', 2: 'Quartas', 3: 'Semifinal', 4: 'Final' };
-    
+
     let html = '<div style="display:flex;gap:2rem;overflow-x:auto;padding:1rem 0;">';
-    
+
     for (const [roundNum, matches] of Object.entries(rounds).sort((a, b) => a[0] - b[0])) {
-        html += `<div style="min-width:220px;">`;
+        html += `<div style="min-width:240px;">`;
         html += `<h5 style="color:var(--accent);margin-bottom:0.75rem;">${roundNames[roundNum] || 'Rodada ' + roundNum}</h5>`;
-        
+
         matches.forEach(match => {
-            const p1Name = match.player1 ? match.player1.name : 'BYE';
-            const p2Name = match.player2 ? match.player2.name : 'BYE';
-            const isDecided = match.winner !== null;
-            const p1Won = match.winner === (match.player1 ? match.player1.id : null);
-            const p2Won = match.winner === (match.player2 ? match.player2.id : null);
-            const canDecide = !isDecided && match.player1 && match.player2 && parseInt(roundNum) === t.current_round;
-            
+            const p1 = match.player1, p2 = match.player2;
+            const p1Name = p1 ? p1.name : 'BYE';
+            const p2Name = p2 ? p2.name : 'BYE';
+            const isDecided  = match.winner !== null;
+            const battleActive = !!match.battle_id && !isDecided;
+            const p1Won = isDecided && p1 && match.winner === p1.id;
+            const p2Won = isDecided && p2 && match.winner === p2.id;
+            const canStart  = !isDecided && !battleActive && p1 && p2 && parseInt(roundNum) === t.current_round;
+            const canForce  = !isDecided && p1 && p2 && parseInt(roundNum) === t.current_round;
+            const borderCol = isDecided ? 'var(--success)' : battleActive ? 'var(--warning)' : 'var(--card-border)';
+
             html += `
-                <div style="background:var(--darker);border:1px solid ${isDecided ? 'var(--success)' : 'var(--card-border)'};border-radius:var(--radius);padding:0.5rem;margin-bottom:0.5rem;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;padding:0.2rem 0;${p1Won ? 'color:var(--success);font-weight:bold;' : ''}">
-                        <span>${p1Name}</span>
-                        ${canDecide ? `<button class="btn btn-sm btn-success" onclick="setMatchWinner('${match.id}', '${match.player1.id}')" style="padding:0.1rem 0.4rem;font-size:0.7rem;">✓</button>` : ''}
-                        ${p1Won ? '🏆' : ''}
+                <div style="background:var(--darker);border:2px solid ${borderCol};border-radius:var(--radius);padding:0.5rem;margin-bottom:0.75rem;">
+                    <div style="padding:0.2rem 0;${p1Won ? 'color:var(--success);font-weight:bold;' : ''}">
+                        ${p1Won ? '🏆 ' : ''}${p1Name}${p1?.is_npc ? ' 🤖' : ''}
                     </div>
-                    <div style="border-top:1px solid var(--card-border);margin:0.2rem 0;"></div>
-                    <div style="display:flex;justify-content:space-between;align-items:center;padding:0.2rem 0;${p2Won ? 'color:var(--success);font-weight:bold;' : ''}">
-                        <span>${p2Name}</span>
-                        ${canDecide ? `<button class="btn btn-sm btn-success" onclick="setMatchWinner('${match.id}', '${match.player2.id}')" style="padding:0.1rem 0.4rem;font-size:0.7rem;">✓</button>` : ''}
-                        ${p2Won ? '🏆' : ''}
+                    <div style="border-top:1px solid var(--card-border);margin:0.2rem 0;font-size:0.75rem;color:var(--text-muted);text-align:center;">vs</div>
+                    <div style="padding:0.2rem 0;${p2Won ? 'color:var(--success);font-weight:bold;' : ''}">
+                        ${p2Won ? '🏆 ' : ''}${p2Name}${p2?.is_npc ? ' 🤖' : ''}
                     </div>
-                </div>
-            `;
+                    ${battleActive ? `<div style="color:var(--warning);font-size:0.75rem;margin-top:0.3rem;">⚔️ Batalha em andamento...</div>` : ''}
+                    ${canStart ? `
+                        <button class="btn btn-sm btn-primary" onclick="startTournamentMatch('${t.id}','${match.id}')"
+                            style="width:100%;margin-top:0.4rem;font-size:0.75rem;">⚔️ Iniciar Batalha</button>
+                    ` : ''}
+                    ${canForce && !canStart ? `
+                        <div style="display:flex;gap:0.3rem;margin-top:0.4rem;">
+                            <button class="btn btn-sm btn-secondary" onclick="setMatchWinner('${match.id}','${p1.id}')"
+                                style="flex:1;font-size:0.7rem;" title="Forçar vitória de ${p1Name}">✓ ${p1Name}</button>
+                            <button class="btn btn-sm btn-secondary" onclick="setMatchWinner('${match.id}','${p2.id}')"
+                                style="flex:1;font-size:0.7rem;" title="Forçar vitória de ${p2Name}">✓ ${p2Name}</button>
+                        </div>
+                        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.2rem;text-align:center;">↑ override manual</div>
+                    ` : ''}
+                </div>`;
         });
         html += '</div>';
     }
     html += '</div>';
-    
-    // Status
+
     if (t.status === 'finished') {
         html += `<div style="text-align:center;margin-top:1rem;padding:1rem;background:var(--card-bg);border:2px solid var(--accent);border-radius:var(--radius);">
             <h3 style="color:var(--accent);">🏆 Campeonato Finalizado!</h3>
-            ${t.results?.first ? `<p>🥇 1º: <strong>${t.results.first.name}</strong></p>` : ''}
+            ${t.results?.first  ? `<p>🥇 1º: <strong>${t.results.first.name}</strong></p>`  : ''}
             ${t.results?.second ? `<p>🥈 2º: <strong>${t.results.second.name}</strong></p>` : ''}
-            ${t.results?.third ? `<p>🥉 3º: <strong>${t.results.third.name}</strong></p>` : ''}
+            ${t.results?.third  ? `<p>🥉 3º: <strong>${t.results.third.name}</strong></p>`  : ''}
         </div>`;
     }
-    
+
     container.innerHTML = html;
 }
+
+function startTournamentMatch(tourneyId, matchId) {
+    socket.emit('tournament_start_match', { tournament_id: tourneyId, match_id: matchId });
+}
+
+// Update bracket when server sends an update (master side)
+socket.on('tournament_bracket_update', (data) => {
+    if (!window.activeTournament || window.activeTournament.id !== data.tournament_id) return;
+    window.activeTournament.bracket      = data.bracket;
+    window.activeTournament.status       = data.status;
+    window.activeTournament.current_round = data.current_round;
+    if (data.results) window.activeTournament.results = data.results;
+    renderBracket();
+    if (data.status === 'finished') alert('🏆 Campeonato finalizado! Prêmios distribuídos.');
+});
+
+socket.on('tournament_match_started', (data) => {
+    // Match started — bracket re-render triggered by tournament_bracket_update
+    console.log(`Batalha iniciada: ${data.p1_name} vs ${data.p2_name}`);
+});
 
 async function setMatchWinner(matchId, winnerId) {
     const t = window.activeTournament;
@@ -1165,3 +1236,191 @@ async function saveMasterEditTeam() {
         alert('❌ Erro: ' + (result.error || 'Falha'));
     }
 }
+
+// ============================================================
+// GYMS & LEAGUE — MASTER
+// ============================================================
+
+let masterGyms = [];
+let leagueSlots = [];
+
+async function loadMasterGyms() {
+    try {
+        const res = await fetch('/api/gyms');
+        masterGyms = await res.json();
+        renderMasterGyms();
+    } catch(e) { console.error('loadMasterGyms', e); }
+}
+
+async function loadMasterLeague() {
+    try {
+        const res = await fetch('/api/league');
+        const data = await res.json();
+        leagueSlots = data.slots || [];
+        renderLeagueEditor();
+    } catch(e) { console.error('loadMasterLeague', e); }
+}
+
+function renderMasterGyms() {
+    const el = document.getElementById('master-gyms-list');
+    if (!el) return;
+    if (!masterGyms.length) {
+        el.innerHTML = '<em style="color:var(--muted)">Nenhum ginásio cadastrado.</em>';
+        return;
+    }
+    const sorted = [...masterGyms].sort((a, b) => (a.order || 0) - (b.order || 0));
+    el.innerHTML = sorted.map(gym => `
+        <div style="display:flex;align-items:center;gap:1rem;padding:0.75rem;background:var(--darker);border-radius:var(--radius);">
+            <span style="font-size:2rem">${gym.badge_icon || '🏅'}</span>
+            <div style="flex:1">
+                <div style="font-weight:bold">${gym.name}</div>
+                <div style="font-size:0.85rem;color:var(--muted)">
+                    Líder: ${gym.leader_name} • Tipo: ${gym.type} • Insígnia: ${gym.badge_name}
+                    ${gym.required_badges?.length ? ` • Requer: ${gym.required_badges.join(', ')}` : ''}
+                </div>
+            </div>
+            <button class="btn btn-sm btn-danger" onclick="deleteGym('${gym.id}')">🗑️ Remover</button>
+        </div>
+    `).join('');
+}
+
+async function createGym() {
+    const name        = document.getElementById('gym-name')?.value.trim();
+    const badge_name  = document.getElementById('gym-badge-name')?.value.trim();
+    const badge_icon  = document.getElementById('gym-badge-icon')?.value.trim() || '🏅';
+    const type        = document.getElementById('gym-type')?.value.trim();
+    const leader_name = document.getElementById('gym-leader-name')?.value.trim();
+    const npc_id      = document.getElementById('gym-leader-npc')?.value || null;
+    const player_id   = document.getElementById('gym-leader-player')?.value || null;
+    const level_cap   = parseInt(document.getElementById('gym-level-cap')?.value) || 5;
+    const req_raw     = document.getElementById('gym-required-badges')?.value.trim();
+    const description = document.getElementById('gym-description')?.value.trim();
+
+    if (!name || !badge_name || !type || !leader_name) {
+        alert('Preencha: Nome, Insígnia, Tipo e Nome do Líder.');
+        return;
+    }
+    const required_badges = req_raw ? req_raw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+    const res = await fetch('/api/gyms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, badge_name, badge_icon, type, leader_name,
+            leader_npc_id: npc_id || undefined,
+            leader_player_id: player_id || undefined,
+            required_badges, level_cap, description })
+    });
+    if (res.ok) {
+        // clear form
+        ['gym-name','gym-badge-name','gym-type','gym-leader-name','gym-required-badges','gym-description']
+            .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        document.getElementById('gym-badge-icon').value = '🏅';
+        document.getElementById('gym-level-cap').value = '5';
+    } else {
+        const err = await res.json();
+        alert('Erro: ' + (err.error || 'Falha ao criar ginásio'));
+    }
+}
+
+async function deleteGym(gymId) {
+    if (!confirm('Remover este ginásio?')) return;
+    await fetch(`/api/gyms/${gymId}`, { method: 'DELETE' });
+}
+
+// League editor
+function renderLeagueEditor() {
+    const el = document.getElementById('league-slots-editor');
+    if (!el) return;
+    el.innerHTML = leagueSlots.map((s, i) => `
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:0.5rem;align-items:end;padding:0.5rem;background:var(--darker);border-radius:var(--radius);">
+            <div>
+                <label style="font-size:0.8rem">Título</label>
+                <input type="text" class="form-input" id="league-slot-title-${i}" value="${s.title || ''}" placeholder="ex: Elite 1">
+            </div>
+            <div>
+                <label style="font-size:0.8rem">Nome do Líder</label>
+                <input type="text" class="form-input" id="league-slot-leader-${i}" value="${s.leader_name || ''}" placeholder="ex: Lorelei">
+            </div>
+            <div>
+                <label style="font-size:0.8rem">NPC</label>
+                <select class="form-input" id="league-slot-npc-${i}">
+                    <option value="">— Sem NPC —</option>
+                    ${window.ALL_NPCS ? window.ALL_NPCS.map(n => `<option value="${n.id}" ${s.leader_npc_id===n.id?'selected':''}>${n.name}</option>`).join('') : ''}
+                </select>
+            </div>
+            <div style="display:flex;gap:0.25rem;align-items:center;padding-top:1.25rem;">
+                <label style="font-size:0.75rem;white-space:nowrap">
+                    <input type="checkbox" id="league-slot-champion-${i}" ${s.is_champion?'checked':''}>
+                    Campeão
+                </label>
+                <button class="btn btn-sm btn-danger" onclick="removeLeagueSlot(${i})">✕</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addLeagueSlot() {
+    leagueSlots.push({ title: `Elite ${leagueSlots.length + 1}`, leader_name: '', leader_npc_id: null, is_champion: false });
+    renderLeagueEditor();
+}
+
+function removeLeagueSlot(i) {
+    leagueSlots.splice(i, 1);
+    renderLeagueEditor();
+}
+
+async function saveLeagueSlots() {
+    // Read current form values
+    leagueSlots = leagueSlots.map((_, i) => ({
+        title:          document.getElementById(`league-slot-title-${i}`)?.value.trim() || `Membro ${i+1}`,
+        leader_name:    document.getElementById(`league-slot-leader-${i}`)?.value.trim() || '',
+        leader_npc_id:  document.getElementById(`league-slot-npc-${i}`)?.value || null,
+        is_champion:    document.getElementById(`league-slot-champion-${i}`)?.checked || false
+    }));
+
+    const res = await fetch('/api/league/slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slots: leagueSlots })
+    });
+    if (res.ok) {
+        const msg = document.getElementById('league-save-msg');
+        if (msg) { msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 2500); }
+    }
+}
+
+// Populate NPC select in gym form when NPCs load
+socket.on('npcs_update', data => {
+    window.ALL_NPCS = data.npcs || [];
+    const sel = document.getElementById('gym-leader-npc');
+    if (sel) {
+        sel.innerHTML = '<option value="">— Sem NPC —</option>' +
+            window.ALL_NPCS.map(n => `<option value="${n.id}">${n.name}</option>`).join('');
+    }
+});
+
+socket.on('gyms_updated', data => {
+    masterGyms = data.gyms || [];
+    renderMasterGyms();
+});
+
+socket.on('league_updated', data => {
+    leagueSlots = data.slots || [];
+    renderLeagueEditor();
+});
+
+socket.on('badge_awarded', data => {
+    console.log(`[Liga] ${data.player || 'Jogador'} conquistou: ${data.badge} (${data.gym})`);
+});
+
+socket.on('league_completed', data => {
+    alert(`🏆 ${data.player_name} se tornou Campeão da Liga Pokémon!`);
+});
+
+// Load when tab opened
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelector('[data-tab="gyms"]')?.addEventListener('click', () => {
+        loadMasterGyms();
+        loadMasterLeague();
+    });
+});
