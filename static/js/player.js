@@ -628,7 +628,7 @@ async function useMove(moveName) {
     
     if (isMiss) {
         addBattleLog(`❌ Falha crítica!`);
-        socket.emit('battle_action', { action_by: 'player', action_type: 'attack', move_name: moveName, damage: 0, message: 'Nat 1 - Falha' });
+        socket.emit('battle_action', { action_by: 'player', action_type: 'attack', move_name: moveName, damage: 0, player_status_damage: window._playerPreTurnStatusDamage || 0, message: 'Nat 1 - Falha' });
     } else if (totalAttack >= enemyAC || isCrit) {
         // Auto-calculate damage with level-scaled dice
         const scaledDice = getScaledDice(m.baseDamage || '1d6', pokeLevel, m.higherLevels || '');
@@ -693,12 +693,13 @@ async function useMove(moveName) {
         socket.emit('battle_action', {
             action_by: 'player', action_type: 'attack', move_name: moveName,
             damage: damage, message: `${totalAttack} vs AC ${enemyAC}${isCrit ? ' Crítico!' : ''}`,
+            player_status_damage: window._playerPreTurnStatusDamage || 0,
             status_effect: window._lastStatusInflicted || null
         });
         window._lastStatusInflicted = null;
     } else {
         addBattleLog(`❌ Errou! (${totalAttack} < AC ${enemyAC})`);
-        socket.emit('battle_action', { action_by: 'player', action_type: 'attack', move_name: moveName, damage: 0, message: `Errou (${totalAttack} vs AC ${enemyAC})` });
+        socket.emit('battle_action', { action_by: 'player', action_type: 'attack', move_name: moveName, damage: 0, player_status_damage: window._playerPreTurnStatusDamage || 0, message: `Errou (${totalAttack} vs AC ${enemyAC})` });
     }
 }
 
@@ -768,7 +769,7 @@ function getProficiencyForLevel(level) {
 function passTurn() {
     if (window.currentTurn !== 'player') return;
     addBattleLog(`⏭️ Turno passado.`);
-    socket.emit('battle_action', { action_by: 'player', action_type: 'pass', move_name: 'Passar', damage: 0, message: 'Passou o turno' });
+    socket.emit('battle_action', { action_by: 'player', action_type: 'pass', move_name: 'Passar', damage: 0, player_status_damage: window._playerPreTurnStatusDamage || 0, message: 'Passou o turno' });
 }
 
 function throwPokeball() {
@@ -2527,6 +2528,7 @@ async function checkMoveStatusEffect(moveName, attackRoll, damage) {
 async function processPlayerTurnStart() {
     // Process status effects at start of player turn.
     if (!window.playerPokemonStatus) return true;
+    window._playerPreTurnStatusDamage = 0;
     
     try {
         const resp = await fetch('/api/check-status', {
@@ -2543,6 +2545,7 @@ async function processPlayerTurnStart() {
         data.messages.forEach(msg => addBattleLog(msg));
         
         if (data.damage > 0) {
+            window._playerPreTurnStatusDamage = data.damage;
             // Apply self-damage from status
             const hpText = document.getElementById('battle-player-hp-text-full').textContent;
             const hpMatch = hpText.match(/(\d+)\/(\d+)/);
@@ -2647,7 +2650,12 @@ updateTurnUI = async function() {
         if (!canAct) {
             addBattleLog('⏭️ Seu Pokémon não conseguiu agir por causa do status!');
             // Pass the turn (this will trigger server to switch to wild turn)
-            socket.emit('battle_action', { action_by: 'player', action_type: 'pass', move_name: 'Status impediu', damage: 0, message: 'Não pôde agir' });
+            socket.emit('battle_action', {
+                action_by: 'player', action_type: 'pass',
+                move_name: 'Status impediu', damage: 0,
+                player_status_damage: window._playerPreTurnStatusDamage || 0,
+                message: 'Não pôde agir'
+            });
         }
     }
 };
@@ -2704,6 +2712,8 @@ async function _executeWildTurn() {
     const wildStats = enemy?.stats || {};
     
     // === PRE-TURN: Process wild pokemon's status (poison/burn damage, paralysis/sleep/freeze check) ===
+    let wildPreTurnStatusDamage = 0;
+    window._wildPreTurnStatusDamage = 0;
     if (window.wildPokemonStatus) {
         try {
             const resp = await fetch('/api/check-status', {
@@ -2719,7 +2729,9 @@ async function _executeWildTurn() {
             statusResult.messages.forEach(msg => addBattleLog(`🔴 ${msg}`));
             
             if (statusResult.damage > 0) {
-                // Apply status damage directly to wild HP display (no server round-trip)
+                wildPreTurnStatusDamage = statusResult.damage;
+                window._wildPreTurnStatusDamage = statusResult.damage;
+                // Apply status damage directly to wild HP display
                 const hpText = document.getElementById('battle-enemy-hp-text-full')?.textContent || '';
                 const hpMatch = hpText.match(/(\d+)\/(\d+)/);
                 if (hpMatch) {
@@ -2734,6 +2746,13 @@ async function _executeWildTurn() {
                         window.wildFainted = true;
                         window.currentTurn = 'player';
                         updateTurnUI();
+                        // Sync status damage with server
+                        socket.emit('battle_action', {
+                            action_by: 'master', action_type: 'pass',
+                            move_name: 'Desmaiou por status', damage: 0,
+                            wild_status_damage: wildPreTurnStatusDamage,
+                            message: 'Desmaiou por dano de condição'
+                        });
                         return;
                     }
                 }
@@ -2744,10 +2763,12 @@ async function _executeWildTurn() {
             }
             if (!statusResult.can_act) {
                 addBattleLog(`🔴 Pokémon Selvagem não conseguiu agir!`);
-                // Pass the turn to player without attacking
+                // Pass the turn to player without attacking, but sync status damage
                 socket.emit('battle_action', {
                     action_by: 'master', action_type: 'pass',
-                    move_name: 'Status impediu', damage: 0, message: 'Selvagem não pôde agir'
+                    move_name: 'Status impediu', damage: 0,
+                    wild_status_damage: wildPreTurnStatusDamage,
+                    message: 'Selvagem não pôde agir'
                 });
                 return;
             }
@@ -2782,7 +2803,9 @@ async function _executeWildTurn() {
         addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> → Move ${moveName} não encontrado`);
         socket.emit('battle_action', {
             action_by: 'master', action_type: 'attack',
-            move_name: moveName, damage: 0, message: `Move ${moveName} não encontrado`
+            move_name: moveName, damage: 0,
+            wild_status_damage: wildPreTurnStatusDamage,
+            message: `Move ${moveName} não encontrado`
         });
         return;
     }
@@ -2852,7 +2875,9 @@ async function _executeWildTurn() {
         addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> ${categoryLabel} → d20(${attackRoll}) 💨 Falha Crítica!`);
         socket.emit('battle_action', {
             action_by: 'master', action_type: 'attack',
-            move_name: moveName, damage: 0, message: 'Nat 1 - Falha'
+            move_name: moveName, damage: 0,
+            wild_status_damage: wildPreTurnStatusDamage,
+            message: 'Nat 1 - Falha'
         });
     } else if (totalAttack >= targetAC || isCrit) {
         // Calculate damage with scaling
@@ -2912,6 +2937,7 @@ async function _executeWildTurn() {
         socket.emit('battle_action', {
             action_by: 'master', action_type: 'attack',
             move_name: moveName, damage: damage,
+            wild_status_damage: wildPreTurnStatusDamage,
             status_effect: window._wildStatusApplied || null,
             message: `${totalAttack} vs AC ${targetAC}${isCrit ? ' Crítico!' : ''}`
         });
@@ -2920,7 +2946,9 @@ async function _executeWildTurn() {
         addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> ${categoryLabel} → d20(${attackRoll})+${moveMod}+${profBonus}${wildAccMod ? `+Acc(${wildAccMod})` : ''}=${totalAttack} vs ${defLabel}(${targetAC}) ❌ Errou!${window.playerDodging ? ' (esquivou!)' : ''}`);
         socket.emit('battle_action', {
             action_by: 'master', action_type: 'attack',
-            move_name: moveName, damage: 0, message: `Errou (${totalAttack} vs AC ${targetAC})`
+            move_name: moveName, damage: 0,
+            wild_status_damage: wildPreTurnStatusDamage,
+            message: `Errou (${totalAttack} vs AC ${targetAC})`
         });
     }
 }
@@ -3198,6 +3226,7 @@ function useBattleItem(itemName) {
     socket.emit('battle_action', {
         action_by: 'player', action_type: 'item',
         move_name: `Usou ${itemName}`, damage: 0,
+        player_status_damage: window._playerPreTurnStatusDamage || 0,
         message: info.description
     });
     
@@ -3305,6 +3334,7 @@ async function processStatusMove(moveName, attackerPoke, targetPoke) {
         socket.emit('battle_action', {
             action_by: 'player', action_type: 'status',
             move_name: moveName, damage: 0,
+            player_status_damage: window._playerPreTurnStatusDamage || 0,
             status_effect: result.status_applied || null,
             message: result.message
         });
@@ -3313,7 +3343,9 @@ async function processStatusMove(moveName, attackerPoke, targetPoke) {
         addBattleLog(`▶️ <strong>${moveName}</strong> usado! (efeito de utilidade)`);
         socket.emit('battle_action', {
             action_by: 'player', action_type: 'status',
-            move_name: moveName, damage: 0, message: 'Move de status'
+            move_name: moveName, damage: 0,
+            player_status_damage: window._playerPreTurnStatusDamage || 0,
+            message: 'Move de status'
         });
     }
 }
@@ -3383,7 +3415,9 @@ async function processWildStatusMove(moveName) {
             addBattleLog(`💚 Selvagem recuperou ${result.heal} HP!`);
             socket.emit('battle_action', {
                 action_by: 'master', action_type: 'heal',
-                move_name: moveName, heal: result.heal, damage: 0, message: result.message
+                move_name: moveName, heal: result.heal, damage: 0,
+                wild_status_damage: window._wildPreTurnStatusDamage || 0,
+                message: result.message
             });
             return;
         }
@@ -3391,6 +3425,7 @@ async function processWildStatusMove(moveName) {
         socket.emit('battle_action', {
             action_by: 'master', action_type: 'status',
             move_name: moveName, damage: 0,
+            wild_status_damage: window._wildPreTurnStatusDamage || 0,
             status_effect: result.status_applied || null,
             message: result.message
         });
@@ -3398,7 +3433,9 @@ async function processWildStatusMove(moveName) {
         addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong>! (status)`);
         socket.emit('battle_action', {
             action_by: 'master', action_type: 'status',
-            move_name: moveName, damage: 0, message: 'Status move'
+            move_name: moveName, damage: 0,
+            wild_status_damage: window._wildPreTurnStatusDamage || 0,
+            message: 'Status move'
         });
     }
 }

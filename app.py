@@ -1219,6 +1219,9 @@ def handle_battle_action(data):
         heal = data.get('heal', 0)
         status_effect = data.get('status_effect', None)
         message = data.get('message', '')
+        # Pre-turn status damage (applied before this action, doesn't switch turn)
+        wild_status_damage = data.get('wild_status_damage', 0)
+        player_status_damage = data.get('player_status_damage', 0)
         
         game_state = get_game_state()
         encounter = game_state['active_encounters'].get(player_id)
@@ -1226,6 +1229,12 @@ def handle_battle_action(data):
             return
         
         battle_state = encounter['battle_state']
+        
+        # Apply pre-turn status damage first (doesn't count as an action)
+        if wild_status_damage > 0:
+            battle_state['wild_hp_current'] = max(0, battle_state['wild_hp_current'] - wild_status_damage)
+        if player_status_damage > 0:
+            battle_state['player_hp_current'] = max(0, battle_state['player_hp_current'] - player_status_damage)
         
         # Apply damage
         if action_by == 'player' and damage > 0:
