@@ -410,17 +410,21 @@ async function startBattle() {
     // Store current battle data
     window.currentBattleData = { enemy, playerPokemon, level: currentEncounter.level };
 
+    // Fire battle transition, then fill data
+    await playBattleTransition();
+    showBattlePanel('menu');
+
     // Fill enemy data
     const enemySpriteUrl = getPokemonSpriteUrl(enemy.number, currentEncounter.is_shiny);
-    console.log('SPRITE enemy:', enemy.number, enemySpriteUrl);
     document.getElementById('battle-enemy-sprite').src = enemySpriteUrl;
     battleSpriteEnter('battle-enemy-sprite', 'enemy');
-    document.getElementById('battle-enemy-name-full').textContent = `${enemy.name} Nv.${currentEncounter.level}`;
+    document.getElementById('battle-enemy-name-full').textContent = enemy.name;
+    document.getElementById('battle-enemy-level-badge').textContent = `Nv.${currentEncounter.level}`;
     document.getElementById('battle-enemy-types').innerHTML = formatTypes(enemy.types);
     document.getElementById('battle-enemy-hp-text-full').textContent = `${enemy.hp}/${enemy.hp} HP`;
     document.getElementById('battle-enemy-hp-bar-full').style.width = '100%';
-    document.getElementById('battle-enemy-ac').textContent = enemy.ac;
-    document.getElementById('battle-enemy-speed').textContent = enemy.speed || '30ft';
+    const eac = document.getElementById('battle-enemy-ac'); if (eac) eac.textContent = enemy.ac;
+    const espd = document.getElementById('battle-enemy-speed'); if (espd) espd.textContent = enemy.speed || '30ft';
 
     // Enemy stats
     const enemyStats = document.getElementById('battle-enemy-stats');
@@ -447,7 +451,9 @@ async function startBattle() {
     console.log('SPRITE player:', pNum, playerSpriteUrl);
     document.getElementById('battle-player-sprite').src = playerSpriteUrl;
     battleSpriteEnter('battle-player-sprite', 'player');
-    document.getElementById('battle-player-name-full').textContent = `${playerPokemon.nickname || playerPokemon.name} Nv.${playerPokemon.level}`;
+    document.getElementById('battle-player-name-full').textContent = playerPokemon.nickname || playerPokemon.name;
+    const plvlBadge = document.getElementById('battle-player-level-badge');
+    if (plvlBadge) plvlBadge.textContent = `Nv.${playerPokemon.level}`;
     document.getElementById('battle-player-types').innerHTML = formatTypes(playerPokemon.types || []);
     const pHp = playerPokemon.currentHp || playerPokemon.maxHp || 20;
     const pMax = playerPokemon.maxHp || 20;
@@ -1682,6 +1688,50 @@ function playSound(type) {
             osc.start(now); osc.stop(now + 0.3);
         }
     } catch(e) { /* audio not available */ }
+}
+
+// ── Battle panel switcher (menu / moves / extra) ──────────────
+function showBattlePanel(panel) {
+    const menu  = document.getElementById('poke-main-menu');
+    const moves = document.getElementById('poke-moves-panel');
+    const extra = document.getElementById('poke-extra-panel');
+    const toggle = document.getElementById('poke-extras-toggle');
+    if (!menu) return;
+    menu.classList.add('hidden');
+    if (moves) moves.classList.add('hidden');
+    if (extra) extra.classList.add('hidden');
+    if (panel === 'menu')  { menu.classList.remove('hidden'); }
+    if (panel === 'moves') { if (moves) moves.classList.remove('hidden'); }
+    if (panel === 'extra') { if (extra) extra.classList.remove('hidden'); }
+    if (toggle) toggle.style.display = panel === 'extra' ? 'none' : '';
+}
+
+// ── Battle transition animation ───────────────────────────────
+function playBattleTransition() {
+    return new Promise(resolve => {
+        const el = document.getElementById('battle-transition');
+        if (!el) { resolve(); return; }
+        el.classList.remove('hidden', 'phase-spin', 'phase-flash', 'phase-poke');
+
+        // Phase 1 — spinning lines (200ms)
+        setTimeout(() => el.classList.add('phase-spin'), 10);
+        // Phase 2 — white flash (400ms)
+        setTimeout(() => {
+            el.classList.remove('phase-spin');
+            el.classList.add('phase-flash');
+        }, 220);
+        // Phase 3 — pokeball (600ms)
+        setTimeout(() => {
+            el.classList.remove('phase-flash');
+            el.classList.add('phase-poke');
+        }, 440);
+        // Done — hide overlay
+        setTimeout(() => {
+            el.classList.remove('phase-poke');
+            el.classList.add('hidden');
+            resolve();
+        }, 900);
+    });
 }
 
 function battleSpriteEnter(spriteId, side) {

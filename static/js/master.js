@@ -1502,6 +1502,13 @@ function renderMasterPvpBattles() {
             ? `<button style="background:#ff9800;color:#000;border:none;padding:0.2rem 0.6rem;border-radius:4px;cursor:pointer;font-size:0.8rem;"
                   onclick="masterForceAction('${b.battle_id}','${b.turn}')">⚡ Forçar Ação</button>`
             : '';
+        // Button to force NPC pokemon selection when stuck in selection phase
+        const p1NeedsSelect = b.phase === 'selection' && b.p1_is_npc && b.p1_pokemon === '?';
+        const p2NeedsSelect = b.phase === 'selection' && b.p2_is_npc && b.p2_pokemon === '?';
+        const forceSelectBtn = (p1NeedsSelect || p2NeedsSelect)
+            ? `<button style="background:#2196f3;color:#fff;border:none;padding:0.2rem 0.6rem;border-radius:4px;cursor:pointer;font-size:0.8rem;"
+                  onclick="masterForceNpcSelect('${b.battle_id}','${p1NeedsSelect ? 'player1' : 'player2'}')">🎯 Forçar Seleção NPC</button>`
+            : '';
         const p1HpColor = b.p1_hp <= 0 ? '#f44336' : (b.p1_hp < b.p1_maxhp * 0.3 ? '#ff9800' : '#4caf50');
         const p2HpColor = b.p2_hp <= 0 ? '#f44336' : (b.p2_hp < b.p2_maxhp * 0.3 ? '#ff9800' : '#4caf50');
         return `
@@ -1520,6 +1527,7 @@ function renderMasterPvpBattles() {
                 ${turnLabel}
                 ${b.winner ? `<span style="color:#ffd700">🏆 Vencedor: ${b.winner==='player1'?b.p1_name:b.p2_name}</span>` : ''}
                 ${forceBtn}
+                ${forceSelectBtn}
             </div>
         </div>`;
     }).join('');
@@ -1548,6 +1556,10 @@ socket.on('master_error', (data) => {
 
 function masterForceAction(battleId, playerKey) {
     socket.emit('master_force_npc_action', { battle_id: battleId, player_key: playerKey });
+}
+
+function masterForceNpcSelect(battleId, playerKey) {
+    socket.emit('master_force_npc_select', { battle_id: battleId, player_key: playerKey });
 }
 
 socket.on('master_force_npc_result', (data) => {

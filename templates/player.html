@@ -89,114 +89,176 @@
     <!-- TAB: BATTLE -->
     <div class="tab-content" id="tab-battle">
         <h2>Batalha</h2>
+
+        <!-- Battle transition overlay -->
+        <div id="battle-transition" class="battle-transition hidden">
+            <div class="bt-lines"></div>
+            <div class="bt-flash"></div>
+            <div class="bt-pokeball">
+                <img src="/static/img/pokeball-icon.svg" alt="">
+            </div>
+        </div>
+
         <div id="battle-screen" class="battle-screen-full">
             <div id="no-battle-msg" class="empty-state">
                 <p>Nenhuma batalha ativa. Encontre um Pokémon selvagem na aba Encontro!</p>
             </div>
-            
-            <!-- Battle Area -->
+
+            <!-- Battle Area — DS layout -->
             <div id="battle-area" class="hidden">
-                <div class="battle-field-full">
-                    <!-- Enemy Side -->
-                    <div class="battle-side-full enemy-side">
-                        <h3>Pokémon Selvagem</h3>
-                        <div class="battle-pokemon-full">
-                            <img id="battle-enemy-sprite" src="" class="battle-sprite">
-                            <h4 id="battle-enemy-name-full"></h4>
-                            <div id="battle-enemy-types" class="type-badges"></div>
-                            <div class="hp-bar-container">
-                                <div class="hp-bar enemy-hp" id="battle-enemy-hp-bar-full" style="width: 100%"></div>
+
+                <!-- ── SCENE ─────────────────────────────────────── -->
+                <div class="poke-scene">
+
+                    <!-- Grass / field background -->
+                    <div class="poke-scene-bg">
+                        <div class="scene-grass enemy-grass"></div>
+                        <div class="scene-grass player-grass"></div>
+                    </div>
+
+                    <!-- Enemy platform + sprite + HP box -->
+                    <div class="poke-enemy-block">
+                        <div class="poke-hpbox enemy-hpbox">
+                            <div class="hpbox-name">
+                                <span id="battle-enemy-name-full">???</span>
+                                <span class="hpbox-level" id="battle-enemy-level-badge"></span>
                             </div>
-                            <span id="battle-enemy-hp-text-full" class="hp-text"></span>
-                            <div class="battle-stats-mini">
-                                <span>AC: <strong id="battle-enemy-ac"></strong></span>
-                                <span>SPD: <strong id="battle-enemy-speed"></strong></span>
+                            <div id="battle-enemy-types" class="type-badges hpbox-types"></div>
+                            <div class="hpbox-bar-row">
+                                <span class="hpbox-hp-label">HP</span>
+                                <div class="hp-bar-container hpbox-bar-container">
+                                    <div class="hp-bar enemy-hp" id="battle-enemy-hp-bar-full" style="width:100%"></div>
+                                </div>
                             </div>
-                            <div class="battle-pokemon-details">
-                                <h5>Stats:</h5>
-                                <div class="mini-stats" id="battle-enemy-stats"></div>
-                                <h5>Moves:</h5>
-                                <div class="battle-moves-list" id="battle-enemy-moves"></div>
-                                <h5>Habilidade:</h5>
-                                <p id="battle-enemy-ability" class="ability-text"></p>
+                            <span id="battle-enemy-hp-text-full" class="hpbox-hp-num"></span>
+                        </div>
+                        <div class="poke-sprite-wrap enemy-sprite-wrap">
+                            <img id="battle-enemy-sprite" src="" class="battle-sprite poke-sprite-enemy">
+                        </div>
+                        <div class="poke-platform enemy-platform"></div>
+                    </div>
+
+                    <!-- Player platform + sprite + HP box -->
+                    <div class="poke-player-block">
+                        <div class="poke-sprite-wrap player-sprite-wrap">
+                            <img id="battle-player-sprite" src="" class="battle-sprite poke-sprite-player">
+                        </div>
+                        <div class="poke-platform player-platform"></div>
+                        <div class="poke-hpbox player-hpbox">
+                            <div class="hpbox-name">
+                                <span id="battle-player-name-full">???</span>
+                                <span class="hpbox-level" id="battle-player-level-badge"></span>
+                            </div>
+                            <div id="battle-player-types" class="type-badges hpbox-types"></div>
+                            <div class="hpbox-bar-row">
+                                <span class="hpbox-hp-label">HP</span>
+                                <div class="hp-bar-container hpbox-bar-container">
+                                    <div class="hp-bar player-hp" id="battle-player-hp-bar-full" style="width:100%"></div>
+                                </div>
+                            </div>
+                            <div class="hpbox-hp-nums">
+                                <span id="battle-player-hp-text-full" class="hpbox-hp-num"></span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- VS -->
-                    <div class="battle-vs">VS</div>
+                </div><!-- /poke-scene -->
 
-                    <!-- Player Side -->
-                    <div class="battle-side-full player-side">
-                        <h3>Seu Pokémon</h3>
-                        <div class="battle-pokemon-full">
-                            <img id="battle-player-sprite" src="" class="battle-sprite">
-                            <h4 id="battle-player-name-full"></h4>
-                            <div id="battle-player-types" class="type-badges"></div>
-                            <div class="hp-bar-container">
-                                <div class="hp-bar player-hp" id="battle-player-hp-bar-full" style="width: 100%"></div>
+                <!-- ── BOTTOM PANEL ───────────────────────────────── -->
+                <div class="poke-bottom-panel">
+
+                    <!-- Text box (log) -->
+                    <div class="poke-textbox" id="battle-log-full"></div>
+
+                    <!-- Main menu: LUTA / MOCHILA / POKÉMON / FUGIR -->
+                    <div class="poke-menu" id="poke-main-menu">
+                        <button class="poke-menu-btn fight-btn" onclick="showBattlePanel('moves')">
+                            <span class="pmb-icon">⚔️</span><span>LUTAR</span>
+                        </button>
+                        <button class="poke-menu-btn bag-btn" onclick="openBattleItems()">
+                            <span class="pmb-icon">🎒</span><span>MOCHILA</span>
+                        </button>
+                        <button class="poke-menu-btn poke-btn" onclick="switchPokemon()">
+                            <span class="pmb-icon">🔄</span><span>POKÉMON</span>
+                        </button>
+                        <button class="poke-menu-btn run-btn" onclick="endBattle('fled')">
+                            <span class="pmb-icon">🏃</span><span>FUGIR</span>
+                        </button>
+                    </div>
+
+                    <!-- Move list (shown when LUTAR is pressed) -->
+                    <div class="poke-moves-panel hidden" id="poke-moves-panel">
+                        <div class="battle-moves-list selectable" id="battle-player-moves"></div>
+                        <button class="poke-back-btn" onclick="showBattlePanel('menu')">◀ Voltar</button>
+                    </div>
+
+                    <!-- Extra actions panel (hidden by default, toggle with ⚙️) -->
+                    <div class="poke-extra-panel hidden" id="poke-extra-panel">
+                        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;">
+                            <button class="btn btn-primary hidden" id="btn-pass-turn" onclick="passTurn()">⏭️ Passar</button>
+                            <button class="btn btn-accent hidden" id="btn-mega-evolve" onclick="megaEvolve()">🔮 Mega</button>
+                            <button class="btn btn-secondary" id="btn-dodge" onclick="toggleDodge()">🏃 Esquiva: OFF</button>
+                            <button class="btn btn-success" onclick="endBattle('defeated')">💀 Derrotei!</button>
+                            <button class="btn btn-warning" onclick="endBattle('fainted')">😵 Desmaiou</button>
+                            <button class="btn btn-secondary" onclick="registerBattlePokedex()" style="font-size:0.8rem;">📖 +Pokédex</button>
+                            <!-- Pokeball row -->
+                            <select id="pokeball-select" style="background:var(--card-bg);color:var(--text);border:1px solid var(--card-border);border-radius:var(--radius);padding:0.3rem 0.5rem;font-size:0.8rem;">
+                                <option value="pokeball">🔴 Pokébola (+0)</option>
+                                <option value="greatball">🔵 Super Bola (+2)</option>
+                                <option value="ultraball">⚫ Ultra Bola (+4)</option>
+                                <option value="netball">🟢 Net Bola (+3 Bug/Water)</option>
+                                <option value="healball">🩷 Cura Bola</option>
+                                <option value="masterball">🟣 Master Ball (Auto)</option>
+                            </select>
+                            <button class="btn btn-danger" id="btn-throw-pokeball" onclick="throwPokeball()">Capturar</button>
+                        </div>
+                        <!-- Dice -->
+                        <div class="dice-section" style="margin-top:0.5rem;padding:0;">
+                            <div class="dice-buttons" style="justify-content:flex-start;">
+                                <button class="btn btn-dice" onclick="rollDice(4)">d4</button>
+                                <button class="btn btn-dice" onclick="rollDice(6)">d6</button>
+                                <button class="btn btn-dice" onclick="rollDice(8)">d8</button>
+                                <button class="btn btn-dice" onclick="rollDice(10)">d10</button>
+                                <button class="btn btn-dice" onclick="rollDice(12)">d12</button>
+                                <button class="btn btn-dice" onclick="rollDice(20)">d20</button>
                             </div>
-                            <span id="battle-player-hp-text-full" class="hp-text"></span>
-                            <div class="battle-stats-mini">
-                                <span>AC: <strong id="battle-player-ac"></strong></span>
-                                <span>SPD: <strong id="battle-player-speed"></strong></span>
+                            <div class="dice-custom">
+                                <input type="text" id="dice-custom-input" placeholder="Ex: 2d6+3">
+                                <button class="btn btn-primary btn-sm" onclick="rollCustomDice()">Rolar</button>
                             </div>
-                            <div class="battle-pokemon-details">
-                                <h5>Stats:</h5>
-                                <div class="mini-stats" id="battle-player-stats"></div>
-                                <h5>Moves (clique para usar):</h5>
-                                <div class="battle-moves-list selectable" id="battle-player-moves"></div>
+                            <div class="dice-result" id="dice-result">
+                                <div class="dice-animation" id="dice-animation"></div>
+                                <span id="dice-result-text"></span>
                             </div>
                         </div>
+                        <button class="poke-back-btn" onclick="showBattlePanel('menu')">◀ Voltar</button>
                     </div>
-                </div>
 
-                <!-- Dice Roller -->
-                <div class="dice-section">
-                    <h4>🎲 Rolar Dados</h4>
-                    <div class="dice-buttons">
-                        <button class="btn btn-dice" onclick="rollDice(4)">d4</button>
-                        <button class="btn btn-dice" onclick="rollDice(6)">d6</button>
-                        <button class="btn btn-dice" onclick="rollDice(8)">d8</button>
-                        <button class="btn btn-dice" onclick="rollDice(10)">d10</button>
-                        <button class="btn btn-dice" onclick="rollDice(12)">d12</button>
-                        <button class="btn btn-dice" onclick="rollDice(20)">d20</button>
-                        <button class="btn btn-dice" onclick="rollDice(100)">d100</button>
-                    </div>
-                    <div class="dice-custom">
-                        <input type="text" id="dice-custom-input" placeholder="Ex: 2d6+3">
-                        <button class="btn btn-primary btn-sm" onclick="rollCustomDice()">Rolar</button>
-                    </div>
-                    <div class="dice-result" id="dice-result">
-                        <div class="dice-animation" id="dice-animation"></div>
-                        <span id="dice-result-text"></span>
-                    </div>
-                </div>
+                    <!-- Toggle extras button -->
+                    <button class="poke-extras-toggle" id="poke-extras-toggle" onclick="showBattlePanel('extra')" title="Mais opções">⚙️</button>
 
-                <!-- Battle Log -->
-                <div class="battle-log-full" id="battle-log-full"></div>
+                </div><!-- /poke-bottom-panel -->
 
-                <!-- Battle Actions -->
-                <div class="battle-end-actions">
-                    <button class="btn btn-primary hidden" id="btn-pass-turn" onclick="passTurn()">⏭️ Passar Turno</button>
-                    <button class="btn btn-accent hidden" id="btn-mega-evolve" onclick="megaEvolve()">🔮 Mega Evoluir!</button>
-                    <button class="btn btn-secondary" id="btn-switch-pokemon" onclick="switchPokemon()">🔄 Trocar Pokémon</button>
-                    <button class="btn btn-warning" id="btn-use-item" onclick="openBattleItems()">🎒 Usar Item</button>
-                    <button class="btn btn-secondary" id="btn-dodge" onclick="toggleDodge()" style="border:2px solid var(--accent);">🏃 Esquiva: OFF</button>
-                    <select id="pokeball-select" style="background:var(--card-bg);color:var(--text);border:1px solid var(--card-border);border-radius:var(--radius);padding:0.3rem 0.5rem;font-size:0.85rem;">
-                        <option value="pokeball">🔴 Pokébola (+0)</option>
-                        <option value="greatball">🔵 Super Bola (+2)</option>
-                        <option value="ultraball">⚫ Ultra Bola (+4)</option>
-                        <option value="netball">🟢 Net Bola (+3 Bug/Water)</option>
-                        <option value="healball">🩷 Cura Bola (cura ao capturar)</option>
-                        <option value="masterball">🟣 Master Ball (Auto)</option>
-                    </select>
-                    <button class="btn btn-danger" id="btn-throw-pokeball" onclick="throwPokeball()">Arremessar</button>
-                    <button class="btn btn-success" onclick="endBattle('defeated')">💀 Derrotei!</button>
-                    <button class="btn btn-secondary" onclick="endBattle('fled')">🏃 Fugir</button>
-                    <button class="btn btn-warning" onclick="endBattle('fainted')">😵 Meu Pokémon Desmaiou</button>
-                    <button class="btn btn-secondary" onclick="registerBattlePokedex()" title="Registrar Pokémon na Pokédex" style="font-size:0.8rem;">📖 +Pokédex</button>
-                </div>
+                <!-- Enemy details (collapsible) -->
+                <details class="battle-enemy-details-drawer" id="enemy-details-drawer">
+                    <summary>📋 Detalhes do inimigo</summary>
+                    <div style="display:flex;gap:1rem;flex-wrap:wrap;padding:0.5rem 0;">
+                        <div>
+                            <strong>AC:</strong> <span id="battle-enemy-ac"></span> &nbsp;
+                            <strong>SPD:</strong> <span id="battle-enemy-speed"></span>
+                        </div>
+                        <div class="mini-stats" id="battle-enemy-stats"></div>
+                    </div>
+                    <div style="margin-top:0.3rem;">
+                        <strong>Moves:</strong>
+                        <div class="battle-moves-list" id="battle-enemy-moves" style="margin-top:0.3rem;"></div>
+                    </div>
+                    <p id="battle-enemy-ability" class="ability-text" style="margin-top:0.4rem;"></p>
+                    <!-- Hidden fields kept for JS compatibility -->
+                    <span id="battle-player-ac" style="display:none"></span>
+                    <span id="battle-player-speed" style="display:none"></span>
+                    <div id="battle-player-stats" style="display:none"></div>
+                </details>
                 
                 <!-- Switch Pokemon Modal -->
                 <div id="switch-pokemon-modal" class="modal hidden">

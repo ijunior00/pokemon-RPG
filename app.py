@@ -2547,14 +2547,30 @@ def handle_pvp_select(data):
         player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
         
         success, result = pvp.select_pokemon(battle, player_key, pokemon_idx)
-        
+
+        # If the opponent is an NPC and hasn't selected yet, auto-select for them
+        opponent_key = 'player2' if player_key == 'player1' else 'player1'
+        if result == 'waiting_opponent' and battle[opponent_key].get('is_npc'):
+            npc_idx = 0
+            opp_team = battle[opponent_key]['team']
+            if opp_team:
+                success2, result = pvp.select_pokemon(battle, opponent_key, npc_idx)
+
         if result == 'battle_start':
-            # Both ready - send full battle state to each
+            # Send state to human player(s) only; skip NPC rooms
+            p1_is_npc = battle['player1'].get('is_npc', False)
+            p2_is_npc = battle['player2'].get('is_npc', False)
             p1_state = pvp.get_battle_state_for_player(battle, 'player1')
             p2_state = pvp.get_battle_state_for_player(battle, 'player2')
-            emit('pvp_battle_state', p1_state, room=battle['player1']['id'])
-            emit('pvp_battle_state', p2_state, room=battle['player2']['id'])
+            if not p1_is_npc:
+                emit('pvp_battle_state', p1_state, room=battle['player1']['id'])
+            if not p2_is_npc:
+                emit('pvp_battle_state', p2_state, room=battle['player2']['id'])
             _emit_pvp_to_master(battle, 'battle_started')
+            # If it's the NPC's turn first, trigger their turn immediately
+            first_turn_key = battle.get('turn')
+            if first_turn_key and battle[first_turn_key].get('is_npc'):
+                handle_npc_turn(battle, first_turn_key)
         elif result == 'waiting_opponent':
             emit('pvp_waiting', {'message': 'Aguardando oponente escolher Pokémon...'})
 
@@ -2835,6 +2851,36 @@ def _handle_pvp_permadeath(battle):
     }, room='master')
 
 
+@socketio.on('master_force_npc_select')
+def handle_master_force_npc_select(data):
+    """Master forces an NPC to select their starting pokemon."""
+    if not current_user.is_authenticated or current_user.role != 'master':
+        return
+    battle_id = data.get('battle_id')
+    player_key = data.get('player_key')
+    battle = ACTIVE_PVP.get(battle_id)
+    if not battle or battle['phase'] != 'selection':
+        emit('master_error', {'msg': 'Batalha não está em fase de seleção.'})
+        return
+    team = battle[player_key].get('team', [])
+    if not team:
+        emit('master_error', {'msg': 'NPC não tem equipe.'})
+        return
+    success, result = pvp.select_pokemon(battle, player_key, 0)
+    if result == 'battle_start':
+        opponent_key = 'player2' if player_key == 'player1' else 'player1'
+        opp_is_npc = battle[opponent_key].get('is_npc', False)
+        if not opp_is_npc:
+            state = pvp.get_battle_state_for_player(battle, opponent_key)
+            socketio.emit('pvp_battle_state', state, room=battle[opponent_key]['id'])
+        _emit_pvp_to_master(battle, 'battle_started')
+        if battle[battle['turn']].get('is_npc'):
+            handle_npc_turn(battle, battle['turn'])
+    else:
+        _emit_pvp_to_master(battle, 'update')
+    emit('master_force_npc_result', {'message': f'✅ NPC selecionou Pokémon!'})
+
+
 @socketio.on('master_force_npc_action')
 def handle_master_force_npc(data):
     """Master forces an NPC (or frozen player) to take an action."""
@@ -2859,8 +2905,10 @@ def _emit_pvp_to_master(battle, event='update'):
     p1_active = (p1.get('team') or [{}])[p1.get('active_idx') or 0] if p1.get('team') else {}
     p2_active = (p2.get('team') or [{}])[p2.get('active_idx') or 0] if p2.get('team') else {}
     users = get_users()
-    p1_name = users.get(p1.get('id'), {}).get('username', p1.get('id', '?'))
-    p2_name = users.get(p2.get('id'), {}).get('username', p2.get('id', '?'))
+    npcs = db.get_npcs()
+    npc_map = {n['id']: n['name'] for n in npcs}
+    p1_name = users.get(p1.get('id'), {}).get('username') or npc_map.get(p1.get('id'), p1.get('id', '?'))
+    p2_name = users.get(p2.get('id'), {}).get('username') or npc_map.get(p2.get('id'), p2.get('id', '?'))
     socketio.emit('pvp_master_update', {
         'event':       event,
         'battle_id':   battle.get('id'),
