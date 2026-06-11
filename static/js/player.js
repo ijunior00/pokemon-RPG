@@ -1793,6 +1793,7 @@ async function pokemonCenter() {
     if (btn) { btn.disabled = true; btn.textContent = 'Curando...'; }
     try {
         const res = await fetch('/player/pokemon-center', { method: 'POST' });
+        if (!res.ok) { throw new Error(`HTTP ${res.status}: ${await res.text()}`); }
         const data = await res.json();
         if (data.ok) {
             playerTeam = data.team;
@@ -1801,8 +1802,9 @@ async function pokemonCenter() {
             if (msg) { msg.textContent = '✅ Todos os seus Pokémon foram curados!'; msg.style.color = 'var(--green)'; }
         }
     } catch(e) {
+        console.error('Pokemon Center error:', e);
         const msg = document.getElementById('pokemon-center-msg');
-        if (msg) { msg.textContent = '❌ Erro ao usar o Centro Pokémon.'; msg.style.color = 'var(--red)'; }
+        if (msg) { msg.textContent = `❌ Erro: ${e.message}`; msg.style.color = 'var(--red)'; }
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = '🏥 Curar Equipe'; }
     }
