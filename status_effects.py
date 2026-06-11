@@ -15,34 +15,32 @@ STATUS_CONDITIONS = {
         'name': 'Envenenado',
         'icon': '☠️',
         'color': '#a040a0',
-        'turn_effect': 'damage',       # takes damage each turn
-        'damage_formula': 'max_hp_fraction',  # 1/8 of max HP
-        'damage_fraction': 8,
+        'turn_effect': 'scaling_damage',  # cresce a cada turno
+        'base_fraction': 16,              # 1/16, 2/16, 3/16...
         'can_act': True,
-        'duration': 'permanent',        # until cured
-        'description': 'Perde 1/8 do HP máximo no início de cada turno.'
+        'duration': 'permanent',          # até ser curado
+        'description': 'Perde HP crescente a cada turno (1/16, 2/16, 3/16...). Dura até ser curado.'
     },
     'badly_poisoned': {
         'name': 'Gravemente Envenenado',
         'icon': '☠️☠️',
         'color': '#7030a0',
-        'turn_effect': 'scaling_damage',  # increases each turn
-        'base_fraction': 16,             # starts at 1/16, increases
+        'turn_effect': 'scaling_damage',
+        'base_fraction': 8,               # mais agressivo: 1/8, 2/8, 3/8...
         'can_act': True,
         'duration': 'permanent',
-        'description': 'Perde HP crescente a cada turno (1/16, 2/16, 3/16...).'
+        'description': 'Perde HP crescente acelerado (1/8, 2/8, 3/8...). Dura até ser curado.'
     },
     'queimado': {
         'name': 'Queimado',
         'icon': '🔥',
         'color': '#f08030',
-        'turn_effect': 'damage',
-        'damage_formula': 'max_hp_fraction',
-        'damage_fraction': 16,           # 1/16 of max HP (5e uses less than poison)
+        'turn_effect': 'scaling_damage',  # cresce a cada turno
+        'base_fraction': 16,              # 1/16, 2/16, 3/16...
         'can_act': True,
-        'stat_modifier': {'STR': -2},    # burned reduces physical attack
+        'stat_modifier': {'ATK': -2},    # queimadura reduz ataque físico
         'duration': 'permanent',
-        'description': 'Perde 1/16 do HP máximo no início de cada turno. -2 em ataques de FOR.'
+        'description': 'Perde HP crescente (1/16, 2/16...) e -2 ATK. Dura até ser curado.'
     },
     'paralisado': {
         'name': 'Paralisado',

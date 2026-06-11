@@ -12,6 +12,7 @@
         <button class="tab" data-tab="pokedex">📖 Pokédex</button>
         <button class="tab" data-tab="quests">📜 Quests</button>
         <button class="tab" data-tab="xp">⭐ XP</button>
+        <button class="tab" data-tab="pvp-master">🥊 PVP</button>
         <button class="tab" data-tab="tournament">🏆 Campeonato</button>
         <button class="tab" data-tab="map">🗺️ Mapa</button>
         <button class="tab" data-tab="gyms">🏟️ Ginásios</button>
@@ -173,8 +174,9 @@
         </div>
 
         <!-- Manual NPC Form -->
-        <div class="npc-form">
-            <h4>✏️ Criar NPC Manual</h4>
+        <div class="npc-form" id="npc-form-panel">
+            <h4 id="npc-form-title">✏️ Criar NPC Manual</h4>
+            <input type="hidden" id="npc-edit-id" value="">
             <div class="form-row">
                 <div class="form-group">
                     <label>Nome</label>
@@ -189,6 +191,28 @@
                     <input type="number" id="npc-level" value="10" min="1" max="50">
                 </div>
             </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Cargo</label>
+                    <select id="npc-role">
+                        <option value="">— Nenhum —</option>
+                        <option value="gym_leader">Líder de Ginásio</option>
+                        <option value="elite4">Elite 4</option>
+                        <option value="champion">Campeão</option>
+                        <option value="rival">Rival</option>
+                        <option value="villain">Vilão</option>
+                        <option value="trainer">Treinador</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Tipo especialidade</label>
+                    <input type="text" id="npc-specialty" placeholder="Ex: Fire, Water, Dragon...">
+                </div>
+                <div class="form-group">
+                    <label>Dinheiro (₽)</label>
+                    <input type="number" id="npc-money" value="500" min="0">
+                </div>
+            </div>
             <div class="form-group">
                 <label>Time (busque Pokémon e adicione)</label>
                 <div class="form-row">
@@ -199,10 +223,13 @@
                 <div id="npc-team-preview" class="npc-team-preview"></div>
             </div>
             <div class="form-group">
-                <label>Notas</label>
-                <input type="text" id="npc-notes" placeholder="Recompensa, diálogo, etc.">
+                <label>Diálogo / Notas</label>
+                <textarea id="npc-notes" rows="2" style="width:100%;padding:0.5rem;background:var(--darker);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);resize:vertical;" placeholder="Recompensa, diálogo de batalha, etc."></textarea>
             </div>
-            <button class="btn btn-primary" onclick="saveNpc()">💾 Salvar NPC</button>
+            <div style="display:flex;gap:0.5rem;">
+                <button class="btn btn-primary" onclick="saveNpc()">💾 Salvar NPC</button>
+                <button class="btn btn-secondary hidden" id="npc-cancel-edit" onclick="cancelNpcEdit()">✕ Cancelar Edição</button>
+            </div>
         </div>
         
         <h3>NPCs Salvos</h3>
@@ -250,48 +277,106 @@
     <div class="tab-content" id="tab-quests">
         <h2>Gerenciar Quests</h2>
         <div class="quest-form">
-            <div class="form-group">
-                <label>Título da Quest</label>
-                <input type="text" id="quest-title" placeholder="Ex: Derrotar o Líder de Ginásio">
-            </div>
-            <div class="form-group">
-                <label>Cidade</label>
-                <input type="text" id="quest-city" placeholder="Ex: Turffield">
+            <input type="hidden" id="quest-edit-id" value="">
+            <div class="form-row" style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                <div class="form-group" style="flex:2;min-width:180px;">
+                    <label>Título da Quest</label>
+                    <input type="text" id="quest-title" placeholder="Ex: Derrotar o Líder de Ginásio">
+                </div>
+                <div class="form-group" style="flex:1;min-width:120px;">
+                    <label>Cidade</label>
+                    <input type="text" id="quest-city" placeholder="Ex: Turffield">
+                </div>
+                <div class="form-group" style="flex:1;min-width:100px;">
+                    <label>Categoria</label>
+                    <select id="quest-category">
+                        <option value="main">⭐ Principal</option>
+                        <option value="side">📌 Secundária</option>
+                        <option value="urgent">🔥 Urgente</option>
+                    </select>
+                </div>
             </div>
             <div class="form-group">
                 <label>Descrição</label>
-                <textarea id="quest-description" rows="3" placeholder="Detalhes da quest..."></textarea>
+                <textarea id="quest-description" rows="2" placeholder="Detalhes da quest..."></textarea>
             </div>
             <div class="form-group">
-                <label>🌟 Recompensa de XP</label>
-                <input type="number" id="quest-xp-reward" value="50" min="0" placeholder="XP ao completar">
+                <label>📋 Objetivos <button type="button" class="btn btn-sm btn-secondary" onclick="addObjectiveField()" style="margin-left:0.5rem;">+ Adicionar</button></label>
+                <div id="quest-objectives-list" style="display:flex;flex-direction:column;gap:0.3rem;margin-top:0.3rem;"></div>
             </div>
-            <div class="form-group">
-                <label>Atribuir a:</label>
-                <div class="checkbox-group">
-                    {% for uid, player in players.items() %}
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="quest-players" value="{{ uid }}">
-                        {{ player.username }}
-                    </label>
-                    {% endfor %}
+            <div class="form-row" style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;">
+                <div class="form-group" style="flex:1;min-width:100px;">
+                    <label>🌟 XP de recompensa</label>
+                    <input type="number" id="quest-xp-reward" value="50" min="0">
+                </div>
+                <div class="form-group" style="flex:2;">
+                    <label>Atribuir a:</label>
+                    <div class="checkbox-group" style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                        {% for uid, player in players.items() %}
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="quest-players" value="{{ uid }}">
+                            {{ player.username }}
+                        </label>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
-            <button class="btn btn-primary" onclick="createQuest()">Criar Quest</button>
+            <div style="display:flex;gap:0.5rem;">
+                <button class="btn btn-primary" onclick="createQuest()">💾 Salvar Quest</button>
+                <button class="btn btn-secondary" onclick="clearQuestForm()" id="quest-cancel-btn" style="display:none;">✕ Cancelar</button>
+            </div>
         </div>
-        
-        <h3>Quests Ativas</h3>
+
+        <div style="display:flex;gap:0.5rem;margin:1rem 0 0.5rem;flex-wrap:wrap;">
+            <h3 style="margin:0;align-self:center;">Quests Ativas</h3>
+            <button class="btn btn-sm btn-secondary" onclick="toggleCompletedQuests()" id="toggle-completed-btn">Ver Completas</button>
+        </div>
         <div id="quests-list" class="quests-list">
             {% for quest in game_state.quests %}
             {% if not quest.completed %}
-            <div class="quest-card" id="quest-{{ quest.id }}">
-                <div class="quest-header">
-                    <h4>{{ quest.title }}</h4>
-                    <button class="btn btn-sm btn-success" onclick="completeQuest('{{ quest.id }}')">✓ Completar</button>
+            <div class="quest-card" id="quest-{{ quest.id }}" data-quest-id="{{ quest.id }}">
+                <div class="quest-header" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                    <span class="quest-category-badge cat-{{ quest.category or 'main' }}">{{ '⭐' if quest.category == 'main' else ('🔥' if quest.category == 'urgent' else '📌') }} {{ quest.category or 'main' }}</span>
+                    <h4 style="margin:0;flex:1;">{{ quest.title }}</h4>
+                    <span class="quest-city">📍 {{ quest.city }}</span>
+                    <span class="quest-xp">🌟 {{ quest.xp_reward or 0 }} XP</span>
+                    <button class="btn btn-sm btn-warning" onclick="editQuest('{{ quest.id }}')">✏️</button>
+                    <button class="btn btn-sm btn-success" onclick="completeQuest('{{ quest.id }}')">✓</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteQuest('{{ quest.id }}')">🗑️</button>
                 </div>
-                <span class="quest-city">📍 {{ quest.city }}</span>
-                <span class="quest-xp">🌟 {{ quest.xp_reward or 0 }} XP</span>
-                <p>{{ quest.description }}</p>
+                <p style="margin:0.3rem 0;color:var(--text-muted);font-size:0.9rem;">{{ quest.description }}</p>
+                {% if quest.objectives %}
+                <div class="quest-progress">
+                    {% set done_count = quest.objectives | selectattr('done') | list | length %}
+                    {% set total = quest.objectives | length %}
+                    <div class="progress-bar-container" style="height:6px;margin-bottom:0.4rem;">
+                        <div class="progress-bar-fill" style="width:{{ (done_count / total * 100) | int }}%;background:var(--success);height:100%;border-radius:4px;transition:width 0.3s;"></div>
+                    </div>
+                    <small style="color:var(--muted);">{{ done_count }}/{{ total }} objetivos</small>
+                    <div class="quest-objectives" style="margin-top:0.3rem;">
+                        {% for obj in quest.objectives %}
+                        <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;cursor:pointer;{% if obj.done %}opacity:0.5;text-decoration:line-through;{% endif %}">
+                            <input type="checkbox" {% if obj.done %}checked{% endif %} onchange="masterToggleObjective('{{ quest.id }}', {{ loop.index0 }})">
+                            {{ obj.text }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+        <div id="quests-completed" style="display:none;">
+            <h3>Quests Completas</h3>
+            {% for quest in game_state.quests %}
+            {% if quest.completed %}
+            <div class="quest-card quest-completed" id="quest-{{ quest.id }}">
+                <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                    <h4 style="margin:0;flex:1;">✅ {{ quest.title }}</h4>
+                    <span class="quest-city">📍 {{ quest.city }}</span>
+                    <button class="btn btn-sm btn-danger" onclick="deleteQuest('{{ quest.id }}')">🗑️</button>
+                </div>
             </div>
             {% endif %}
             {% endfor %}
@@ -338,6 +423,51 @@
     </div>
 
     <!-- TAB: TOURNAMENT -->
+    <!-- TAB: PVP MASTER -->
+    <div class="tab-content" id="tab-pvp-master">
+        <h2>🥊 PVP — Controle do Mestre</h2>
+
+        <!-- Active PVP battles monitor -->
+        <div class="card" style="margin-bottom:1.5rem;">
+            <h3>⚔️ Batalhas em Andamento</h3>
+            <div id="master-pvp-battles" style="display:flex;flex-direction:column;gap:0.75rem;">
+                <em style="color:var(--muted)">Nenhuma batalha PVP ativa no momento.</em>
+            </div>
+        </div>
+
+        <!-- Master challenge: NPC vs Player -->
+        <div class="card">
+            <h3>🤖 Desafiar Jogador com NPC</h3>
+            <p style="color:var(--muted);font-size:0.9rem;">Inicia uma batalha PVP onde um NPC enfrenta um jogador.</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+                <div>
+                    <label>NPC Desafiante</label>
+                    <select id="master-pvp-npc" class="form-input">
+                        <option value="">Carregando NPCs...</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Jogador Alvo</label>
+                    <select id="master-pvp-target" class="form-input">
+                        <option value="">Selecionar jogador...</option>
+                        {% for uid, player in players.items() %}
+                        <option value="{{ uid }}">{{ player.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label>Modo</label>
+                    <select id="master-pvp-mode" class="form-input">
+                        <option value="official">Oficial</option>
+                        <option value="street">Rua</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="masterSendNpcChallenge()">⚔️ Iniciar Batalha</button>
+            <span id="master-pvp-msg" style="margin-left:1rem;font-size:0.9rem;"></span>
+        </div>
+    </div>
+
     <div class="tab-content" id="tab-tournament">
         <h2>🏆 Gerenciar Campeonato</h2>
         

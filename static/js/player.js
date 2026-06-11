@@ -62,28 +62,114 @@ socket.on('xp_update', (data) => {
     }
 });
 
+function renderPlayerQuestCard(quest) {
+    const catIcon = quest.category === 'urgent' ? '🔥' : quest.category === 'side' ? '📌' : '⭐';
+    const objDone = (quest.objectives || []).filter(o => o.done).length;
+    const objTotal = (quest.objectives || []).length;
+    const pct = objTotal ? Math.round(objDone / objTotal * 100) : 0;
+    const objHtml = objTotal ? `
+        <div style="margin:0.5rem 0;">
+            <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:var(--muted);margin-bottom:2px;">
+                <span>Progresso</span><span>${objDone}/${objTotal}</span>
+            </div>
+            <div style="height:6px;background:var(--border);border-radius:4px;">
+                <div id="progress-bar-${quest.id}" style="width:${pct}%;height:100%;background:var(--success);border-radius:4px;transition:width 0.3s;"></div>
+            </div>
+            <div style="margin-top:0.4rem;">
+                ${(quest.objectives || []).map((o, i) => `
+                    <label id="obj-label-${quest.id}-${i}" style="display:flex;align-items:center;gap:0.4rem;font-size:0.9rem;cursor:pointer;margin-bottom:0.2rem;${o.done ? 'opacity:0.5;text-decoration:line-through;' : ''}">
+                        <input type="checkbox" ${o.done ? 'checked' : ''} onchange="playerToggleObjective('${quest.id}', ${i}, this)">
+                        ${o.text}
+                    </label>`).join('')}
+            </div>
+        </div>` : '';
+    return `<div class="quest-card" id="player-quest-${quest.id}" data-quest-id="${quest.id}">
+        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.3rem;">
+            <span class="quest-category-badge cat-${quest.category||'main'}">${catIcon}</span>
+            <h4 style="margin:0;flex:1;">${quest.title}</h4>
+            <span class="quest-city">📍 ${quest.city||''}</span>
+            ${quest.xp_reward ? `<span class="quest-xp">🌟 ${quest.xp_reward} XP</span>` : ''}
+        </div>
+        <p style="margin:0.2rem 0;color:var(--text-muted);font-size:0.9rem;">${quest.description||''}</p>
+        ${objHtml}
+        <textarea id="notes-${quest.id}" placeholder="Suas anotações..." rows="2"
+                  style="width:100%;resize:vertical;font-size:0.85rem;margin-top:0.4rem;"
+                  onblur="saveQuestNotes('${quest.id}')">${quest._my_note || ''}</textarea>
+    </div>`;
+}
+
 socket.on('new_quest', (quest) => {
     const list = document.getElementById('player-quests');
-    const emptyState = list.querySelector('.empty-state');
+    const emptyState = document.getElementById('no-quests-msg');
     if (emptyState) emptyState.remove();
-    list.innerHTML += `
-        <div class="quest-card">
-            <h4>${quest.title}</h4>
-            <span class="quest-city">📍 ${quest.city}</span>
-            ${quest.xp_reward ? `<span class="quest-xp">🌟 ${quest.xp_reward} XP</span>` : ''}
-            <p>${quest.description}</p>
-            <div class="quest-notes">
-                <textarea placeholder="Suas anotações..." rows="2"></textarea>
-            </div>
-        </div>`;
+    list.insertAdjacentHTML('afterbegin', renderPlayerQuestCard(quest));
     playNotificationSound();
+    showNotification(`📜 Nova quest: ${quest.title}`, 'info');
+});
+
+socket.on('quest_updated', (quest) => {
+    const card = document.getElementById(`player-quest-${quest.id}`);
+    if (card) {
+        const note = document.getElementById(`notes-${quest.id}`)?.value || '';
+        quest._my_note = note;
+        card.outerHTML = renderPlayerQuestCard(quest);
+    }
+});
+
+socket.on('quest_deleted', (data) => {
+    const card = document.getElementById(`player-quest-${data.quest_id}`);
+    if (card) card.remove();
 });
 
 socket.on('quest_completed', (data) => {
-    if (data.xp_reward > 0) {
-        alert(`✅ Quest completada! Você ganhou ${data.xp_reward} XP!`);
+    const card = document.getElementById(`player-quest-${data.quest_id}`);
+    if (card) {
+        card.classList.add('quest-completed');
+        card.style.opacity = '0.6';
+        card.querySelectorAll('button, input').forEach(el => el.disabled = true);
     }
+    if (data.xp_reward > 0) showNotification(`✅ Quest completada! +${data.xp_reward} XP!`, 'success');
 });
+
+async function playerToggleObjective(questId, idx, checkbox) {
+    const res = await fetch(`/quests/${questId}/objectives/${idx}/toggle`, { method: 'POST' });
+    const data = await res.json();
+    if (!data.quest) { checkbox.checked = !checkbox.checked; return; }
+    // Update progress bar
+    const objs = data.quest.objectives || [];
+    const done = objs.filter(o => o.done).length;
+    const total = objs.length;
+    const bar = document.getElementById(`progress-bar-${questId}`);
+    if (bar) bar.style.width = `${total ? Math.round(done/total*100) : 0}%`;
+    // Update label style
+    const lbl = document.getElementById(`obj-label-${questId}-${idx}`);
+    if (lbl) {
+        if (checkbox.checked) {
+            lbl.style.opacity = '0.5'; lbl.style.textDecoration = 'line-through';
+        } else {
+            lbl.style.opacity = ''; lbl.style.textDecoration = '';
+        }
+    }
+    if (data.auto_completed) showNotification('🎉 Todos os objetivos completos! A quest foi finalizada!', 'success');
+}
+
+async function saveQuestNotes(questId) {
+    const note = document.getElementById(`notes-${questId}`)?.value || '';
+    await fetch(`/quests/${questId}/notes`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ note })
+    });
+}
+
+function togglePlayerCompleted() {
+    const el = document.getElementById('player-completed-quests');
+    const icon = document.getElementById('completed-toggle-icon');
+    if (!el) return;
+    const visible = el.style.display !== 'none';
+    el.style.display = visible ? 'none' : '';
+    if (icon) icon.textContent = visible ? '▼' : '▲';
+}
 
 socket.on('master_action', (data) => {
     if (data.type === 'forced_encounter') {
@@ -313,8 +399,13 @@ async function startBattle() {
     showElement('battle-area');
     hideElement('encounter-result');
     battleActive = true;
-    window._permadeathTriggered = false;
-    window._masterBallCapture   = false;
+    window._permadeathTriggered  = false;
+    window._masterBallCapture    = false;
+    window._wildIntimidateMod    = 0;
+    window._playerTrapped        = false;
+    window._playerTrappedBy      = null;
+    window._enemyTrapped         = false;
+    window._enemyTrappedBy       = null;
 
     // Store current battle data
     window.currentBattleData = { enemy, playerPokemon, level: currentEncounter.level };
@@ -415,6 +506,10 @@ socket.on('battle_update', (data) => {
         if (data.status_effect) msg += ` → ${data.status_effect}!`;
         if (data.message) msg += ` <em>(${data.message})</em>`;
         addBattleLog(msg);
+    }
+    // Show ability trigger from server
+    if (data.ability_trigger) {
+        addBattleLog(`🛡️ <strong>Habilidade</strong>: ${data.ability_trigger.message}`);
     }
     
     // Update turn
@@ -735,15 +830,30 @@ async function useMove(moveName) {
         if (effectiveness === 0) damage = 0;
         if (effectiveness > 1) effectLabel = `⚡ Super Efetivo (x${effectiveness})`;
         else if (effectiveness < 1 && effectiveness > 0) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
-        
+
+        // Check enemy ability (client-side preview — server also validates)
+        const enemyAbility = (window.currentBattleData?.enemy?.ability || '').toLowerCase();
+        if (damage > 0 && enemyAbility) {
+            const abilityCheck = checkAbilityVsMove(enemyAbility, moveTypeEn, damage,
+                window.currentBattleData?.enemy?.currentHp, window.currentBattleData?.enemy?.hp);
+            if (abilityCheck.blocked) {
+                damage = 0;
+                addBattleLog(`🛡️ <strong>${enemyAbility}</strong>: ${abilityCheck.message}`);
+            } else if (abilityCheck.modified_damage !== damage) {
+                addBattleLog(`🛡️ <strong>${enemyAbility}</strong>: ${abilityCheck.message}`);
+                damage = abilityCheck.modified_damage;
+            }
+        }
+
         const statUsed = moveCategory === 'physical' ? 'ATK' : 'SPA';
         addBattleLog(`✅ Acertou! (${totalAttack} vs AC ${enemyAC}) → ${scaledDice}(${diceRoll}) + ${statUsed}(${moveMod})${stab > 0 ? ` + STAB(${stab})` : ''}${isCrit ? ' ×2 CRIT' : ''}${window.enemyDodging ? ' ×1.25(esquiva)' : ''}${effectLabel ? ' ' + effectLabel : ''} = <strong>${damage} dano ${m.type||''}</strong>`);
-        
+
         // Check for status effect
         checkMoveStatusEffect(moveName, attackRoll, damage);
-        
+
         socket.emit('battle_action', {
             action_by: 'player', action_type: 'attack', move_name: moveName,
+            move_type: moveTypeEn,
             damage: damage, message: `${totalAttack} vs AC ${enemyAC}${isCrit ? ' Crítico!' : ''}`,
             player_status_damage: window._playerPreTurnStatusDamage || 0,
             status_effect: window._lastStatusInflicted || null
@@ -918,8 +1028,15 @@ function throwPokeball() {
         addBattleLog(`💥 <strong>A Pokébola quebrou!</strong> O Pokémon selvagem ainda está com ${Math.round(hpPct*100)}% do HP — enfraquece-o abaixo de 40% primeiro!`);
         // Pokébola foi consumida mas não funcionou, selvagem foge
         setTimeout(() => {
-            addBattleLog(`🏃 O Pokémon selvagem fugiu após a Pokébola falhar!`);
-            endBattle('fled_after_capture');
+            if (window._enemyTrapped) {
+                addBattleLog(`🔒 ${window._enemyTrappedBy || 'Trapping move'} impediu a fuga do selvagem!`);
+                // Don't end battle — wild is trapped, player keeps going
+                window.currentTurn = 'player';
+                updateTurnUI();
+            } else {
+                addBattleLog(`🏃 O Pokémon selvagem fugiu após a Pokébola falhar!`);
+                endBattle('fled_after_capture');
+            }
         }, 1500);
         return;
     }
@@ -934,8 +1051,15 @@ function throwPokeball() {
         setTimeout(() => endBattle('caught'), 1500);
     } else {
         addBattleLog(`❌ ${ballLabel} falhou! (${totalRoll} < ${captureDC})`);
-        addBattleLog(`🏃 <strong>O Pokémon selvagem fugiu!</strong> O encontro acabou.`);
-        setTimeout(() => endBattle('fled_after_capture'), 2000);
+        if (window._enemyTrapped) {
+            addBattleLog(`🔒 ${window._enemyTrappedBy || 'Trapping move'} impediu a fuga! A batalha continua.`);
+            window.currentTurn = 'wild';
+            updateTurnUI();
+            setTimeout(() => wildPokemonAutoAttack(), 1200);
+        } else {
+            addBattleLog(`🏃 <strong>O Pokémon selvagem fugiu!</strong> O encontro acabou.`);
+            setTimeout(() => endBattle('fled_after_capture'), 2000);
+        }
     }
 }
 
@@ -1238,7 +1362,7 @@ async function savePokemon() {
         statPointsAvailable: existingPoke.statPointsAvailable || 0,
         baseHp: existingPoke.baseHp || 0
     };
-    // Auto-fill from API
+    // Auto-fill from API — get level-scaled + nature-adjusted stats
     try {
         const response = await fetch(`/api/pokemon?search=${encodeURIComponent(pokemon.name.toLowerCase())}`);
         const results = await response.json();
@@ -1247,8 +1371,32 @@ async function savePokemon() {
             pokemon.types = r.types;
             pokemon.number = r.number;
             if (!pokemon.baseHp) pokemon.baseHp = r.hp;
-            if (!pokemon.maxHp || pokemon.maxHp === 0) { pokemon.maxHp = r.hp; pokemon.currentHp = r.hp; }
-            if (pokemon.ac === 10) pokemon.ac = r.ac;
+
+            // Fetch scaled stats with nature applied
+            try {
+                const scaledRes = await fetch('/api/pokemon/stats', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ number: r.number, level: pokemon.level, nature: pokemon.nature || '' })
+                });
+                const scaled = await scaledRes.json();
+                if (!scaled.error) {
+                    pokemon.maxHp     = scaled.maxHp || scaled.hp || r.hp;
+                    pokemon.currentHp = pokemon.currentHp || pokemon.maxHp;
+                    pokemon.ac        = scaled.ac || r.ac;
+                    // Overwrite stats with nature-scaled values (ATK/DEF/SPA/SPD/SPE)
+                    pokemon.stats = Object.assign(pokemon.stats || {}, scaled.stats || {});
+                    pokemon.proficiency = scaled.proficiency;
+                    pokemon.stab        = scaled.stab;
+                    // Store nature effect for display
+                    pokemon.natureBoost = scaled.nature_boost || null;
+                    pokemon.natureLower = scaled.nature_lower || null;
+                }
+            } catch(e2) {
+                // Fallback: use raw base stats
+                if (!pokemon.maxHp || pokemon.maxHp === 0) { pokemon.maxHp = r.hp; pokemon.currentHp = r.hp; }
+                if (pokemon.ac === 10) pokemon.ac = r.ac;
+            }
         }
     } catch(e) {}
     if (slot < playerTeam.length) playerTeam[slot] = pokemon;
@@ -1266,6 +1414,63 @@ async function saveTeam() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ team: playerTeam })
     });
+}
+
+const NATURE_MODIFIERS_JS = {
+    'Adamant':{'ATK':1.1,'SPA':0.9},'Modest':{'SPA':1.1,'ATK':0.9},
+    'Jolly':{'SPE':1.1,'SPA':0.9},'Timid':{'SPE':1.1,'ATK':0.9},
+    'Bold':{'DEF':1.1,'ATK':0.9},'Impish':{'DEF':1.1,'SPA':0.9},
+    'Calm':{'SPD':1.1,'ATK':0.9},'Careful':{'SPD':1.1,'SPA':0.9},
+    'Brave':{'ATK':1.1,'SPE':0.9},'Quiet':{'SPA':1.1,'SPE':0.9},
+    'Relaxed':{'DEF':1.1,'SPE':0.9},'Sassy':{'SPD':1.1,'SPE':0.9},
+    'Lonely':{'ATK':1.1,'DEF':0.9},'Naughty':{'ATK':1.1,'SPD':0.9},
+    'Mild':{'SPA':1.1,'DEF':0.9},'Rash':{'SPA':1.1,'SPD':0.9},
+    'Lax':{'DEF':1.1,'SPD':0.9},'Gentle':{'SPD':1.1,'DEF':0.9},
+    'Hasty':{'SPE':1.1,'DEF':0.9},'Naive':{'SPE':1.1,'SPD':0.9},
+};
+
+function getNatureLabel(poke) {
+    const nature = poke.nature || '';
+    if (!nature) return '';
+    const mods = NATURE_MODIFIERS_JS[nature];
+    if (!mods) return `<small style="color:var(--muted);">🌿 ${nature}</small>`;
+    const boost = Object.entries(mods).find(([,v]) => v > 1);
+    const lower = Object.entries(mods).find(([,v]) => v < 1);
+    const boostStr = boost ? `<span style="color:#4caf50;">+${boost[0]}</span>` : '';
+    const lowerStr = lower ? `<span style="color:#f44336;">-${lower[0]}</span>` : '';
+    return `<small style="color:var(--muted);">🌿 ${nature} ${boostStr}${boostStr&&lowerStr?' / ':''}${lowerStr}</small>`;
+}
+
+function getLevelEvoIndicator(poke, idx) {
+    const info = poke.evolutionInfo || '';
+    if (!info) return '';
+    const match = info.match(/evolve into ([A-Za-z\-\s]+?) at (?:trainer )?level (\d+)/i);
+    if (!match) return '';
+    const evoInto = match[1].trim();
+    const evoLevel = parseInt(match[2]);
+    const pokeEvoLevel = evoLevel * 5;
+    const currentLevel = poke.level || 1;
+    if (currentLevel < pokeEvoLevel) return '';
+    return `<button class="btn btn-sm" style="background:var(--accent);color:#fff;animation:pvp-blink 1s infinite;" onclick="triggerLevelEvolve(${idx})" title="Nível ${currentLevel} ≥ ${pokeEvoLevel}">⬆️ Evoluir → ${evoInto}!</button>`;
+}
+
+async function triggerLevelEvolve(idx) {
+    try {
+        const res = await fetch('/player/level-evolve', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({slot: idx})
+        });
+        const data = await res.json();
+        if (data.error) { alert(data.error); return; }
+        if (data.evolved) {
+            playerTeam[idx] = data.pokemon;
+            refreshTeamDisplay();
+            alert(`✨ ${data.old_name} evoluiu para ${data.pokemon.name}!`);
+        } else {
+            alert(data.message || 'Não foi possível evoluir agora.');
+        }
+    } catch(e) { alert('Erro ao evoluir: ' + e.message); }
 }
 
 function refreshTeamDisplay() {
@@ -1292,9 +1497,13 @@ function refreshTeamDisplay() {
                         <div class="xp-bar" style="width:${xpPct}%"></div>
                     </div>
                     <small style="color:var(--text-muted);">${poke.level >= 100 ? 'MAX' : `XP: ${totalXp}/${xpForNext}`}</small>
+                    ${getNatureLabel(poke)}
                     ${hasPoints ? `<small style="color:var(--accent);display:block;">⬆️ ${poke.statPointsAvailable} pontos!</small>` : ''}
-                    <div style="margin-top:0.5rem;">
+                    ${getLevelEvoIndicator(poke, i)}
+                    <div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.25rem;">
                         <button class="btn btn-sm btn-secondary" onclick="editPokemon(${i})">Editar</button>
+                        <button class="btn btn-sm btn-primary" onclick="openUseStoneModal(${i})" title="Usar pedra de evolução">💎 Pedra</button>
+                        ${(poke.battle_wins||0) >= 10 ? `<button class="btn btn-sm btn-warning" onclick="friendshipEvolve(${i})" title="${poke.battle_wins} batalhas vencidas">💛 Amizade</button>` : `<small style="color:var(--muted);align-self:center;" title="Batalhas vencidas com este Pokémon">💛 ${poke.battle_wins||0}/10</small>`}
                         <button class="btn btn-sm btn-danger" onclick="removePokemon(${i})">✕</button>
                     </div>
                 </div>`;
@@ -1622,6 +1831,11 @@ socket.on('mega_evolved', (data) => {
 // ============================================
 function switchPokemon() {
     if (window.currentTurn !== 'player') { alert('Não é seu turno!'); return; }
+    // Trapping moves — player cannot switch
+    if (window._playerTrapped) {
+        addBattleLog(`🔒 Não pode trocar! ${window._playerTrappedBy || 'Trapping move'} está impedindo a troca!`);
+        return;
+    }
     
     const currentPoke = window.currentBattleData?.playerPokemon;
     const list = document.getElementById('switch-pokemon-list');
@@ -1692,7 +1906,31 @@ async function confirmSwitch(teamIdx) {
     document.getElementById('battle-player-moves').innerHTML = pMoves.map(m => renderMoveButton(m, true)).join('');
     
     addBattleLog(`🔄 Trocou para <strong>${newPoke.nickname || newPoke.name}</strong>! (gasta ação)`);
-    
+
+    // Intimidate: if new Pokémon has Intimidate, reduce enemy ATK
+    const newAbility = (newPoke.ability || '').toLowerCase();
+    if (newAbility === 'intimidate') {
+        window._wildIntimidateMod = (window._wildIntimidateMod || 0) - 2;
+        addBattleLog(`😤 <strong>Intimidate!</strong> ${newPoke.nickname || newPoke.name} reduziu o ATK do inimigo em 2 estágios!`);
+    }
+    // Natural Cure: if previous poke had Natural Cure, clear its status
+    const prevAbility = (window.currentBattleData?.playerPokemon?.ability || '').toLowerCase();
+    if (prevAbility === 'natural cure' && window._playerStatus) {
+        window._playerStatus = null;
+        addBattleLog(`💚 <strong>Natural Cure</strong> curou o status ao trocar!`);
+    }
+    // Regenerator: heal 1/3 HP when switching out
+    if (prevAbility === 'regenerator') {
+        const prevPoke = window.currentBattleData.playerPokemon;
+        const healAmt = Math.max(1, Math.floor((prevPoke.maxHp || prevPoke.hp || 20) / 3));
+        const prevTeamSlot = playerTeam.findIndex(p => (p.name === prevPoke.name || p.nickname === prevPoke.nickname));
+        if (prevTeamSlot >= 0) {
+            playerTeam[prevTeamSlot].currentHp = Math.min(playerTeam[prevTeamSlot].maxHp, (playerTeam[prevTeamSlot].currentHp || 0) + healAmt);
+            addBattleLog(`♻️ <strong>Regenerator!</strong> ${prevPoke.nickname || prevPoke.name} recuperou ${healAmt} HP!`);
+            refreshTeamDisplay();
+        }
+    }
+
     // Switching uses the action - pass turn
     socket.emit('battle_action', { action_by: 'player', action_type: 'switch', move_name: `Trocou → ${newPoke.name}`, damage: 0, message: 'Troca de Pokémon' });
     
@@ -2144,6 +2382,41 @@ socket.on('pvp_waiting', (data) => {
 // PVP BATTLE - BATTLE PHASE (Real-time state updates)
 // ============================================
 
+// ── PVP Turn Countdown ──────────────────────────────────────
+let _pvpTimerInterval = null;
+let _pvpTimerSeconds  = 20;
+
+function startPvpTimer() {
+    clearPvpTimer();
+    _pvpTimerSeconds = 20;
+    _pvpTimerInterval = setInterval(() => {
+        _pvpTimerSeconds--;
+        const el = document.getElementById('pvp-turn-timer');
+        if (!el) { clearPvpTimer(); return; }
+
+        el.textContent = _pvpTimerSeconds;
+
+        // Colour progression
+        el.classList.remove('timer-green', 'timer-yellow', 'timer-red', 'timer-panic');
+        if (_pvpTimerSeconds > 10)      el.classList.add('timer-green');
+        else if (_pvpTimerSeconds > 5)  el.classList.add('timer-yellow');
+        else                            el.classList.add('timer-red');
+
+        // Panic effect in last 5 s
+        if (_pvpTimerSeconds <= 5) el.classList.add('timer-panic');
+
+        if (_pvpTimerSeconds <= 0) {
+            clearPvpTimer();
+            pvpPassTurn(); // auto-pass when time runs out
+        }
+    }, 1000);
+}
+
+function clearPvpTimer() {
+    if (_pvpTimerInterval) { clearInterval(_pvpTimerInterval); _pvpTimerInterval = null; }
+}
+// ────────────────────────────────────────────────────────────
+
 function renderPvpBattle(state) {
     const content = document.getElementById('pvp-battle-content');
     if (!content) return;
@@ -2202,10 +2475,11 @@ function renderPvpBattle(state) {
             </div>
         </div>
         
-        <!-- Turn Indicator -->
+        <!-- Turn Indicator + Countdown -->
         <div style="text-align:center;margin:0.75rem 0;">
             <span class="turn-indicator" style="font-size:1rem;padding:0.5rem 1.5rem;">
                 ${isMyTurn ? '🟢 SEU TURNO — Escolha uma ação!' : '🔴 Turno do Oponente — Aguarde...'}
+                ${isMyTurn ? '<span id="pvp-turn-timer" class="timer-green">20</span>' : ''}
             </span>
             <span style="display:block;margin-top:0.3rem;font-size:0.8rem;color:var(--text-muted);">Round ${state.round || 1}</span>
         </div>
@@ -2251,6 +2525,13 @@ function renderPvpBattle(state) {
     // Scroll log to bottom
     const log = document.getElementById('pvp-battle-log');
     if (log) log.scrollTop = log.scrollHeight;
+
+    // Manage countdown
+    if (isMyTurn) {
+        startPvpTimer();
+    } else {
+        clearPvpTimer();
+    }
 }
 
 function renderPvpLogEntry(entry, youAre) {
@@ -2320,6 +2601,7 @@ function pvpUseMove(moveName) {
         message = `d20(${attackRoll})+${moveMod}+${profBonus}=${totalAttack} vs AC${opponentAC} ❌ Errou`;
     }
     
+    clearPvpTimer();
     // Send to server
     socket.emit('pvp_attack', {
         battle_id: window.pvpState.battleId,
@@ -2373,6 +2655,7 @@ function pvpSwitchPokemon() {
 }
 
 function pvpConfirmSwitch(idx) {
+    clearPvpTimer();
     socket.emit('pvp_switch', {
         battle_id: window.pvpState.battleId,
         pokemon_idx: idx
@@ -2380,6 +2663,7 @@ function pvpConfirmSwitch(idx) {
 }
 
 function pvpPassTurn() {
+    clearPvpTimer();
     socket.emit('pvp_pass_turn', { battle_id: window.pvpState.battleId });
 }
 
@@ -2396,6 +2680,7 @@ socket.on('pvp_must_switch', (data) => {
 
 // Battle ended
 socket.on('pvp_battle_ended', (data) => {
+    clearPvpTimer();
     const content = document.getElementById('pvp-battle-content');
     const isWinner = data.winner === window.pvpState.youAre;
     
@@ -2760,6 +3045,98 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch(e) { window.statusEffectsData = {conditions: {}, move_effects: {}}; }
 });
 
+// ── Trapping moves ────────────────────────────────────────────────────────────
+// Moves that trap the ENEMY (wild cannot flee/switch)
+const TRAPPING_MOVES_PLAYER = new Set([
+    'mean look', 'block', 'spider web', 'thousand waves', 'spirit shackle',
+    'wrap', 'bind', 'clamp', 'fire spin', 'magma storm', 'sand tomb',
+    'whirlpool', 'infestation', 'thunder cage', 'snap trap'
+]);
+// Moves that trap the PLAYER (player cannot switch)
+const TRAPPING_MOVES_ENEMY = new Set([
+    'mean look', 'block', 'spider web', 'thousand waves',
+    'wrap', 'bind', 'clamp', 'fire spin', 'magma storm', 'sand tomb',
+    'whirlpool', 'infestation', 'thunder cage', 'snap trap', 'octolock'
+]);
+
+// ── Ability checks (mirrors abilities.py logic client-side) ─────────────────
+const ABILITY_IMMUNITIES_JS = {
+    'levitate':       ['ground'],
+    'flash fire':     ['fire'],
+    'water absorb':   ['water'],
+    'volt absorb':    ['electric'],
+    'motor drive':    ['electric'],
+    'sap sipper':     ['grass'],
+    'storm drain':    ['water'],
+    'lightning rod':  ['electric'],
+    'dry skin':       ['water'],
+    'earth eater':    ['ground'],
+    'well-baked body':['fire'],
+};
+const ABILITY_ABSORB_HEAL_JS = new Set(['water absorb','volt absorb','dry skin','storm drain','lightning rod','earth eater','well-baked body']);
+const ABILITY_ABSORB_BOOST_JS = {
+    'flash fire':  {type:'fire',    boost:'fire_boost'},
+    'motor drive': {type:'electric',boost:'SPE'},
+    'sap sipper':  {type:'grass',   boost:'ATK'},
+};
+const ABILITY_RESISTANCES_JS = {
+    'thick fat':     {fire:0.5, ice:0.5},
+    'heatproof':     {fire:0.5},
+    'water bubble':  {fire:0.5},
+    'purifying salt':{ghost:0.5},
+};
+
+function checkAbilityVsMove(ability, moveTypeEn, damage, currentHp, maxHp) {
+    const result = {modified_damage: damage, heal: 0, blocked: false, boost: null, message: ''};
+    if (!ability || damage <= 0) return result;
+    ability = ability.toLowerCase();
+
+    const immuneTypes = ABILITY_IMMUNITIES_JS[ability] || [];
+    if (immuneTypes.includes(moveTypeEn)) {
+        result.modified_damage = 0;
+        result.blocked = true;
+        if (ABILITY_ABSORB_HEAL_JS.has(ability)) {
+            result.heal = Math.max(1, Math.floor((maxHp || 20) / 4));
+            result.message = `${ability} absorveu o golpe! +${result.heal} HP`;
+        } else {
+            const boostInfo = ABILITY_ABSORB_BOOST_JS[ability];
+            if (boostInfo && boostInfo.type === moveTypeEn) {
+                result.boost = boostInfo.boost;
+                result.message = `${ability} absorveu o golpe! ${boostInfo.boost} ↑`;
+            } else {
+                result.message = `${ability} tornou ${moveTypeEn} ineficaz!`;
+            }
+        }
+        return result;
+    }
+
+    const resists = ABILITY_RESISTANCES_JS[ability] || {};
+    if (resists[moveTypeEn] !== undefined) {
+        result.modified_damage = Math.max(1, Math.floor(damage * resists[moveTypeEn]));
+        result.message = `${ability} reduziu o dano (${moveTypeEn})!`;
+    }
+
+    // Sturdy: survive KO at full HP
+    if (ability === 'sturdy' && currentHp >= maxHp && result.modified_damage >= currentHp) {
+        result.modified_damage = currentHp - 1;
+        result.message = 'Sturdy! Sobreviveu com 1 HP!';
+    }
+
+    return result;
+}
+
+// Handle ability_triggered event from server (e.g. NPC attack blocked by player ability)
+socket.on('ability_triggered', (data) => {
+    if (data.message) addBattleLog(`🛡️ <strong>Habilidade</strong>: ${data.message}`);
+    if (data.heal) {
+        const poke = playerTeam[0];
+        if (poke) {
+            poke.currentHp = Math.min(poke.maxHp, (poke.currentHp || 0) + data.heal);
+            refreshTeamDisplay();
+        }
+    }
+});
+
 async function checkMoveStatusEffect(moveName, attackRoll, damage) {
     // Check if a move inflicts status after hitting.
     try {
@@ -3067,11 +3444,14 @@ async function _executeWildTurn() {
     const moveCategory = moveData.category || 'physical';
     let moveMod = 0;
     if (moveCategory === 'physical') {
-        moveMod = Math.floor(((wildStats.ATK || wildStats.STR || 10) - 10) / 2);
+        // Apply Intimidate penalty to ATK modifier
+        const intimidatePenalty = window._wildIntimidateMod || 0;
+        const rawATK = (wildStats.ATK || wildStats.STR || 10) + intimidatePenalty * 2;
+        moveMod = Math.floor((rawATK - 10) / 2);
     } else {
         moveMod = Math.floor(((wildStats.SPA || wildStats.INT || 10) - 10) / 2);
     }
-    
+
     // Proficiency for wild (1-100 scale)
     const profBonus = getProficiencyForLevel(wildLevel);
     
@@ -3181,15 +3561,36 @@ async function _executeWildTurn() {
         else if (effectiveness < 1 && effectiveness > 0) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
         
         if (damage < 1 && effectiveness > 0) damage = 1;
-        
+
+        // Check player pokemon ability against wild move
+        const playerAbility = (playerPoke?.ability || '').toLowerCase();
+        if (damage > 0 && playerAbility) {
+            const pAbCheck = checkAbilityVsMove(playerAbility, wildMoveTypeEn, damage,
+                playerPoke.currentHp, playerPoke.maxHp);
+            if (pAbCheck.blocked) {
+                damage = 0;
+                addBattleLog(`🛡️ <strong>${playerAbility}</strong>: ${pAbCheck.message}`);
+                if (pAbCheck.heal) {
+                    const slot = playerTeam.findIndex(p => p.name === playerPoke.name || p.nickname === playerPoke.nickname);
+                    if (slot >= 0) {
+                        playerTeam[slot].currentHp = Math.min(playerTeam[slot].maxHp, (playerTeam[slot].currentHp || 0) + pAbCheck.heal);
+                        refreshTeamDisplay();
+                    }
+                }
+            } else if (pAbCheck.modified_damage !== damage) {
+                addBattleLog(`🛡️ <strong>${playerAbility}</strong>: ${pAbCheck.message}`);
+                damage = pAbCheck.modified_damage;
+            }
+        }
+
         addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> ${categoryLabel} → d20(${attackRoll})+${moveMod}+${profBonus}${wildAccMod ? `+Acc(${wildAccMod})` : ''}=${totalAttack} vs ${defLabel}(${targetAC}) ✅ ${scaledDice}(${diceRoll})+MOD(${moveMod})${stab > 0 ? `+STAB(${stab})` : ''}${window.playerDodging ? ' ×1.25(esquiva)' : ''}${isCrit ? ' CRIT!' : ''}${effectLabel ? ' '+effectLabel : ''} = <strong>${damage} dano</strong>`);
-        
+
         // Check if wild move inflicts status on player
         checkWildStatusOnHit(moveName, attackRoll, damage);
-        
+
         socket.emit('battle_action', {
             action_by: 'master', action_type: 'attack',
-            move_name: moveName, damage: damage,
+            move_name: moveName, move_type: wildMoveTypeEn, damage: damage,
             wild_status_damage: wildPreTurnStatusDamage,
             status_effect: window._wildStatusApplied || null,
             message: `${totalAttack} vs AC ${targetAC}${isCrit ? ' Crítico!' : ''}`
@@ -3583,6 +3984,13 @@ async function processStatusMove(moveName, attackerPoke, targetPoke) {
             }
         }
         
+        // Trapping moves (player traps the wild)
+        if (TRAPPING_MOVES_PLAYER.has(moveName.toLowerCase())) {
+            window._enemyTrapped = true;
+            window._enemyTrappedBy = moveName;
+            addBattleLog(`🔒 ${moveName} prendeu o Pokémon selvagem! Não pode fugir.`);
+        }
+
         // Emit to server (costs turn)
         socket.emit('battle_action', {
             action_by: 'player', action_type: 'status',
@@ -3675,6 +4083,13 @@ async function processWildStatusMove(moveName) {
             return;
         }
         
+        // Trapping moves (wild traps the player)
+        if (TRAPPING_MOVES_ENEMY.has(moveName.toLowerCase())) {
+            window._playerTrapped = true;
+            window._playerTrappedBy = moveName;
+            addBattleLog(`🔒 ${moveName} prendeu seu Pokémon! Não pode trocar.`);
+        }
+
         socket.emit('battle_action', {
             action_by: 'master', action_type: 'status',
             move_name: moveName, damage: 0,
@@ -3892,6 +4307,276 @@ function migrateStats(stats) {
         HP: stats.CON || 10
     };
 }
+
+// ============================================================
+// SPECIAL EVOLUTIONS (Stone / Friendship / Trade)
+// ============================================================
+
+// Evolution stones and trade items — for bag filtering
+const EVOLUTION_STONES = new Set([
+    'fire stone','water stone','thunder stone','leaf stone',
+    'moon stone','sun stone','shiny stone','dusk stone',
+    'dawn stone','ice stone',
+    "king's rock",'metal coat','dragon scale','up-grade',
+    'dubious disc','reaper cloth','protector','electirizer',
+    'magmarizer','prism scale'
+]);
+
+function openUseStoneModal(pokemonIdx) {
+    const poke = playerTeam[pokemonIdx];
+    if (!poke) return;
+
+    // Filter bag for evolution items
+    const stoneItems = (window.bagItems || []).filter(item =>
+        item.qty > 0 && EVOLUTION_STONES.has((item.name || '').toLowerCase())
+    );
+
+    if (!stoneItems.length) {
+        alert('Você não tem pedras de evolução na bolsa.\nPedras: Fire Stone, Water Stone, Thunder Stone, Leaf Stone, Moon Stone, Sun Stone, Shiny Stone, Dusk Stone, Dawn Stone, Ice Stone — e itens de trade como Metal Coat, King\'s Rock, etc.');
+        return;
+    }
+
+    const options = stoneItems.map((item, j) =>
+        `<button class="btn btn-secondary" style="margin:0.25rem;" onclick="applyEvolutionStone(${pokemonIdx},'${item.name.replace(/'/g,"\\'")}')">
+            ${item.name} (${item.qty}x)
+        </button>`
+    ).join('');
+
+    // Simple inline modal using a floating div
+    const existing = document.getElementById('stone-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'stone-modal';
+    modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;background:var(--card-bg);border:2px solid var(--accent);border-radius:var(--radius);padding:1.5rem;min-width:280px;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.5)';
+    modal.innerHTML = `
+        <h3 style="margin-bottom:1rem;">💎 Usar Pedra em ${poke.nickname || poke.name}</h3>
+        <p style="color:var(--muted);font-size:0.9rem;margin-bottom:1rem;">Escolha uma pedra da bolsa:</p>
+        <div style="display:flex;flex-wrap:wrap;gap:0.25rem;">${options}</div>
+        <div style="margin-top:1rem;text-align:right;">
+            <button class="btn btn-sm btn-danger" onclick="document.getElementById('stone-modal').remove()">Fechar</button>
+        </div>`;
+    document.body.appendChild(modal);
+}
+
+async function applyEvolutionStone(pokemonIdx, itemName) {
+    document.getElementById('stone-modal')?.remove();
+    const poke = playerTeam[pokemonIdx];
+
+    const res = await fetch('/player/use-stone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pokemon_idx: pokemonIdx, item_name: itemName })
+    });
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+        showNotification(data.error || 'Não foi possível evoluir.', 'error');
+        return;
+    }
+
+    // Update local team
+    playerTeam[pokemonIdx] = data.pokemon;
+    // Remove stone from bag
+    const bagEntry = (window.bagItems || []).find(i => i.name?.toLowerCase() === itemName.toLowerCase());
+    if (bagEntry) bagEntry.qty = Math.max(0, (bagEntry.qty || 1) - 1);
+
+    await refreshTeamDisplay();
+    showNotification(`✨ ${poke.name} evoluiu para ${data.evolved_into}!`, 'success');
+    alert(`✨ PARABÉNS! ${poke.nickname || poke.name} evoluiu para ${data.evolved_into}!`);
+}
+
+async function friendshipEvolve(pokemonIdx) {
+    const poke = playerTeam[pokemonIdx];
+    if (!confirm(`Evoluir ${poke.nickname || poke.name} por amizade?\n(${poke.battle_wins || 0} batalhas vencidas)`)) return;
+
+    const res = await fetch('/player/friendship-evolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pokemon_idx: pokemonIdx })
+    });
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+        showNotification(data.error || 'Não foi possível evoluir.', 'error');
+        return;
+    }
+
+    playerTeam[pokemonIdx] = data.pokemon;
+    await refreshTeamDisplay();
+    showNotification(`💛 ${poke.name} evoluiu para ${data.evolved_into} pela amizade!`, 'success');
+    alert(`💛 PARABÉNS! ${poke.nickname || poke.name} evoluiu para ${data.evolved_into}!`);
+}
+
+// Socket event when any pokemon evolves (for teammates to see in master panel)
+socket.on('pokemon_evolved', (data) => {
+    if (data.player_id === window.CURRENT_USER_ID) {
+        // Already handled above via the HTTP response; just refresh team if needed
+        fetch('/player/team-data').then(r => r.json()).then(team => {
+            if (team && team.length) {
+                playerTeam.length = 0;
+                team.forEach(p => playerTeam.push(p));
+                refreshTeamDisplay();
+            }
+        });
+    }
+});
+
+// Also track battle_wins: send active pokemon name when ending wild battle
+const _origEndBattle = endBattle;
+async function endBattle(result) {
+    // Pass active pokemon name so server can increment battle_wins
+    if (result === 'defeated' && window.currentBattleData?.playerPokemon) {
+        const activeName = window.currentBattleData.playerPokemon.nickname || window.currentBattleData.playerPokemon.name;
+        socket.emit('end_encounter', {
+            player_id: window.CURRENT_USER_ID,
+            result,
+            active_pokemon_name: activeName
+        });
+    }
+    return _origEndBattle(result);
+}
+
+// ============================================================
+// PC / BOX STORAGE
+// ============================================================
+
+let pcBoxData = [];
+
+async function loadPC() {
+    try {
+        const res = await fetch('/player/pc');
+        pcBoxData = await res.json();
+        renderPC();
+    } catch(e) { console.error('loadPC', e); }
+}
+
+function renderPC() {
+    const team    = playerTeam;
+    const box     = pcBoxData;
+    const teamEl  = document.getElementById('pc-team-list');
+    const boxEl   = document.getElementById('pc-box-list');
+    const teamCnt = document.getElementById('pc-team-count');
+    const boxCnt  = document.getElementById('pc-box-count');
+    const emptyEl = document.getElementById('pc-box-empty');
+    if (!teamEl || !boxEl) return;
+
+    if (teamCnt) teamCnt.textContent = team.length;
+    if (boxCnt)  boxCnt.textContent  = box.length;
+
+    teamEl.innerHTML = team.map((p, i) => pcPokemonCard(p, i, 'team')).join('');
+
+    if (!box.length) {
+        boxEl.innerHTML = '';
+        if (emptyEl) emptyEl.style.display = 'block';
+    } else {
+        if (emptyEl) emptyEl.style.display = 'none';
+        boxEl.innerHTML = box.map((p, i) => pcPokemonCard(p, i, 'box')).join('');
+    }
+}
+
+function pcPokemonCard(p, idx, source) {
+    const hpPct   = p.maxHp ? Math.round((p.currentHp / p.maxHp) * 100) : 100;
+    const hpColor = hpPct > 50 ? '#4caf50' : hpPct > 20 ? '#ff9800' : '#f44336';
+    const typeHtml = (p.types || []).map(t => `<span class="type-badge type-${t.toLowerCase()}">${t}</span>`).join('');
+    const name    = p.nickname || p.name;
+
+    const actionBtn = source === 'team'
+        ? `<button class="btn btn-sm btn-secondary" onclick="pcDeposit(${idx})" ${playerTeam.length <= 1 ? 'disabled title="Último Pokémon!"' : ''}>→ PC</button>`
+        : `<button class="btn btn-sm btn-primary" onclick="pcWithdraw(${idx})" ${playerTeam.length >= 6 ? 'disabled title="Time cheio!"' : ''}>← Time</button>`;
+
+    const swapBtn = source === 'box' && playerTeam.length > 0
+        ? `<button class="btn btn-sm btn-secondary" onclick="openSwapModal(${idx})" title="Trocar direto com um do time">⇄</button>`
+        : '';
+
+    return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0.75rem;background:var(--darker);border-radius:var(--radius);">
+        <img src="${getPokemonSpriteUrl(p.number||0)}" style="width:40px;height:40px;object-fit:contain;">
+        <div style="flex:1;min-width:0;">
+            <div style="font-weight:bold;font-size:0.9rem;">${name} <span style="color:var(--muted);font-size:0.8rem;">Nv.${p.level}</span></div>
+            <div style="display:flex;gap:0.25rem;flex-wrap:wrap;margin:0.1rem 0;">${typeHtml}</div>
+            <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:2px;">
+                <div style="width:${hpPct}%;height:100%;background:${hpColor};"></div>
+            </div>
+            <div style="font-size:0.75rem;color:var(--muted);">HP ${p.currentHp}/${p.maxHp}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.25rem;">${actionBtn}${swapBtn}</div>
+    </div>`;
+}
+
+async function pcDeposit(teamIdx) {
+    if (playerTeam.length <= 1) { showNotification('Não pode depositar o último Pokémon!', 'error'); return; }
+    const res  = await fetch('/player/pc/deposit', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ team_idx: teamIdx })
+    });
+    const data = await res.json();
+    if (data.error) { showNotification(data.error, 'error'); return; }
+    // Sync local state
+    playerTeam.length = 0; data.team.forEach(p => playerTeam.push(p));
+    pcBoxData = data.pc;
+    renderPC();
+    refreshTeamDisplay();
+}
+
+async function pcWithdraw(pcIdx) {
+    if (playerTeam.length >= 6) { showNotification('Time cheio! Deposite um Pokémon primeiro.', 'error'); return; }
+    const res  = await fetch('/player/pc/withdraw', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ pc_idx: pcIdx })
+    });
+    const data = await res.json();
+    if (data.error) { showNotification(data.error, 'error'); return; }
+    playerTeam.length = 0; data.team.forEach(p => playerTeam.push(p));
+    pcBoxData = data.pc;
+    renderPC();
+    refreshTeamDisplay();
+}
+
+function openSwapModal(pcIdx) {
+    const existing = document.getElementById('swap-modal');
+    if (existing) existing.remove();
+
+    const pcPoke = pcBoxData[pcIdx];
+    const options = playerTeam.map((p, i) => {
+        const name = p.nickname || p.name;
+        return `<button class="btn btn-secondary" style="margin:0.2rem;width:100%;text-align:left;"
+                    onclick="pcSwap(${i},${pcIdx})">
+                    ${name} Nv.${p.level} (HP ${p.currentHp}/${p.maxHp})
+                </button>`;
+    }).join('');
+
+    const modal = document.createElement('div');
+    modal.id = 'swap-modal';
+    modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;background:var(--card-bg);border:2px solid var(--accent);border-radius:var(--radius);padding:1.5rem;min-width:280px;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.5)';
+    modal.innerHTML = `
+        <h3 style="margin-bottom:0.75rem;">⇄ Trocar com ${pcPoke.nickname||pcPoke.name}</h3>
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:0.75rem;">Escolha qual Pokémon do time sai:</p>
+        <div>${options}</div>
+        <div style="margin-top:1rem;text-align:right;">
+            <button class="btn btn-sm btn-danger" onclick="document.getElementById('swap-modal').remove()">Cancelar</button>
+        </div>`;
+    document.body.appendChild(modal);
+}
+
+async function pcSwap(teamIdx, pcIdx) {
+    document.getElementById('swap-modal')?.remove();
+    const res  = await fetch('/player/pc/swap', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ team_idx: teamIdx, pc_idx: pcIdx })
+    });
+    const data = await res.json();
+    if (data.error) { showNotification(data.error, 'error'); return; }
+    playerTeam.length = 0; data.team.forEach(p => playerTeam.push(p));
+    pcBoxData = data.pc;
+    renderPC();
+    refreshTeamDisplay();
+    showNotification('Pokémon trocado!', 'success');
+}
+
+// Load PC when tab is opened
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelector('[data-tab="pc"]')?.addEventListener('click', loadPC);
+});
 
 // ============================================================
 // GYMS & LEAGUE

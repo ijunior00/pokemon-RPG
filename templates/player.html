@@ -15,6 +15,7 @@
         <button class="tab" data-tab="quests">📜 Quests</button>
         <button class="tab" data-tab="map">🗺️ Mapa</button>
         <button class="tab" data-tab="gyms">🏟️ Ginásios</button>
+        <button class="tab" data-tab="pc">🖥️ PC</button>
     </div>
 
     <!-- TAB: ENCOUNTER -->
@@ -668,19 +669,63 @@
         <h2>Minhas Quests</h2>
         <div class="quests-list" id="player-quests">
             {% for quest in quests %}
-            <div class="quest-card {% if quest.completed %}quest-completed{% endif %}">
-                <h4>{{ quest.title }} {% if quest.completed %}✓{% endif %}</h4>
-                <span class="quest-city">📍 {{ quest.city }}</span>
-                {% if quest.xp_reward %}<span class="quest-xp">🌟 {{ quest.xp_reward }} XP</span>{% endif %}
-                <p>{{ quest.description }}</p>
-                <div class="quest-notes">
-                    <textarea placeholder="Suas anotações sobre esta quest..." rows="2"></textarea>
+            {% if not quest.completed %}
+            <div class="quest-card" id="player-quest-{{ quest.id }}" data-quest-id="{{ quest.id }}">
+                <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.3rem;">
+                    <span class="quest-category-badge cat-{{ quest.category or 'main' }}">{{ '⭐' if quest.category == 'main' else ('🔥' if quest.category == 'urgent' else '📌') }}</span>
+                    <h4 style="margin:0;flex:1;">{{ quest.title }}</h4>
+                    <span class="quest-city">📍 {{ quest.city }}</span>
+                    {% if quest.xp_reward %}<span class="quest-xp">🌟 {{ quest.xp_reward }} XP</span>{% endif %}
+                </div>
+                <p style="margin:0.2rem 0;color:var(--text-muted);font-size:0.9rem;">{{ quest.description }}</p>
+                {% if quest.objectives %}
+                {% set done_count = quest.objectives | selectattr('done') | list | length %}
+                {% set total = quest.objectives | length %}
+                <div style="margin:0.5rem 0;">
+                    <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:var(--muted);margin-bottom:2px;">
+                        <span>Progresso</span><span>{{ done_count }}/{{ total }}</span>
+                    </div>
+                    <div style="height:6px;background:var(--border);border-radius:4px;">
+                        <div style="width:{{ (done_count / total * 100) | int }}%;height:100%;background:var(--success);border-radius:4px;transition:width 0.3s;" id="progress-bar-{{ quest.id }}"></div>
+                    </div>
+                    <div style="margin-top:0.4rem;">
+                        {% for obj in quest.objectives %}
+                        <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.9rem;cursor:pointer;margin-bottom:0.2rem;{% if obj.done %}opacity:0.5;text-decoration:line-through;{% endif %}" id="obj-label-{{ quest.id }}-{{ loop.index0 }}">
+                            <input type="checkbox" {% if obj.done %}checked{% endif %}
+                                   onchange="playerToggleObjective('{{ quest.id }}', {{ loop.index0 }}, this)">
+                            {{ obj.text }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                <div style="margin-top:0.4rem;">
+                    <textarea id="notes-{{ quest.id }}"
+                              placeholder="Suas anotações..."
+                              rows="2"
+                              style="width:100%;resize:vertical;font-size:0.85rem;"
+                              onblur="saveQuestNotes('{{ quest.id }}')"
+                    >{{ quest.player_notes.get(current_user_id, '') if quest.player_notes else '' }}</textarea>
                 </div>
             </div>
-            {% endfor %}
-            {% if not quests %}
-            <p class="empty-state">Nenhuma quest ativa no momento.</p>
             {% endif %}
+            {% endfor %}
+            {% if not quests or quests | rejectattr('completed') | list | length == 0 %}
+            <p class="empty-state" id="no-quests-msg">Nenhuma quest ativa no momento.</p>
+            {% endif %}
+        </div>
+        <div id="completed-quests-section" style="margin-top:1rem;">
+            <h3 style="cursor:pointer;" onclick="togglePlayerCompleted()">✅ Completas <small id="completed-toggle-icon">▼</small></h3>
+            <div id="player-completed-quests" style="display:none;">
+                {% for quest in quests %}
+                {% if quest.completed %}
+                <div class="quest-card quest-completed" style="opacity:0.6;">
+                    <h4>✅ {{ quest.title }}</h4>
+                    <span class="quest-city">📍 {{ quest.city }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
         </div>
     </div>
 
@@ -693,6 +738,31 @@
                  class="galar-map" id="galar-map">
         </div>
         <div class="visited-routes" id="map-routes-section"></div>
+    </div>
+
+    <!-- TAB: PC / BOX STORAGE -->
+    <div class="tab-content" id="tab-pc">
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
+            <h2 style="margin:0;">🖥️ PC — Armazenamento</h2>
+            <span style="color:var(--muted);font-size:0.9rem;">Time: <strong id="pc-team-count">0</strong>/6 &nbsp;|&nbsp; PC: <strong id="pc-box-count">0</strong> Pokémon</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+            <!-- Time atual -->
+            <div class="card">
+                <h3>🔴 Time Atual</h3>
+                <p style="color:var(--muted);font-size:0.8rem;">Clique em "→ PC" para depositar. Limite: 6 Pokémon.</p>
+                <div id="pc-team-list" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+            </div>
+
+            <!-- PC Box -->
+            <div class="card">
+                <h3>📦 Caixa do PC</h3>
+                <p style="color:var(--muted);font-size:0.8rem;">Clique em "← Time" para retirar.</p>
+                <div id="pc-box-list" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+                <p id="pc-box-empty" style="color:var(--muted);font-style:italic;display:none;">Caixa vazia.</p>
+            </div>
+        </div>
     </div>
 
     <!-- TAB: GINÁSIOS & LIGA -->

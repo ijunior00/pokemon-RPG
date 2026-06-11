@@ -606,48 +606,155 @@ function togglePlayerDetails(playerId) {
 // ============================================
 // QUESTS
 // ============================================
-async function createQuest() {
-    const title = document.getElementById('quest-title').value;
-    const city = document.getElementById('quest-city').value;
-    const description = document.getElementById('quest-description').value;
-    const xpReward = parseInt(document.getElementById('quest-xp-reward').value) || 0;
-    const checkboxes = document.querySelectorAll('input[name="quest-players"]:checked');
-    const assignedTo = Array.from(checkboxes).map(cb => cb.value);
-    
-    if (!title) { alert('Preencha o título da quest!'); return; }
-    
-    const response = await fetch('/master/quests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, city, description, xp_reward: xpReward, assigned_to: assignedTo })
-    });
-    
-    const quest = await response.json();
-    const list = document.getElementById('quests-list');
-    list.innerHTML += `
-        <div class="quest-card" id="quest-${quest.id}">
-            <div class="quest-header">
-                <h4>${quest.title}</h4>
-                <button class="btn btn-sm btn-success" onclick="completeQuest('${quest.id}')">✓ Completar</button>
-            </div>
-            <span class="quest-city">📍 ${quest.city}</span>
-            <span class="quest-xp">🌟 ${quest.xp_reward} XP</span>
-            <p>${quest.description}</p>
-        </div>`;
-    
+function addObjectiveField(text = '') {
+    const list = document.getElementById('quest-objectives-list');
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;gap:0.3rem;align-items:center;';
+    div.innerHTML = `<input type="text" class="quest-obj-input" placeholder="Ex: Derrotar o Gym Leader" value="${text}" style="flex:1;">
+        <button type="button" class="btn btn-sm btn-danger" onclick="this.parentElement.remove()">✕</button>`;
+    list.appendChild(div);
+}
+
+function clearQuestForm() {
+    document.getElementById('quest-edit-id').value = '';
     document.getElementById('quest-title').value = '';
     document.getElementById('quest-city').value = '';
     document.getElementById('quest-description').value = '';
     document.getElementById('quest-xp-reward').value = '50';
-    checkboxes.forEach(cb => cb.checked = false);
+    document.getElementById('quest-category').value = 'main';
+    document.getElementById('quest-objectives-list').innerHTML = '';
+    document.querySelectorAll('input[name="quest-players"]').forEach(cb => cb.checked = false);
+    document.getElementById('quest-cancel-btn').style.display = 'none';
+}
+
+function editQuest(questId) {
+    const card = document.getElementById(`quest-${questId}`);
+    if (!card) return;
+    document.getElementById('quest-edit-id').value = questId;
+    document.getElementById('quest-title').value = card.querySelector('h4')?.textContent?.trim() || '';
+    document.getElementById('quest-city').value = card.querySelector('.quest-city')?.textContent?.replace('📍','').trim() || '';
+    document.getElementById('quest-description').value = card.querySelector('p')?.textContent?.trim() || '';
+    // Re-populate objectives
+    document.getElementById('quest-objectives-list').innerHTML = '';
+    card.querySelectorAll('.quest-objectives label').forEach(lbl => {
+        const text = lbl.textContent.trim();
+        if (text) addObjectiveField(text);
+    });
+    document.getElementById('quest-cancel-btn').style.display = '';
+    document.getElementById('quest-title').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+async function createQuest() {
+    const editId = document.getElementById('quest-edit-id').value;
+    const title = document.getElementById('quest-title').value.trim();
+    const city = document.getElementById('quest-city').value.trim();
+    const description = document.getElementById('quest-description').value.trim();
+    const category = document.getElementById('quest-category').value;
+    const xpReward = parseInt(document.getElementById('quest-xp-reward').value) || 0;
+    const checkboxes = document.querySelectorAll('input[name="quest-players"]:checked');
+    const assignedTo = Array.from(checkboxes).map(cb => cb.value);
+    const objectives = Array.from(document.querySelectorAll('.quest-obj-input'))
+        .map(i => i.value.trim()).filter(Boolean);
+
+    if (!title) { alert('Preencha o título da quest!'); return; }
+
+    const payload = { title, city, description, category, xp_reward: xpReward, assigned_to: assignedTo, objectives };
+
+    if (editId) {
+        // Update existing
+        const res = await fetch(`/master/quests/${editId}`, {
+            method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+        });
+        const quest = await res.json();
+        const card = document.getElementById(`quest-${editId}`);
+        if (card) card.outerHTML = renderMasterQuestCard(quest);
+    } else {
+        // Create new
+        const res = await fetch('/master/quests', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+        });
+        const quest = await res.json();
+        document.getElementById('quests-list').insertAdjacentHTML('afterbegin', renderMasterQuestCard(quest));
+    }
+    clearQuestForm();
+}
+
+function renderMasterQuestCard(quest) {
+    const catIcon = quest.category === 'urgent' ? '🔥' : quest.category === 'side' ? '📌' : '⭐';
+    const objDone = (quest.objectives || []).filter(o => o.done).length;
+    const objTotal = (quest.objectives || []).length;
+    const pct = objTotal ? Math.round(objDone / objTotal * 100) : 0;
+    const objHtml = objTotal ? `
+        <div class="quest-progress">
+            <div style="height:6px;background:var(--border);border-radius:4px;margin-bottom:3px;">
+                <div style="width:${pct}%;height:100%;background:var(--success);border-radius:4px;"></div>
+            </div>
+            <small style="color:var(--muted);">${objDone}/${objTotal} objetivos</small>
+            <div class="quest-objectives" style="margin-top:0.3rem;">
+                ${(quest.objectives || []).map((o,i) => `
+                    <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;cursor:pointer;${o.done?'opacity:0.5;text-decoration:line-through;':''}">
+                        <input type="checkbox" ${o.done?'checked':''} onchange="masterToggleObjective('${quest.id}',${i})">
+                        ${o.text}
+                    </label>`).join('')}
+            </div>
+        </div>` : '';
+    return `<div class="quest-card" id="quest-${quest.id}" data-quest-id="${quest.id}">
+        <div class="quest-header" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+            <span class="quest-category-badge cat-${quest.category||'main'}">${catIcon}</span>
+            <h4 style="margin:0;flex:1;">${quest.title}</h4>
+            <span class="quest-city">📍 ${quest.city||''}</span>
+            <span class="quest-xp">🌟 ${quest.xp_reward||0} XP</span>
+            <button class="btn btn-sm btn-warning" onclick="editQuest('${quest.id}')">✏️</button>
+            <button class="btn btn-sm btn-success" onclick="completeQuest('${quest.id}')">✓</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteQuest('${quest.id}')">🗑️</button>
+        </div>
+        <p style="margin:0.3rem 0;color:var(--text-muted);font-size:0.9rem;">${quest.description||''}</p>
+        ${objHtml}
+    </div>`;
+}
+
+async function masterToggleObjective(questId, idx) {
+    const res = await fetch(`/quests/${questId}/objectives/${idx}/toggle`, { method: 'POST' });
+    const data = await res.json();
+    if (data.quest) {
+        const card = document.getElementById(`quest-${questId}`);
+        if (card) card.outerHTML = renderMasterQuestCard(data.quest);
+        if (data.auto_completed) showNotification(`✅ Quest auto-completada! Todos os objetivos marcados.`, 'success');
+    }
 }
 
 async function completeQuest(questId) {
     if (!confirm('Completar esta quest e dar XP aos jogadores?')) return;
     await fetch(`/master/quests/${questId}/complete`, { method: 'POST' });
     const card = document.getElementById(`quest-${questId}`);
-    if (card) { card.style.opacity = '0.5'; card.querySelector('button').remove(); }
+    if (card) card.remove();
 }
+
+async function deleteQuest(questId) {
+    if (!confirm('Excluir esta quest permanentemente?')) return;
+    await fetch(`/master/quests/${questId}`, { method: 'DELETE' });
+    const card = document.getElementById(`quest-${questId}`);
+    if (card) card.remove();
+}
+
+function toggleCompletedQuests() {
+    const el = document.getElementById('quests-completed');
+    const btn = document.getElementById('toggle-completed-btn');
+    if (!el) return;
+    const visible = el.style.display !== 'none';
+    el.style.display = visible ? 'none' : '';
+    btn.textContent = visible ? 'Ver Completas' : 'Ocultar Completas';
+}
+
+// Real-time: quest updated from toggle
+socket.on('quest_updated', (quest) => {
+    const card = document.getElementById(`quest-${quest.id}`);
+    if (card) card.outerHTML = renderMasterQuestCard(quest);
+});
+socket.on('quest_deleted', (data) => {
+    const card = document.getElementById(`quest-${data.quest_id}`);
+    if (card) card.remove();
+});
 
 // ============================================
 // XP
@@ -707,41 +814,131 @@ function renderNpcTeamPreview() {
     ).join('');
 }
 
+const NPC_ROLE_LABELS = {
+    gym_leader: '🏟️ Líder de Ginásio',
+    elite4:     '⭐ Elite 4',
+    champion:   '👑 Campeão',
+    rival:      '🔥 Rival',
+    villain:    '💀 Vilão',
+    trainer:    '🎒 Treinador',
+};
+
 async function saveNpc() {
+    const editId = document.getElementById('npc-edit-id')?.value || '';
     const npc = {
-        name: document.getElementById('npc-name').value,
-        npc_class: document.getElementById('npc-class').value,
-        level: parseInt(document.getElementById('npc-level').value),
-        team: npcTeamTemp,
-        notes: document.getElementById('npc-notes').value
+        name:       document.getElementById('npc-name').value.trim(),
+        npc_class:  document.getElementById('npc-class').value.trim(),
+        level:      parseInt(document.getElementById('npc-level').value) || 1,
+        role:       document.getElementById('npc-role')?.value || '',
+        specialty:  document.getElementById('npc-specialty')?.value.trim() || '',
+        money:      parseInt(document.getElementById('npc-money')?.value) || 0,
+        team:       npcTeamTemp,
+        notes:      document.getElementById('npc-notes').value.trim()
     };
     if (!npc.name) { alert('Nome obrigatório!'); return; }
-    await fetch('/master/npcs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(npc) });
+
+    if (editId) {
+        // Update existing NPC
+        npc.id = editId;
+        await fetch(`/master/npcs/${editId}`, {
+            method: 'PUT',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(npc)
+        });
+    } else {
+        await fetch('/master/npcs', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(npc)
+        });
+    }
+
+    cancelNpcEdit();
+    loadNpcs();
+}
+
+function editNpc(npc) {
+    document.getElementById('npc-edit-id').value  = npc.id || '';
+    document.getElementById('npc-name').value     = npc.name || '';
+    document.getElementById('npc-class').value    = npc.npc_class || '';
+    document.getElementById('npc-level').value    = npc.level || 10;
+    document.getElementById('npc-role').value     = npc.role || '';
+    document.getElementById('npc-specialty').value = npc.specialty || '';
+    document.getElementById('npc-money').value    = npc.money || 0;
+    document.getElementById('npc-notes').value    = npc.notes || '';
+    npcTeamTemp = (npc.team || []).map(p => ({...p}));
+    renderNpcTeamPreview();
+    document.getElementById('npc-form-title').textContent = `✏️ Editando: ${npc.name}`;
+    document.getElementById('npc-cancel-edit')?.classList.remove('hidden');
+    document.getElementById('npc-form-panel')?.scrollIntoView({ behavior: 'smooth' });
+}
+
+function cancelNpcEdit() {
+    document.getElementById('npc-edit-id').value  = '';
+    document.getElementById('npc-name').value     = '';
+    document.getElementById('npc-class').value    = '';
+    document.getElementById('npc-level').value    = 10;
+    document.getElementById('npc-role').value     = '';
+    document.getElementById('npc-specialty').value = '';
+    document.getElementById('npc-money').value    = 500;
+    document.getElementById('npc-notes').value    = '';
     npcTeamTemp = [];
     renderNpcTeamPreview();
-    document.getElementById('npc-name').value = '';
-    document.getElementById('npc-class').value = '';
-    document.getElementById('npc-notes').value = '';
-    loadNpcs();
+    document.getElementById('npc-form-title').textContent = '✏️ Criar NPC Manual';
+    document.getElementById('npc-cancel-edit')?.classList.add('hidden');
 }
 
 async function loadNpcs() {
     const resp = await fetch('/master/npcs');
     const npcs = await resp.json();
+    window.ALL_NPCS = npcs;
+
+    // Populate PVP NPC select
+    const pvpSel = document.getElementById('master-pvp-npc');
+    if (pvpSel) {
+        pvpSel.innerHTML = '<option value="">Selecionar NPC...</option>' +
+            npcs.map(n => `<option value="${n.id}">${n.name}${n.role ? ' — ' + (NPC_ROLE_LABELS[n.role]||n.role) : ''}</option>`).join('');
+    }
+    // Populate gym leader NPC select
+    const gymSel = document.getElementById('gym-leader-npc');
+    if (gymSel) {
+        gymSel.innerHTML = '<option value="">— Sem NPC —</option>' +
+            npcs.map(n => `<option value="${n.id}">${n.name}</option>`).join('');
+    }
+
     const list = document.getElementById('npcs-list');
     if (!list) return;
-    list.innerHTML = npcs.map(n => `
+
+    if (!npcs.length) { list.innerHTML = '<p class="empty-state">Nenhum NPC criado.</p>'; return; }
+
+    const roleColors = { gym_leader:'#ff9800', elite4:'#9c27b0', champion:'#ffd700', rival:'#f44336', villain:'#607d8b', trainer:'#4caf50' };
+
+    list.innerHTML = npcs.map(n => {
+        const roleLabel = NPC_ROLE_LABELS[n.role] || '';
+        const roleBadge = n.role
+            ? `<span style="font-size:0.75rem;padding:0.1rem 0.5rem;border-radius:10px;background:${roleColors[n.role]||'#555'};color:#fff;margin-left:0.5rem;">${roleLabel}</span>` : '';
+        const teamHtml = (n.team||[]).map(p =>
+            `<span class="team-pokemon">${p.nickname||p.name} Nv.${p.level}</span>`
+        ).join('');
+        const specialtyBadge = n.specialty
+            ? `<span style="font-size:0.8rem;color:var(--muted);margin-left:0.5rem;">• ${n.specialty}</span>` : '';
+        return `
         <div class="npc-card">
-            <div class="npc-header">
-                <h4>${n.name}</h4>
+            <div class="npc-header" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <h4 style="margin:0">${n.name}</h4>
                 <span class="level-badge">Nv.${n.level}</span>
-                <span style="color:var(--text-muted)">${n.npc_class}</span>
-                <button class="btn btn-sm btn-danger" onclick="deleteNpc('${n.id}')">🗑️</button>
+                ${roleBadge}
+                <span style="color:var(--text-muted);font-size:0.85rem">${n.npc_class||''}${specialtyBadge}</span>
+                <div style="margin-left:auto;display:flex;gap:0.4rem;">
+                    <button class="btn btn-sm btn-secondary" onclick="editNpc(${JSON.stringify(n).replace(/"/g,'&quot;')})">✏️ Editar</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteNpc('${n.id}')">🗑️</button>
+                </div>
             </div>
-            <div class="npc-team">${(n.team||[]).map(p => `<span class="team-pokemon">${p.name} Nv.${p.level}</span>`).join('')}</div>
-            ${n.notes ? `<p class="npc-notes">${n.notes}</p>` : ''}
-        </div>
-    `).join('') || '<p class="empty-state">Nenhum NPC criado.</p>';
+            <div class="npc-team" style="margin-top:0.4rem;">${teamHtml || '<em style="color:var(--muted);font-size:0.8rem">Sem time</em>'}</div>
+            ${n.notes ? `<p class="npc-notes" style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem;">${n.notes}</p>` : ''}
+            ${n.money ? `<p style="font-size:0.8rem;color:var(--muted);">₽${n.money}</p>` : ''}
+        </div>`;
+    }).join('');
 }
 
 async function deleteNpc(id) {
@@ -1236,6 +1433,82 @@ async function saveMasterEditTeam() {
         alert('❌ Erro: ' + (result.error || 'Falha'));
     }
 }
+
+// ============================================================
+// PVP MONITOR — MASTER
+// ============================================================
+
+const masterActivePvp = {};  // battle_id → last known state
+
+socket.on('pvp_master_update', (data) => {
+    masterActivePvp[data.battle_id] = data;
+    renderMasterPvpBattles();
+});
+
+function renderMasterPvpBattles() {
+    const el = document.getElementById('master-pvp-battles');
+    if (!el) return;
+    const battles = Object.values(masterActivePvp);
+    const alive = battles.filter(b => b.event !== 'battle_ended');
+    if (!alive.length) {
+        el.innerHTML = '<em style="color:var(--muted)">Nenhuma batalha PVP ativa no momento.</em>';
+        return;
+    }
+    el.innerHTML = alive.map(b => {
+        const phaseLabel = { selection:'Seleção', battle:'Em Batalha', finished:'Finalizada' }[b.phase] || b.phase;
+        const modeLabel  = { official:'Oficial', street:'Rua', tournament:'Torneio' }[b.mode] || b.mode;
+        const gymInfo    = b.extra?.gym_id   ? `<span style="color:#ff9800">🏟️ Ginásio</span>` : '';
+        const leagueInfo = b.extra?.league_slot != null ? `<span style="color:#9c27b0">🌟 Liga — ${b.extra.slot_title||''}</span>` : '';
+        const turnLabel  = b.turn
+            ? (b.turn === 'player1'
+                ? `<span style="color:#4caf50">Vez: ${b.p1_name}</span>`
+                : `<span style="color:#f44336">Vez: ${b.p2_name}</span>`)
+            : '';
+        return `
+        <div style="padding:0.75rem;background:var(--darker);border-radius:var(--radius);border-left:3px solid var(--accent);">
+            <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                <strong>${b.p1_name}${b.p1_is_npc?'🤖':''}</strong>
+                <span style="color:var(--muted)">vs</span>
+                <strong>${b.p2_name}${b.p2_is_npc?'🤖':''}</strong>
+                <span style="font-size:0.8rem;color:var(--muted)">[${modeLabel}]</span>
+                ${gymInfo}${leagueInfo}
+            </div>
+            <div style="font-size:0.85rem;margin-top:0.25rem;display:flex;gap:1rem;flex-wrap:wrap;">
+                <span>${b.p1_pokemon} — HP: ${b.p1_hp}/${b.p1_maxhp}</span>
+                <span>${b.p2_pokemon} — HP: ${b.p2_hp}/${b.p2_maxhp}</span>
+                <span>Round ${b.round || 0} • ${phaseLabel}</span>
+                ${turnLabel}
+                ${b.winner ? `<span style="color:#ffd700">🏆 Vencedor: ${b.winner==='player1'?b.p1_name:b.p2_name}</span>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function masterSendNpcChallenge() {
+    const npcId    = document.getElementById('master-pvp-npc')?.value;
+    const targetId = document.getElementById('master-pvp-target')?.value;
+    const mode     = document.getElementById('master-pvp-mode')?.value || 'official';
+    if (!npcId || !targetId) { alert('Selecione NPC e jogador alvo.'); return; }
+    socket.emit('master_pvp_challenge', { npc_id: npcId, target_id: targetId, mode });
+}
+
+socket.on('master_pvp_created', (data) => {
+    const msg = document.getElementById('master-pvp-msg');
+    if (msg) {
+        msg.textContent = `✅ Batalha criada: ${data.npc} vs ${data.target}`;
+        msg.style.color = '#4caf50';
+        setTimeout(() => msg.textContent = '', 4000);
+    }
+});
+
+socket.on('master_error', (data) => {
+    alert('❌ ' + (data.msg || 'Erro'));
+});
+
+// Load PVP tab on open
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelector('[data-tab="pvp-master"]')?.addEventListener('click', renderMasterPvpBattles);
+});
 
 // ============================================================
 // GYMS & LEAGUE — MASTER

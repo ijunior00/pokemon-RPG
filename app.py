@@ -14,6 +14,7 @@ import database as db
 import pvp_battle as pvp
 import status_effects as effects
 import pokemon_scaling as scaling
+import abilities as ab
 
 # ============================================================
 # APP SETUP
@@ -194,18 +195,29 @@ def add_quest():
         return jsonify({'error': 'Unauthorized'}), 403
     data = request.json
     game_state = get_game_state()
+    # Parse objectives — accept either list of strings or list of {text, done}
+    raw_objectives = data.get('objectives', [])
+    objectives = []
+    for obj in raw_objectives:
+        if isinstance(obj, str):
+            objectives.append({'text': obj, 'done': False})
+        elif isinstance(obj, dict):
+            objectives.append({'text': obj.get('text', ''), 'done': bool(obj.get('done', False))})
+
     quest = {
         'id': secrets.token_hex(4),
         'title': data.get('title', ''),
         'city': data.get('city', ''),
         'description': data.get('description', ''),
-        'assigned_to': data.get('assigned_to', []),  # list of player ids
-        'xp_reward': int(data.get('xp_reward', 0)),  # XP reward on completion
-        'completed': False
+        'category': data.get('category', 'main'),   # 'main' | 'side' | 'urgent'
+        'assigned_to': data.get('assigned_to', []),
+        'xp_reward': int(data.get('xp_reward', 0)),
+        'objectives': objectives,
+        'completed': False,
+        'player_notes': {}   # {player_id: note_text}
     }
     game_state['quests'].append(quest)
     save_game_state(game_state)
-    # Notify players in real-time
     socketio.emit('new_quest', quest, room='players')
     return jsonify(quest)
 
@@ -260,6 +272,96 @@ def complete_quest(quest_id):
             return jsonify({'success': True})
     
     return jsonify({'error': 'Quest not found'}), 404
+
+
+@app.route('/master/quests/<quest_id>', methods=['PUT'])
+@login_required
+def update_quest(quest_id):
+    """Update quest details (title, description, objectives, etc.)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    game_state = get_game_state()
+    for quest in game_state['quests']:
+        if quest['id'] == quest_id:
+            if 'title'       in data: quest['title']       = data['title']
+            if 'city'        in data: quest['city']        = data['city']
+            if 'description' in data: quest['description'] = data['description']
+            if 'category'    in data: quest['category']    = data['category']
+            if 'xp_reward'   in data: quest['xp_reward']   = int(data['xp_reward'])
+            if 'objectives'  in data:
+                raw = data['objectives']
+                quest['objectives'] = [
+                    {'text': o if isinstance(o, str) else o.get('text', ''),
+                     'done': False if isinstance(o, str) else bool(o.get('done', False))}
+                    for o in raw
+                ]
+            save_game_state(game_state)
+            socketio.emit('quest_updated', quest, room='players')
+            return jsonify(quest)
+    return jsonify({'error': 'Quest not found'}), 404
+
+
+@app.route('/master/quests/<quest_id>', methods=['DELETE'])
+@login_required
+def delete_quest(quest_id):
+    """Delete a quest entirely."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    game_state = get_game_state()
+    before = len(game_state['quests'])
+    game_state['quests'] = [q for q in game_state['quests'] if q['id'] != quest_id]
+    if len(game_state['quests']) == before:
+        return jsonify({'error': 'Quest not found'}), 404
+    save_game_state(game_state)
+    socketio.emit('quest_deleted', {'quest_id': quest_id}, room='players')
+    socketio.emit('quest_deleted', {'quest_id': quest_id}, room='master')
+    return jsonify({'success': True})
+
+
+@app.route('/quests/<quest_id>/objectives/<int:obj_idx>/toggle', methods=['POST'])
+@login_required
+def toggle_objective(quest_id, obj_idx):
+    """Toggle an objective's done state. Auto-completes quest if all done."""
+    game_state = get_game_state()
+    for quest in game_state['quests']:
+        if quest['id'] != quest_id:
+            continue
+        objectives = quest.get('objectives', [])
+        if obj_idx < 0 or obj_idx >= len(objectives):
+            return jsonify({'error': 'Invalid objective index'}), 400
+        objectives[obj_idx]['done'] = not objectives[obj_idx]['done']
+        quest['objectives'] = objectives
+
+        # Auto-complete if all objectives done
+        auto_completed = False
+        if objectives and all(o['done'] for o in objectives) and not quest['completed']:
+            quest['completed'] = True
+            auto_completed = True
+
+        save_game_state(game_state)
+        socketio.emit('quest_updated', quest, room='players')
+        socketio.emit('quest_updated', quest, room='master')
+        return jsonify({'quest': quest, 'auto_completed': auto_completed})
+    return jsonify({'error': 'Quest not found'}), 404
+
+
+@app.route('/quests/<quest_id>/notes', methods=['POST'])
+@login_required
+def save_quest_notes(quest_id):
+    """Save player notes on a quest."""
+    data = request.json or {}
+    note = data.get('note', '')
+    game_state = get_game_state()
+    for quest in game_state['quests']:
+        if quest['id'] == quest_id:
+            if 'player_notes' not in quest:
+                quest['player_notes'] = {}
+            quest['player_notes'][current_user.id] = note
+            save_game_state(game_state)
+            return jsonify({'success': True})
+    return jsonify({'error': 'Quest not found'}), 404
+
 
 @app.route('/master/players/<player_id>')
 @login_required
@@ -335,6 +437,24 @@ def create_npc():
     }
     db.save_npc(npc)
     return jsonify(npc)
+
+@app.route('/master/npcs/<npc_id>', methods=['PUT'])
+@login_required
+def update_npc(npc_id):
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    npcs = db.get_npcs()
+    npc  = next((n for n in npcs if n['id'] == npc_id), None)
+    if not npc:
+        return jsonify({'error': 'NPC not found'}), 404
+    for field in ['name', 'npc_class', 'level', 'role', 'specialty', 'money', 'team', 'notes']:
+        if field in data:
+            npc[field] = data[field]
+    db.save_npc(npc)
+    socketio.emit('npcs_update', {'npcs': db.get_npcs()}, room='master')
+    return jsonify(npc)
+
 
 @app.route('/master/npcs/<npc_id>', methods=['DELETE'])
 @login_required
@@ -898,10 +1018,295 @@ def player_dashboard():
     # Filter quests for this player
     my_quests = [q for q in game_state.get('quests', []) 
                  if current_user.id in q.get('assigned_to', []) or not q.get('assigned_to')]
-    return render_template('player.html', 
-                         trainer=trainer_data, 
+    return render_template('player.html',
+                         trainer=trainer_data,
                          quests=my_quests,
-                         routes=ROUTES_DATA)
+                         routes=ROUTES_DATA,
+                         current_user_id=current_user.id)
+
+@app.route('/player/pc', methods=['GET'])
+@login_required
+def get_pc():
+    """Get player's PC box."""
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    return jsonify(trainer.get('pc', []))
+
+
+@app.route('/player/pc/deposit', methods=['POST'])
+@login_required
+def pc_deposit():
+    """Move a Pokémon from team to PC."""
+    data = request.json or {}
+    idx  = data.get('team_idx')
+
+    users   = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    team    = trainer.get('team', [])
+
+    if idx is None or idx < 0 or idx >= len(team):
+        return jsonify({'error': 'Índice inválido'}), 400
+    if len(team) <= 1:
+        return jsonify({'error': 'Você não pode depositar seu último Pokémon!'}), 400
+
+    poke = team.pop(idx)
+    pc   = trainer.get('pc', [])
+    pc.append(poke)
+    trainer['team'] = team
+    trainer['pc']   = pc
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+    return jsonify({'ok': True, 'team': team, 'pc': pc})
+
+
+@app.route('/player/pc/withdraw', methods=['POST'])
+@login_required
+def pc_withdraw():
+    """Move a Pokémon from PC to team."""
+    data = request.json or {}
+    idx  = data.get('pc_idx')
+
+    users   = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    team    = trainer.get('team', [])
+    pc      = trainer.get('pc', [])
+
+    if idx is None or idx < 0 or idx >= len(pc):
+        return jsonify({'error': 'Índice inválido'}), 400
+    if len(team) >= 6:
+        return jsonify({'error': 'Time cheio! Deposite um Pokémon primeiro.'}), 400
+
+    poke = pc.pop(idx)
+    team.append(poke)
+    trainer['team'] = team
+    trainer['pc']   = pc
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+    return jsonify({'ok': True, 'team': team, 'pc': pc})
+
+
+@app.route('/player/pc/swap', methods=['POST'])
+@login_required
+def pc_swap():
+    """Swap a team Pokémon directly with a PC Pokémon."""
+    data     = request.json or {}
+    team_idx = data.get('team_idx')
+    pc_idx   = data.get('pc_idx')
+
+    users   = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    team    = trainer.get('team', [])
+    pc      = trainer.get('pc', [])
+
+    if team_idx is None or pc_idx is None:
+        return jsonify({'error': 'Parâmetros inválidos'}), 400
+    if team_idx < 0 or team_idx >= len(team) or pc_idx < 0 or pc_idx >= len(pc):
+        return jsonify({'error': 'Índice fora dos limites'}), 400
+
+    team[team_idx], pc[pc_idx] = pc[pc_idx], team[team_idx]
+    trainer['team'] = team
+    trainer['pc']   = pc
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+    return jsonify({'ok': True, 'team': team, 'pc': pc})
+
+
+@app.route('/player/use-stone', methods=['POST'])
+@login_required
+def use_evolution_stone():
+    """Player uses an evolution stone/item on a team Pokémon."""
+    data = request.json or {}
+    pokemon_idx = data.get('pokemon_idx')
+    item_name   = data.get('item_name', '').strip()
+
+    if pokemon_idx is None or not item_name:
+        return jsonify({'error': 'Parâmetros inválidos'}), 400
+
+    users   = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    team    = trainer.get('team', [])
+    bag     = trainer.get('bag', [])
+
+    if pokemon_idx < 0 or pokemon_idx >= len(team):
+        return jsonify({'error': 'Pokémon inválido'}), 400
+
+    pokemon = team[pokemon_idx]
+
+    # Check item is in bag
+    bag_item = next((b for b in bag if isinstance(b, dict) and b.get('name', '').lower() == item_name.lower()), None)
+    if not bag_item or (bag_item.get('qty') or 0) < 1:
+        return jsonify({'error': f'Você não tem {item_name} na bolsa!'}), 400
+
+    # Check evolution
+    evolved_name, ok = scaling.get_special_evolution(
+        pokemon['name'],
+        stone_used=item_name,
+        battle_wins=pokemon.get('battle_wins', 0),
+        moves=pokemon.get('moves', [])
+    )
+    if not ok or not evolved_name:
+        return jsonify({'error': f'{pokemon["name"]} não evolui com {item_name}.'}), 400
+
+    evolved_base = POKEMON_BY_NAME.get(evolved_name.lower())
+    if not evolved_base:
+        return jsonify({'error': f'Pokémon evoluído "{evolved_name}" não encontrado no banco.'}), 404
+
+    # Build evolved Pokémon
+    current_level = pokemon.get('level', 1)
+    scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'))
+    evolved = {
+        'name': evolved_base['name'],
+        'number': evolved_base['number'],
+        'types': evolved_base.get('types', pokemon.get('types', [])),
+        'level': current_level,
+        'hp': scaled['hp'], 'maxHp': scaled['maxHp'],
+        'currentHp': min(pokemon.get('currentHp', scaled['hp']), scaled['hp']),
+        'ac': scaled['ac'], 'stats': scaled['stats'],
+        'proficiency': scaled['proficiency'], 'stab': scaled['stab'],
+        'speed': evolved_base.get('speed', pokemon.get('speed', '30ft')),
+        'ability': evolved_base.get('ability', {}).get('name', '') if evolved_base.get('ability') else pokemon.get('ability', ''),
+        'vulnerabilities': evolved_base.get('vulnerabilities', []),
+        'resistances': evolved_base.get('resistances', []),
+        'evolutionInfo': evolved_base.get('evolutionInfo', ''),
+        'evolutionStage': evolved_base.get('evolutionStage', ''),
+        'nickname': pokemon.get('nickname', ''),
+        'nature': pokemon.get('nature', ''),
+        'moves': pokemon.get('moves', []),
+        'heldItem': pokemon.get('heldItem', ''),
+        'notes': pokemon.get('notes', ''),
+        'battle_wins': pokemon.get('battle_wins', 0),
+    }
+    team[pokemon_idx] = evolved
+
+    # Consume item from bag
+    bag_item['qty'] = (bag_item.get('qty') or 1) - 1
+    if bag_item['qty'] <= 0:
+        bag.remove(bag_item)
+    trainer['team'] = team
+    trainer['bag']  = bag
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+
+    # Notify
+    display_name = evolved['nickname'] or evolved['name']
+    socketio.emit('pokemon_evolved', {
+        'player_id':    current_user.id,
+        'old_name':     pokemon['name'],
+        'new_name':     evolved['name'],
+        'display_name': display_name,
+        'method':       f'usou {item_name}'
+    }, room='players')
+    socketio.emit('pokemon_evolved', {
+        'player_id': current_user.id,
+        'old_name':  pokemon['name'],
+        'new_name':  evolved['name'],
+        'method':    f'usou {item_name}'
+    }, room='master')
+
+    return jsonify({'ok': True, 'evolved_into': evolved['name'], 'pokemon': evolved})
+
+
+@app.route('/player/friendship-evolve', methods=['POST'])
+@login_required
+def friendship_evolve():
+    """Evolve a Pokémon by friendship (≥10 battle wins)."""
+    data = request.json or {}
+    pokemon_idx = data.get('pokemon_idx')
+
+    users   = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    team    = trainer.get('team', [])
+
+    if pokemon_idx is None or pokemon_idx < 0 or pokemon_idx >= len(team):
+        return jsonify({'error': 'Pokémon inválido'}), 400
+
+    pokemon = team[pokemon_idx]
+    wins    = pokemon.get('battle_wins', 0)
+
+    evolved_name, ok = scaling.get_special_evolution(
+        pokemon['name'], battle_wins=wins
+    )
+    if not ok or not evolved_name:
+        return jsonify({'error': f'{pokemon["name"]} não está pronto para evoluir por amizade (precisa de 10 batalhas vencidas, tem {wins}).'}), 400
+
+    evolved_base = POKEMON_BY_NAME.get(evolved_name.lower())
+    if not evolved_base:
+        return jsonify({'error': f'"{evolved_name}" não encontrado.'}), 404
+
+    current_level = pokemon.get('level', 1)
+    scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'))
+    evolved = {
+        'name': evolved_base['name'], 'number': evolved_base['number'],
+        'types': evolved_base.get('types', pokemon.get('types', [])),
+        'level': current_level,
+        'hp': scaled['hp'], 'maxHp': scaled['maxHp'],
+        'currentHp': min(pokemon.get('currentHp', scaled['hp']), scaled['hp']),
+        'ac': scaled['ac'], 'stats': scaled['stats'],
+        'proficiency': scaled['proficiency'], 'stab': scaled['stab'],
+        'speed': evolved_base.get('speed', pokemon.get('speed', '30ft')),
+        'ability': evolved_base.get('ability', {}).get('name', '') if evolved_base.get('ability') else pokemon.get('ability', ''),
+        'vulnerabilities': evolved_base.get('vulnerabilities', []),
+        'resistances': evolved_base.get('resistances', []),
+        'evolutionInfo': evolved_base.get('evolutionInfo', ''),
+        'evolutionStage': evolved_base.get('evolutionStage', ''),
+        'nickname': pokemon.get('nickname', ''),
+        'nature': pokemon.get('nature', ''),
+        'moves': pokemon.get('moves', []),
+        'heldItem': pokemon.get('heldItem', ''),
+        'notes': pokemon.get('notes', ''),
+        'battle_wins': wins,
+    }
+    team[pokemon_idx] = evolved
+    trainer['team'] = team
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+
+    display_name = evolved['nickname'] or evolved['name']
+    socketio.emit('pokemon_evolved', {
+        'player_id': current_user.id, 'old_name': pokemon['name'],
+        'new_name': evolved['name'], 'display_name': display_name, 'method': 'amizade'
+    }, room='players')
+    socketio.emit('pokemon_evolved', {
+        'player_id': current_user.id, 'old_name': pokemon['name'],
+        'new_name': evolved['name'], 'method': 'amizade'
+    }, room='master')
+
+    return jsonify({'ok': True, 'evolved_into': evolved['name'], 'pokemon': evolved})
+
+
+@app.route('/player/level-evolve', methods=['POST'])
+@login_required
+def level_evolve():
+    """Manually trigger a level-based evolution check for a team slot."""
+    data = request.json or {}
+    slot = data.get('slot')
+
+    users   = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    team    = trainer.get('team', [])
+
+    if slot is None or slot < 0 or slot >= len(team):
+        return jsonify({'error': 'Slot inválido'}), 400
+
+    pokemon = team[slot]
+    old_name = pokemon.get('name', '')
+    evolved, evolved_name = check_and_evolve_pokemon(pokemon)
+
+    if not evolved:
+        return jsonify({'evolved': False, 'message': f'{old_name} não atingiu o nível necessário para evoluir ainda.'})
+
+    team[slot] = evolved
+    trainer['team'] = team
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+
+    socketio.emit('pokemon_evolved', {
+        'player_id': current_user.id, 'old_name': old_name,
+        'new_name': evolved['name'], 'method': 'level'
+    }, room='master')
+
+    return jsonify({'evolved': True, 'old_name': old_name, 'pokemon': evolved})
+
 
 @app.route('/player/team-data')
 @login_required
@@ -1005,13 +1410,22 @@ def api_pokemon_scaled_stats():
     pokemon_number = data.get('number')
     level = int(data.get('level', 1))
     
+    nature = data.get('nature', '')
+    name   = data.get('name', '')
+
     base_pokemon = POKEMON_BY_NUMBER.get(pokemon_number)
+    if not base_pokemon and name:
+        base_pokemon = POKEMON_BY_NAME.get(name.lower())
     if not base_pokemon:
         return jsonify({'error': 'Pokemon not found'}), 404
-    
-    stats = scaling.calculate_pokemon_stats(base_pokemon, level)
+
+    stats = scaling.calculate_pokemon_stats(base_pokemon, level, nature or None)
     stats['growth_rate'] = scaling.get_growth_rate(base_pokemon)
     stats['xp_to_next'] = scaling.xp_to_next_level(level, stats['growth_rate'])
+    # Include which stat was boosted/lowered for UI display
+    nature_mods = scaling.NATURE_MODIFIERS.get(nature, {})
+    stats['nature_boost']  = next((s for s, m in nature_mods.items() if m > 1), None)
+    stats['nature_lower']  = next((s for s, m in nature_mods.items() if m < 1), None)
     return jsonify(stats)
 
 @app.route('/api/pokemon/battle-xp', methods=['POST'])
@@ -1287,6 +1701,7 @@ def handle_battle_action(data):
         action_by = data.get('action_by')  # 'player' or 'master' (for wild pokemon)
         action_type = data.get('action_type')  # 'attack', 'status', 'item'
         move_name = data.get('move_name', '')
+        move_type = data.get('move_type', '')   # e.g. 'fire', 'ground'
         damage = data.get('damage', 0)
         heal = data.get('heal', 0)
         status_effect = data.get('status_effect', None)
@@ -1308,6 +1723,38 @@ def handle_battle_action(data):
         if player_status_damage > 0:
             battle_state['player_hp_current'] = max(0, battle_state['player_hp_current'] - player_status_damage)
         
+        # Check defender ability before applying damage
+        ability_result = None
+        if damage > 0 and move_type and action_type == 'attack':
+            if action_by == 'player':
+                # Player attacks wild — check wild's ability
+                wild_ability = encounter.get('pokemon', {}).get('ability', '') or ''
+                if wild_ability:
+                    ability_result = ab.check_defender_ability(
+                        wild_ability, move_type, damage,
+                        battle_state['wild_hp_current'], battle_state['wild_hp_max']
+                    )
+                    if ability_result['triggered']:
+                        damage = ability_result['modified_damage']
+                        if ability_result['heal']:
+                            battle_state['wild_hp_current'] = min(battle_state['wild_hp_max'], battle_state['wild_hp_current'] + ability_result['heal'])
+            elif action_by == 'master':
+                # Wild/NPC attacks player — check player pokemon's ability
+                users = get_users()
+                trainer = users.get(player_id, {}).get('trainer_data', {})
+                team = trainer.get('team', [])
+                player_poke = team[0] if team else {}
+                player_ability = player_poke.get('ability', '') or ''
+                if player_ability:
+                    ability_result = ab.check_defender_ability(
+                        player_ability, move_type, damage,
+                        battle_state['player_hp_current'], battle_state['player_hp_max']
+                    )
+                    if ability_result['triggered']:
+                        damage = ability_result['modified_damage']
+                        if ability_result['heal']:
+                            battle_state['player_hp_current'] = min(battle_state['player_hp_max'], battle_state['player_hp_current'] + ability_result['heal'])
+
         # Apply damage
         if action_by == 'player' and damage > 0:
             battle_state['wild_hp_current'] = max(0, battle_state['wild_hp_current'] - damage)
@@ -1346,7 +1793,8 @@ def handle_battle_action(data):
             'heal': heal,
             'status_effect': status_effect,
             'message': message,
-            'battle_state': battle_state
+            'battle_state': battle_state,
+            'ability_trigger': ability_result if (ability_result and ability_result.get('triggered')) else None,
         }
         
         # Notify both sides
@@ -1359,11 +1807,26 @@ def handle_end_encounter(data):
     if current_user.is_authenticated:
         game_state = get_game_state()
         player_id = data.get('player_id', current_user.id)
+        result = data.get('result', '')
+
+        # Track battle_wins on active Pokémon when player wins
+        if result == 'defeated':
+            users = get_users()
+            trainer = users.get(player_id, {}).get('trainer_data', {})
+            active_poke_name = data.get('active_pokemon_name')
+            if active_poke_name:
+                for poke in trainer.get('team', []):
+                    if poke.get('name') == active_poke_name or poke.get('nickname') == active_poke_name:
+                        poke['battle_wins'] = poke.get('battle_wins', 0) + 1
+                        break
+                users[player_id]['trainer_data'] = trainer
+                save_users(users)
+
         if player_id in game_state['active_encounters']:
             del game_state['active_encounters'][player_id]
             save_game_state(game_state)
-        emit('encounter_ended', {'player_id': player_id, 'result': data.get('result')}, room='master')
-        emit('encounter_ended', {'player_id': player_id, 'result': data.get('result')}, room=player_id)
+        emit('encounter_ended', {'player_id': player_id, 'result': result}, room='master')
+        emit('encounter_ended', {'player_id': player_id, 'result': result}, room=player_id)
 
 @socketio.on('master_action')
 def handle_master_action(data):
@@ -1437,6 +1900,64 @@ def handle_pvp_join(data):
             'id': current_user.id,
             'name': current_user.username
         }, room='pvp_arena', include_self=False)
+
+@socketio.on('master_pvp_challenge')
+@login_required
+def handle_master_pvp_challenge(data):
+    """Master sends an NPC to challenge a player (or battle another NPC)."""
+    if current_user.role != 'master':
+        return
+    npc_id    = data.get('npc_id')
+    target_id = data.get('target_id')
+    mode      = data.get('mode', 'official')
+
+    npcs  = db.get_npcs()
+    npc   = next((n for n in npcs if n['id'] == npc_id), None)
+    if not npc:
+        emit('master_error', {'msg': 'NPC não encontrado'})
+        return
+
+    users = get_users()
+    target_is_npc = target_id not in users
+    if target_is_npc:
+        target_npc = next((n for n in npcs if n['id'] == target_id), None)
+        if not target_npc:
+            emit('master_error', {'msg': 'Alvo não encontrado'})
+            return
+        target_team = target_npc.get('team', [])
+        target_name = target_npc.get('name', target_id)
+    else:
+        target_trainer = users[target_id].get('trainer_data', {})
+        target_team    = target_trainer.get('team', [])
+        target_name    = target_trainer.get('name', users[target_id]['username'])
+
+    battle = pvp.create_pvp_battle(mode, npc_id, target_id)
+    battle['extra'] = {'initiated_by_master': True}
+    pvp.set_team(battle, 'player1', npc.get('team', []))
+    pvp.set_team(battle, 'player2', target_team)
+    battle['player1']['is_npc'] = True
+    if npc.get('team'):
+        pvp.select_pokemon(battle, 'player1', 0)
+    if target_is_npc:
+        battle['player2']['is_npc'] = True
+        if target_team:
+            pvp.select_pokemon(battle, 'player2', 0)
+
+    ACTIVE_PVP[battle['id']] = battle
+    _emit_pvp_to_master(battle, 'created')
+
+    if not target_is_npc:
+        socketio.emit('pvp_battle_created', {
+            'battle_id':     battle['id'],
+            'opponent_name': npc.get('name', 'NPC'),
+            'mode':          mode,
+            'your_team':     target_team,
+            'you_are':       'player2',
+            'phase':         'selection'
+        }, room=target_id)
+
+    emit('master_pvp_created', {'battle_id': battle['id'], 'npc': npc.get('name'), 'target': target_name})
+
 
 @socketio.on('pvp_challenge')
 def handle_pvp_challenge(data):
@@ -1538,13 +2059,7 @@ def handle_pvp_select(data):
             p2_state = pvp.get_battle_state_for_player(battle, 'player2')
             emit('pvp_battle_state', p1_state, room=battle['player1']['id'])
             emit('pvp_battle_state', p2_state, room=battle['player2']['id'])
-            # Notify master
-            emit('pvp_battle_update_master', {
-                'battle_id': battle_id,
-                'event': 'battle_started',
-                'turn': battle['turn'],
-                'round': battle['round']
-            }, room='master')
+            _emit_pvp_to_master(battle, 'battle_started')
         elif result == 'waiting_opponent':
             emit('pvp_waiting', {'message': 'Aguardando oponente escolher Pokémon...'})
 
@@ -1576,7 +2091,8 @@ def handle_pvp_attack(data):
         p2_state = pvp.get_battle_state_for_player(battle, 'player2')
         emit('pvp_battle_state', p1_state, room=battle['player1']['id'])
         emit('pvp_battle_state', p2_state, room=battle['player2']['id'])
-        
+        _emit_pvp_to_master(battle, 'attack')
+
         if result == 'battle_end':
             handle_pvp_victory(battle)
         elif result == 'must_switch':
@@ -1626,7 +2142,8 @@ def handle_pvp_switch(data):
         p2_state = pvp.get_battle_state_for_player(battle, 'player2')
         emit('pvp_battle_state', p1_state, room=battle['player1']['id'])
         emit('pvp_battle_state', p2_state, room=battle['player2']['id'])
-        
+        _emit_pvp_to_master(battle, 'switch')
+
         # If next turn is NPC
         if battle['phase'] == 'battle' and battle[battle['turn']].get('is_npc'):
             handle_npc_turn(battle, battle['turn'])
@@ -1647,7 +2164,8 @@ def handle_pvp_pass(data):
         p2_state = pvp.get_battle_state_for_player(battle, 'player2')
         emit('pvp_battle_state', p1_state, room=battle['player1']['id'])
         emit('pvp_battle_state', p2_state, room=battle['player2']['id'])
-        
+        _emit_pvp_to_master(battle, 'pass')
+
         if battle[battle['turn']].get('is_npc'):
             handle_npc_turn(battle, battle['turn'])
 
@@ -1743,19 +2261,79 @@ def handle_pvp_forfeit(data):
         handle_pvp_victory(battle)
 
 
+def _emit_pvp_to_master(battle, event='update'):
+    """Broadcast current PVP battle state to master room."""
+    p1 = battle.get('player1', {})
+    p2 = battle.get('player2', {})
+    p1_active = (p1.get('team') or [{}])[p1.get('active_idx') or 0] if p1.get('team') else {}
+    p2_active = (p2.get('team') or [{}])[p2.get('active_idx') or 0] if p2.get('team') else {}
+    users = get_users()
+    p1_name = users.get(p1.get('id'), {}).get('username', p1.get('id', '?'))
+    p2_name = users.get(p2.get('id'), {}).get('username', p2.get('id', '?'))
+    socketio.emit('pvp_master_update', {
+        'event':       event,
+        'battle_id':   battle.get('id'),
+        'mode':        battle.get('mode', 'official'),
+        'phase':       battle.get('phase', 'selection'),
+        'round':       battle.get('round', 0),
+        'turn':        battle.get('turn'),
+        'winner':      battle.get('winner'),
+        'extra':       battle.get('extra', {}),
+        'p1_id':       p1.get('id'), 'p1_name': p1_name,
+        'p1_is_npc':   p1.get('is_npc', False),
+        'p1_hp':       p1_active.get('currentHp', '?'), 'p1_maxhp': p1_active.get('maxHp', '?'),
+        'p1_pokemon':  p1_active.get('nickname') or p1_active.get('name', '?'),
+        'p2_id':       p2.get('id'), 'p2_name': p2_name,
+        'p2_is_npc':   p2.get('is_npc', False),
+        'p2_hp':       p2_active.get('currentHp', '?'), 'p2_maxhp': p2_active.get('maxHp', '?'),
+        'p2_pokemon':  p2_active.get('nickname') or p2_active.get('name', '?'),
+    }, room='master')
+
+
 def handle_npc_turn(battle, npc_key):
     """Handle NPC's automatic turn."""
-    import time
     move = pvp.npc_choose_action(battle, npc_key)
-    # Simple damage calc for NPC: random 3-12
     damage = random.randint(3, 12)
+
+    # Check defender (human player) ability against NPC move type
+    defender_key = 'player2' if npc_key == 'player1' else 'player1'
+    if not battle[defender_key].get('is_npc'):
+        move_data = MOVES_BY_NAME.get(move.lower(), {})
+        move_type = move_data.get('type', '').lower()
+        defender_team = battle[defender_key].get('team', [])
+        defender_active_idx = battle[defender_key].get('active_idx')
+        defender_active = defender_team[defender_active_idx] if (defender_active_idx is not None and defender_team) else None
+        if defender_active and move_type:
+            def_ability = defender_active.get('ability', '') or ''
+            if def_ability:
+                ab_result = ab.check_defender_ability(
+                    def_ability, move_type, damage,
+                    defender_active.get('currentHp', 999), defender_active.get('maxHp', 999)
+                )
+                if ab_result['triggered']:
+                    damage = ab_result['modified_damage']
+                    if ab_result['heal']:
+                        defender_active['currentHp'] = min(
+                            defender_active.get('maxHp', 999),
+                            defender_active.get('currentHp', 0) + ab_result['heal']
+                        )
+                    # Emit ability trigger to the defender's room
+                    defender_id = battle[defender_key]['id']
+                    socketio.emit('ability_triggered', {
+                        'message': ab_result['message'],
+                        'blocked': ab_result['blocked'],
+                        'heal': ab_result['heal'],
+                        'boost': ab_result['boost'],
+                    }, room=defender_id)
+
     result = pvp.apply_damage(battle, npc_key, damage, move, 'NPC auto-attack')
-    
+
     p1_state = pvp.get_battle_state_for_player(battle, 'player1')
     p2_state = pvp.get_battle_state_for_player(battle, 'player2')
     socketio.emit('pvp_battle_state', p1_state, room=battle['player1']['id'])
     socketio.emit('pvp_battle_state', p2_state, room=battle['player2']['id'])
-    
+    _emit_pvp_to_master(battle, 'npc_attack')
+
     if result == 'battle_end':
         handle_pvp_victory(battle)
     elif result == 'must_switch':
@@ -1835,6 +2413,13 @@ def handle_pvp_victory(battle):
         
         rewards = {'money': stolen_money, 'items': stolen_items}
     
+    # Increment battle_wins on winner's active Pokémon
+    winner_team = winner_trainer.get('team', [])
+    winner_active_idx = battle.get(winner_key, {}).get('active_idx')
+    if winner_active_idx is not None and winner_active_idx < len(winner_team):
+        winner_team[winner_active_idx]['battle_wins'] = winner_team[winner_active_idx].get('battle_wins', 0) + 1
+    winner_trainer['team'] = winner_team
+
     # Save
     if winner_id in users:
         users[winner_id]['trainer_data'] = winner_trainer
@@ -1865,6 +2450,8 @@ def handle_pvp_victory(battle):
         'mode': mode
     }, room='master')
     
+    _emit_pvp_to_master(battle, 'battle_ended')
+
     # Auto-report tournament result
     tourney_id  = battle.get('tournament_id')
     match_id_bt = battle.get('tournament_match_id')

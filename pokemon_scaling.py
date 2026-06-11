@@ -360,3 +360,177 @@ def get_growth_rate(pokemon):
         return 'fast'
     else:
         return 'medium'
+
+
+# ============================================================
+# SPECIAL EVOLUTION TABLE
+# Maps base pokemon name (lowercase) → evolution condition dict
+# condition types: 'stone', 'level', 'friendship', 'move', 'stat_check'
+# ============================================================
+SPECIAL_EVOLUTIONS = {
+    # ── Fire Stone ─────────────────────────────────────────
+    'vulpix':    {'into': 'Ninetales',  'type': 'stone', 'stone': 'Fire Stone'},
+    'growlithe': {'into': 'Arcanine',   'type': 'stone', 'stone': 'Fire Stone'},
+    'pansear':   {'into': 'Simisear',   'type': 'stone', 'stone': 'Fire Stone'},
+    'eevee_fire':{'into': 'Flareon',    'type': 'stone', 'stone': 'Fire Stone'},   # see eevee routing below
+
+    # ── Water Stone ────────────────────────────────────────
+    'shellder':  {'into': 'Cloyster',   'type': 'stone', 'stone': 'Water Stone'},
+    'staryu':    {'into': 'Starmie',    'type': 'stone', 'stone': 'Water Stone'},
+    'lombre':    {'into': 'Ludicolo',   'type': 'stone', 'stone': 'Water Stone'},
+    'panpour':   {'into': 'Simipour',   'type': 'stone', 'stone': 'Water Stone'},
+
+    # ── Thunder Stone ──────────────────────────────────────
+    'pikachu':   {'into': 'Raichu',     'type': 'stone', 'stone': 'Thunder Stone'},
+    'eevee_thunder': {'into': 'Jolteon','type': 'stone', 'stone': 'Thunder Stone'},
+
+    # ── Leaf Stone ─────────────────────────────────────────
+    'gloom_leaf':{'into': 'Vileplume',  'type': 'stone', 'stone': 'Leaf Stone'},
+    'weepinbell':{'into': 'Victreebel', 'type': 'stone', 'stone': 'Leaf Stone'},
+    'exeggcute': {'into': 'Exeggutor',  'type': 'stone', 'stone': 'Leaf Stone'},
+    'nuzleaf':   {'into': 'Shiftry',    'type': 'stone', 'stone': 'Leaf Stone'},
+
+    # ── Moon Stone ─────────────────────────────────────────
+    'nidorina':  {'into': 'Nidoqueen',  'type': 'stone', 'stone': 'Moon Stone'},
+    'nidorino':  {'into': 'Nidoking',   'type': 'stone', 'stone': 'Moon Stone'},
+    'clefairy':  {'into': 'Clefable',   'type': 'stone', 'stone': 'Moon Stone'},
+    'jigglypuff':{'into': 'Wigglytuff', 'type': 'stone', 'stone': 'Moon Stone'},
+    'munna':     {'into': 'Musharna',   'type': 'stone', 'stone': 'Moon Stone'},
+    'eevee_moon':{'into': 'Sylveon',    'type': 'stone', 'stone': 'Moon Stone'},  # simplified for RPG
+
+    # ── Sun Stone ──────────────────────────────────────────
+    'sunkern':   {'into': 'Sunflora',   'type': 'stone', 'stone': 'Sun Stone'},
+    'gloom_sun': {'into': 'Bellossom',  'type': 'stone', 'stone': 'Sun Stone'},
+    'helioptile':{'into': 'Heliolisk',  'type': 'stone', 'stone': 'Sun Stone'},
+    'cottonee':  {'into': 'Whimsicott', 'type': 'stone', 'stone': 'Sun Stone'},
+    'petilil':   {'into': 'Lilligant',  'type': 'stone', 'stone': 'Sun Stone'},
+
+    # ── Shiny Stone ────────────────────────────────────────
+    'togetic':   {'into': 'Togekiss',   'type': 'stone', 'stone': 'Shiny Stone'},
+    'roselia':   {'into': 'Roserade',   'type': 'stone', 'stone': 'Shiny Stone'},
+    'minccino':  {'into': 'Cinccino',   'type': 'stone', 'stone': 'Shiny Stone'},
+
+    # ── Dusk Stone ─────────────────────────────────────────
+    'misdreavus':{'into': 'Mismagius',  'type': 'stone', 'stone': 'Dusk Stone'},
+    'murkrow':   {'into': 'Honchkrow',  'type': 'stone', 'stone': 'Dusk Stone'},
+    'doublade':  {'into': 'Aegislash',  'type': 'stone', 'stone': 'Dusk Stone'},
+
+    # ── Dawn Stone ─────────────────────────────────────────
+    'snorunt':   {'into': 'Froslass',   'type': 'stone', 'stone': 'Dawn Stone'},
+
+    # ── Ice Stone ──────────────────────────────────────────
+    'sandshrew': {'into': 'Sandslash',  'type': 'stone', 'stone': 'Ice Stone'},
+
+    # ── Eevee (handled separately — stone determines branch) ─
+    'eevee': [
+        {'into': 'Flareon',   'type': 'stone', 'stone': 'Fire Stone'},
+        {'into': 'Vaporeon',  'type': 'stone', 'stone': 'Water Stone'},
+        {'into': 'Jolteon',   'type': 'stone', 'stone': 'Thunder Stone'},
+        {'into': 'Leafeon',   'type': 'stone', 'stone': 'Leaf Stone'},
+        {'into': 'Glaceon',   'type': 'stone', 'stone': 'Ice Stone'},
+        {'into': 'Espeon',    'type': 'friendship'},
+        {'into': 'Umbreon',   'type': 'friendship'},
+        {'into': 'Sylveon',   'type': 'stone', 'stone': 'Moon Stone'},
+    ],
+
+    # ── Pedra por tipo (ex-trade simples) ─────────────────────
+    'kadabra':   {'into': 'Alakazam',   'type': 'stone', 'stone': 'Dawn Stone'},    # Psychic
+    'machoke':   {'into': 'Machamp',    'type': 'stone', 'stone': 'Sun Stone'},     # Fighting
+    'haunter':   {'into': 'Gengar',     'type': 'stone', 'stone': 'Dusk Stone'},    # Ghost
+    'graveler':  {'into': 'Golem',      'type': 'stone', 'stone': 'Shiny Stone'},   # Rock/Ground
+    'boldore':   {'into': 'Gigalith',   'type': 'stone', 'stone': 'Shiny Stone'},   # Rock
+    'gurdurr':   {'into': 'Conkeldurr', 'type': 'stone', 'stone': 'Sun Stone'},     # Fighting
+
+    # ── Pedra com item temático (ex-trade com item) ────────────
+    'poliwhirl': [
+        {'into': 'Poliwrath',  'type': 'stone', 'stone': 'Water Stone'},
+        {'into': 'Politoed',   'type': 'stone', 'stone': "King's Rock"},
+    ],
+    'slowpoke': [
+        {'into': 'Slowbro',    'type': 'level', 'level': 37},
+        {'into': 'Slowking',   'type': 'stone', 'stone': 'Dawn Stone'},             # Psychic branch
+    ],
+    'onix':      {'into': 'Steelix',    'type': 'stone', 'stone': 'Metal Coat'},    # vira Steel
+    'scyther':   {'into': 'Scizor',     'type': 'stone', 'stone': 'Metal Coat'},    # vira Steel
+    'seadra':    {'into': 'Kingdra',    'type': 'stone', 'stone': 'Dragon Scale'},  # vira Dragon
+    'porygon':   {'into': 'Porygon2',   'type': 'stone', 'stone': 'Moon Stone'},    # Normal
+    'porygon2':  {'into': 'Porygon-Z',  'type': 'stone', 'stone': 'Shiny Stone'},   # Normal (upgrade)
+    'dusclops':  {'into': 'Dusknoir',   'type': 'stone', 'stone': 'Dusk Stone'},    # Ghost
+    'rhydon':    {'into': 'Rhyperior',  'type': 'stone', 'stone': 'Shiny Stone'},   # Rock/Ground
+    'electabuzz':{'into': 'Electivire', 'type': 'stone', 'stone': 'Thunder Stone'}, # Electric
+    'magmar':    {'into': 'Magmortar',  'type': 'stone', 'stone': 'Fire Stone'},    # Fire
+    'feebas':    {'into': 'Milotic',    'type': 'stone', 'stone': 'Water Stone'},   # Water
+
+    # ── Friendship (≥10 batalhas vencidas com este Pokémon) ─
+    'pichu':     {'into': 'Pikachu',    'type': 'friendship'},
+    'cleffa':    {'into': 'Clefairy',   'type': 'friendship'},
+    'igglybuff': {'into': 'Jigglypuff', 'type': 'friendship'},
+    'togepi':    {'into': 'Togetic',    'type': 'friendship'},
+    'azurill':   {'into': 'Marill',     'type': 'friendship'},
+    'buneary':   {'into': 'Lopunny',    'type': 'friendship'},
+    'chansey':   {'into': 'Blissey',    'type': 'friendship'},
+    'golbat':    {'into': 'Crobat',     'type': 'friendship'},
+    'munchlax':  {'into': 'Snorlax',    'type': 'friendship'},
+    'riolu':     {'into': 'Lucario',    'type': 'friendship'},
+    'woobat':    {'into': 'Swoobat',    'type': 'friendship'},
+
+    # ── Move especifico (ao aprender o move, evolui) ───────
+    'lickitung': {'into': 'Lickilicky', 'type': 'move', 'move': 'Rollout'},
+    'tangela':   {'into': 'Tangrowth',  'type': 'move', 'move': 'Ancient Power'},
+    'piloswine': {'into': 'Mamoswine',  'type': 'move', 'move': 'Ancient Power'},
+    'yanma':     {'into': 'Yanmega',    'type': 'move', 'move': 'Ancient Power'},
+    'aipom':     {'into': 'Ambipom',    'type': 'move', 'move': 'Double Hit'},
+
+    # ── Tyrogue (por stat ao atingir level 20) ─────────────
+    'tyrogue': [
+        {'into': 'Hitmonlee',  'type': 'stat_check', 'condition': 'atk_gt_def'},
+        {'into': 'Hitmonchan', 'type': 'stat_check', 'condition': 'def_gt_atk'},
+        {'into': 'Hitmontop',  'type': 'stat_check', 'condition': 'atk_eq_def'},
+    ],
+}
+
+# Stones that can be used as items (all lowercase for matching)
+EVOLUTION_STONES = {
+    'fire stone', 'water stone', 'thunder stone', 'leaf stone',
+    'moon stone', 'sun stone', 'shiny stone', 'dusk stone',
+    'dawn stone', 'ice stone',
+    # itens temáticos usados como pedra de evolução
+    "king's rock", 'metal coat', 'dragon scale',
+}
+
+def get_special_evolution(pokemon_name: str, stone_used: str = None, battle_wins: int = 0, moves: list = None):
+    """
+    Returns (evolved_into: str, condition_met: bool) for special evolutions.
+    stone_used: lowercase item name from bag
+    battle_wins: how many battles this pokemon has won
+    moves: list of move names the pokemon knows
+    """
+    name_lower = pokemon_name.strip().lower()
+    entry = SPECIAL_EVOLUTIONS.get(name_lower)
+    if not entry:
+        return None, False
+
+    candidates = entry if isinstance(entry, list) else [entry]
+
+    for cond in candidates:
+        evo_type = cond['type']
+
+        if evo_type == 'stone' and stone_used:
+            if stone_used.lower() == cond['stone'].lower():
+                return cond['into'], True
+
+        elif evo_type == 'friendship':
+            if battle_wins >= 10:
+                return cond['into'], True
+
+        elif evo_type == 'move' and moves:
+            move_lower = [m.lower() for m in moves]
+            if cond['move'].lower() in move_lower:
+                return cond['into'], True
+
+        elif evo_type == 'stat_check':
+            # Tyrogue — caller passes extra context via stone_used field as condition key
+            if stone_used == cond['condition']:
+                return cond['into'], True
+
+    return None, False

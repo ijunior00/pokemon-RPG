@@ -1187,6 +1187,20 @@ body {
 .quest-xp { color: var(--accent); font-size: 0.85rem; font-weight: bold; margin-left: 0.5rem; }
 .quest-completed { opacity: 0.6; border-left-color: var(--success); }
 
+/* Quest category badges */
+.quest-category-badge {
+    font-size: 0.75rem; font-weight: bold; padding: 0.1rem 0.4rem;
+    border-radius: 4px; white-space: nowrap;
+}
+.cat-main    { background: rgba(255,215,0,0.2); color: #f5c400; border: 1px solid #f5c400; }
+.cat-side    { background: rgba(100,149,237,0.2); color: #6495ed; border: 1px solid #6495ed; }
+.cat-urgent  { background: rgba(255,80,80,0.2); color: #ff5050; border: 1px solid #ff5050; }
+
+/* Quest progress bar container */
+.quest-progress { margin-top: 0.4rem; }
+.progress-bar-container { background: var(--border); border-radius: 4px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: var(--success); border-radius: 4px; transition: width 0.3s; }
+
 /* ============================================
    POKEDEX PLAYER
    ============================================ */
@@ -1233,6 +1247,45 @@ body {
     border-radius: 12px;
     font-size: 0.85rem;
     font-weight: bold;
+}
+
+/* PVP Turn Countdown */
+#pvp-turn-timer {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 50%;
+    font-size: 1.2rem;
+    font-weight: 900;
+    border: 3px solid currentColor;
+    margin-left: 0.75rem;
+    vertical-align: middle;
+    transition: color 0.5s, border-color 0.5s;
+}
+#pvp-turn-timer.timer-green  { color: #4caf50; }
+#pvp-turn-timer.timer-yellow { color: #ff9800; }
+#pvp-turn-timer.timer-red    { color: #f44336; }
+
+@keyframes pvp-shake {
+    0%, 100% { transform: translate(0,0) rotate(0deg); }
+    15%  { transform: translate(-3px, 2px) rotate(-2deg); }
+    30%  { transform: translate(3px, -2px) rotate(2deg); }
+    45%  { transform: translate(-2px, 3px) rotate(-1deg); }
+    60%  { transform: translate(2px, -3px) rotate(1deg); }
+    75%  { transform: translate(-1px, 2px) rotate(-1deg); }
+}
+@keyframes pvp-blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.2; }
+}
+#pvp-turn-timer.timer-panic {
+    animation: pvp-shake 0.4s ease-in-out infinite,
+               pvp-blink 0.5s ease-in-out infinite;
+    color: #f44336;
+    border-color: #f44336;
+    transform-origin: center;
 }
 
 .battle-field-master {
