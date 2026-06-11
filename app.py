@@ -2033,10 +2033,11 @@ def handle_battle_action(data):
         battle_state = encounter['battle_state']
         
         # Apply pre-turn status damage first (doesn't count as an action)
+        PERMADEATH_FLOOR = -30
         if wild_status_damage > 0:
-            battle_state['wild_hp_current'] = max(0, battle_state['wild_hp_current'] - wild_status_damage)
+            battle_state['wild_hp_current'] = max(PERMADEATH_FLOOR, battle_state['wild_hp_current'] - wild_status_damage)
         if player_status_damage > 0:
-            battle_state['player_hp_current'] = max(0, battle_state['player_hp_current'] - player_status_damage)
+            battle_state['player_hp_current'] = max(PERMADEATH_FLOOR, battle_state['player_hp_current'] - player_status_damage)
         
         # Check defender ability before applying damage
         ability_result = None
@@ -2078,11 +2079,12 @@ def handle_battle_action(data):
                 battle_state['player_hp_current'] = new_hp
                 battle_state['player_hp_max'] = new_max_hp
 
-        # Apply damage
+        # Apply damage — allow negative down to -30 for permadeath detection
+        PERMADEATH_FLOOR = -30
         if action_by == 'player' and damage > 0:
-            battle_state['wild_hp_current'] = max(0, battle_state['wild_hp_current'] - damage)
+            battle_state['wild_hp_current'] = max(PERMADEATH_FLOOR, battle_state['wild_hp_current'] - damage)
         elif action_by == 'master' and damage > 0:
-            battle_state['player_hp_current'] = max(0, battle_state['player_hp_current'] - damage)
+            battle_state['player_hp_current'] = max(PERMADEATH_FLOOR, battle_state['player_hp_current'] - damage)
         
         # Apply healing
         if action_by == 'player' and heal > 0:
@@ -2843,7 +2845,7 @@ def _handle_pvp_permadeath(battle):
             save_users(users)
     socketio.emit('pvp_pokemon_death', {
         'pokemon_name': dead_poke_name,
-        'message': f'💀 {dead_poke_name} atingiu -10 HP e morreu permanentemente!'
+        'message': f'💀 {dead_poke_name} atingiu -30 HP e morreu permanentemente!'
     }, room=dead_player_id)
     socketio.emit('pvp_master_permadeath', {
         'player_id': dead_player_id,

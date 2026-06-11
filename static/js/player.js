@@ -604,7 +604,7 @@ socket.on('battle_update', (data) => {
         document.getElementById('btn-pass-turn')?.classList.add('hidden');
         document.getElementById('btn-switch-pokemon')?.classList.add('hidden');
     }
-    if (bs.player_hp_current <= 0 && bs.player_hp_current > -10 && !window._playerFaintLogged) {
+    if (bs.player_hp_current <= 0 && bs.player_hp_current > -30 && !window._playerFaintLogged) {
         window._playerFaintLogged = true;
         battleSpriteFaint('battle-player-sprite');
         playSound('faint');
@@ -613,8 +613,8 @@ socket.on('battle_update', (data) => {
     if (bs.player_hp_current > 0) {
         window._playerFaintLogged = false;
     }
-    // Morte permanente: HP chegou a -10 ou abaixo
-    if (bs.player_hp_current <= -10 && !window._permadeathTriggered) {
+    // Morte permanente: HP chegou a -30 ou abaixo
+    if (bs.player_hp_current <= -30 && !window._permadeathTriggered) {
         window._permadeathTriggered = true;
         triggerPermanentDeath();
     }
@@ -919,7 +919,8 @@ async function useMove(moveName) {
         else if (effectiveness < 1 && effectiveness > 0) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
 
         // Check enemy ability (client-side preview — server also validates)
-        const enemyAbility = (window.currentBattleData?.enemy?.ability || '').toLowerCase();
+        const _rawEnemyAbility = window.currentBattleData?.enemy?.ability;
+        const enemyAbility = (typeof _rawEnemyAbility === 'string' ? _rawEnemyAbility : '').toLowerCase();
         if (damage > 0 && enemyAbility) {
             const abilityCheck = checkAbilityVsMove(enemyAbility, moveTypeEn, damage,
                 window.currentBattleData?.enemy?.currentHp, window.currentBattleData?.enemy?.hp);
@@ -1293,7 +1294,7 @@ async function triggerPermanentDeath() {
 
     const name = deadPokemon.nickname || deadPokemon.name || 'Seu Pokémon';
 
-    addBattleLog(`💀💔 <strong>${name} atingiu -10 HP e morreu permanentemente!</strong>`);
+    addBattleLog(`💀💔 <strong>${name} atingiu -30 HP e morreu permanentemente!</strong>`);
     addBattleLog(`😢 ${name} foi apagado do seu time para sempre.`);
 
     // Remove from team
@@ -1769,10 +1770,13 @@ function hpBarShake(barContainerEl) {
 function setHpBar(barId, current, max) {
     const el = document.getElementById(barId);
     if (!el) return;
-    const pct = max > 0 ? Math.min(100, (current / max) * 100) : 0;
+    // Bar shows 0% when negative (dead), but HP text shows the real negative number
+    const pct = max > 0 ? Math.max(0, Math.min(100, (current / max) * 100)) : 0;
     el.style.width = pct + '%';
     el.classList.remove('hp-mid', 'hp-low');
-    if (pct <= 20) el.classList.add('hp-low');
+    if (current <= -30) el.classList.add('hp-low'); // permadeath zone — pulse red
+    else if (current <= 0) el.classList.add('hp-low');
+    else if (pct <= 20) el.classList.add('hp-low');
     else if (pct <= 50) el.classList.add('hp-mid');
 }
 
@@ -1896,53 +1900,92 @@ function refreshTeamDisplay() {
         slot.className = 'team-slot';
         if (i < playerTeam.length && playerTeam[i]) {
             const poke = playerTeam[i];
-            const totalXp = poke.totalXp || 0;
+            const totalXp   = poke.totalXp || 0;
             const xpForNext = Math.pow((poke.level || 1) + 1, 3);
-            const xpForCurrent = Math.pow(poke.level || 1, 3);
-            const xpPct = poke.level >= 100 ? 100 : Math.min(100, ((totalXp - xpForCurrent) / (xpForNext - xpForCurrent)) * 100);
+            const xpForCur  = Math.pow(poke.level || 1, 3);
+            const xpPct     = poke.level >= 100 ? 100 : Math.min(100, ((totalXp - xpForCur) / (xpForNext - xpForCur)) * 100);
             const hasPoints = (poke.statPointsAvailable || 0) > 0;
-            const typeColor = TYPE_COLORS[(poke.types?.[0] || '').toLowerCase()] || '#3b4cca';
-            const hpPct = poke.maxHp > 0 ? Math.min(100, (poke.currentHp / poke.maxHp) * 100) : 0;
-            const hpClass = hpBarClass(poke.currentHp, poke.maxHp);
+            const type1     = (poke.types?.[0] || '').toLowerCase();
+            const type2     = (poke.types?.[1] || '').toLowerCase();
+            const col1      = TYPE_COLORS[type1] || '#3b4cca';
+            const col2      = TYPE_COLORS[type2] || col1;
+            const hpPct     = poke.maxHp > 0 ? Math.max(0, Math.min(100, (poke.currentHp / poke.maxHp) * 100)) : 0;
+            const hpClass   = hpBarClass(poke.currentHp, poke.maxHp);
             const spriteUrl = getPokemonSpriteUrl(poke);
-            const spriteHtml = spriteUrl ? `<img src="${spriteUrl}" style="width:64px;height:64px;image-rendering:pixelated;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));" onerror="this.style.display='none'">` : '';
-            const statusHtml = poke.status ? `<small style="color:var(--warning);">${poke.status.icon || '⚠️'} ${poke.status.name || ''}</small>` : '';
+            const isShiny   = poke.isShiny || false;
+            const isFainted = (poke.currentHp || 0) <= 0;
+            const statusCond = poke.status?.condition || null;
+            const statusIcon = statusCond ? getStatusIcon(statusCond) : '';
+
+            // HP bar fill color based on percentage
+            const hpFill = hpPct <= 20 ? '#e63946' : hpPct <= 50 ? '#f5a623' : col1;
 
             slot.innerHTML = `
-                <div class="team-pokemon-card filled" style="--type-color:${typeColor}">
-                    ${spriteHtml}
-                    <h4 style="font-size:0.9rem;text-align:center;">${poke.nickname || poke.name}</h4>
-                    <span class="level-badge">Nv. ${poke.level}</span>
-                    <div class="type-badges">${formatTypes(poke.types || [])}</div>
-                    <div style="width:100%;">
-                        <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;">
-                            <span>HP</span><span>${poke.currentHp}/${poke.maxHp}</span>
-                        </div>
-                        <div class="hp-bar-container" style="height:10px;">
-                            <div class="hp-bar ${hpClass}" style="width:${hpPct}%"></div>
-                        </div>
+                <div class="pkcard ${isFainted ? 'pkcard--fainted' : ''} ${isShiny ? 'pkcard--shiny' : ''}"
+                     style="--c1:${col1};--c2:${col2};--hp-fill:${hpFill}">
+
+                    <!-- Glowing top stripe -->
+                    <div class="pkcard__stripe"></div>
+
+                    <!-- Shiny sparkle overlay -->
+                    ${isShiny ? '<div class="pkcard__shiny-overlay"></div>' : ''}
+
+                    <!-- Sprite area -->
+                    <div class="pkcard__sprite-wrap">
+                        ${spriteUrl
+                            ? `<img src="${spriteUrl}" class="pkcard__sprite ${isShiny ? 'pkcard__sprite--shiny' : ''}" onerror="this.style.display='none'" loading="lazy">`
+                            : `<div class="pkcard__no-sprite">?</div>`}
+                        ${isFainted ? '<div class="pkcard__faint-overlay">😵</div>' : ''}
+                        ${statusCond ? `<div class="pkcard__status-float">${statusIcon}</div>` : ''}
                     </div>
-                    ${statusHtml}
-                    <small style="color:var(--text-muted);font-size:0.72rem;">AC: ${poke.ac}</small>
-                    <div class="xp-bar-container" style="height:6px;margin:0.2rem 0;">
-                        <div class="xp-bar" style="width:${xpPct}%"></div>
+
+                    <!-- Info -->
+                    <div class="pkcard__info">
+                        <div class="pkcard__nameline">
+                            <span class="pkcard__name">${poke.nickname || poke.name}</span>
+                            <span class="pkcard__level">Nv.${poke.level}</span>
+                        </div>
+                        <div class="type-badges pkcard__types">${formatTypes(poke.types || [])}</div>
+
+                        <!-- HP bar -->
+                        <div class="pkcard__hp-row">
+                            <span class="pkcard__hp-label">HP</span>
+                            <div class="pkcard__hp-track">
+                                <div class="pkcard__hp-fill ${hpClass}" style="width:${hpPct}%"></div>
+                            </div>
+                            <span class="pkcard__hp-num">${poke.currentHp}/${poke.maxHp}</span>
+                        </div>
+
+                        <!-- XP bar -->
+                        <div class="pkcard__xp-track">
+                            <div class="pkcard__xp-fill" style="width:${xpPct}%"></div>
+                        </div>
+                        <div class="pkcard__xp-label">${poke.level >= 100 ? '✨ MAX' : `XP ${totalXp}/${xpForNext}`}</div>
+
+                        <!-- Extras: AC, nature, stat points, evo -->
+                        <div class="pkcard__meta">
+                            <span>AC ${poke.ac || '?'}</span>
+                            ${getNatureLabel(poke)}
+                            ${hasPoints ? `<span style="color:var(--accent);">⬆️ ${poke.statPointsAvailable}pts</span>` : ''}
+                        </div>
+                        ${getLevelEvoIndicator(poke, i)}
                     </div>
-                    <small style="color:var(--text-muted);font-size:0.72rem;">${poke.level >= 100 ? 'MAX' : `XP: ${totalXp}/${xpForNext}`}</small>
-                    ${getNatureLabel(poke)}
-                    ${hasPoints ? `<small style="color:var(--accent);display:block;">⬆️ ${poke.statPointsAvailable} pontos!</small>` : ''}
-                    ${getLevelEvoIndicator(poke, i)}
-                    <div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.25rem;justify-content:center;">
-                        <button class="btn btn-sm btn-secondary" onclick="editPokemon(${i})">Editar</button>
-                        <button class="btn btn-sm btn-primary" onclick="openUseStoneModal(${i})" title="Usar pedra de evolução">💎</button>
-                        ${(poke.battle_wins||0) >= 10 ? `<button class="btn btn-sm btn-warning" onclick="friendshipEvolve(${i})" title="${poke.battle_wins} batalhas vencidas">💛</button>` : `<small style="color:var(--muted);align-self:center;" title="Batalhas vencidas">💛 ${poke.battle_wins||0}/10</small>`}
-                        <button class="btn btn-sm btn-danger" onclick="removePokemon(${i})">✕</button>
+
+                    <!-- Hover reveal: actions -->
+                    <div class="pkcard__actions">
+                        <button class="pkcard__btn" onclick="editPokemon(${i})">✏️ Editar</button>
+                        <button class="pkcard__btn" onclick="openUseStoneModal(${i})" title="Pedra de evolução">💎</button>
+                        ${(poke.battle_wins||0) >= 10
+                            ? `<button class="pkcard__btn pkcard__btn--gold" onclick="friendshipEvolve(${i})" title="${poke.battle_wins} batalhas">💛 Evoluir</button>`
+                            : `<span class="pkcard__btn pkcard__btn--muted" title="Batalhas vencidas">💛 ${poke.battle_wins||0}/10</span>`}
+                        <button class="pkcard__btn pkcard__btn--danger" onclick="removePokemon(${i})">✕</button>
                     </div>
                 </div>`;
         } else {
             slot.innerHTML = `
-                <div class="team-pokemon-card empty" onclick="addPokemon(${i})">
-                    <span class="add-icon">+</span>
-                    <span>Adicionar Pokémon</span>
+                <div class="pkcard pkcard--empty" onclick="addPokemon(${i})">
+                    <span class="pkcard__add-icon">＋</span>
+                    <span class="pkcard__add-label">Adicionar Pokémon</span>
                 </div>`;
         }
         grid.appendChild(slot);
@@ -2999,17 +3042,18 @@ function renderPvpLogEntry(entry, youAre) {
     return '';
 }
 
-function pvpUseMove(moveName) {
+async function pvpUseMove(moveName) {
     const state = window.pvpState.battleData;
     if (!state || state.turn !== state.you_are) { alert('Não é seu turno!'); return; }
-    
+
     const myActive = state.your_team[state.your_active_idx] || {};
     const stats = myActive.stats || {};
     const level = myActive.level || 1;
-    
+
     // Get move data from cache
     const m = MOVES_CACHE[moveName] || {};
-    
+    const moveType = (typeof m.type === 'string' ? m.type : String(m.type || '')).toLowerCase();
+
     // Calculate attack roll
     let moveMod = 0;
     const power = (m.power || 'FOR').toUpperCase();
@@ -3019,29 +3063,26 @@ function pvpUseMove(moveName) {
     if (power.includes('SAB')) moveMod = Math.max(moveMod, Math.floor(((stats.WIS||10) - 10) / 2));
     if (power.includes('CAR')) moveMod = Math.max(moveMod, Math.floor(((stats.CHA||10) - 10) / 2));
     if (power.includes('CON')) moveMod = Math.max(moveMod, Math.floor(((stats.CON||10) - 10) / 2));
-    
+
     const profBonus = level >= 17 ? 6 : level >= 13 ? 5 : level >= 9 ? 4 : level >= 5 ? 3 : 2;
     const attackRoll = Math.floor(Math.random() * 20) + 1;
     const isCrit = attackRoll === 20;
     const totalAttack = attackRoll + moveMod + profBonus;
-    
+
     const opponentAC = state.opponent_active?.ac || 13;
-    
+
     let damage = 0;
     let message = '';
-    
+
     if (attackRoll === 1) {
         message = `d20(1) Falha Crítica!`;
     } else if (totalAttack >= opponentAC || isCrit) {
-        // Calculate damage
         const diceRoll = rollDamageFromString(m.baseDamage || '1d6', level);
         damage = diceRoll + moveMod;
-        if (isCrit) {
-            damage = diceRoll + rollDamageFromString(m.baseDamage || '1d6', level) + moveMod;
-        }
+        if (isCrit) damage = diceRoll + rollDamageFromString(m.baseDamage || '1d6', level) + moveMod;
+
         // STAB
         const pokeTypes = (myActive.types || []).map(t => t.toLowerCase());
-        const moveType = (m.type || '').toLowerCase();
         const stabTable = [0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5];
         const stab = pokeTypes.includes(moveType) ? (stabTable[level] || 0) : 0;
         damage += stab;
@@ -3050,14 +3091,20 @@ function pvpUseMove(moveName) {
     } else {
         message = `d20(${attackRoll})+${moveMod}+${profBonus}=${totalAttack} vs AC${opponentAC} ❌ Errou`;
     }
-    
+
+    // Check status effect from the move (await so it's ready before emit)
+    await checkMoveStatusEffect(moveName, attackRoll, damage);
+    const statusEffect = window._lastStatusInflicted || null;
+    window._lastStatusInflicted = null;
+
     clearPvpTimer();
-    // Send to server
     socket.emit('pvp_attack', {
         battle_id: window.pvpState.battleId,
         move_name: moveName,
+        move_type: moveType,
         damage: damage,
-        message: message
+        message: message,
+        status_effect: statusEffect
     });
 }
 
@@ -3131,7 +3178,7 @@ socket.on('pvp_must_switch', (data) => {
 // Permanent death in PVP
 socket.on('pvp_pokemon_death', (data) => {
     const name = data.pokemon_name || '???';
-    addPvpLog(`💀 ${name} atingiu -10 HP e morreu permanentemente!`);
+    addPvpLog(`💀 ${name} atingiu -30 HP e morreu permanentemente!`);
     // Remove from local team display
     const idx = playerTeam.findIndex(p => (p.nickname || p.name) === name);
     if (idx >= 0) {
@@ -3881,9 +3928,9 @@ async function _executeWildTurn() {
                 // Apply status damage directly to wild HP display
                 const maxHp = enemy?.maxHp || enemy?.hp || 20;
                 const hpText = document.getElementById('battle-enemy-hp-text-full')?.textContent || '';
-                const hpMatch = hpText.match(/(\d+)\s*\/\s*(\d+)/);
+                const hpMatch = hpText.match(/(-?\d+)\s*\/\s*(\d+)/);
                 const currentHp = hpMatch ? parseInt(hpMatch[1]) : maxHp;
-                const newHp = Math.max(0, currentHp - statusResult.damage);
+                const newHp = Math.max(-30, currentHp - statusResult.damage);
                 document.getElementById('battle-enemy-hp-text-full').textContent = `${newHp}/${maxHp} HP`;
                 setHpBar('battle-enemy-hp-bar-full', newHp, maxHp);
                 const condName = window.statusEffectsData?.conditions?.[window.wildPokemonStatus.condition]?.name || window.wildPokemonStatus.condition;

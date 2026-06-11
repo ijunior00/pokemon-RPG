@@ -143,7 +143,7 @@ def apply_damage(battle, attacker_key, damage, move_name='', message=''):
 
     # Check if pokemon fainted
     if new_hp <= 0:
-        is_permadeath = raw_hp <= -10
+        is_permadeath = raw_hp <= -30
         if is_permadeath:
             active_poke['permanently_dead'] = True
             battle['last_permadeath'] = {

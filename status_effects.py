@@ -116,6 +116,13 @@ MOVE_STATUS_EFFECTS = {
     'Poison Fang': {'status': 'badly_poisoned', 'chance': 0.50, 'on': 'hit'},
     'Toxic': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'save_fail', 'save': 'CON'},
     'Poison Powder': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'save_fail', 'save': 'CON'},
+    'Poison Gas': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'save_fail', 'save': 'CON'},
+    'Sludge': {'status': 'badly_poisoned', 'chance': 0.30, 'on': 'hit'},
+    'Mud Bomb': {'status': 'badly_poisoned', 'chance': 0.30, 'on': 'hit'},
+    'Venom Drench': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'hit'},
+    'Acid': {'status': 'badly_poisoned', 'chance': 0.10, 'on': 'hit'},
+    'Acid Spray': {'status': 'badly_poisoned', 'chance': 0.10, 'on': 'hit'},
+    'Poison Tail': {'status': 'badly_poisoned', 'chance': 0.10, 'on': 'hit'},
     'Baneful Bunker': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'contact'},
     
     # Burn moves
@@ -246,7 +253,11 @@ def check_status_on_hit(move_name, attack_roll, damage_dealt):
     elif trigger == 'nat15plus' and attack_roll >= 15 and damage_dealt > 0:
         if random.random() < chance:
             return effect['status'], True
-    
+    elif trigger == 'save_fail':
+        # Treat as automatic on hit (server can roll saving throw if needed)
+        if random.random() < chance:
+            return effect['status'], True
+
     return None, False
 
 
