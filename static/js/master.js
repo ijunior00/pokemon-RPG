@@ -1472,26 +1472,33 @@ function renderMasterPvpBattles() {
         const modeLabel  = { official:'Oficial', street:'Rua', tournament:'Torneio' }[b.mode] || b.mode;
         const gymInfo    = b.extra?.gym_id   ? `<span style="color:#ff9800">🏟️ Ginásio</span>` : '';
         const leagueInfo = b.extra?.league_slot != null ? `<span style="color:#9c27b0">🌟 Liga — ${b.extra.slot_title||''}</span>` : '';
+        const turnName   = b.turn === 'player1' ? b.p1_name : b.p2_name;
+        const turnIsNpc  = b.turn === 'player1' ? b.p1_is_npc : b.p2_is_npc;
         const turnLabel  = b.turn
-            ? (b.turn === 'player1'
-                ? `<span style="color:#4caf50">Vez: ${b.p1_name}</span>`
-                : `<span style="color:#f44336">Vez: ${b.p2_name}</span>`)
+            ? `<span style="color:${b.turn==='player1'?'#4caf50':'#f44336'}">Vez: ${turnName}${turnIsNpc?' 🤖':''}</span>`
             : '';
+        const forceBtn = (b.phase === 'battle' && b.turn)
+            ? `<button style="background:#ff9800;color:#000;border:none;padding:0.2rem 0.6rem;border-radius:4px;cursor:pointer;font-size:0.8rem;"
+                  onclick="masterForceAction('${b.battle_id}','${b.turn}')">⚡ Forçar Ação</button>`
+            : '';
+        const p1HpColor = b.p1_hp <= 0 ? '#f44336' : (b.p1_hp < b.p1_maxhp * 0.3 ? '#ff9800' : '#4caf50');
+        const p2HpColor = b.p2_hp <= 0 ? '#f44336' : (b.p2_hp < b.p2_maxhp * 0.3 ? '#ff9800' : '#4caf50');
         return `
-        <div style="padding:0.75rem;background:var(--darker);border-radius:var(--radius);border-left:3px solid var(--accent);">
+        <div style="padding:0.75rem;background:var(--darker);border-radius:var(--radius);border-left:3px solid var(--accent);margin-bottom:0.5rem;">
             <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
-                <strong>${b.p1_name}${b.p1_is_npc?'🤖':''}</strong>
+                <strong>${b.p1_name}${b.p1_is_npc?' 🤖':''}</strong>
                 <span style="color:var(--muted)">vs</span>
-                <strong>${b.p2_name}${b.p2_is_npc?'🤖':''}</strong>
+                <strong>${b.p2_name}${b.p2_is_npc?' 🤖':''}</strong>
                 <span style="font-size:0.8rem;color:var(--muted)">[${modeLabel}]</span>
                 ${gymInfo}${leagueInfo}
             </div>
-            <div style="font-size:0.85rem;margin-top:0.25rem;display:flex;gap:1rem;flex-wrap:wrap;">
-                <span>${b.p1_pokemon} — HP: ${b.p1_hp}/${b.p1_maxhp}</span>
-                <span>${b.p2_pokemon} — HP: ${b.p2_hp}/${b.p2_maxhp}</span>
+            <div style="font-size:0.85rem;margin-top:0.4rem;display:flex;gap:1rem;flex-wrap:wrap;align-items:center;">
+                <span>${b.p1_pokemon} — <span style="color:${p1HpColor}">HP: ${Math.max(0,b.p1_hp)}/${b.p1_maxhp}</span></span>
+                <span>${b.p2_pokemon} — <span style="color:${p2HpColor}">HP: ${Math.max(0,b.p2_hp)}/${b.p2_maxhp}</span></span>
                 <span>Round ${b.round || 0} • ${phaseLabel}</span>
                 ${turnLabel}
                 ${b.winner ? `<span style="color:#ffd700">🏆 Vencedor: ${b.winner==='player1'?b.p1_name:b.p2_name}</span>` : ''}
+                ${forceBtn}
             </div>
         </div>`;
     }).join('');
@@ -1516,6 +1523,19 @@ socket.on('master_pvp_created', (data) => {
 
 socket.on('master_error', (data) => {
     alert('❌ ' + (data.msg || 'Erro'));
+});
+
+function masterForceAction(battleId, playerKey) {
+    socket.emit('master_force_npc_action', { battle_id: battleId, player_key: playerKey });
+}
+
+socket.on('master_force_npc_result', (data) => {
+    showNotification(data.message || 'Ação forçada!', 'success');
+});
+
+socket.on('pvp_master_permadeath', (data) => {
+    showNotification(`💀 MORTE PERMANENTE: ${data.pokemon} (jogador ${data.player_id}) foi removido do time!`, 'error');
+    renderMasterPvpBattles();
 });
 
 // Load PVP tab on open

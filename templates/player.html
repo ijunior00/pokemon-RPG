@@ -17,6 +17,7 @@
         <button class="tab" data-tab="gyms">🏟️ Ginásios</button>
         <button class="tab" data-tab="pc">🖥️ PC</button>
         <button class="tab" data-tab="shop">🏪 Loja</button>
+        <button class="tab" data-tab="centro">🏥 Centro</button>
     </div>
 
     <!-- TAB: ENCOUNTER -->
@@ -184,8 +185,10 @@
                     <button class="btn btn-secondary" id="btn-dodge" onclick="toggleDodge()" style="border:2px solid var(--accent);">🏃 Esquiva: OFF</button>
                     <select id="pokeball-select" style="background:var(--card-bg);color:var(--text);border:1px solid var(--card-border);border-radius:var(--radius);padding:0.3rem 0.5rem;font-size:0.85rem;">
                         <option value="pokeball">🔴 Pokébola (+0)</option>
-                        <option value="greatball">🔵 Great Ball (+2)</option>
-                        <option value="ultraball">⚫ Ultra Ball (+4)</option>
+                        <option value="greatball">🔵 Super Bola (+2)</option>
+                        <option value="ultraball">⚫ Ultra Bola (+4)</option>
+                        <option value="netball">🟢 Net Bola (+3 Bug/Water)</option>
+                        <option value="healball">🩷 Cura Bola (cura ao capturar)</option>
                         <option value="masterball">🟣 Master Ball (Auto)</option>
                     </select>
                     <button class="btn btn-danger" id="btn-throw-pokeball" onclick="throwPokeball()">Arremessar</button>
@@ -844,6 +847,25 @@
             <div id="league-run-progress" class="hidden" style="margin-top:0.75rem;padding:0.75rem;background:var(--darker);border-radius:var(--radius);">
                 <strong>Tentativa em andamento:</strong>
                 <span id="league-run-slot-label"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB: CENTRO POKÉMON -->
+    <div class="tab-content" id="tab-centro">
+        <h2>🏥 Centro Pokémon</h2>
+        <div style="max-width:480px;margin:0 auto;text-align:center;">
+            <div style="background:var(--card);border-radius:var(--radius);padding:2rem;margin-bottom:1.5rem;">
+                <div style="font-size:4rem;margin-bottom:1rem;">🏥</div>
+                <h3 style="margin:0 0 0.5rem;">Bem-vindo ao Centro Pokémon!</h3>
+                <p style="color:var(--muted);margin:0 0 1.5rem;">Restauramos seus Pokémon ao pleno vigor e curamos todas as condições de status.</p>
+                <p style="color:var(--muted);font-size:0.85rem;margin:0 0 1.5rem;">
+                    ⚠️ Lembre-se: fora daqui, apenas Poções podem restaurar HP e status durante ou após batalhas.
+                </p>
+                <button id="pokemon-center-btn" class="btn btn-primary" style="font-size:1.1rem;padding:0.75rem 2rem;" onclick="pokemonCenter()">
+                    🏥 Curar Equipe
+                </button>
+                <div id="pokemon-center-msg" style="margin-top:1rem;font-weight:bold;min-height:1.5em;"></div>
             </div>
         </div>
     </div>

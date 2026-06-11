@@ -44,21 +44,21 @@ socket.on('xp_update', (data) => {
         }
         alert(`🎉 Parabéns! Você subiu para o Nível ${data.level}!`);
     }
-    // Show evolution notifications and refresh team
+    // Show evolution animations sequentially then refresh team
     if (data.evolutions && data.evolutions.length > 0) {
-        for (const evo of data.evolutions) {
-            setTimeout(() => {
-                alert(`✨ Seu ${evo.from} evoluiu para ${evo.to}!`);
-            }, 500);
-        }
-        // Reload team from server to reflect evolved data
-        fetch('/player/team-data').then(r => r.json()).then(team => {
-            if (team && !team.error) {
-                playerTeam = team;
-                TRAINER_DATA.team = team;
-                if (typeof renderTeam === 'function') renderTeam();
+        (async () => {
+            for (const evo of data.evolutions) {
+                await triggerEvolutionSequence(evo);
             }
-        }).catch(() => {});
+            // Reload team from server to reflect evolved data
+            fetch('/player/team-data').then(r => r.json()).then(team => {
+                if (team && !team.error) {
+                    playerTeam = team;
+                    TRAINER_DATA.team = team;
+                    if (typeof renderTeam === 'function') renderTeam();
+                }
+            }).catch(() => {});
+        })();
     }
 });
 
@@ -412,6 +412,7 @@ async function startBattle() {
 
     // Fill enemy data
     document.getElementById('battle-enemy-sprite').src = getPokemonSpriteUrl(enemy.number, currentEncounter.is_shiny);
+    battleSpriteEnter('battle-enemy-sprite', 'enemy');
     document.getElementById('battle-enemy-name-full').textContent = `${enemy.name} Nv.${currentEncounter.level}`;
     document.getElementById('battle-enemy-types').innerHTML = formatTypes(enemy.types);
     document.getElementById('battle-enemy-hp-text-full').textContent = `${enemy.hp}/${enemy.hp} HP`;
@@ -441,12 +442,13 @@ async function startBattle() {
     // Fill player pokemon data
     const pNum = playerPokemon.number || 0;
     document.getElementById('battle-player-sprite').src = pNum ? getPokemonSpriteUrl(pNum) : '';
+    battleSpriteEnter('battle-player-sprite', 'player');
     document.getElementById('battle-player-name-full').textContent = `${playerPokemon.nickname || playerPokemon.name} Nv.${playerPokemon.level}`;
     document.getElementById('battle-player-types').innerHTML = formatTypes(playerPokemon.types || []);
     const pHp = playerPokemon.currentHp || playerPokemon.maxHp || 20;
     const pMax = playerPokemon.maxHp || 20;
     document.getElementById('battle-player-hp-text-full').textContent = `${pHp}/${pMax} HP`;
-    document.getElementById('battle-player-hp-bar-full').style.width = `${(pHp/pMax)*100}%`;
+    setHpBar('battle-player-hp-bar-full', pHp, pMax);
     document.getElementById('battle-player-ac').textContent = playerPokemon.ac || 10;
     document.getElementById('battle-player-speed').textContent = playerPokemon.speed || '30ft';
 
@@ -479,9 +481,17 @@ async function startBattle() {
 socket.on('initiative_result', (data) => {
     addBattleLog(`🎲 Iniciativa - Você: <strong>${data.player_initiative}</strong> (DEX ${data.player_mod >= 0 ? '+' : ''}${data.player_mod}) | Selvagem: <strong>${data.wild_initiative}</strong> (DEX ${data.wild_mod >= 0 ? '+' : ''}${data.wild_mod})`);
     addBattleLog(`➡️ <strong>${data.first_turn === 'player' ? 'Você começa!' : 'Pokémon Selvagem começa!'}</strong>`);
+    // Show on-enter ability messages
+    if (data.on_enter_abilities?.length) {
+        data.on_enter_abilities.forEach(msg => addBattleLog(`✨ <em>${msg}</em>`));
+    }
+    if (data.weather) {
+        const weatherNames = { sun:'☀️ Sol forte!', rain:'🌧️ Chuva forte!', sandstorm:'🌪️ Tempestade de areia!', hail:'❄️ Granizo!' };
+        addBattleLog(`🌤️ <strong>${weatherNames[data.weather] || data.weather}</strong>`);
+        window.currentWeather = data.weather;
+    }
     window.currentTurn = data.first_turn;
     updateTurnUI();
-    // If wild goes first, auto-attack after a short delay
     if (data.first_turn === 'wild') {
         setTimeout(() => wildPokemonAutoAttack(), 1500);
     }
@@ -490,13 +500,38 @@ socket.on('initiative_result', (data) => {
 // Listen for battle updates
 socket.on('battle_update', (data) => {
     const bs = data.battle_state;
-    
+    const prevEnemyHp = parseInt(document.getElementById('battle-enemy-hp-text-full')?.textContent) || bs.wild_hp_current;
+    const prevPlayerHp = parseInt(document.getElementById('battle-player-hp-text-full')?.textContent) || bs.player_hp_current;
+
     // Update HP bars
-    document.getElementById('battle-enemy-hp-bar-full').style.width = `${(bs.wild_hp_current / bs.wild_hp_max) * 100}%`;
+    setHpBar('battle-enemy-hp-bar-full', bs.wild_hp_current, bs.wild_hp_max);
     document.getElementById('battle-enemy-hp-text-full').textContent = `${bs.wild_hp_current}/${bs.wild_hp_max} HP`;
-    document.getElementById('battle-player-hp-bar-full').style.width = `${(bs.player_hp_current / bs.player_hp_max) * 100}%`;
+    setHpBar('battle-player-hp-bar-full', bs.player_hp_current, bs.player_hp_max);
     document.getElementById('battle-player-hp-text-full').textContent = `${bs.player_hp_current}/${bs.player_hp_max} HP`;
-    
+
+    // Hit flash & sounds
+    if (data.damage > 0) {
+        if (data.action_by === 'player' && bs.wild_hp_current < prevEnemyHp) {
+            battleSpriteHit('battle-enemy-sprite');
+            hpBarShake(document.querySelector('.enemy-side .hp-bar-container'));
+            playSound('hit');
+        } else if (data.action_by === 'master' && bs.player_hp_current < prevPlayerHp) {
+            battleSpriteHit('battle-player-sprite');
+            hpBarShake(document.querySelector('.player-side .hp-bar-container'));
+            playSound('hit');
+        }
+    }
+
+    // Keep active pokémon's HP in sync with battle state in real-time
+    if (window.currentBattleData?.playerPokemon) {
+        window.currentBattleData.playerPokemon.currentHp = Math.max(0, bs.player_hp_current);
+        const activePoke = window.currentBattleData.playerPokemon;
+        const teamIdx = playerTeam.findIndex(p =>
+            (p.nickname || p.name) === (activePoke.nickname || activePoke.name) && p.level === activePoke.level
+        );
+        if (teamIdx >= 0) playerTeam[teamIdx].currentHp = Math.max(0, bs.player_hp_current);
+    }
+
     // Log action (only if not already logged locally by wild auto-attack)
     if (!window._wildIsActing || data.action_by === 'player') {
         const who = data.action_by === 'player' ? '🟢 Seu Pokémon' : '🔴 Selvagem';
@@ -511,34 +546,39 @@ socket.on('battle_update', (data) => {
     if (data.ability_trigger) {
         addBattleLog(`🛡️ <strong>Habilidade</strong>: ${data.ability_trigger.message}`);
     }
-    
+
     // Update turn
     window.currentTurn = bs.turn;
     updateTurnUI();
-    
+
     // Wild Pokemon auto-attack when it's their turn
-    // Only trigger if the wild is NOT already acting (prevents re-entry loop)
     if (bs.turn === 'wild' && bs.wild_hp_current > 0 && bs.player_hp_current > 0 && !window.wildFainted && !window._wildIsActing) {
         setTimeout(() => wildPokemonAutoAttack(), 1200);
     }
-    
+
     // Check faint
     if (bs.wild_hp_current <= 0) {
+        battleSpriteFaint('battle-enemy-sprite');
+        playSound('faint');
         addBattleLog(`<strong>💀 Pokémon Selvagem desmaiou!</strong>`);
         addBattleLog(`🔴 Você pode <strong>Arremessar Pokébola</strong> para tentar capturar ou clicar <strong>Derrotei</strong> para encerrar.`);
-        // Show post-defeat options, hide attack moves
-        window.currentTurn = 'player'; // Allow actions
+        window.currentTurn = 'player';
         window.wildFainted = true;
         document.querySelectorAll('#battle-player-moves .selectable-move').forEach(btn => {
             btn.style.opacity = '0.3';
             btn.style.pointerEvents = 'none';
         });
-        // Keep pokeball and defeated buttons visible
         document.getElementById('btn-pass-turn')?.classList.add('hidden');
         document.getElementById('btn-switch-pokemon')?.classList.add('hidden');
     }
-    if (bs.player_hp_current <= 0 && bs.player_hp_current > -10) {
+    if (bs.player_hp_current <= 0 && bs.player_hp_current > -10 && !window._playerFaintLogged) {
+        window._playerFaintLogged = true;
+        battleSpriteFaint('battle-player-sprite');
+        playSound('faint');
         addBattleLog(`<strong>😵 Seu Pokémon desmaiou!</strong>`);
+    }
+    if (bs.player_hp_current > 0) {
+        window._playerFaintLogged = false;
     }
     // Morte permanente: HP chegou a -10 ou abaixo
     if (bs.player_hp_current <= -10 && !window._permadeathTriggered) {
@@ -793,7 +833,19 @@ async function useMove(moveName) {
         const moveType = (m.type || '').toLowerCase();
         const stab = pokeTypes.includes(moveType) ? (poke?.stab || getStabForLevel(pokeLevel)) : 0;
         damage += stab;
-        
+
+        // Attacker ability bonus: Blaze/Torrent/Overgrow/Swarm (HP ≤ 1/3 → +1d6 same-type)
+        const atkAbility = (poke?.ability?.name || poke?.ability || '').toLowerCase();
+        const PINCH_ABILITIES = { blaze:'fire', torrent:'water', overgrow:'grass', swarm:'bug' };
+        const pinchType = PINCH_ABILITIES[atkAbility];
+        const pokeHp = window.currentBattleData?.playerPokemon?.currentHp ?? poke?.currentHp ?? poke?.maxHp;
+        const pokeMaxHp = poke?.maxHp || 1;
+        if (pinchType && moveType === pinchType && pokeHp <= pokeMaxHp / 3) {
+            const bonus = Math.floor(Math.random() * 6) + 1;
+            damage += bonus;
+            addBattleLog(`🔥 <strong>${atkAbility.charAt(0).toUpperCase()+atkAbility.slice(1)}</strong> ativado! +${bonus} dano!`);
+        }
+
         if (damage < 1) damage = 1;
         
         // Dodge penalty: if enemy was dodging and got hit, 1.25x damage
@@ -941,8 +993,10 @@ function throwPokeball() {
     const ballType = document.getElementById('pokeball-select')?.value || 'pokeball';
     const ballItemNames = {
         pokeball:   ['Pokébola', 'Poke Ball', 'Pokeball'],
-        greatball:  ['Great Ball', 'Bola Super', 'Super Ball'],
-        ultraball:  ['Ultra Ball', 'Bola Ultra'],
+        greatball:  ['Great Ball', 'Bola Super', 'Super Ball', 'Super Bola'],
+        ultraball:  ['Ultra Ball', 'Bola Ultra', 'Ultra Bola'],
+        netball:    ['Net Ball', 'Net Bola'],
+        healball:   ['Heal Ball', 'Cura Bola'],
         masterball: ['Master Ball', 'Bola Master']
     };
     const bagNames = (ballItemNames[ballType] || []).map(n => n.toLowerCase());
@@ -990,8 +1044,7 @@ function throwPokeball() {
     let advantageText = '';
     
     // Advantage if enemy has status OR is fainted
-    const logContent = document.getElementById('battle-log-full')?.innerHTML || '';
-    const hasStatusAdvantage = enemyFainted || /Envenenado|Queimado|Paralisado|Congelado|Dormindo|Confuso/i.test(logContent);
+    const hasStatusAdvantage = enemyFainted || !!window.wildPokemonStatus;
     
     if (hasStatusAdvantage) {
         finalRoll = Math.max(roll1, roll2);
@@ -999,10 +1052,21 @@ function throwPokeball() {
     }
     
     // Pokeball type bonus
-    const ballNames = { pokeball: '🔴 Pokébola', greatball: '🔵 Great Ball', ultraball: '⚫ Ultra Ball', masterball: '🟣 Master Ball' };
-    const ballBonus = { pokeball: 0, greatball: 2, ultraball: 4, masterball: 999 };
-    const bonus = ballBonus[ballType] || 0;
-    const ballLabel = ballNames[ballType] || 'Pokébola';
+    const ballNames = { pokeball: '🔴 Pokébola', greatball: '🔵 Super Bola', ultraball: '⚫ Ultra Bola', netball: '🟢 Net Bola', healball: '🩷 Cura Bola', masterball: '🟣 Master Ball' };
+    const ballBonus = { pokeball: 0, greatball: 2, ultraball: 4, netball: 0, healball: 0, masterball: 999 };
+
+    // Net Ball: +3 if enemy is Bug or Water
+    let netBallBonus = 0;
+    if (ballType === 'netball') {
+        const enemyTypes = (window.currentBattleData?.enemy?.types || []).map(t => t.toLowerCase());
+        if (enemyTypes.some(t => t === 'bug' || t === 'water')) {
+            netBallBonus = 3;
+            addBattleLog(`🟢 Net Bola: +3 bônus contra Bug/Water!`);
+        }
+    }
+
+    const bonus = (ballBonus[ballType] || 0) + netBallBonus;
+    const ballLabel = ballNames[ballType] || '🔴 Pokébola';
 
     const totalRoll = finalRoll + animalHandlingBonus + bonus;
 
@@ -1050,6 +1114,10 @@ function throwPokeball() {
 
     if (totalRoll >= captureDC) {
         addBattleLog(`✅ <strong>CAPTURADO!</strong> 🎉 (${totalRoll} ≥ ${captureDC})`);
+        if (ballType === 'healball') {
+            window._healBallCapture = true;
+            addBattleLog(`🩷 Cura Bola: o Pokémon capturado será curado completamente!`);
+        }
         setTimeout(() => endBattle('caught'), 1500);
     } else {
         addBattleLog(`❌ ${ballLabel} falhou! (${totalRoll} < ${captureDC})`);
@@ -1094,11 +1162,32 @@ function endBattle(result) {
         'fainted': '😵 Seu Pokémon desmaiou!'
     };
     addBattleLog(`<strong>${messages[result] || result}</strong>`);
+
+    // Sound feedback on battle end
+    if (result === 'caught') playSound('catch');
+    else if (result === 'fled' || result === 'fled_after_capture') playSound('run');
+    else if (result === 'defeated') playSound('levelup');
+
+    // Persist HP and status to team before clearing battle state
+    const _activePoke = window.currentBattleData?.playerPokemon;
+    if (_activePoke) {
+        const _tIdx = playerTeam.findIndex(p =>
+            (p.nickname || p.name) === (_activePoke.nickname || _activePoke.name) && p.level === _activePoke.level
+        );
+        if (_tIdx >= 0) {
+            playerTeam[_tIdx].currentHp = Math.max(0, _activePoke.currentHp || 0);
+            playerTeam[_tIdx].status = window.playerPokemonStatus || null;
+        }
+        saveTeam();
+    }
+
     window.wildFainted = false;
     window.wildPokemonStatus = null;
     window.playerPokemonStatus = null;
     window._wildIsActing = false;
     window._processingPlayerStatus = false;
+    window._playerFaintLogged = false;
+    window._permadeathTriggered = false;
     const _endData = { result };
     if (result === 'defeated' && window.currentBattleData?.playerPokemon) {
         _endData.active_pokemon_name = window.currentBattleData.playerPokemon.nickname || window.currentBattleData.playerPokemon.name;
@@ -1111,6 +1200,7 @@ function endBattle(result) {
         awardPokemonBattleXP();
     }
     window._masterBallCapture = false;
+    if (result !== 'caught') window._healBallCapture = false;
 
     // If caught, add to team
     if (result === 'caught' && currentEncounter) {
@@ -1126,10 +1216,12 @@ function endBattle(result) {
 
         if (playerTeam.length < 6) {
             if (confirm(`Adicionar ${pokemon.name} Nv.${pokeLevel} ao time?`)) {
+                const capturedHp = window._healBallCapture ? pokemon.hp : Math.max(1, currentEncounter._capturedHp || Math.floor(pokemon.hp * 0.3));
+                window._healBallCapture = false;
                 playerTeam.push({
                     name: pokemon.name, nickname: '', number: pokemon.number,
                     types: pokemon.types, level: pokeLevel,
-                    maxHp: pokemon.hp, currentHp: pokemon.hp, ac: pokemon.ac,
+                    maxHp: pokemon.hp, currentHp: capturedHp, ac: pokemon.ac,
                     stats: pokemon.stats, moves: pokemon.startingMoves || [],
                     ability: pokemon.ability ? pokemon.ability.name : '',
                     speed: pokemon.speed, heldItem: '', notes: ''
@@ -1159,6 +1251,7 @@ function endBattle(result) {
 // MORTE PERMANENTE
 // ============================================
 window._permadeathTriggered = false;
+window._playerFaintLogged = false;
 
 async function triggerPermanentDeath() {
     const battleData  = window.currentBattleData;
@@ -1500,12 +1593,138 @@ async function savePokemon() {
 
 function closePokemonModal() { hideElement('pokemon-edit-modal'); }
 
+// ============================================
+// BATTLE VFX & SOUNDS
+// ============================================
+let _audioCtx = null;
+function getAudioCtx() {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return _audioCtx;
+}
+
+function playSound(type) {
+    try {
+        const ctx = getAudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const now = ctx.currentTime;
+
+        if (type === 'hit') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(220, now);
+            osc.frequency.exponentialRampToValueAtTime(110, now + 0.12);
+            gain.gain.setValueAtTime(0.18, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+            osc.start(now); osc.stop(now + 0.15);
+        } else if (type === 'faint') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.exponentialRampToValueAtTime(60, now + 0.6);
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+            osc.start(now); osc.stop(now + 0.65);
+        } else if (type === 'catch') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, now);
+            osc.frequency.setValueAtTime(550, now + 0.12);
+            osc.frequency.setValueAtTime(660, now + 0.25);
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+            osc.start(now); osc.stop(now + 0.4);
+        } else if (type === 'levelup') {
+            osc.type = 'sine';
+            [392, 494, 587, 784].forEach((f, i) => osc.frequency.setValueAtTime(f, now + i * 0.1));
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+            osc.start(now); osc.stop(now + 0.5);
+        } else if (type === 'run') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(600, now);
+            osc.frequency.exponentialRampToValueAtTime(200, now + 0.25);
+            gain.gain.setValueAtTime(0.12, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+            osc.start(now); osc.stop(now + 0.28);
+        } else if (type === 'status') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(180, now);
+            osc.frequency.setValueAtTime(160, now + 0.15);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+            osc.start(now); osc.stop(now + 0.3);
+        }
+    } catch(e) { /* audio not available */ }
+}
+
+function battleSpriteEnter(spriteId, side) {
+    const el = document.getElementById(spriteId);
+    if (!el) return;
+    el.classList.remove('enter-left', 'enter-right', 'hit-flash', 'faint-anim');
+    void el.offsetWidth; // reflow
+    el.classList.add(side === 'enemy' ? 'enter-left' : 'enter-right');
+    el.addEventListener('animationend', () => el.classList.remove('enter-left', 'enter-right'), { once: true });
+}
+
+function battleSpriteHit(spriteId) {
+    const el = document.getElementById(spriteId);
+    if (!el) return;
+    el.classList.remove('hit-flash');
+    void el.offsetWidth;
+    el.classList.add('hit-flash');
+    el.addEventListener('animationend', () => el.classList.remove('hit-flash'), { once: true });
+}
+
+function battleSpriteFaint(spriteId) {
+    const el = document.getElementById(spriteId);
+    if (!el) return;
+    el.classList.add('faint-anim');
+}
+
+function hpBarShake(barContainerEl) {
+    if (!barContainerEl) return;
+    barContainerEl.classList.remove('hp-shake');
+    void barContainerEl.offsetWidth;
+    barContainerEl.classList.add('hp-shake');
+    barContainerEl.addEventListener('animationend', () => barContainerEl.classList.remove('hp-shake'), { once: true });
+}
+
+function setHpBar(barId, current, max) {
+    const el = document.getElementById(barId);
+    if (!el) return;
+    const pct = max > 0 ? Math.min(100, (current / max) * 100) : 0;
+    el.style.width = pct + '%';
+    el.classList.remove('hp-mid', 'hp-low');
+    if (pct <= 20) el.classList.add('hp-low');
+    else if (pct <= 50) el.classList.add('hp-mid');
+}
+
 async function saveTeam() {
     await fetch('/player/team', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ team: playerTeam })
     });
+}
+
+async function pokemonCenter() {
+    const btn = document.getElementById('pokemon-center-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Curando...'; }
+    try {
+        const res = await fetch('/player/pokemon-center', { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+            playerTeam = data.team;
+            renderTeam();
+            const msg = document.getElementById('pokemon-center-msg');
+            if (msg) { msg.textContent = '✅ Todos os seus Pokémon foram curados!'; msg.style.color = 'var(--green)'; }
+        }
+    } catch(e) {
+        const msg = document.getElementById('pokemon-center-msg');
+        if (msg) { msg.textContent = '❌ Erro ao usar o Centro Pokémon.'; msg.style.color = 'var(--red)'; }
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🏥 Curar Equipe'; }
+    }
 }
 
 const NATURE_MODIFIERS_JS = {
@@ -1565,6 +1784,32 @@ async function triggerLevelEvolve(idx) {
     } catch(e) { alert('Erro ao evoluir: ' + e.message); }
 }
 
+const TYPE_COLORS = {
+    normal:'#a8a878',fire:'#f08030',water:'#6890f0',grass:'#78c850',electric:'#f8d030',
+    ice:'#98d8d8',fighting:'#c03028',poison:'#a040a0',ground:'#e0c068',flying:'#a890f0',
+    psychic:'#f85888',bug:'#a8b820',rock:'#b8a038',ghost:'#705898',dragon:'#7038f8',
+    dark:'#705848',steel:'#b8b8d0',fairy:'#ee99ac'
+};
+
+function getPokemonSpriteUrl(poke) {
+    const num = poke.number || 0;
+    if (!num) return '';
+    const padded = String(num).padStart(3, '0');
+    return `/static/sprites/${padded}.png`;
+}
+
+function getStatusIcon(condition) {
+    const icons = { queimado:'🔥', envenenado:'🟣', badly_poisoned:'🟣', paralisado:'⚡', dormindo:'💤', congelado:'🧊', confuso:'💫' };
+    return icons[condition] || '❓';
+}
+
+function hpBarClass(current, max) {
+    const pct = max > 0 ? (current / max) * 100 : 0;
+    if (pct <= 20) return 'hp-low';
+    if (pct <= 50) return 'hp-mid';
+    return '';
+}
+
 function refreshTeamDisplay() {
     const grid = document.getElementById('team-grid');
     grid.innerHTML = '';
@@ -1578,24 +1823,40 @@ function refreshTeamDisplay() {
             const xpForCurrent = Math.pow(poke.level || 1, 3);
             const xpPct = poke.level >= 100 ? 100 : Math.min(100, ((totalXp - xpForCurrent) / (xpForNext - xpForCurrent)) * 100);
             const hasPoints = (poke.statPointsAvailable || 0) > 0;
-            
+            const typeColor = TYPE_COLORS[(poke.types?.[0] || '').toLowerCase()] || '#3b4cca';
+            const hpPct = poke.maxHp > 0 ? Math.min(100, (poke.currentHp / poke.maxHp) * 100) : 0;
+            const hpClass = hpBarClass(poke.currentHp, poke.maxHp);
+            const spriteUrl = getPokemonSpriteUrl(poke);
+            const spriteHtml = spriteUrl ? `<img src="${spriteUrl}" style="width:64px;height:64px;image-rendering:pixelated;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));" onerror="this.style.display='none'">` : '';
+            const statusHtml = poke.status ? `<small style="color:var(--warning);">${poke.status.icon || '⚠️'} ${poke.status.name || ''}</small>` : '';
+
             slot.innerHTML = `
-                <div class="team-pokemon-card filled">
-                    <h4>${poke.nickname || poke.name}</h4>
+                <div class="team-pokemon-card filled" style="--type-color:${typeColor}">
+                    ${spriteHtml}
+                    <h4 style="font-size:0.9rem;text-align:center;">${poke.nickname || poke.name}</h4>
                     <span class="level-badge">Nv. ${poke.level}</span>
                     <div class="type-badges">${formatTypes(poke.types || [])}</div>
-                    <small>HP: ${poke.currentHp}/${poke.maxHp} | AC: ${poke.ac}</small>
-                    <div class="xp-bar-container" style="height:8px;margin:0.3rem 0;">
+                    <div style="width:100%;">
+                        <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;">
+                            <span>HP</span><span>${poke.currentHp}/${poke.maxHp}</span>
+                        </div>
+                        <div class="hp-bar-container" style="height:10px;">
+                            <div class="hp-bar ${hpClass}" style="width:${hpPct}%"></div>
+                        </div>
+                    </div>
+                    ${statusHtml}
+                    <small style="color:var(--text-muted);font-size:0.72rem;">AC: ${poke.ac}</small>
+                    <div class="xp-bar-container" style="height:6px;margin:0.2rem 0;">
                         <div class="xp-bar" style="width:${xpPct}%"></div>
                     </div>
-                    <small style="color:var(--text-muted);">${poke.level >= 100 ? 'MAX' : `XP: ${totalXp}/${xpForNext}`}</small>
+                    <small style="color:var(--text-muted);font-size:0.72rem;">${poke.level >= 100 ? 'MAX' : `XP: ${totalXp}/${xpForNext}`}</small>
                     ${getNatureLabel(poke)}
                     ${hasPoints ? `<small style="color:var(--accent);display:block;">⬆️ ${poke.statPointsAvailable} pontos!</small>` : ''}
                     ${getLevelEvoIndicator(poke, i)}
-                    <div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.25rem;">
+                    <div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.25rem;justify-content:center;">
                         <button class="btn btn-sm btn-secondary" onclick="editPokemon(${i})">Editar</button>
-                        <button class="btn btn-sm btn-primary" onclick="openUseStoneModal(${i})" title="Usar pedra de evolução">💎 Pedra</button>
-                        ${(poke.battle_wins||0) >= 10 ? `<button class="btn btn-sm btn-warning" onclick="friendshipEvolve(${i})" title="${poke.battle_wins} batalhas vencidas">💛 Amizade</button>` : `<small style="color:var(--muted);align-self:center;" title="Batalhas vencidas com este Pokémon">💛 ${poke.battle_wins||0}/10</small>`}
+                        <button class="btn btn-sm btn-primary" onclick="openUseStoneModal(${i})" title="Usar pedra de evolução">💎</button>
+                        ${(poke.battle_wins||0) >= 10 ? `<button class="btn btn-sm btn-warning" onclick="friendshipEvolve(${i})" title="${poke.battle_wins} batalhas vencidas">💛</button>` : `<small style="color:var(--muted);align-self:center;" title="Batalhas vencidas">💛 ${poke.battle_wins||0}/10</small>`}
                         <button class="btn btn-sm btn-danger" onclick="removePokemon(${i})">✕</button>
                     </div>
                 </div>`;
@@ -1982,7 +2243,7 @@ async function confirmSwitch(teamIdx) {
     const pHp = newPoke.currentHp || newPoke.maxHp || 20;
     const pMax = newPoke.maxHp || 20;
     document.getElementById('battle-player-hp-text-full').textContent = `${pHp}/${pMax} HP`;
-    document.getElementById('battle-player-hp-bar-full').style.width = `${(pHp/pMax)*100}%`;
+    setHpBar('battle-player-hp-bar-full', pHp, pMax);
     document.getElementById('battle-player-ac').textContent = newPoke.ac || 10;
     document.getElementById('battle-player-speed').textContent = newPoke.speed || '30ft';
     
@@ -2023,8 +2284,15 @@ async function confirmSwitch(teamIdx) {
         }
     }
 
-    // Switching uses the action - pass turn
-    socket.emit('battle_action', { action_by: 'player', action_type: 'switch', move_name: `Trocou → ${newPoke.name}`, damage: 0, message: 'Troca de Pokémon' });
+    // Reset faint flag so next battle_update doesn't re-trigger the faint message
+    window._playerFaintLogged = false;
+
+    // Switching uses the action - pass turn. Send new poke's HP so server updates battle_state.
+    socket.emit('battle_action', {
+        action_by: 'player', action_type: 'switch',
+        move_name: `Trocou → ${newPoke.name}`, damage: 0, message: 'Troca de Pokémon',
+        new_pokemon_hp: pHp, new_pokemon_max_hp: pMax
+    });
     
     // Check mega for new pokemon
     megaUsedThisBattle = false;
@@ -2529,11 +2797,11 @@ function renderPvpBattle(state) {
             <div class="battle-side-full enemy-side">
                 <h3>🔴 Oponente</h3>
                 <div class="battle-pokemon-full">
-                    <img src="${getPokemonSpriteUrl(opponent.number || 0)}" class="battle-sprite">
+                    <img src="${getPokemonSpriteUrl(opponent.number || 0)}" class="battle-sprite" id="pvp-opp-sprite">
                     <h4>${opponent.nickname || opponent.name || '???'} Nv.${opponent.level || '?'}</h4>
                     <div class="type-badges" style="justify-content:center;">${formatTypes(opponent.types || [])}</div>
-                    <div class="hp-bar-container">
-                        <div class="hp-bar enemy-hp" style="width:${oppHpPct}%"></div>
+                    <div class="hp-bar-container" id="pvp-opp-hpbar">
+                        <div class="hp-bar enemy-hp ${hpBarClass(opponent.currentHp, opponent.maxHp)}" style="width:${oppHpPct}%"></div>
                     </div>
                     <span class="hp-text">${opponent.currentHp || '?'}/${opponent.maxHp || '?'} HP</span>
                     <div class="battle-stats-mini">
@@ -2552,11 +2820,12 @@ function renderPvpBattle(state) {
             <div class="battle-side-full player-side">
                 <h3>🟢 Seu Pokémon</h3>
                 <div class="battle-pokemon-full">
-                    <img src="${getPokemonSpriteUrl(myActive.number || 0)}" class="battle-sprite">
+                    <img src="${getPokemonSpriteUrl(myActive.number || 0)}" class="battle-sprite" id="pvp-my-sprite">
                     <h4>${myActive.nickname || myActive.name || '???'} Nv.${myActive.level || '?'}</h4>
                     <div class="type-badges" style="justify-content:center;">${formatTypes(myActive.types || [])}</div>
-                    <div class="hp-bar-container">
-                        <div class="hp-bar player-hp" style="width:${myHpPct}%"></div>
+                    ${state.your_status ? `<div class="status-badge status-${state.your_status.condition}">${getStatusIcon(state.your_status.condition)} ${state.your_status.condition.toUpperCase()}</div>` : ''}
+                    <div class="hp-bar-container" id="pvp-my-hpbar">
+                        <div class="hp-bar player-hp ${hpBarClass(myActive.currentHp, myActive.maxHp)}" style="width:${myHpPct}%"></div>
                     </div>
                     <span class="hp-text">${myActive.currentHp || 0}/${myActive.maxHp || 0} HP</span>
                     <div class="battle-stats-mini">
@@ -2636,7 +2905,18 @@ function renderPvpLogEntry(entry, youAre) {
     }
     if (entry.type === 'faint') {
         const who = entry.player === youAre ? '😵 Seu Pokémon' : '💀 Pokémon do oponente';
-        return `<p><strong>${who} desmaiou!</strong></p>`;
+        return `<p><strong>${who} desmaiou!${entry.permadeath ? ' 💀 MORTE PERMANENTE!' : ''}</strong></p>`;
+    }
+    if (entry.type === 'status_applied') {
+        const who = entry.player === youAre ? 'Seu Pokémon' : 'Pokémon do oponente';
+        return `<p>${getStatusIcon(entry.condition)} <strong>${who}</strong> foi afetado por <strong>${entry.condition}</strong>!</p>`;
+    }
+    if (entry.type === 'status_damage') {
+        const who = entry.player === youAre ? 'Seu Pokémon' : 'Pokémon do oponente';
+        return `<p>${getStatusIcon(entry.condition)} <strong>${who}</strong> sofreu ${entry.damage} de dano por ${entry.condition}.</p>`;
+    }
+    if (entry.type === 'ability') {
+        return `<p>✨ <em>${entry.message}</em></p>`;
     }
     return '';
 }
@@ -2770,6 +3050,19 @@ socket.on('pvp_must_switch', (data) => {
     pvpSwitchPokemon();
 });
 
+// Permanent death in PVP
+socket.on('pvp_pokemon_death', (data) => {
+    const name = data.pokemon_name || '???';
+    addPvpLog(`💀 ${name} atingiu -10 HP e morreu permanentemente!`);
+    // Remove from local team display
+    const idx = playerTeam.findIndex(p => (p.nickname || p.name) === name);
+    if (idx >= 0) {
+        playerTeam.splice(idx, 1);
+        refreshTeamDisplay();
+    }
+    setTimeout(() => alert(`💀 ${name} morreu permanentemente e foi removido do seu time para sempre.`), 500);
+});
+
 // Battle ended
 socket.on('pvp_battle_ended', (data) => {
     clearPvpTimer();
@@ -2836,6 +3129,43 @@ socket.on('pvp_battle_state', async (state) => {
     if (myActive && myActive.moves) {
         await loadMovesData(myActive.moves);
     }
+
+    // VFX: detect HP changes vs previous state
+    const prev = window.pvpState.battleData;
+    if (prev && state.phase === 'battle') {
+        const prevOpp = prev.opponent_active || {};
+        const curOpp  = state.opponent_active || {};
+        const prevMyActive = (prev.your_team || [])[prev.your_active_idx] || {};
+        const curMyActive  = (state.your_team || [])[state.your_active_idx] || {};
+
+        // Opponent took damage
+        if (prevOpp.currentHp != null && curOpp.currentHp != null && curOpp.currentHp < prevOpp.currentHp) {
+            const el = document.getElementById('pvp-opp-sprite');
+            const bar = document.getElementById('pvp-opp-hpbar');
+            if (el) battleSpriteHit(el);
+            if (bar) hpBarShake(bar);
+            if (curOpp.currentHp <= 0) { if (el) battleSpriteFaint(el); playSound('faint'); }
+            else playSound('hit');
+        }
+
+        // My pokemon took damage
+        if (prevMyActive.currentHp != null && curMyActive.currentHp != null && curMyActive.currentHp < prevMyActive.currentHp) {
+            const el = document.getElementById('pvp-my-sprite');
+            const bar = document.getElementById('pvp-my-hpbar');
+            if (el) battleSpriteHit(el);
+            if (bar) hpBarShake(bar);
+            if (curMyActive.currentHp <= 0) { if (el) battleSpriteFaint(el); playSound('faint'); }
+            else playSound('hit');
+        }
+
+        // Status applied this update
+        const prevLogLen = (prev.log || []).length;
+        const newLog = (state.log || []).slice(prevLogLen);
+        if (newLog.some(e => e.type === 'status_applied' || e.type === 'status_damage')) {
+            playSound('status');
+        }
+    }
+
     window.pvpState.battleData = state;
     renderPvpBattle(state);
 });
@@ -3124,7 +3454,7 @@ socket.on('tournament_prize', (data) => {
 // STATUS EFFECTS SYSTEM
 // ============================================
 window.statusEffectsData = null;
-window.wildPokemonStatus = null;  // {condition: 'envenenado', turns_active: 0}
+window.wildPokemonStatus = null;  // {condition: 'badly_poisoned', turns_active: 0}
 window.playerPokemonStatus = null;
 window._wildIsActing = false;
 window._processingPlayerStatus = false;
@@ -3259,31 +3589,49 @@ async function processPlayerTurnStart() {
             body: JSON.stringify({
                 action: 'turn_start',
                 pokemon_status: window.playerPokemonStatus,
-                max_hp: window.currentBattleData?.playerPokemon?.maxHp || 20
+                max_hp: window.currentBattleData?.playerPokemon?.maxHp || 20,
+                ability: window.currentBattleData?.playerPokemon?.ability?.name || window.currentBattleData?.playerPokemon?.ability || ''
             })
         });
         const data = await resp.json();
         
         data.messages.forEach(msg => addBattleLog(msg));
         
+        if (data.ability_messages?.length) {
+            data.ability_messages.forEach(m => addBattleLog(`✨ <em>${m}</em>`));
+        }
         if (data.damage > 0) {
             window._playerPreTurnStatusDamage = data.damage;
-            // Apply self-damage from status
             const hpText = document.getElementById('battle-player-hp-text-full').textContent;
             const hpMatch = hpText.match(/(\d+)\/(\d+)/);
             if (hpMatch) {
                 const newHp = Math.max(0, parseInt(hpMatch[1]) - data.damage);
                 const maxHp = parseInt(hpMatch[2]);
                 document.getElementById('battle-player-hp-text-full').textContent = `${newHp}/${maxHp} HP`;
-                document.getElementById('battle-player-hp-bar-full').style.width = `${(newHp/maxHp)*100}%`;
+                setHpBar('battle-player-hp-bar-full', newHp, maxHp);
+                battleSpriteHit('battle-player-sprite');
+                hpBarShake(document.querySelector('.player-side .hp-bar-container'));
+                playSound('status');
+            }
+        } else if (data.damage < 0) {
+            // Poison Heal: heal instead of damage
+            const healAmt = Math.abs(data.damage);
+            const hpText = document.getElementById('battle-player-hp-text-full').textContent;
+            const hpMatch = hpText.match(/(\d+)\/(\d+)/);
+            if (hpMatch) {
+                const newHp = Math.min(parseInt(hpMatch[2]), parseInt(hpMatch[1]) + healAmt);
+                const maxHp = parseInt(hpMatch[2]);
+                document.getElementById('battle-player-hp-text-full').textContent = `${newHp}/${maxHp} HP`;
+                setHpBar('battle-player-hp-bar-full', newHp, maxHp);
             }
         }
         
+        if (data.turns_active) window.playerPokemonStatus.turns_active = data.turns_active;
         if (data.status_removed) {
             window.playerPokemonStatus = null;
             updateStatusDisplay();
         }
-        
+
         return data.can_act;
     } catch(e) { return true; }
 }
@@ -3319,11 +3667,12 @@ async function processWildTurnStart() {
             }
         }
         
+        if (data.turns_active) window.wildPokemonStatus.turns_active = data.turns_active;
         if (data.status_removed) {
             window.wildPokemonStatus = null;
             updateStatusDisplay();
         }
-        
+
         return data.can_act;
     } catch(e) { return true; }
 }
@@ -3469,6 +3818,7 @@ async function _executeWildTurn() {
                     }
                 }
             }
+            if (statusResult.turns_active && window.wildPokemonStatus) window.wildPokemonStatus.turns_active = statusResult.turns_active;
             if (statusResult.status_removed) {
                 window.wildPokemonStatus = null;
                 updateStatusDisplay();
@@ -3773,10 +4123,14 @@ async function awardPokemonBattleXP() {
             
             if (leveledUp) {
                 addBattleLog(`📈 ${poke.nickname || poke.name} agora é <strong>Nv.${poke.level}</strong>!`);
+                // Save first so server sees the new level, then check evolution
+                await saveTeam();
+                const slotIdx = playerTeam.indexOf(poke);
+                if (slotIdx >= 0) await checkServerEvolution(slotIdx);
+            } else {
+                // Save team
+                await saveTeam();
             }
-            
-            // Save team
-            await saveTeam();
         }
     } catch(e) { console.error('XP award failed:', e); }
 }
@@ -3797,6 +4151,7 @@ function checkPokemonLevelUp(poke) {
     const xpForNext = xpNeededForCurrent + XP_TABLE[currentLevel - 1];
     
     if (totalXp >= xpForNext) {
+        const oldLevel = currentLevel;
         poke.level = currentLevel + 1;
         // Gain stat points on level up
         poke.statPointsAvailable = (poke.statPointsAvailable || 0) + 1;
@@ -3806,6 +4161,11 @@ function checkPokemonLevelUp(poke) {
         const hpMod = Math.floor(((poke.stats?.HP || poke.stats?.CON || 10) - 10) / 2);
         poke.maxHp = (poke.baseHp || 20) + (hpMod * poke.level) + (poke.level * 2);
         poke.currentHp = poke.maxHp; // Full heal on level up
+
+        playSound('levelup');
+        // Notify dice upgrades for each move
+        checkMoveDiceUpgrades(poke, oldLevel, poke.level);
+
         // Check for further level ups
         checkPokemonLevelUp(poke);
         return true;
@@ -3853,7 +4213,7 @@ const BATTLE_ITEMS = {
     'Max Potion': { type: 'heal', heal: 9999, description: 'Cura todo HP' },
     'Full Restore': { type: 'full_restore', heal: 9999, description: 'Cura todo HP e remove status' },
     'Full Heal': { type: 'cure_status', description: 'Remove qualquer status' },
-    'Antidote': { type: 'cure_specific', cures: ['envenenado', 'badly_poisoned'], description: 'Cura veneno' },
+    'Antidote': { type: 'cure_specific', cures: ['badly_poisoned', 'badly_poisoned'], description: 'Cura veneno' },
     'Burn Heal': { type: 'cure_specific', cures: ['queimado'], description: 'Cura queimadura' },
     'Ice Heal': { type: 'cure_specific', cures: ['congelado'], description: 'Cura congelamento' },
     'Awakening': { type: 'cure_specific', cures: ['dormindo'], description: 'Acorda o Pokémon' },
@@ -3919,14 +4279,14 @@ function useBattleItem(itemName) {
         const healed = poke.currentHp - oldHp;
         addBattleLog(`🧪 Usou <strong>${itemName}</strong>! ${poke.nickname || poke.name} recuperou ${healed} HP. (${poke.currentHp}/${maxHp})`);
         document.getElementById('battle-player-hp-text-full').textContent = `${poke.currentHp}/${maxHp} HP`;
-        document.getElementById('battle-player-hp-bar-full').style.width = `${(poke.currentHp/maxHp)*100}%`;
+        setHpBar('battle-player-hp-bar-full', poke.currentHp, maxHp);
     } else if (info.type === 'full_restore') {
         poke.currentHp = poke.maxHp || 20;
         window.playerPokemonStatus = null;
         updateStatusDisplay();
         addBattleLog(`🧪 Usou <strong>${itemName}</strong>! HP cheio + status curado!`);
         document.getElementById('battle-player-hp-text-full').textContent = `${poke.currentHp}/${poke.maxHp} HP`;
-        document.getElementById('battle-player-hp-bar-full').style.width = '100%';
+        setHpBar('battle-player-hp-bar-full', poke.currentHp, poke.maxHp);
     } else if (info.type === 'cure_status' || info.type === 'cure_specific') {
         if (window.playerPokemonStatus) {
             if (info.type === 'cure_status' || (info.cures && info.cures.includes(window.playerPokemonStatus.condition))) {
@@ -4043,7 +4403,7 @@ async function processStatusMove(moveName, attackerPoke, targetPoke) {
                 poke.currentHp = Math.min(poke.maxHp || 20, oldHp + result.heal);
                 addBattleLog(`💚 Recuperou ${poke.currentHp - oldHp} HP! (${poke.currentHp}/${poke.maxHp})`);
                 document.getElementById('battle-player-hp-text-full').textContent = `${poke.currentHp}/${poke.maxHp} HP`;
-                document.getElementById('battle-player-hp-bar-full').style.width = `${(poke.currentHp/poke.maxHp)*100}%`;
+                setHpBar('battle-player-hp-bar-full', poke.currentHp, poke.maxHp);
             }
         }
         
@@ -4463,9 +4823,13 @@ async function applyEvolutionStone(pokemonIdx, itemName) {
     const bagEntry = (window.bagItems || []).find(i => i.name?.toLowerCase() === itemName.toLowerCase());
     if (bagEntry) bagEntry.qty = Math.max(0, (bagEntry.qty || 1) - 1);
 
-    await refreshTeamDisplay();
-    showNotification(`✨ ${poke.name} evoluiu para ${data.evolved_into}!`, 'success');
-    alert(`✨ PARABÉNS! ${poke.nickname || poke.name} evoluiu para ${data.evolved_into}!`);
+    playerTeam[pokemonIdx] = data.pokemon;
+    await triggerEvolutionSequence({
+        from: poke.nickname || poke.name, to: data.evolved_into,
+        old_number: poke.number || 0, new_number: data.new_number || data.pokemon?.number || 0,
+        new_moves: data.new_moves || []
+    });
+    refreshTeamDisplay();
 }
 
 async function friendshipEvolve(pokemonIdx) {
@@ -4485,9 +4849,12 @@ async function friendshipEvolve(pokemonIdx) {
     }
 
     playerTeam[pokemonIdx] = data.pokemon;
-    await refreshTeamDisplay();
-    showNotification(`💛 ${poke.name} evoluiu para ${data.evolved_into} pela amizade!`, 'success');
-    alert(`💛 PARABÉNS! ${poke.nickname || poke.name} evoluiu para ${data.evolved_into}!`);
+    await triggerEvolutionSequence({
+        from: poke.nickname || poke.name, to: data.evolved_into,
+        old_number: poke.number || 0, new_number: data.pokemon?.number || 0,
+        new_moves: data.new_moves || []
+    });
+    refreshTeamDisplay();
 }
 
 // Socket event when any pokemon evolves (for teammates to see in master panel)
@@ -4503,6 +4870,100 @@ socket.on('pokemon_evolved', (data) => {
         });
     }
 });
+
+// ============================================================
+// EVOLUTION ANIMATION & MOVE DICE UPGRADE
+// ============================================================
+
+function triggerEvolutionSequence(evo) {
+    return new Promise(resolve => {
+        const oldSprite = getPokemonSpriteUrl(evo.old_number || 0);
+        const newSprite  = getPokemonSpriteUrl(evo.new_number || 0);
+        const newMovesHtml = (evo.new_moves && evo.new_moves.length)
+            ? `<div style="margin-top:1rem;background:rgba(255,255,255,0.08);padding:0.75rem;border-radius:8px;">
+                   <p style="color:#7fff00;margin:0 0 0.4rem;">🎯 Novos golpes disponíveis:</p>
+                   <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
+                       ${evo.new_moves.map(m => `<span style="background:#1a1a3e;border:1px solid #7fff00;padding:0.2rem 0.7rem;border-radius:4px;font-size:0.85rem;">${m}</span>`).join('')}
+                   </div>
+               </div>`
+            : '';
+
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;transition:background 0.2s;';
+        overlay.innerHTML = `
+            <style>
+                @keyframes evo-pulse { 0%,100%{filter:brightness(1)} 50%{filter:brightness(3) saturate(0)} }
+                @keyframes evo-appear { from{opacity:0;transform:scale(0.5)} to{opacity:1;transform:scale(1)} }
+            </style>
+            <h2 id="evo-title" style="color:#ffd700;font-size:2rem;margin-bottom:1.5rem;text-shadow:0 0 20px #ffd700;">✨ EVOLUINDO! ✨</h2>
+            <img id="evo-sprite" src="${oldSprite}" style="width:160px;height:160px;image-rendering:pixelated;animation:evo-pulse 1s infinite;">
+            <p id="evo-subtext" style="margin:1rem;font-size:1.1rem;color:#aaa;">${evo.from} está evoluindo...</p>
+            <div id="evo-details" style="display:none;max-width:480px;text-align:center;">${newMovesHtml}</div>
+            <button id="evo-btn" style="display:none;margin-top:1.5rem;background:#ffd700;color:#000;border:none;padding:0.75rem 2.5rem;border-radius:8px;font-size:1rem;font-weight:bold;cursor:pointer;">✨ Incrível!</button>
+        `;
+        document.body.appendChild(overlay);
+
+        // Phase 1: white flash after 1.4s
+        setTimeout(() => {
+            overlay.style.background = '#fff';
+        }, 1400);
+
+        // Phase 2: reveal new sprite after flash
+        setTimeout(() => {
+            overlay.style.background = '#000';
+            const spriteEl = document.getElementById('evo-sprite');
+            spriteEl.style.animation = 'evo-appear 0.6s ease forwards';
+            spriteEl.src = newSprite;
+            document.getElementById('evo-title').textContent = `✨ ${evo.from} evoluiu para ${evo.to}! ✨`;
+            document.getElementById('evo-title').style.color = '#7fff00';
+            document.getElementById('evo-title').style.textShadow = '0 0 20px #7fff00';
+            document.getElementById('evo-subtext').textContent = '🎉 Parabéns!';
+            document.getElementById('evo-subtext').style.color = '#ffd700';
+            document.getElementById('evo-details').style.display = 'block';
+            const btn = document.getElementById('evo-btn');
+            btn.style.display = 'inline-block';
+            btn.onclick = () => { overlay.remove(); resolve(); };
+        }, 1700);
+    });
+}
+
+function checkMoveDiceUpgrades(poke, oldLevel, newLevel) {
+    const pokeName = poke.nickname || poke.name;
+    for (const moveName of (poke.moves || [])) {
+        const m = MOVES_CACHE[moveName];
+        if (!m || !m.higherLevels) continue;
+        const lvMatches = [...m.higherLevels.matchAll(/(\d+d\d+)\s+no\s+n[ií]vel\s+(\d+)/gi)];
+        for (const lm of lvMatches) {
+            const threshold = parseInt(lm[2]) * 5; // trainer lv → pokemon lv
+            if (oldLevel < threshold && newLevel >= threshold) {
+                const msg = `🎲 <strong>${pokeName}</strong> — <strong>${moveName}</strong> evoluiu para <strong>${lm[1]}</strong>!`;
+                // Show in battle log if in battle, else notification
+                if (document.getElementById('battle-log-full')) addBattleLog(msg);
+                else showNotification(`${pokeName}: ${moveName} → ${lm[1]}`, 'success');
+            }
+        }
+    }
+}
+
+async function checkServerEvolution(slotIdx) {
+    try {
+        const res  = await fetch('/player/level-evolve', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ slot: slotIdx })
+        });
+        const data = await res.json();
+        if (!data.evolved) return;
+        // Update local team
+        playerTeam[slotIdx] = data.pokemon;
+        await triggerEvolutionSequence({
+            from: data.old_name, to: data.pokemon.name,
+            old_number: data.old_number, new_number: data.new_number,
+            new_moves: data.new_moves || []
+        });
+        refreshTeamDisplay();
+    } catch(e) { console.error('Evolution check failed', e); }
+}
 
 // battle_wins tracking is already integrated into endBattle above
 

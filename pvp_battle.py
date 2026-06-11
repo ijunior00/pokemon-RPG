@@ -124,25 +124,35 @@ def apply_damage(battle, attacker_key, damage, move_name='', message=''):
     """Apply damage from attacker to defender's active pokemon."""
     defender_key = 'player2' if attacker_key == 'player1' else 'player1'
     defender = battle[defender_key]
-    
+
     active_poke = defender['team'][defender['active_idx']]
     old_hp = active_poke.get('currentHp', active_poke.get('maxHp', 20))
-    new_hp = max(0, old_hp - damage)
+    raw_hp = old_hp - damage
+    new_hp = max(-999, raw_hp)  # allow negative for permadeath detection
     active_poke['currentHp'] = new_hp
-    
+
     battle['log'].append({
         'type': 'attack',
         'attacker': attacker_key,
         'move': move_name,
         'damage': damage,
         'message': message,
-        'defender_hp': new_hp,
+        'defender_hp': max(0, new_hp),
         'defender_max_hp': active_poke.get('maxHp', 20)
     })
-    
+
     # Check if pokemon fainted
     if new_hp <= 0:
-        battle['log'].append({'type': 'faint', 'player': defender_key})
+        is_permadeath = raw_hp <= -10
+        if is_permadeath:
+            active_poke['permanently_dead'] = True
+            battle['last_permadeath'] = {
+                'player_key': defender_key,
+                'player_id': battle[defender_key]['id'],
+                'pokemon_name': active_poke.get('nickname') or active_poke.get('name', '?'),
+                'pokemon': active_poke
+            }
+        battle['log'].append({'type': 'faint', 'player': defender_key, 'permadeath': is_permadeath})
         # Check if defender has any alive pokemon left
         alive = [i for i, p in enumerate(defender['team']) 
                  if p.get('currentHp', p.get('maxHp', 20)) > 0 and i != defender['active_idx']]
@@ -190,11 +200,16 @@ def get_battle_state_for_player(battle, player_key):
         'your_used_pokemon': player['used_pokemon'],
         'opponent_active': None,
         'opponent_team_count': len(opponent['team']),
-        'opponent_alive_count': sum(1 for p in opponent['team'] if p.get('currentHp', p.get('maxHp', 20)) > 0),
+        'opponent_alive_count': sum(1 for p in opponent['team'] if max(0, p.get('currentHp', p.get('maxHp', 20))) > 0),
         'winner': battle.get('winner'),
         'log': battle.get('log', [])[-20:]  # last 20 log entries
     }
     
+    # Include own active pokemon's status
+    if player['active_idx'] is not None:
+        own_active = player['team'][player['active_idx']]
+        state['your_status'] = own_active.get('status')
+
     # Only reveal opponent's active pokemon if battle has started
     if battle['phase'] in ('battle', 'finished') and opponent['active_idx'] is not None:
         active = opponent['team'][opponent['active_idx']]
@@ -203,7 +218,7 @@ def get_battle_state_for_player(battle, player_key):
             'nickname': active.get('nickname', ''),
             'level': active.get('level', 1),
             'types': active.get('types', []),
-            'currentHp': active.get('currentHp', active.get('maxHp', 20)),
+            'currentHp': max(0, active.get('currentHp', active.get('maxHp', 20))),
             'maxHp': active.get('maxHp', 20),
             'ac': active.get('ac', 10),
             'number': active.get('number', 0),
@@ -213,6 +228,48 @@ def get_battle_state_for_player(battle, player_key):
         }
     
     return state
+
+
+def apply_status(battle, player_key, status_condition):
+    """Apply a status condition to the active pokemon. Returns True if applied."""
+    player = battle[player_key]
+    active = player['team'][player['active_idx']]
+    if active.get('status'):
+        return False  # already statused
+    active['status'] = dict(status_condition, turns_active=0)
+    return True
+
+
+def process_turn_status(battle, player_key):
+    """Process status damage at turn start for the active pokemon.
+    Returns (damage_dealt, status_dict_or_None)."""
+    player = battle[player_key]
+    active = player['team'][player['active_idx']]
+    status = active.get('status')
+    if not status:
+        return 0, None
+
+    condition = status.get('condition', '')
+    turns = status.get('turns_active', 0) + 1
+    status['turns_active'] = turns
+    active['status'] = status
+
+    max_hp = active.get('maxHp', 20)
+    damage = 0
+
+    if condition in ('badly_poisoned', 'queimado'):
+        damage = max(1, int(max_hp * turns / 8))
+        active['currentHp'] = max(0, active.get('currentHp', 0) - damage)
+    # paralysis / sleep — no HP damage, handled client-side for skip
+
+    return damage, status
+
+
+def clear_status(battle, player_key):
+    """Clear status from active pokemon."""
+    player = battle[player_key]
+    active = player['team'][player['active_idx']]
+    active.pop('status', None)
 
 
 def npc_choose_action(battle, npc_key):

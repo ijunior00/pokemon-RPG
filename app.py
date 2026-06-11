@@ -701,8 +701,16 @@ def give_xp():
             evolved, evolved_name = check_and_evolve_pokemon(pokemon)
             if evolved:
                 old_name = pokemon.get('name', '')
+                old_number = pokemon.get('number', 0)
+                evolved_base_data = POKEMON_BY_NAME.get(evolved_name.lower(), {})
+                new_moves = [m for m in (evolved_base_data.get('startingMoves') or [])
+                             if m not in (pokemon.get('moves') or [])]
                 trainer['team'][i] = evolved
-                evolutions.append({'from': old_name, 'to': evolved_name, 'slot': i})
+                evolutions.append({
+                    'from': old_name, 'to': evolved_name, 'slot': i,
+                    'old_number': old_number, 'new_number': evolved.get('number', 0),
+                    'new_moves': new_moves
+                })
 
         users[player_id]['trainer_data'] = trainer
         save_users(users)
@@ -1210,7 +1218,14 @@ def use_evolution_stone():
         'method':    f'usou {item_name}'
     }, room='master')
 
-    return jsonify({'ok': True, 'evolved_into': evolved['name'], 'pokemon': evolved})
+    stone_evolved_base = POKEMON_BY_NAME.get(evolved['name'].lower(), {})
+    stone_new_moves = [m for m in (stone_evolved_base.get('startingMoves') or [])
+                       if m not in (pokemon.get('moves') or [])]
+    return jsonify({
+        'ok': True, 'evolved_into': evolved['name'], 'pokemon': evolved,
+        'old_number': pokemon.get('number', 0), 'new_number': evolved.get('number', 0),
+        'new_moves': stone_new_moves
+    })
 
 
 @app.route('/player/friendship-evolve', methods=['POST'])
@@ -1278,7 +1293,38 @@ def friendship_evolve():
         'new_name': evolved['name'], 'method': 'amizade'
     }, room='master')
 
-    return jsonify({'ok': True, 'evolved_into': evolved['name'], 'pokemon': evolved})
+    friendship_evolved_base = POKEMON_BY_NAME.get(evolved['name'].lower(), {})
+    friendship_new_moves = [m for m in (friendship_evolved_base.get('startingMoves') or [])
+                            if m not in (pokemon.get('moves') or [])]
+    return jsonify({
+        'ok': True, 'evolved_into': evolved['name'], 'pokemon': evolved,
+        'old_number': pokemon.get('number', 0), 'new_number': evolved.get('number', 0),
+        'new_moves': friendship_new_moves
+    })
+
+
+@app.route('/player/pokemon-center', methods=['POST'])
+@login_required
+def pokemon_center():
+    """Heal all Pokémon to full HP and clear all status conditions."""
+    users = load_users()
+    trainer = users[current_user.id].get('trainer_data', {})
+    team = trainer.get('team', [])
+
+    for poke in team:
+        poke['currentHp'] = poke.get('maxHp', poke.get('hp', 20))
+        poke.pop('status', None)
+
+    trainer['team'] = team
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+
+    socketio.emit('team_update', {
+        'player_id': current_user.id,
+        'team': team
+    }, room='master')
+
+    return jsonify({'ok': True, 'team': team})
 
 
 @app.route('/player/level-evolve', methods=['POST'])
@@ -1302,6 +1348,10 @@ def level_evolve():
     if not evolved:
         return jsonify({'evolved': False, 'message': f'{old_name} não atingiu o nível necessário para evoluir ainda.'})
 
+    evolved_base_data = POKEMON_BY_NAME.get(evolved_name.lower(), {})
+    new_moves = [m for m in (evolved_base_data.get('startingMoves') or [])
+                 if m not in (pokemon.get('moves') or [])]
+
     team[slot] = evolved
     trainer['team'] = team
     users[current_user.id]['trainer_data'] = trainer
@@ -1312,7 +1362,12 @@ def level_evolve():
         'new_name': evolved['name'], 'method': 'level'
     }, room='master')
 
-    return jsonify({'evolved': True, 'old_name': old_name, 'pokemon': evolved})
+    return jsonify({
+        'evolved': True, 'old_name': old_name, 'pokemon': evolved,
+        'old_number': pokemon.get('number', 0),
+        'new_number': evolved.get('number', 0),
+        'new_moves': new_moves
+    })
 
 
 @app.route('/player/team-data')
@@ -1672,14 +1727,54 @@ def api_check_status():
         return jsonify({'inflicted': False})
     
     elif action == 'turn_start':
-        pokemon_status = data.get('pokemon_status')  # {condition: 'envenenado', turns_active: 2}
+        pokemon_status = data.get('pokemon_status')  # {condition: 'badly_poisoned', turns_active: 2}
         max_hp = int(data.get('max_hp', 20))
+        ability = (data.get('ability', '') or '').strip().lower()
+
         can_act, damage, messages, removed = effects.process_turn_start(pokemon_status, max_hp)
+
+        # Passive ability overrides
+        passive = ab.get_passive(ability) if ability else None
+        ability_msgs = []
+
+        if passive == 'no_indirect' and damage > 0:
+            damage = 0
+            ability_msgs.append(f'✨ Magia Guarda: dano de status bloqueado!')
+
+        elif passive == 'heal_poison' and pokemon_status and pokemon_status.get('condition') == 'badly_poisoned':
+            # Instead of taking damage, heal that amount
+            heal = damage
+            damage = -heal  # negative = heal signal
+            ability_msgs.append(f'💚 Cura Venenosa: recuperou {heal} HP do veneno!')
+
+        elif passive == 'speed_up_turn':
+            ability_msgs.append('⚡ Impulso: SPE aumentou!')
+
+        elif passive == 'cure_on_switch':
+            # Handled client-side on switch
+            pass
+
+        elif passive == 'heal_on_switch':
+            pass  # Handled client-side on switch
+
+        if pokemon_status and not removed:
+            # Shed Skin: 33% chance to cure status
+            if passive == 'shed_skin_passive' or ability == 'shed skin':
+                import random as _r
+                if _r.random() < 0.33:
+                    removed = True
+                    ability_msgs.append('🐍 Muda de Pele: status curado!')
+
+        if ability_msgs:
+            messages = messages + ability_msgs
+
         return jsonify({
             'can_act': can_act,
             'damage': damage,
             'messages': messages,
-            'status_removed': removed
+            'status_removed': removed,
+            'turns_active': pokemon_status.get('turns_active', 1) if pokemon_status else 1,
+            'ability_messages': ability_msgs,
         })
     
     return jsonify({'error': 'Invalid action'}), 400
@@ -1858,15 +1953,41 @@ def handle_initiative(data):
     game_state['active_encounters'][player_id] = encounter
     save_game_state(game_state)
     
+    # Check on-enter abilities for both combatants
+    on_enter_msgs = []
+    wild_ability = wild_pokemon.get('ability', '') or ''
+    player_ability = player_pokemon.get('ability', '') or ''
+    wild_name = wild_pokemon.get('name', 'Selvagem')
+    player_name = player_pokemon.get('nickname') or player_pokemon.get('name', 'Pokémon')
+
+    for ability_str, poke_name in [(wild_ability, wild_name), (player_ability, player_name)]:
+        entry = ab.check_on_enter(ability_str, poke_name)
+        if entry:
+            on_enter_msgs.append(entry['message'])
+            # Apply Intimidate: lower opponent ATK (stored in battle_state for client)
+            if entry.get('stat') == 'ATK' and entry.get('mod', 0) < 0:
+                if poke_name == wild_name:
+                    encounter['battle_state']['player_atk_mod'] = encounter['battle_state'].get('player_atk_mod', 0) + entry['mod']
+                else:
+                    encounter['battle_state']['wild_atk_mod'] = encounter['battle_state'].get('wild_atk_mod', 0) + entry['mod']
+            # Weather abilities set the field
+            if entry.get('weather'):
+                encounter['battle_state']['weather'] = entry['weather']
+
+    game_state['active_encounters'][player_id] = encounter
+    save_game_state(game_state)
+
     result = {
         'player_id': player_id,
         'wild_initiative': wild_init,
         'wild_mod': wild_mod,
         'player_initiative': player_init,
         'player_mod': player_mod,
-        'first_turn': first_turn
+        'first_turn': first_turn,
+        'on_enter_abilities': on_enter_msgs,
+        'weather': encounter['battle_state'].get('weather'),
     }
-    
+
     emit('initiative_result', result, room='master')
     emit('initiative_result', result, room=player_id)
 
@@ -1931,6 +2052,14 @@ def handle_battle_action(data):
                         damage = ability_result['modified_damage']
                         if ability_result['heal']:
                             battle_state['player_hp_current'] = min(battle_state['player_hp_max'], battle_state['player_hp_current'] + ability_result['heal'])
+
+        # Handle switch: reset player HP to new pokemon's HP
+        if action_type == 'switch' and action_by == 'player':
+            new_hp     = int(data.get('new_pokemon_hp', 0))
+            new_max_hp = int(data.get('new_pokemon_max_hp', new_hp or 20))
+            if new_hp > 0:
+                battle_state['player_hp_current'] = new_hp
+                battle_state['player_hp_max'] = new_max_hp
 
         # Apply damage
         if action_by == 'player' and damage > 0:
@@ -2247,22 +2376,64 @@ def handle_pvp_attack(data):
         battle_id = data.get('battle_id')
         move_name = data.get('move_name', '')
         damage = int(data.get('damage', 0))
+        move_type = (data.get('move_type', '') or '').lower()
+        status_effect = data.get('status_effect')
         message = data.get('message', '')
-        
+
         battle = ACTIVE_PVP.get(battle_id)
         if not battle or battle['phase'] != 'battle':
             return
-        
+
         player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
-        
+        defender_key = 'player2' if player_key == 'player1' else 'player1'
+
         # Validate it's this player's turn
         if battle['turn'] != player_key:
             emit('pvp_error', {'message': 'Não é seu turno!'})
             return
-        
+
+        # Process attacker's own status damage before acting
+        status_dmg, status_info = pvp.process_turn_status(battle, player_key)
+        ability_trigger = None
+
+        # Check defender ability
+        if damage > 0 and move_type:
+            defender = battle[defender_key]
+            def_active = defender['team'][defender['active_idx']]
+            def_ability = (def_active.get('ability') or '').lower()
+            if def_ability:
+                ar = ab.check_defender_ability(
+                    def_ability, move_type, damage,
+                    max(0, def_active.get('currentHp', 0)), def_active.get('maxHp', 20)
+                )
+                if ar['triggered']:
+                    damage = ar['modified_damage']
+                    if ar['heal']:
+                        def_active['currentHp'] = min(def_active.get('maxHp', 20),
+                                                      def_active.get('currentHp', 0) + ar['heal'])
+                    ability_trigger = ar
+
         # Apply damage
         result = pvp.apply_damage(battle, player_key, damage, move_name, message)
-        
+
+        # Apply status effect to defender if move has one
+        status_applied = False
+        if status_effect and result not in ('battle_end',):
+            status_applied = pvp.apply_status(battle, defender_key, status_effect)
+
+        # Handle permanent death before sending state
+        _handle_pvp_permadeath(battle)
+
+        # Attach extra info to battle log for client display
+        if ability_trigger:
+            battle['log'].append({'type': 'ability', 'message': ability_trigger.get('message', '')})
+        if status_applied:
+            battle['log'].append({'type': 'status_applied', 'player': defender_key,
+                                  'status': status_effect})
+        if status_dmg > 0:
+            battle['log'].append({'type': 'status_damage', 'player': player_key,
+                                  'damage': status_dmg, 'status': status_info})
+
         # Send updated state to both players
         p1_state = pvp.get_battle_state_for_player(battle, 'player1')
         p2_state = pvp.get_battle_state_for_player(battle, 'player2')
@@ -2438,6 +2609,49 @@ def handle_pvp_forfeit(data):
         handle_pvp_victory(battle)
 
 
+def _handle_pvp_permadeath(battle):
+    """Check for and process permanent Pokémon death in PVP (HP <= -10)."""
+    pd = battle.pop('last_permadeath', None)
+    if not pd:
+        return
+    dead_player_id = pd['player_id']
+    dead_poke_name = pd['pokemon_name']
+    users = get_users()
+    user = users.get(dead_player_id)
+    if user:
+        team = user.get('trainer_data', {}).get('team', [])
+        original_len = len(team)
+        team = [p for p in team if (p.get('nickname') or p.get('name')) != dead_poke_name]
+        if len(team) < original_len:
+            user['trainer_data']['team'] = team
+            save_users(users)
+    socketio.emit('pvp_pokemon_death', {
+        'pokemon_name': dead_poke_name,
+        'message': f'💀 {dead_poke_name} atingiu -10 HP e morreu permanentemente!'
+    }, room=dead_player_id)
+    socketio.emit('pvp_master_permadeath', {
+        'player_id': dead_player_id,
+        'pokemon': dead_poke_name
+    }, room='master')
+
+
+@socketio.on('master_force_npc_action')
+def handle_master_force_npc(data):
+    """Master forces an NPC (or frozen player) to take an action."""
+    if not current_user.is_authenticated or current_user.role != 'master':
+        return
+    battle_id = data.get('battle_id')
+    player_key = data.get('player_key')
+    battle = ACTIVE_PVP.get(battle_id)
+    if not battle or battle['phase'] != 'battle':
+        emit('master_error', {'msg': 'Batalha inativa ou não encontrada.'})
+        return
+    if player_key not in ('player1', 'player2'):
+        return
+    handle_npc_turn(battle, player_key)
+    emit('master_force_npc_result', {'message': f'⚡ Ação forçada para {player_key}!'})
+
+
 def _emit_pvp_to_master(battle, event='update'):
     """Broadcast current PVP battle state to master room."""
     p1 = battle.get('player1', {})
@@ -2458,11 +2672,13 @@ def _emit_pvp_to_master(battle, event='update'):
         'extra':       battle.get('extra', {}),
         'p1_id':       p1.get('id'), 'p1_name': p1_name,
         'p1_is_npc':   p1.get('is_npc', False),
-        'p1_hp':       p1_active.get('currentHp', '?'), 'p1_maxhp': p1_active.get('maxHp', '?'),
+        'p1_hp':       max(0, p1_active.get('currentHp', 0)) if isinstance(p1_active.get('currentHp'), (int, float)) else '?',
+        'p1_maxhp':    p1_active.get('maxHp', '?'),
         'p1_pokemon':  p1_active.get('nickname') or p1_active.get('name', '?'),
         'p2_id':       p2.get('id'), 'p2_name': p2_name,
         'p2_is_npc':   p2.get('is_npc', False),
-        'p2_hp':       p2_active.get('currentHp', '?'), 'p2_maxhp': p2_active.get('maxHp', '?'),
+        'p2_hp':       max(0, p2_active.get('currentHp', 0)) if isinstance(p2_active.get('currentHp'), (int, float)) else '?',
+        'p2_maxhp':    p2_active.get('maxHp', '?'),
         'p2_pokemon':  p2_active.get('nickname') or p2_active.get('name', '?'),
     }, room='master')
 

@@ -11,36 +11,26 @@ import re
 # STATUS CONDITIONS
 # ============================================================
 STATUS_CONDITIONS = {
-    'envenenado': {
+    'badly_poisoned': {
         'name': 'Envenenado',
         'icon': '☠️',
-        'color': '#a040a0',
-        'turn_effect': 'scaling_damage',  # cresce a cada turno
-        'base_fraction': 16,              # 1/16, 2/16, 3/16...
-        'can_act': True,
-        'duration': 'permanent',          # até ser curado
-        'description': 'Perde HP crescente a cada turno (1/16, 2/16, 3/16...). Dura até ser curado.'
-    },
-    'badly_poisoned': {
-        'name': 'Gravemente Envenenado',
-        'icon': '☠️☠️',
         'color': '#7030a0',
         'turn_effect': 'scaling_damage',
-        'base_fraction': 8,               # mais agressivo: 1/8, 2/8, 3/8...
+        'base_fraction': 8,               # 1/8, 2/8, 3/8...
         'can_act': True,
         'duration': 'permanent',
-        'description': 'Perde HP crescente acelerado (1/8, 2/8, 3/8...). Dura até ser curado.'
+        'description': 'Perde HP crescente (1/8, 2/8, 3/8...). Dura até ser curado.'
     },
     'queimado': {
         'name': 'Queimado',
         'icon': '🔥',
         'color': '#f08030',
-        'turn_effect': 'scaling_damage',  # cresce a cada turno
-        'base_fraction': 16,              # 1/16, 2/16, 3/16...
+        'turn_effect': 'scaling_damage',
+        'base_fraction': 8,               # 1/8, 2/8, 3/8...
         'can_act': True,
         'stat_modifier': {'ATK': -2},    # queimadura reduz ataque físico
         'duration': 'permanent',
-        'description': 'Perde HP crescente (1/16, 2/16...) e -2 ATK. Dura até ser curado.'
+        'description': 'Perde HP crescente (1/8, 2/8...) e -2 ATK. Dura até ser curado.'
     },
     'paralisado': {
         'name': 'Paralisado',
@@ -117,16 +107,16 @@ STATUS_CONDITIONS = {
 # ============================================================
 MOVE_STATUS_EFFECTS = {
     # Poison moves
-    'Poison Jab': {'status': 'envenenado', 'chance': 0.30, 'on': 'hit'},
-    'Poison Sting': {'status': 'envenenado', 'chance': 0.30, 'on': 'hit'},
-    'Sludge Bomb': {'status': 'envenenado', 'chance': 0.30, 'on': 'hit'},
-    'Sludge Wave': {'status': 'envenenado', 'chance': 0.10, 'on': 'hit'},
-    'Gunk Shot': {'status': 'envenenado', 'chance': 0.30, 'on': 'hit'},
-    'Cross Poison': {'status': 'envenenado', 'chance': 0.10, 'on': 'hit'},
+    'Poison Jab': {'status': 'badly_poisoned', 'chance': 0.30, 'on': 'hit'},
+    'Poison Sting': {'status': 'badly_poisoned', 'chance': 0.30, 'on': 'hit'},
+    'Sludge Bomb': {'status': 'badly_poisoned', 'chance': 0.30, 'on': 'hit'},
+    'Sludge Wave': {'status': 'badly_poisoned', 'chance': 0.10, 'on': 'hit'},
+    'Gunk Shot': {'status': 'badly_poisoned', 'chance': 0.30, 'on': 'hit'},
+    'Cross Poison': {'status': 'badly_poisoned', 'chance': 0.10, 'on': 'hit'},
     'Poison Fang': {'status': 'badly_poisoned', 'chance': 0.50, 'on': 'hit'},
     'Toxic': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'save_fail', 'save': 'CON'},
-    'Poison Powder': {'status': 'envenenado', 'chance': 1.0, 'on': 'save_fail', 'save': 'CON'},
-    'Baneful Bunker': {'status': 'envenenado', 'chance': 1.0, 'on': 'contact'},
+    'Poison Powder': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'save_fail', 'save': 'CON'},
+    'Baneful Bunker': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'contact'},
     
     # Burn moves
     'Ember': {'status': 'queimado', 'chance': 0.10, 'on': 'hit'},
@@ -403,8 +393,8 @@ def auto_detect_move_effect(move_data):
         'nuzzle': {'type': 'inflict_status', 'status': 'paralisado', 'save': 'CON'},
         # Poison
         'toxic': {'type': 'inflict_status', 'status': 'badly_poisoned', 'save': 'CON'},
-        'poison powder': {'type': 'inflict_status', 'status': 'envenenado', 'save': 'CON'},
-        'poison gas': {'type': 'inflict_status', 'status': 'envenenado', 'save': 'CON'},
+        'poison powder': {'type': 'inflict_status', 'status': 'badly_poisoned', 'save': 'CON'},
+        'poison gas': {'type': 'inflict_status', 'status': 'badly_poisoned', 'save': 'CON'},
         # Burn
         'will-o-wisp': {'type': 'inflict_status', 'status': 'queimado', 'save': 'DEX'},
         # Accuracy down
@@ -525,7 +515,7 @@ def auto_detect_move_effect(move_data):
     if any(kw in desc for kw in ['envenenad', 'veneno', 'poison', 'toxic']):
         if 'gravemente' in desc or 'badly' in desc:
             return {'type': 'inflict_status', 'status': 'badly_poisoned', 'save': 'CON'}
-        return {'type': 'inflict_status', 'status': 'envenenado', 'save': 'CON'}
+        return {'type': 'inflict_status', 'status': 'badly_poisoned', 'save': 'CON'}
     
     # Burn
     if any(kw in desc for kw in ['queimad', 'queimadura', 'burn', 'burned']):
