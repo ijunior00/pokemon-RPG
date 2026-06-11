@@ -79,6 +79,26 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// ============================================
+// TOAST NOTIFICATIONS
+// ============================================
+function showNotification(message, type = 'info') {
+    const container = document.getElementById('notification-container') || (() => {
+        const el = document.createElement('div');
+        el.id = 'notification-container';
+        el.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:99999;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none;';
+        document.body.appendChild(el);
+        return el;
+    })();
+
+    const colors = { success: '#4caf50', error: '#f44336', info: '#2196f3', warning: '#ff9800' };
+    const toast = document.createElement('div');
+    toast.style.cssText = `background:${colors[type]||'#2196f3'};color:#fff;padding:0.75rem 1.25rem;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);font-size:0.9rem;max-width:320px;pointer-events:auto;animation:slideIn 0.3s ease;`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.4s'; setTimeout(() => toast.remove(), 400); }, 3500);
+}
+
 // Notification sound (optional)
 function playNotificationSound() {
     try {

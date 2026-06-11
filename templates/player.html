@@ -16,6 +16,7 @@
         <button class="tab" data-tab="map">🗺️ Mapa</button>
         <button class="tab" data-tab="gyms">🏟️ Ginásios</button>
         <button class="tab" data-tab="pc">🖥️ PC</button>
+        <button class="tab" data-tab="shop">🏪 Loja</button>
     </div>
 
     <!-- TAB: ENCOUNTER -->
@@ -744,25 +745,75 @@
     <div class="tab-content" id="tab-pc">
         <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
             <h2 style="margin:0;">🖥️ PC — Armazenamento</h2>
-            <span style="color:var(--muted);font-size:0.9rem;">Time: <strong id="pc-team-count">0</strong>/6 &nbsp;|&nbsp; PC: <strong id="pc-box-count">0</strong> Pokémon</span>
+            <span style="color:var(--muted);font-size:0.9rem;">
+                Time: <strong id="pc-team-count">0</strong>/6 &nbsp;|&nbsp;
+                Pokémon no PC: <strong id="pc-box-count">0</strong>/10.000 &nbsp;|&nbsp;
+                Itens no PC: <strong id="pc-items-count">0</strong>/10.000
+            </span>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
-            <!-- Time atual -->
-            <div class="card">
-                <h3>🔴 Time Atual</h3>
-                <p style="color:var(--muted);font-size:0.8rem;">Clique em "→ PC" para depositar. Limite: 6 Pokémon.</p>
-                <div id="pc-team-list" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
-            </div>
+        <!-- Toggle view -->
+        <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+            <button class="btn btn-primary" id="pc-view-pokemon-btn" onclick="showPcView('pokemon')">🔴 Pokémon</button>
+            <button class="btn btn-secondary" id="pc-view-items-btn" onclick="showPcView('items')">🎒 Itens</button>
+        </div>
 
-            <!-- PC Box -->
-            <div class="card">
-                <h3>📦 Caixa do PC</h3>
-                <p style="color:var(--muted);font-size:0.8rem;">Clique em "← Time" para retirar.</p>
-                <div id="pc-box-list" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
-                <p id="pc-box-empty" style="color:var(--muted);font-style:italic;display:none;">Caixa vazia.</p>
+        <!-- POKEMON VIEW -->
+        <div id="pc-view-pokemon">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+                <div class="card">
+                    <h3>🔴 Time Atual</h3>
+                    <p style="color:var(--muted);font-size:0.8rem;">Clique em "→ PC" para depositar. Limite: 6 Pokémon.</p>
+                    <div id="pc-team-list" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+                </div>
+                <div class="card">
+                    <h3>📦 Caixa do PC</h3>
+                    <p style="color:var(--muted);font-size:0.8rem;">Clique em "← Time" para retirar. Clique em "⇄" para trocar direto.</p>
+                    <div id="pc-box-list" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+                    <p id="pc-box-empty" style="color:var(--muted);font-style:italic;display:none;">Caixa vazia.</p>
+                </div>
             </div>
         </div>
+
+        <!-- ITEMS VIEW -->
+        <div id="pc-view-items" style="display:none;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+                <div class="card">
+                    <h3>🎒 Bolsa Atual</h3>
+                    <p style="color:var(--muted);font-size:0.8rem;">Clique em "→ PC" para depositar no armazenamento.</p>
+                    <div id="pc-bag-list" style="display:flex;flex-direction:column;gap:0.4rem;"></div>
+                    <p id="pc-bag-empty" style="color:var(--muted);font-style:italic;display:none;">Bolsa vazia.</p>
+                </div>
+                <div class="card">
+                    <h3>📦 Itens no PC</h3>
+                    <p style="color:var(--muted);font-size:0.8rem;">Clique em "← Bolsa" para retirar.</p>
+                    <div id="pc-items-list" style="display:flex;flex-direction:column;gap:0.4rem;"></div>
+                    <p id="pc-items-empty" style="color:var(--muted);font-style:italic;display:none;">Nenhum item no PC.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB: LOJA / POKÉMART -->
+    <div class="tab-content" id="tab-shop">
+        <h2>🏪 Pokémart</h2>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+            <p style="color:var(--muted);margin:0;">Compre itens que vão direto para sua bolsa.</p>
+            <span style="font-size:1.1rem;font-weight:bold;">💰 ₽<span id="shop-money-display">{{ trainer.money or 0 }}</span></span>
+        </div>
+
+        <!-- Category filter -->
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:1rem;">
+            <button class="btn btn-sm btn-primary" onclick="filterShop('')">Tudo</button>
+            <button class="btn btn-sm btn-secondary" onclick="filterShop('pokeball')">⚪ Pokébolas</button>
+            <button class="btn btn-sm btn-secondary" onclick="filterShop('medicine')">💊 Medicina</button>
+            <button class="btn btn-sm btn-secondary" onclick="filterShop('battle')">⚔️ Batalha</button>
+            <button class="btn btn-sm btn-secondary" onclick="filterShop('evo_stone')">💎 Pedras Evo</button>
+            <button class="btn btn-sm btn-secondary" onclick="filterShop('held')">📎 Segurados</button>
+            <button class="btn btn-sm btn-secondary" onclick="filterShop('special')">✨ Especiais</button>
+        </div>
+
+        <div id="shop-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.75rem;"></div>
     </div>
 
     <!-- TAB: GINÁSIOS & LIGA -->

@@ -503,31 +503,44 @@ async function sendManualEncounter() {
 }
 
 // ============================================
-// POKEDEX
+// POKEDEX — Master (lista completa, sempre desbloqueada)
 // ============================================
-async function searchPokedex() {
-    const search = document.getElementById('pokedex-search').value;
-    const typeFilter = document.getElementById('pokedex-type-filter').value;
-    
-    let url = '/api/pokemon?';
-    if (search) url += `search=${encodeURIComponent(search)}&`;
-    if (typeFilter) url += `type=${typeFilter}&`;
-    
-    const response = await fetch(url);
-    const results = await response.json();
-    
+let _masterPokedexAll = [];
+
+async function loadMasterPokedex() {
+    if (_masterPokedexAll.length) { renderMasterPokedex(); return; }
+    // Load slim list first (fast), then full detail on click
+    const res = await fetch('/api/pokemon/all');
+    _masterPokedexAll = await res.json();
+    renderMasterPokedex();
+}
+
+function renderMasterPokedex() {
+    const search     = (document.getElementById('pokedex-search')?.value || '').toLowerCase();
+    const typeFilter = (document.getElementById('pokedex-type-filter')?.value || '').toLowerCase();
+
+    let list = _masterPokedexAll;
+    if (search)     list = list.filter(p => p.name.toLowerCase().includes(search) || String(p.number).includes(search));
+    if (typeFilter) list = list.filter(p => (p.types||[]).map(t=>t.toLowerCase()).includes(typeFilter));
+
     const grid = document.getElementById('pokedex-results');
-    grid.innerHTML = results.map(p => `
-        <div class="pokedex-card" onclick="showPokemonDetail(${p.number})">
+    if (!grid) return;
+    grid.innerHTML = list.map(p => `
+        <div class="pokedex-card" onclick="showPokemonDetail(${p.number})" style="cursor:pointer;">
             <div class="pokedex-card-header">
                 <span class="pokedex-number">#${String(p.number).padStart(3, '0')}</span>
-                <span>Nv.${p.minLevel}+</span>
             </div>
-            <h4>${p.name}</h4>
-            <div class="type-badges">${formatTypes(p.types)}</div>
-            <small>HP: ${p.hp} | AC: ${p.ac}</small>
+            <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.number}.png"
+                 style="width:56px;height:56px;object-fit:contain;" loading="lazy" alt="${p.name}">
+            <h4 style="margin:0.2rem 0 0;font-size:0.85rem;">${p.name}</h4>
+            <div class="type-badges" style="margin-top:0.2rem;">${formatTypes(p.types||[])}</div>
         </div>
     `).join('');
+}
+
+async function searchPokedex() {
+    if (!_masterPokedexAll.length) { await loadMasterPokedex(); return; }
+    renderMasterPokedex();
 }
 
 async function showPokemonDetail(number) {
@@ -1696,4 +1709,5 @@ document.addEventListener('DOMContentLoaded', () => {
         loadMasterGyms();
         loadMasterLeague();
     });
+    document.querySelector('[data-tab="pokedex"]')?.addEventListener('click', loadMasterPokedex);
 });

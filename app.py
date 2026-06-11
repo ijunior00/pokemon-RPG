@@ -778,7 +778,14 @@ def api_pokemon_list():
     if search:
         results = [p for p in results if search in p['name'].lower() or search == str(p['number'])]
     
-    return jsonify(results[:50])  # Limit to 50 results
+    limit = int(request.args.get('limit', 50))
+    return jsonify(results[:limit])
+
+@app.route('/api/pokemon/all')
+@login_required
+def api_pokemon_all():
+    """Return slim list of ALL pokemon for the Pokedex (number, name, types only)."""
+    return jsonify([{'number': p['number'], 'name': p['name'], 'types': p.get('types', [])} for p in POKEMON_DB])
 
 @app.route('/api/pokemon/<int:number>')
 @login_required
@@ -1375,6 +1382,176 @@ def upload_avatar():
         users[current_user.id]['trainer_data']['avatar'] = f"/static/uploads/avatars/{filename}"
         save_users(users)
     return jsonify({'success': True, 'avatar_url': f"/static/uploads/avatars/{filename}"})
+
+# ============================================================
+# SHOP / POKÉMART
+# ============================================================
+SHOP_CATALOG = [
+    # Pokébolas
+    {'id': 'poke-ball',   'name': 'Pokébola',    'category': 'pokeball', 'price': 200,   'description': 'Pokébola padrão. DC captura base.'},
+    {'id': 'great-ball',  'name': 'Super Bola',  'category': 'pokeball', 'price': 600,   'description': '+2 no teste de captura.'},
+    {'id': 'ultra-ball',  'name': 'Ultra Bola',  'category': 'pokeball', 'price': 1200,  'description': '+4 no teste de captura.'},
+    {'id': 'master-ball', 'name': 'Master Ball', 'category': 'pokeball', 'price': 99999, 'description': 'Captura garantida. Muito raro.'},
+    {'id': 'heal-ball',   'name': 'Cura Bola',   'category': 'pokeball', 'price': 300,   'description': 'Cura o Pokémon capturado.'},
+    {'id': 'net-ball',    'name': 'Net Bola',     'category': 'pokeball', 'price': 1000,  'description': '+3 em Bug e Water.'},
+    # Poções
+    {'id': 'potion',        'name': 'Poção',         'category': 'medicine', 'price': 300,  'description': 'Restaura 2d4+2 HP de um Pokémon.'},
+    {'id': 'super-potion',  'name': 'Super Poção',   'category': 'medicine', 'price': 700,  'description': 'Restaura 4d4+4 HP de um Pokémon.'},
+    {'id': 'hyper-potion',  'name': 'Hiper Poção',   'category': 'medicine', 'price': 1500, 'description': 'Restaura 6d4+12 HP de um Pokémon.'},
+    {'id': 'max-potion',    'name': 'Poção Máxima',  'category': 'medicine', 'price': 2500, 'description': 'Restaura todos os HP de um Pokémon.'},
+    {'id': 'full-restore',  'name': 'Restauração',   'category': 'medicine', 'price': 3000, 'description': 'Restaura HP e cura condição de status.'},
+    {'id': 'antidote',      'name': 'Antídoto',      'category': 'medicine', 'price': 100,  'description': 'Cura envenenamento.'},
+    {'id': 'burn-heal',     'name': 'Cura Queimadura','category':'medicine', 'price': 250,  'description': 'Cura queimadura.'},
+    {'id': 'ice-heal',      'name': 'Cura Gelo',     'category': 'medicine', 'price': 250,  'description': 'Cura congelamento.'},
+    {'id': 'awakening',     'name': 'Despertar',     'category': 'medicine', 'price': 250,  'description': 'Acorda um Pokémon dormindo.'},
+    {'id': 'paralyze-heal', 'name': 'Cura Paralisia','category': 'medicine', 'price': 200,  'description': 'Cura paralisia.'},
+    {'id': 'full-heal',     'name': 'Cura Total',    'category': 'medicine', 'price': 600,  'description': 'Cura qualquer condição de status.'},
+    {'id': 'revive',        'name': 'Reviver',       'category': 'medicine', 'price': 1500, 'description': 'Revive Pokémon desmaiado com metade do HP.'},
+    {'id': 'max-revive',    'name': 'Reviver Máx',   'category': 'medicine', 'price': 4000, 'description': 'Revive Pokémon com HP máximo.'},
+    {'id': 'ether',         'name': 'Éter',          'category': 'medicine', 'price': 1200, 'description': 'Restaura PP de um golpe (+1 uso).'},
+    # Batalha
+    {'id': 'x-attack',   'name': 'X Ataque',    'category': 'battle', 'price': 500,  'description': '+2 ATK por 1 batalha.'},
+    {'id': 'x-defense',  'name': 'X Defesa',    'category': 'battle', 'price': 550,  'description': '+2 AC por 1 batalha.'},
+    {'id': 'x-speed',    'name': 'X Velocidade','category': 'battle', 'price': 350,  'description': '+2 SPE por 1 batalha.'},
+    {'id': 'x-sp-atk',   'name': 'X At. Esp.',  'category': 'battle', 'price': 500,  'description': '+2 SPA por 1 batalha.'},
+    {'id': 'dire-hit',   'name': 'Acerto Certo','category': 'battle', 'price': 650,  'description': 'Aumenta críticos por 1 batalha.'},
+    # Itens de evolução
+    {'id': 'fire-stone',    'name': 'Pedra Fogo',    'category': 'evo_stone', 'price': 3000, 'description': 'Usada para certas evoluções.'},
+    {'id': 'water-stone',   'name': 'Pedra Água',    'category': 'evo_stone', 'price': 3000, 'description': 'Usada para certas evoluções.'},
+    {'id': 'thunder-stone', 'name': 'Pedra Trovão',  'category': 'evo_stone', 'price': 3000, 'description': 'Usada para certas evoluções.'},
+    {'id': 'leaf-stone',    'name': 'Pedra Folha',   'category': 'evo_stone', 'price': 3000, 'description': 'Usada para certas evoluções.'},
+    {'id': 'moon-stone',    'name': 'Pedra Lua',     'category': 'evo_stone', 'price': 3000, 'description': 'Usada para certas evoluções.'},
+    {'id': 'sun-stone',     'name': 'Pedra Solar',   'category': 'evo_stone', 'price': 3000, 'description': 'Usada para certas evoluções.'},
+    {'id': 'shiny-stone',   'name': 'Pedra Brilhante','category':'evo_stone', 'price': 3000, 'description': 'Usada para certas evoluções.'},
+    {'id': 'dusk-stone',    'name': 'Pedra Crepúsculo','category':'evo_stone','price': 3000, 'description': 'Usada para certas evoluções.'},
+    {'id': 'dawn-stone',    'name': 'Pedra Aurora',  'category': 'evo_stone', 'price': 3000, 'description': 'Usada para certas evoluções.'},
+    {'id': 'ice-stone',     'name': 'Pedra Gelo',    'category': 'evo_stone', 'price': 3000, 'description': 'Usada para certas evoluções.'},
+    # Itens segurados
+    {'id': 'leftovers',   'name': 'Restos',       'category': 'held', 'price': 4000, 'description': 'Cura 1d4 HP no início de cada turno.'},
+    {'id': 'choice-band', 'name': 'Faixa Seleção','category': 'held', 'price': 5000, 'description': '+1d6 ATK, mas só pode usar 1 golpe.'},
+    {'id': 'life-orb',    'name': 'Orbe Vida',    'category': 'held', 'price': 5000, 'description': '+30% dano, -10% HP por uso.'},
+    {'id': 'rocky-helmet','name': 'Capacete Pedra','category':'held', 'price': 3000, 'description': 'Quem ataca corpo a corpo perde 1d6 HP.'},
+    # Raros/Especiais
+    {'id': 'rare-candy',  'name': 'Bala Rara',    'category': 'special', 'price': 2000, 'description': 'Aumenta 1 nível do Pokémon.'},
+    {'id': 'repel',       'name': 'Repelente',    'category': 'special', 'price': 350,  'description': 'Evita encontros por 1 hora.'},
+    {'id': 'super-repel', 'name': 'Super Repelente','category':'special','price': 500,  'description': 'Evita encontros por 2 horas.'},
+]
+
+@app.route('/api/shop')
+@login_required
+def api_shop():
+    """Return the shop catalog. Master can hide items via game_state."""
+    game_state = get_game_state()
+    hidden_items = set(game_state.get('shop_hidden_items', []))
+    catalog = [item for item in SHOP_CATALOG if item['id'] not in hidden_items]
+    return jsonify(catalog)
+
+@app.route('/api/shop/buy', methods=['POST'])
+@login_required
+def api_shop_buy():
+    """Buy an item. Deducts money and adds to player bag."""
+    if current_user.role == 'master':
+        return jsonify({'error': 'Mestre não pode comprar itens'}), 403
+    data = request.json or {}
+    item_id = data.get('item_id')
+    qty = max(1, int(data.get('qty', 1)))
+
+    item = next((i for i in SHOP_CATALOG if i['id'] == item_id), None)
+    if not item:
+        return jsonify({'error': 'Item não encontrado'}), 404
+
+    total_cost = item['price'] * qty
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    money = trainer.get('money', 0)
+    if money < total_cost:
+        return jsonify({'error': f'Sem dinheiro suficiente! Precisa de ₽{total_cost}, tem ₽{money}'}), 400
+
+    trainer['money'] = money - total_cost
+    bag = trainer.get('bag', [])
+    existing = next((b for b in bag if isinstance(b, dict) and b.get('name', '').lower() == item['name'].lower()), None)
+    if existing:
+        existing['qty'] = existing.get('qty', 1) + qty
+    else:
+        bag.append({'name': item['name'], 'qty': qty, 'description': item['description']})
+    trainer['bag'] = bag
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+    return jsonify({'success': True, 'money_left': trainer['money'], 'item': item, 'qty': qty})
+
+@app.route('/player/pc/items', methods=['GET'])
+@login_required
+def get_pc_items():
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    return jsonify(trainer.get('pc_items', []))
+
+@app.route('/player/pc/items/deposit', methods=['POST'])
+@login_required
+def pc_deposit_item():
+    """Move item(s) from bag to PC item storage."""
+    data = request.json or {}
+    item_name = data.get('item_name', '').strip()
+    qty = max(1, int(data.get('qty', 1)))
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    bag = trainer.get('bag', [])
+    pc_items = trainer.get('pc_items', [])
+
+    bag_item = next((b for b in bag if isinstance(b, dict) and b.get('name', '').lower() == item_name.lower()), None)
+    if not bag_item or bag_item.get('qty', 0) < qty:
+        return jsonify({'error': f'Não tem {qty}x {item_name} na bolsa'}), 400
+
+    if sum(i.get('qty', 1) for i in pc_items) + qty > 10000:
+        return jsonify({'error': 'PC de itens cheio! (limite 10.000)'}), 400
+
+    bag_item['qty'] = bag_item.get('qty', qty) - qty
+    if bag_item['qty'] <= 0:
+        bag.remove(bag_item)
+
+    pc_existing = next((b for b in pc_items if b.get('name', '').lower() == item_name.lower()), None)
+    if pc_existing:
+        pc_existing['qty'] = pc_existing.get('qty', 1) + qty
+    else:
+        pc_items.append({'name': bag_item.get('name', item_name), 'qty': qty, 'description': bag_item.get('description', '')})
+
+    trainer['bag'] = bag
+    trainer['pc_items'] = pc_items
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+    return jsonify({'ok': True, 'bag': bag, 'pc_items': pc_items})
+
+@app.route('/player/pc/items/withdraw', methods=['POST'])
+@login_required
+def pc_withdraw_item():
+    """Move item(s) from PC storage to bag."""
+    data = request.json or {}
+    item_name = data.get('item_name', '').strip()
+    qty = max(1, int(data.get('qty', 1)))
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    bag = trainer.get('bag', [])
+    pc_items = trainer.get('pc_items', [])
+
+    pc_item = next((b for b in pc_items if b.get('name', '').lower() == item_name.lower()), None)
+    if not pc_item or pc_item.get('qty', 0) < qty:
+        return jsonify({'error': f'Não tem {qty}x {item_name} no PC'}), 400
+
+    pc_item['qty'] = pc_item.get('qty', qty) - qty
+    if pc_item['qty'] <= 0:
+        pc_items.remove(pc_item)
+
+    bag_existing = next((b for b in bag if isinstance(b, dict) and b.get('name', '').lower() == item_name.lower()), None)
+    if bag_existing:
+        bag_existing['qty'] = bag_existing.get('qty', 1) + qty
+    else:
+        bag.append({'name': pc_item.get('name', item_name), 'qty': qty, 'description': pc_item.get('description', '')})
+
+    trainer['bag'] = bag
+    trainer['pc_items'] = pc_items
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+    return jsonify({'ok': True, 'bag': bag, 'pc_items': pc_items})
 
 @app.route('/api/items')
 @login_required

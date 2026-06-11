@@ -553,9 +553,11 @@ function updateTurnUI() {
     if (window.currentTurn === 'player') {
         moveBtns.forEach(btn => { btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; });
         if (passBtn) passBtn.classList.remove('hidden');
+        if (battleActive && !window.wildFainted) startTurnCountdown();
     } else {
         moveBtns.forEach(btn => { btn.style.opacity = '0.5'; btn.style.pointerEvents = 'none'; });
         if (passBtn) passBtn.classList.add('hidden');
+        clearTurnCountdown();
     }
 }
 
@@ -1097,8 +1099,12 @@ function endBattle(result) {
     window.playerPokemonStatus = null;
     window._wildIsActing = false;
     window._processingPlayerStatus = false;
-    socket.emit('end_encounter', { result });
-    
+    const _endData = { result };
+    if (result === 'defeated' && window.currentBattleData?.playerPokemon) {
+        _endData.active_pokemon_name = window.currentBattleData.playerPokemon.nickname || window.currentBattleData.playerPokemon.name;
+    }
+    socket.emit('end_encounter', _endData);
+
     // XP só para vitória real: derrotou o selvagem OU capturou com Master Ball
     const earnedXP = result === 'defeated' || (result === 'caught' && window._masterBallCapture);
     if (earnedXP && currentEncounter && window.currentBattleData) {
@@ -1112,6 +1118,8 @@ function endBattle(result) {
         const trainerLevel = TRAINER_DATA.level || 1;
         let pokeLevel = currentEncounter.level;
         if (pokeLevel < trainerLevel - 2) pokeLevel = Math.max(1, trainerLevel - 2);
+        // Primeiro Pokémon do treinador começa no mínimo nível 5
+        if (playerTeam.length === 0 && pokeLevel < 5) pokeLevel = 5;
 
         // Register in pokedex
         registerPokedex(pokemon.number);
@@ -1219,30 +1227,109 @@ async function registerPokedex(pokemonNumber) {
     return result;
 }
 
-async function searchPlayerPokedex() {
-    const search = document.getElementById('player-pokedex-search').value;
-    const response = await fetch(`/api/pokemon?search=${encodeURIComponent(search)}`);
-    const results = await response.json();
+// Full Pokédex — all pokemon loaded locally, filter by search
+let _allPokedexPokemon = [];
+
+async function loadFullPokedex() {
+    if (_allPokedexPokemon.length > 0) { renderPlayerPokedex(); return; }
+    try {
+        const res = await fetch('/api/pokemon/all');
+        _allPokedexPokemon = await res.json();
+        renderPlayerPokedex();
+    } catch(e) { console.error('loadFullPokedex', e); }
+}
+
+function renderPlayerPokedex() {
+    const search = (document.getElementById('player-pokedex-search')?.value || '').toLowerCase();
     const seen = TRAINER_DATA.pokedex_seen || [];
     const grid = document.getElementById('player-pokedex-results');
-    grid.innerHTML = results.map(p => `
-        <div class="pokedex-card ${seen.includes(p.number) ? 'pokedex-seen' : ''}" onclick="registerAndShow(${p.number})">
-            <div class="pokedex-card-header">
-                <span class="pokedex-number">#${String(p.number).padStart(3, '0')}</span>
-                ${seen.includes(p.number) ? '<span class="seen-badge">✓ Visto</span>' : '<span class="new-badge">Novo!</span>'}
+    if (!grid) return;
+
+    let list = _allPokedexPokemon;
+    if (search) {
+        list = list.filter(p =>
+            p.name.toLowerCase().includes(search) ||
+            String(p.number).includes(search)
+        );
+    }
+
+    grid.innerHTML = list.map(p => {
+        const isSeen = seen.includes(p.number);
+        const numStr = '#' + String(p.number).padStart(3, '0');
+        if (isSeen) {
+            return `<div class="pokedex-card pokedex-seen" onclick="showPokedexDetail(${p.number})" style="cursor:pointer;">
+                <div class="pokedex-card-header">
+                    <span class="pokedex-number">${numStr}</span>
+                    <span class="seen-badge">✓</span>
+                </div>
+                <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.number}.png"
+                     style="width:56px;height:56px;object-fit:contain;" alt="${p.name}">
+                <h4 style="margin:0.2rem 0 0;font-size:0.85rem;">${p.name}</h4>
+                <div class="type-badges" style="margin-top:0.2rem;">${formatTypes(p.types)}</div>
+            </div>`;
+        } else {
+            return `<div class="pokedex-card pokedex-locked" style="cursor:default;opacity:0.5;filter:grayscale(1);">
+                <div class="pokedex-card-header">
+                    <span class="pokedex-number">${numStr}</span>
+                </div>
+                <div style="width:56px;height:56px;background:var(--border);border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:1.5rem;">?</div>
+                <h4 style="margin:0.2rem 0 0;font-size:0.85rem;color:var(--muted)">???</h4>
+            </div>`;
+        }
+    }).join('');
+}
+
+async function searchPlayerPokedex() {
+    renderPlayerPokedex();
+}
+
+async function showPokedexDetail(number) {
+    const res = await fetch(`/api/pokemon/${number}`);
+    const p = await res.json();
+    if (p.error) return;
+    // Use existing master-style detail modal or create inline
+    const grid = document.getElementById('player-pokedex-results');
+    const existing = document.getElementById('player-poke-detail');
+    if (existing) existing.remove();
+    const modal = document.createElement('div');
+    modal.id = 'player-poke-detail';
+    modal.className = 'modal';
+    modal.innerHTML = `<div class="modal-content modal-lg">
+        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start;">
+            <div style="text-align:center;">
+                <img src="${getPokemonSpriteUrl(p.number)}" style="width:96px;height:96px;object-fit:contain;">
+                <div class="type-badges" style="margin-top:0.5rem;">${formatTypes(p.types||[])}</div>
             </div>
-            <h4>${p.name}</h4>
-            <div class="type-badges">${formatTypes(p.types)}</div>
+            <div style="flex:1;min-width:200px;">
+                <h3 style="margin:0 0 0.25rem;">#${String(p.number).padStart(3,'0')} ${p.name}</h3>
+                <p style="color:var(--muted);font-size:0.85rem;margin:0 0 0.5rem;">${p.description||''}</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.25rem;font-size:0.85rem;margin-bottom:0.5rem;">
+                    <span>HP: <strong>${p.hp||'—'}</strong></span>
+                    <span>AC: <strong>${p.ac||'—'}</strong></span>
+                    <span>Vel: <strong>${p.speed||'—'}</strong></span>
+                    <span>SR: <strong>${p.sr||'—'}</strong></span>
+                </div>
+                ${p.ability ? `<p style="font-size:0.85rem;"><strong>Habilidade:</strong> ${p.ability.name} — ${p.ability.description}</p>` : ''}
+                ${(p.vulnerabilities||[]).length ? `<p style="font-size:0.8rem;color:#f44336"><strong>Vulnerável:</strong> ${p.vulnerabilities.join(', ')}</p>` : ''}
+                ${(p.resistances||[]).length ? `<p style="font-size:0.8rem;color:#4caf50"><strong>Resistente:</strong> ${p.resistances.join(', ')}</p>` : ''}
+                ${p.evolutionInfo ? `<p style="font-size:0.8rem;color:var(--muted)">${p.evolutionInfo}</p>` : ''}
+            </div>
         </div>
-    `).join('');
+    </div>`;
+    document.body.appendChild(modal);
 }
 
 async function registerAndShow(number) {
     await registerPokedex(number);
     if (!TRAINER_DATA.pokedex_seen) TRAINER_DATA.pokedex_seen = [];
     if (!TRAINER_DATA.pokedex_seen.includes(number)) TRAINER_DATA.pokedex_seen.push(number);
-    searchPlayerPokedex(); // Refresh
+    renderPlayerPokedex();
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelector('[data-tab="pokedex"]')?.addEventListener('click', loadFullPokedex);
+});
 
 // ============================================
 // TEAM MANAGEMENT
@@ -1250,6 +1337,11 @@ async function registerAndShow(number) {
 function addPokemon(slot) {
     document.getElementById('poke-slot').value = slot;
     clearPokemonForm();
+    // Primeiro Pokémon do treinador começa nível 5
+    if (playerTeam.length === 0) {
+        const lvInput = document.getElementById('poke-level');
+        if (lvInput) lvInput.value = 5;
+    }
     showElement('pokemon-edit-modal');
 }
 
@@ -3304,17 +3396,7 @@ socket.on('battle_update', (data) => {
     }
 });
 
-// Reset statuses when battle ends
-const _origEndBattle = endBattle;
-const _endBattleWithStatusReset = function(result) {
-    window.wildPokemonStatus = null;
-    window.playerPokemonStatus = null;
-    window.wildFainted = false;
-    window._wildIsActing = false;
-    window._processingPlayerStatus = false;
-    _origEndBattle(result);
-};
-// Note: endBattle is already defined, this override ensures cleanup
+// Status reset is already handled inside endBattle above
 
 
 // ============================================
@@ -4422,31 +4504,20 @@ socket.on('pokemon_evolved', (data) => {
     }
 });
 
-// Also track battle_wins: send active pokemon name when ending wild battle
-const _origEndBattle = endBattle;
-async function endBattle(result) {
-    // Pass active pokemon name so server can increment battle_wins
-    if (result === 'defeated' && window.currentBattleData?.playerPokemon) {
-        const activeName = window.currentBattleData.playerPokemon.nickname || window.currentBattleData.playerPokemon.name;
-        socket.emit('end_encounter', {
-            player_id: window.CURRENT_USER_ID,
-            result,
-            active_pokemon_name: activeName
-        });
-    }
-    return _origEndBattle(result);
-}
+// battle_wins tracking is already integrated into endBattle above
 
 // ============================================================
 // PC / BOX STORAGE
 // ============================================================
 
-let pcBoxData = [];
+let pcBoxData   = [];
+let pcItemsData = [];
 
 async function loadPC() {
     try {
-        const res = await fetch('/player/pc');
-        pcBoxData = await res.json();
+        const [pcRes, itemsRes] = await Promise.all([fetch('/player/pc'), fetch('/player/pc/items')]);
+        pcBoxData   = await pcRes.json();
+        pcItemsData = await itemsRes.json();
         renderPC();
     } catch(e) { console.error('loadPC', e); }
 }
@@ -4463,6 +4534,8 @@ function renderPC() {
 
     if (teamCnt) teamCnt.textContent = team.length;
     if (boxCnt)  boxCnt.textContent  = box.length;
+    const itemsCntEl = document.getElementById('pc-items-count');
+    if (itemsCntEl) itemsCntEl.textContent = pcItemsData.reduce((s, i) => s + (i.qty || 1), 0);
 
     teamEl.innerHTML = team.map((p, i) => pcPokemonCard(p, i, 'team')).join('');
 
@@ -4577,6 +4650,213 @@ async function pcSwap(teamIdx, pcIdx) {
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('[data-tab="pc"]')?.addEventListener('click', loadPC);
 });
+
+// ============================================================
+// PC — ITEM STORAGE
+// ============================================================
+let _currentPcView = 'pokemon';
+
+function showPcView(view) {
+    _currentPcView = view;
+    document.getElementById('pc-view-pokemon').style.display = view === 'pokemon' ? '' : 'none';
+    document.getElementById('pc-view-items').style.display   = view === 'items'   ? '' : 'none';
+    document.getElementById('pc-view-pokemon-btn').className = view === 'pokemon' ? 'btn btn-primary' : 'btn btn-secondary';
+    document.getElementById('pc-view-items-btn').className   = view === 'items'   ? 'btn btn-primary' : 'btn btn-secondary';
+    if (view === 'items') renderPcItems();
+}
+
+function renderPcItems() {
+    const bag     = TRAINER_DATA.bag || [];
+    const bagEl   = document.getElementById('pc-bag-list');
+    const itemsEl = document.getElementById('pc-items-list');
+    const bagEmp  = document.getElementById('pc-bag-empty');
+    const itmEmp  = document.getElementById('pc-items-empty');
+    if (!bagEl || !itemsEl) return;
+
+    const bagItems = bag.filter(b => b && typeof b === 'object' && b.name);
+    bagEl.innerHTML = bagItems.map(item => `
+        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.6rem;background:var(--darker);border-radius:var(--radius);">
+            <span style="flex:1;font-size:0.9rem;">${item.name} <span style="color:var(--muted)">×${item.qty||1}</span></span>
+            <input type="number" min="1" max="${item.qty||1}" value="1" id="bag-deposit-qty-${item.name.replace(/\s/g,'_')}" style="width:50px;font-size:0.8rem;padding:0.2rem;">
+            <button class="btn btn-sm btn-secondary" onclick="pcDepositItem('${item.name.replace(/'/g,"\\'")}')">→ PC</button>
+        </div>`).join('');
+    if (bagEmp) bagEmp.style.display = bagItems.length ? 'none' : 'block';
+
+    itemsEl.innerHTML = pcItemsData.map(item => `
+        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.6rem;background:var(--darker);border-radius:var(--radius);">
+            <span style="flex:1;font-size:0.9rem;">${item.name} <span style="color:var(--muted)">×${item.qty||1}</span></span>
+            <input type="number" min="1" max="${item.qty||1}" value="1" id="pc-withdraw-qty-${item.name.replace(/\s/g,'_')}" style="width:50px;font-size:0.8rem;padding:0.2rem;">
+            <button class="btn btn-sm btn-primary" onclick="pcWithdrawItem('${item.name.replace(/'/g,"\\'")}')">← Bolsa</button>
+        </div>`).join('');
+    if (itmEmp) itmEmp.style.display = pcItemsData.length ? 'none' : 'block';
+
+    const total = pcItemsData.reduce((s, i) => s + (i.qty || 1), 0);
+    const cntEl = document.getElementById('pc-items-count');
+    if (cntEl) cntEl.textContent = total;
+}
+
+async function pcDepositItem(itemName) {
+    const key = itemName.replace(/\s/g,'_');
+    const qty = parseInt(document.getElementById(`bag-deposit-qty-${key}`)?.value || 1);
+    const res  = await fetch('/player/pc/items/deposit', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ item_name: itemName, qty })
+    });
+    const data = await res.json();
+    if (data.error) { showNotification(data.error, 'error'); return; }
+    TRAINER_DATA.bag = data.bag;
+    pcItemsData = data.pc_items;
+    renderPcItems();
+    showNotification(`${qty}x ${itemName} depositado no PC.`, 'success');
+}
+
+async function pcWithdrawItem(itemName) {
+    const key = itemName.replace(/\s/g,'_');
+    const qty = parseInt(document.getElementById(`pc-withdraw-qty-${key}`)?.value || 1);
+    const res  = await fetch('/player/pc/items/withdraw', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ item_name: itemName, qty })
+    });
+    const data = await res.json();
+    if (data.error) { showNotification(data.error, 'error'); return; }
+    TRAINER_DATA.bag = data.bag;
+    pcItemsData = data.pc_items;
+    renderPcItems();
+    showNotification(`${qty}x ${itemName} retirado do PC.`, 'success');
+}
+
+// ============================================================
+// POKÉMART / SHOP
+// ============================================================
+let _shopCatalog = [];
+let _shopFilter  = '';
+
+async function loadShop() {
+    if (_shopCatalog.length) { renderShop(); return; }
+    try {
+        const res = await fetch('/api/shop');
+        _shopCatalog = await res.json();
+        renderShop();
+    } catch(e) { console.error('loadShop', e); }
+}
+
+function filterShop(cat) {
+    _shopFilter = cat;
+    renderShop();
+}
+
+function renderShop() {
+    const moneyEl = document.getElementById('shop-money-display');
+    if (moneyEl) moneyEl.textContent = (TRAINER_DATA.money || 0).toLocaleString('pt-BR');
+
+    const list = _shopFilter ? _shopCatalog.filter(i => i.category === _shopFilter) : _shopCatalog;
+    const grid = document.getElementById('shop-grid');
+    if (!grid) return;
+
+    const catLabels = { pokeball:'⚪ Pokébolas', medicine:'💊 Medicina', battle:'⚔️ Batalha', evo_stone:'💎 Pedra Evo', held:'📎 Segurado', special:'✨ Especial' };
+    const catColors = { pokeball:'#e53935', medicine:'#4caf50', battle:'#ff9800', evo_stone:'#9c27b0', held:'#2196f3', special:'#ffb300' };
+
+    grid.innerHTML = list.map(item => {
+        const canAfford = (TRAINER_DATA.money || 0) >= item.price;
+        const color = catColors[item.category] || 'var(--accent)';
+        return `<div class="card" style="border-left:4px solid ${color};padding:0.75rem;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.3rem;">
+                <strong style="font-size:0.95rem;">${item.name}</strong>
+                <span style="color:${color};font-weight:bold;white-space:nowrap;">₽${item.price.toLocaleString('pt-BR')}</span>
+            </div>
+            <p style="color:var(--muted);font-size:0.8rem;margin:0 0 0.5rem;">${item.description}</p>
+            <div style="display:flex;align-items:center;gap:0.4rem;">
+                <input type="number" id="shop-qty-${item.id}" value="1" min="1" max="99"
+                       style="width:55px;font-size:0.85rem;padding:0.25rem 0.4rem;">
+                <button class="btn btn-sm ${canAfford ? 'btn-primary' : 'btn-secondary'}"
+                        onclick="buyItem('${item.id}')" ${canAfford ? '' : 'style="opacity:0.5;"'}>
+                    🛒 Comprar
+                </button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function buyItem(itemId) {
+    const qty = parseInt(document.getElementById(`shop-qty-${itemId}`)?.value || 1);
+    const item = _shopCatalog.find(i => i.id === itemId);
+    if (!item) return;
+    const total = item.price * qty;
+    if (!confirm(`Comprar ${qty}x ${item.name} por ₽${total.toLocaleString('pt-BR')}?`)) return;
+
+    const res  = await fetch('/api/shop/buy', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ item_id: itemId, qty })
+    });
+    const data = await res.json();
+    if (data.error) { showNotification(data.error, 'error'); return; }
+
+    TRAINER_DATA.money = data.money_left;
+    // Sync bag
+    const existing = (TRAINER_DATA.bag || []).find(b => b && b.name?.toLowerCase() === item.name.toLowerCase());
+    if (existing) {
+        existing.qty = (existing.qty || 1) + qty;
+    } else {
+        if (!TRAINER_DATA.bag) TRAINER_DATA.bag = [];
+        TRAINER_DATA.bag.push({ name: item.name, qty, description: item.description });
+    }
+    renderShop();
+    showNotification(`✅ ${qty}x ${item.name} comprado! Saldo: ₽${data.money_left.toLocaleString('pt-BR')}`, 'success');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelector('[data-tab="shop"]')?.addEventListener('click', loadShop);
+});
+
+// ============================================================
+// COUNTDOWN TIMER (turno do jogador nas batalhas)
+// ============================================================
+let _turnTimer = null;
+let _turnSeconds = 0;
+const TURN_LIMIT = 60;
+
+function startTurnCountdown() {
+    clearTurnCountdown();
+    _turnSeconds = TURN_LIMIT;
+    _updateCountdownUI();
+    _turnTimer = setInterval(() => {
+        _turnSeconds--;
+        _updateCountdownUI();
+        if (_turnSeconds <= 0) {
+            clearTurnCountdown();
+            if (battleActive && window.currentTurn === 'player' && !window.wildFainted) {
+                addBattleLog(`⏰ <strong>Tempo esgotado! Turno passado automaticamente.</strong>`);
+                passTurn();
+            }
+        }
+    }, 1000);
+}
+
+function clearTurnCountdown() {
+    if (_turnTimer) { clearInterval(_turnTimer); _turnTimer = null; }
+    const el = document.getElementById('turn-countdown');
+    if (el) el.textContent = '';
+}
+
+function _updateCountdownUI() {
+    let el = document.getElementById('turn-countdown');
+    if (!el) {
+        const passBtn = document.getElementById('btn-pass-turn');
+        if (passBtn) {
+            el = document.createElement('span');
+            el.id = 'turn-countdown';
+            el.style.cssText = 'margin-left:0.75rem;font-size:0.9rem;font-weight:bold;';
+            passBtn.parentNode.insertBefore(el, passBtn.nextSibling);
+        }
+    }
+    if (el) {
+        const color = _turnSeconds <= 10 ? '#f44336' : _turnSeconds <= 20 ? '#ff9800' : 'var(--text-muted)';
+        el.style.color = color;
+        el.textContent = `⏱ ${_turnSeconds}s`;
+    }
+}
+
+// Countdown integrado diretamente em updateTurnUI acima
 
 // ============================================================
 // GYMS & LEAGUE
