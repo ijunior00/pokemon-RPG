@@ -411,7 +411,9 @@ async function startBattle() {
     window.currentBattleData = { enemy, playerPokemon, level: currentEncounter.level };
 
     // Fill enemy data
-    document.getElementById('battle-enemy-sprite').src = getPokemonSpriteUrl(enemy.number, currentEncounter.is_shiny);
+    const enemySpriteUrl = getPokemonSpriteUrl(enemy.number, currentEncounter.is_shiny);
+    console.log('SPRITE enemy:', enemy.number, enemySpriteUrl);
+    document.getElementById('battle-enemy-sprite').src = enemySpriteUrl;
     battleSpriteEnter('battle-enemy-sprite', 'enemy');
     document.getElementById('battle-enemy-name-full').textContent = `${enemy.name} Nv.${currentEncounter.level}`;
     document.getElementById('battle-enemy-types').innerHTML = formatTypes(enemy.types);
@@ -441,7 +443,9 @@ async function startBattle() {
 
     // Fill player pokemon data
     const pNum = playerPokemon.number || 0;
-    document.getElementById('battle-player-sprite').src = pNum ? getPokemonSpriteUrl(pNum) : '';
+    const playerSpriteUrl = pNum ? getPokemonSpriteUrl(pNum) : '';
+    console.log('SPRITE player:', pNum, playerSpriteUrl);
+    document.getElementById('battle-player-sprite').src = playerSpriteUrl;
     battleSpriteEnter('battle-player-sprite', 'player');
     document.getElementById('battle-player-name-full').textContent = `${playerPokemon.nickname || playerPokemon.name} Nv.${playerPokemon.level}`;
     document.getElementById('battle-player-types').innerHTML = formatTypes(playerPokemon.types || []);
@@ -548,6 +552,26 @@ socket.on('battle_update', (data) => {
     // Show ability trigger from server
     if (data.ability_trigger) {
         addBattleLog(`🛡️ <strong>Habilidade</strong>: ${data.ability_trigger.message}`);
+    }
+
+    // Sync status from server (source of truth)
+    if (bs.wild_status && !window.wildPokemonStatus) {
+        const ws = typeof bs.wild_status === 'string'
+            ? { condition: bs.wild_status, turns_active: 0 }
+            : bs.wild_status;
+        window.wildPokemonStatus = ws;
+        const cond = window.statusEffectsData?.conditions?.[ws.condition];
+        if (cond) addBattleLog(`${cond.icon} Pokémon selvagem ficou <strong>${cond.name}</strong>!`);
+        updateStatusDisplay();
+    }
+    if (bs.player_status && !window.playerPokemonStatus) {
+        const ps = typeof bs.player_status === 'string'
+            ? { condition: bs.player_status, turns_active: 0 }
+            : bs.player_status;
+        window.playerPokemonStatus = ps;
+        const cond = window.statusEffectsData?.conditions?.[ps.condition];
+        if (cond) addBattleLog(`${cond.icon} Seu Pokémon ficou <strong>${cond.name}</strong>! ${cond.description}`);
+        updateStatusDisplay();
     }
 
     // Update turn
@@ -833,7 +857,7 @@ async function useMove(moveName) {
         
         // STAB check (uses scaled stab from pokemon data)
         const pokeTypes = (poke?.types || []).map(t => t.toLowerCase());
-        const moveType = (m.type || '').toLowerCase();
+        const moveType = (typeof m.type === 'string' ? m.type : String(m.type || '')).toLowerCase();
         const stab = pokeTypes.includes(moveType) ? (poke?.stab || getStabForLevel(pokeLevel)) : 0;
         damage += stab;
 
@@ -905,8 +929,8 @@ async function useMove(moveName) {
         const statUsed = moveCategory === 'physical' ? 'ATK' : 'SPA';
         addBattleLog(`✅ Acertou! (${totalAttack} vs AC ${enemyAC}) → ${scaledDice}(${diceRoll}) + ${statUsed}(${moveMod})${stab > 0 ? ` + STAB(${stab})` : ''}${isCrit ? ' ×2 CRIT' : ''}${window.enemyDodging ? ' ×1.25(esquiva)' : ''}${effectLabel ? ' ' + effectLabel : ''} = <strong>${damage} dano ${m.type||''}</strong>`);
 
-        // Check for status effect
-        checkMoveStatusEffect(moveName, attackRoll, damage);
+        // Check for status effect (await so the result is ready before emitting)
+        await checkMoveStatusEffect(moveName, attackRoll, damage);
 
         socket.emit('battle_action', {
             action_by: 'player', action_type: 'attack', move_name: moveName,
@@ -1794,8 +1818,8 @@ const TYPE_COLORS = {
     dark:'#705848',steel:'#b8b8d0',fairy:'#ee99ac'
 };
 
-function getPokemonSpriteUrl(poke) {
-    const num = poke.number || 0;
+function getPokemonSpriteUrl(poke, isShiny) {
+    const num = typeof poke === 'number' ? poke : (poke?.number || 0);
     if (!num) return '';
     const padded = String(num).padStart(3, '0');
     return `/static/sprites/${padded}.png`;
@@ -3658,14 +3682,22 @@ async function processWildTurnStart() {
         data.messages.forEach(msg => addBattleLog(msg));
         
         if (data.damage > 0) {
-            // Apply status damage locally (no server round-trip to avoid duplication)
-            const hpEl = document.getElementById('battle-enemy-hp-text-full');
+            // Apply status damage locally to the PLAYER's HP bar
+            const hpEl = document.getElementById('battle-player-hp-text-full');
             if (hpEl) {
-                const match = hpEl.textContent.match(/(\d+)\/(\d+)/);
+                const match = hpEl.textContent.match(/(\d+)\s*\/\s*(\d+)/);
                 if (match) {
                     const newHp = Math.max(0, parseInt(match[1]) - data.damage);
-                    hpEl.textContent = `${newHp}/${match[2]} HP`;
-                    document.getElementById('battle-enemy-hp-bar-full').style.width = `${(newHp/parseInt(match[2]))*100}%`;
+                    const maxHp = parseInt(match[2]);
+                    hpEl.textContent = `${newHp}/${maxHp} HP`;
+                    setHpBar('battle-player-hp-bar-full', newHp, maxHp);
+                    // Keep in-memory HP in sync
+                    if (window.currentBattleData?.playerPokemon) {
+                        window.currentBattleData.playerPokemon.currentHp = newHp;
+                        const ap = window.currentBattleData.playerPokemon;
+                        const idx = playerTeam.findIndex(p => (p.nickname||p.name)===(ap.nickname||ap.name) && p.level===ap.level);
+                        if (idx >= 0) playerTeam[idx].currentHp = newHp;
+                    }
                 }
             }
         }
@@ -3796,29 +3828,29 @@ async function _executeWildTurn() {
                 wildPreTurnStatusDamage = statusResult.damage;
                 window._wildPreTurnStatusDamage = statusResult.damage;
                 // Apply status damage directly to wild HP display
+                const maxHp = enemy?.maxHp || enemy?.hp || 20;
                 const hpText = document.getElementById('battle-enemy-hp-text-full')?.textContent || '';
-                const hpMatch = hpText.match(/(\d+)\/(\d+)/);
-                if (hpMatch) {
-                    const newHp = Math.max(0, parseInt(hpMatch[1]) - statusResult.damage);
-                    const maxHp = parseInt(hpMatch[2]);
-                    document.getElementById('battle-enemy-hp-text-full').textContent = `${newHp}/${maxHp} HP`;
-                    document.getElementById('battle-enemy-hp-bar-full').style.width = `${(newHp/maxHp)*100}%`;
-                    addBattleLog(`🔴 Dano: ${window.wildPokemonStatus.condition} → ${statusResult.damage} de dano! (Dano de condição)`);
-                    // Check if wild fainted from status damage
-                    if (newHp <= 0) {
-                        addBattleLog(`💀 Pokémon Selvagem desmaiou pelo veneno/queimadura!`);
-                        window.wildFainted = true;
-                        window.currentTurn = 'player';
-                        updateTurnUI();
-                        // Sync status damage with server
-                        socket.emit('battle_action', {
-                            action_by: 'master', action_type: 'pass',
-                            move_name: 'Desmaiou por status', damage: 0,
-                            wild_status_damage: wildPreTurnStatusDamage,
-                            message: 'Desmaiou por dano de condição'
-                        });
-                        return;
-                    }
+                const hpMatch = hpText.match(/(\d+)\s*\/\s*(\d+)/);
+                const currentHp = hpMatch ? parseInt(hpMatch[1]) : maxHp;
+                const newHp = Math.max(0, currentHp - statusResult.damage);
+                document.getElementById('battle-enemy-hp-text-full').textContent = `${newHp}/${maxHp} HP`;
+                setHpBar('battle-enemy-hp-bar-full', newHp, maxHp);
+                const condName = window.statusEffectsData?.conditions?.[window.wildPokemonStatus.condition]?.name || window.wildPokemonStatus.condition;
+                addBattleLog(`🔴 Dano: ${condName} → ${statusResult.damage} de dano! (Dano de condição)`);
+                // Check if wild fainted from status damage
+                if (newHp <= 0) {
+                    addBattleLog(`💀 Pokémon Selvagem desmaiou por ${condName}!`);
+                    window.wildFainted = true;
+                    window.currentTurn = 'player';
+                    updateTurnUI();
+                    // Sync status damage with server
+                    socket.emit('battle_action', {
+                        action_by: 'master', action_type: 'pass',
+                        move_name: 'Desmaiou por status', damage: 0,
+                        wild_status_damage: wildPreTurnStatusDamage,
+                        message: 'Desmaiou por dano de condição'
+                    });
+                    return;
                 }
             }
             if (statusResult.turns_active && window.wildPokemonStatus) window.wildPokemonStatus.turns_active = statusResult.turns_active;

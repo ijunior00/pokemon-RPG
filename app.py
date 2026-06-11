@@ -2090,12 +2090,15 @@ def handle_battle_action(data):
         elif action_by == 'master' and heal > 0:
             battle_state['wild_hp_current'] = min(battle_state['wild_hp_max'], battle_state['wild_hp_current'] + heal)
         
-        # Apply status
+        # Apply status (store as dict so process_turn_start can read .get('condition'))
         if status_effect:
+            status_dict = status_effect if isinstance(status_effect, dict) else {'condition': status_effect, 'turns_active': 0}
             if action_by == 'player':
-                battle_state['wild_status'] = status_effect
+                if not battle_state.get('wild_status'):
+                    battle_state['wild_status'] = status_dict
             else:
-                battle_state['player_status'] = status_effect
+                if not battle_state.get('player_status'):
+                    battle_state['player_status'] = status_dict
         
         # Switch turn
         battle_state['turn'] = 'wild' if battle_state['turn'] == 'player' else 'player'
