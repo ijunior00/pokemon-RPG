@@ -1797,7 +1797,7 @@ async function pokemonCenter() {
         const data = await res.json();
         if (data.ok) {
             playerTeam = data.team;
-            renderTeam();
+            refreshTeamDisplay();
             const msg = document.getElementById('pokemon-center-msg');
             if (msg) { msg.textContent = '✅ Todos os seus Pokémon foram curados!'; msg.style.color = 'var(--green)'; }
         }
