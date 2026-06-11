@@ -1307,7 +1307,7 @@ def friendship_evolve():
 @login_required
 def pokemon_center():
     """Heal all Pokémon to full HP and clear all status conditions."""
-    users = load_users()
+    users = get_users()
     trainer = users[current_user.id].get('trainer_data', {})
     team = trainer.get('team', [])
 
@@ -1847,6 +1847,16 @@ def register_pokedex():
 # ============================================================
 # SOCKET.IO EVENTS
 # ============================================================
+# Global auto-mode flag (master controls)
+WILD_AUTO_MODE = True
+
+@socketio.on('set_auto_mode')
+def handle_set_auto_mode(data):
+    global WILD_AUTO_MODE
+    if current_user.is_authenticated and current_user.role == 'master':
+        WILD_AUTO_MODE = data.get('enabled', True)
+        print(f"[AUTO MODE] {'ON' if WILD_AUTO_MODE else 'OFF'}")
+
 @socketio.on('connect')
 def handle_connect():
     if current_user.is_authenticated:
@@ -2106,6 +2116,125 @@ def handle_battle_action(data):
         # Notify both sides
         emit('battle_update', action_result, room='master')
         emit('battle_update', action_result, room=player_id)
+        
+        # AUTO-ATTACK: If turn switched to 'wild' and battle not over, wild attacks automatically
+        if WILD_AUTO_MODE and battle_state['turn'] == 'wild' and battle_state['wild_hp_current'] > 0 and battle_state['player_hp_current'] > 0:
+            import time
+            time.sleep(1.5)  # Brief delay for dramatic effect
+            _wild_auto_attack(player_id, encounter, game_state)
+
+def _wild_auto_attack(player_id, encounter, game_state):
+    """Wild pokemon automatically attacks the player's pokemon."""
+    wild_pokemon = encounter['pokemon']
+    battle_state = encounter['battle_state']
+    wild_moves = encounter.get('wild_moves', wild_pokemon.get('startingMoves', ['Tackle'])[:4])
+    
+    if not wild_moves:
+        wild_moves = ['Tackle']
+    
+    # Choose random move
+    move_name = random.choice(wild_moves)
+    move_data = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name) or {}
+    
+    # Calculate attack
+    wild_stats = wild_pokemon.get('stats', {})
+    wild_level = encounter.get('level', 5)
+    
+    # Determine MOVE modifier
+    power = (move_data.get('power', 'FOR') or 'FOR').upper()
+    move_mod = 0
+    stat_map = {'FOR': 'STR', 'DES': 'DEX', 'INT': 'INT', 'SAB': 'WIS', 'CAR': 'CHA', 'CON': 'CON'}
+    for abbr, stat_key in stat_map.items():
+        if abbr in power:
+            val = wild_stats.get(stat_key, 10)
+            move_mod = max(move_mod, (val - 10) // 2)
+    
+    # Proficiency
+    prof = 2 if wild_level < 5 else (3 if wild_level < 9 else (4 if wild_level < 13 else (5 if wild_level < 17 else 6)))
+    
+    # Roll d20
+    attack_roll = random.randint(1, 20)
+    total_attack = attack_roll + move_mod + prof
+    is_crit = attack_roll == 20
+    is_miss = attack_roll == 1
+    
+    # Target AC
+    player_pokemon = encounter.get('player_pokemon', {})
+    target_ac = player_pokemon.get('ac', 13) if player_pokemon else 13
+    
+    damage = 0
+    message = ''
+    
+    if is_miss:
+        message = f'Nat 1 - Falha!'
+    elif total_attack >= target_ac or is_crit:
+        # Roll damage
+        base_damage = move_data.get('baseDamage', '1d6')
+        if base_damage:
+            match = __import__('re').match(r'(\d+)d(\d+)', base_damage)
+            if match:
+                count, sides = int(match.group(1)), int(match.group(2))
+                for _ in range(count):
+                    damage += random.randint(1, sides)
+                if is_crit:
+                    for _ in range(count):
+                        damage += random.randint(1, sides)
+        damage += move_mod
+        
+        # STAB
+        wild_types = [t.lower() for t in wild_pokemon.get('types', [])]
+        move_type = (move_data.get('type', '') or '').lower()
+        stab_table = [0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5]
+        stab = stab_table[min(wild_level, 20)] if move_type in wild_types else 0
+        damage += stab
+        
+        # Type effectiveness
+        player_vulns = [v.lower() for v in (player_pokemon.get('vulnerabilities') or [])]
+        player_resists = [r.lower() for r in (player_pokemon.get('resistances') or [])]
+        player_immunes = [i.lower() for i in (player_pokemon.get('immunities') or [])]
+        
+        effectiveness = 1
+        if move_type in player_immunes:
+            effectiveness = 0
+        else:
+            if move_type in player_vulns: effectiveness *= 2
+            if move_type in player_resists: effectiveness *= 0.5
+        
+        damage = int(damage * effectiveness)
+        if damage < 1 and effectiveness > 0: damage = 1
+        
+        eff_label = ''
+        if effectiveness == 0: eff_label = ' ⛔ IMUNE'
+        elif effectiveness > 1: eff_label = f' ⚡ Super Efetivo (x{effectiveness})'
+        elif effectiveness < 1: eff_label = f' 🛡️ Não Efetivo (x{effectiveness})'
+        
+        message = f'd20({attack_roll})+MOD({move_mod})+Prof({prof})={total_attack} vs AC {target_ac} → {damage} dano{eff_label}{"💥 CRIT" if is_crit else ""}'
+    else:
+        message = f'Errou ({total_attack} vs AC {target_ac})'
+    
+    # Apply damage
+    battle_state['player_hp_current'] = max(0, battle_state['player_hp_current'] - damage)
+    
+    # Switch turn back to player
+    battle_state['turn'] = 'player'
+    battle_state['round'] += 1
+    
+    encounter['battle_state'] = battle_state
+    game_state['active_encounters'][player_id] = encounter
+    save_game_state(game_state)
+    
+    action_result = {
+        'player_id': player_id,
+        'action_by': 'wild',
+        'action_type': 'attack',
+        'move_name': move_name,
+        'damage': damage,
+        'message': message,
+        'battle_state': battle_state
+    }
+    
+    socketio.emit('battle_update', action_result, room='master')
+    socketio.emit('battle_update', action_result, room=player_id)
 
 @socketio.on('end_encounter')
 def handle_end_encounter(data):
@@ -2420,6 +2549,17 @@ def handle_pvp_attack(data):
         status_applied = False
         if status_effect and result not in ('battle_end',):
             status_applied = pvp.apply_status(battle, defender_key, status_effect)
+        
+        # Auto-check move status effects if client didn't send one
+        if not status_applied and damage > 0 and move_name and result not in ('battle_end',):
+            move_effect = effects.MOVE_STATUS_EFFECTS.get(move_name)
+            if move_effect and move_effect.get('on') == 'hit':
+                import random as rng
+                if rng.random() < move_effect.get('chance', 0):
+                    auto_status = {'condition': move_effect['status']}
+                    status_applied = pvp.apply_status(battle, defender_key, auto_status)
+                    if status_applied:
+                        status_effect = auto_status
 
         # Handle permanent death before sending state
         _handle_pvp_permadeath(battle)

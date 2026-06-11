@@ -2,6 +2,23 @@
    POKEMON 5E RPG - MASTER JS
    ============================================ */
 
+// Auto mode state
+let wildAutoMode = true;
+
+function toggleAutoMode(enabled) {
+    wildAutoMode = enabled;
+    const label = document.getElementById('auto-mode-label');
+    if (enabled) {
+        label.textContent = '🤖 AUTO: ON — Wild/NPC atacam sozinhos';
+        label.style.color = 'var(--success)';
+    } else {
+        label.textContent = '🎮 MANUAL: OFF — Mestre controla Wild/NPC';
+        label.style.color = 'var(--warning)';
+    }
+    // Notify server
+    socket.emit('set_auto_mode', { enabled });
+}
+
 // ============================================
 // ENCOUNTERS - MASTER BATTLE CONTROL
 // ============================================
@@ -25,9 +42,9 @@ socket.on('initiative_result', (data) => {
         // Update turn indicator
         const turnEl = document.querySelector(`[data-encounter-player="${data.player_id}"] .turn-indicator`);
         if (turnEl) turnEl.textContent = data.first_turn === 'player' ? '🟢 Turno do Jogador' : '🔴 Turno do Selvagem (Mestre)';
-        // Show master attack controls if wild goes first
+        // Show master attack controls if wild goes first AND auto is OFF
         const masterControls = document.querySelector(`[data-encounter-player="${data.player_id}"] .master-attack-controls`);
-        if (masterControls && data.first_turn === 'wild') masterControls.classList.remove('hidden');
+        if (masterControls && data.first_turn === 'wild' && !wildAutoMode) masterControls.classList.remove('hidden');
     }
 });
 
@@ -65,10 +82,14 @@ socket.on('battle_update', (data) => {
     const turnEl = card.querySelector('.turn-indicator');
     if (turnEl) turnEl.textContent = bs.turn === 'player' ? '🟢 Turno do Jogador' : '🔴 Turno do Selvagem (Mestre)';
     
-    // Show/hide master controls
+    // Show/hide master controls based on auto mode
     const masterControls = card.querySelector('.master-attack-controls');
     if (masterControls) {
-        bs.turn === 'wild' ? masterControls.classList.remove('hidden') : masterControls.classList.add('hidden');
+        if (!wildAutoMode && bs.turn === 'wild') {
+            masterControls.classList.remove('hidden');
+        } else {
+            masterControls.classList.add('hidden');
+        }
     }
     
     // Check faint

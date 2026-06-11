@@ -22,6 +22,13 @@
     <!-- TAB: ENCOUNTERS/BATTLES -->
     <div class="tab-content active" id="tab-encounters">
         <h2>Encontros Ativos</h2>
+        <div class="auto-toggle-container">
+            <label class="toggle-switch">
+                <input type="checkbox" id="wild-auto-mode" checked onchange="toggleAutoMode(this.checked)">
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="auto-label" id="auto-mode-label">🤖 AUTO: ON — Wild/NPC atacam sozinhos</span>
+        </div>
         <div id="active-encounters" class="encounters-grid">
             <p class="empty-state">Nenhum encontro ativo. Aguardando jogadores...</p>
         </div>

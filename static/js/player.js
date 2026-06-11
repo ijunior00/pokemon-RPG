@@ -470,7 +470,10 @@ async function startBattle() {
     enemyMoves.innerHTML = allEnemyMoves.map(m => renderMoveButton(m, false)).join('');
 
     // Clear battle log
-    document.getElementById('battle-log-full').innerHTML = `<p>⚔️ Batalha iniciada! ${playerPokemon.nickname || playerPokemon.name} vs ${enemy.name} selvagem!</p><p>⏳ Aguardando Mestre rolar iniciativa...</p>`;
+    document.getElementById('battle-log-full').innerHTML = `<p>⚔️ Batalha iniciada! ${playerPokemon.nickname || playerPokemon.name} vs ${enemy.name} selvagem!</p><p>⏳ Rolando iniciativa...</p>`;
+    
+    // Auto-roll initiative (player can trigger it themselves)
+    socket.emit('roll_initiative', {});
     
     // Check mega availability
     megaUsedThisBattle = false;
