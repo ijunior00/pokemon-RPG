@@ -1822,7 +1822,8 @@ function getPokemonSpriteUrl(poke, isShiny) {
     const num = typeof poke === 'number' ? poke : (poke?.number || 0);
     if (!num) return '';
     const padded = String(num).padStart(3, '0');
-    return `/static/sprites/${padded}.png`;
+    const ext = num <= 649 ? 'gif' : 'png';
+    return `/static/sprites/${padded}.${ext}`;
 }
 
 function getStatusIcon(condition) {
