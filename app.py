@@ -79,10 +79,47 @@ class User(UserMixin):
         self.trainer_data = trainer_data or {}
 
 # Users/game state now handled by database.py module
-get_users = db.get_users
-save_users = db.save_users
-get_game_state = db.get_game_state
-save_game_state = db.save_game_state
+import database as _db_raw
+
+def _tid():
+    """Return table_id for current user (request context required)."""
+    try:
+        if current_user.is_authenticated:
+            users = _db_raw.get_users()
+            u = users.get(current_user.id, {})
+            return u.get('table_id') or 'default'
+    except Exception:
+        pass
+    return 'default'
+
+class _TableScopedDB:
+    """Proxy that injects current table_id into every db call."""
+    def get_game_state(self): return _db_raw.get_game_state(_tid())
+    def save_game_state(self, s): return _db_raw.save_game_state(s, _tid())
+    def get_site_settings(self): return _db_raw.get_site_settings(_tid())
+    def save_site_settings(self, s): return _db_raw.save_site_settings(s, _tid())
+    def get_gyms(self): return _db_raw.get_gyms(_tid())
+    def save_gyms(self, g): return _db_raw.save_gyms(g, _tid())
+    def get_league(self): return _db_raw.get_league(_tid())
+    def save_league(self, l): return _db_raw.save_league(l, _tid())
+    def get_npcs(self): return _db_raw.get_npcs(_tid())
+    def save_npc(self, n): return _db_raw.save_npc(n, _tid())
+    def delete_npc(self, nid): return _db_raw.delete_npc(nid, _tid())
+    def get_users(self): return _db_raw.get_users()
+    def save_users(self, u): return _db_raw.save_users(u)
+    def save_user(self, uid, u): return _db_raw.save_user(uid, u)
+    def get_users_in_table(self): return _db_raw.get_users_in_table(_tid())
+    def __getattr__(self, name): return getattr(_db_raw, name)
+
+db = _TableScopedDB()
+get_users = _db_raw.get_users
+save_users = _db_raw.save_users
+
+def get_game_state():
+    return _db_raw.get_game_state(_tid())
+
+def save_game_state(state):
+    _db_raw.save_game_state(state, _tid())
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -144,11 +181,26 @@ def register():
                 flash('Usuário já existe', 'error')
                 return render_template('register.html')
         
+        # Players need an invite code to join a table
+        invite_code = request.form.get('invite_code', '').strip()
+        table_id = None
+
+        if role == 'player':
+            if not invite_code:
+                flash('Jogadores precisam de um código de convite para entrar em uma mesa.', 'error')
+                return render_template('register.html')
+            table = _db_raw.get_table_by_invite(invite_code.upper())
+            if not table:
+                flash('Código de convite inválido.', 'error')
+                return render_template('register.html')
+            table_id = table['id']
+
         uid = secrets.token_hex(8)
         users[uid] = {
             'username': username,
             'password_hash': generate_password_hash(password),
             'role': role,
+            'table_id': table_id,
             'trainer_data': {
                 'name': username,
                 'level': 1,
@@ -162,7 +214,18 @@ def register():
             }
         }
         save_users(users)
-        flash('Conta criada com sucesso!', 'success')
+
+        # Masters auto-create their table
+        if role == 'master':
+            new_table_id = secrets.token_hex(6)
+            invite = secrets.token_hex(3).upper()
+            _db_raw.create_table(new_table_id, f"Mesa de {username}", uid, invite)
+            # Assign master to their own table
+            users[uid]['table_id'] = new_table_id
+            save_users(users)
+            flash(f'Conta criada! Sua mesa foi criada. Código de convite para jogadores: {invite}', 'success')
+        else:
+            flash('Conta criada com sucesso!', 'success')
         return redirect(url_for('login'))
     return render_template('register.html')
 
@@ -180,13 +243,87 @@ def logout():
 def master_dashboard():
     if current_user.role != 'master':
         return redirect(url_for('player_dashboard'))
-    users = get_users()
-    players = {uid: u for uid, u in users.items() if u['role'] == 'player'}
+    tid = _tid()
+    users = _db_raw.get_users()
+    # Only show players from this master's table
+    players = {uid: u for uid, u in users.items() if u['role'] == 'player' and u.get('table_id') == tid}
     game_state = get_game_state()
-    return render_template('master.html', 
-                         players=players, 
+    table = _db_raw.get_table(tid)
+    return render_template('master.html',
+                         players=players,
                          game_state=game_state,
-                         routes=ROUTES_DATA)
+                         routes=ROUTES_DATA,
+                         current_table=table)
+
+
+@app.route('/master/table', methods=['GET'])
+@login_required
+def master_table_info():
+    """Returns current table info (name, invite code) for the master."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    table = _db_raw.get_table(_tid())
+    if not table:
+        return jsonify({'error': 'Mesa não encontrada'}), 404
+    return jsonify(table)
+
+
+@app.route('/master/table/rename', methods=['POST'])
+@login_required
+def master_rename_table():
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({'error': 'Nome inválido'}), 400
+    conn = _db_raw.get_conn()
+    cur = conn.cursor()
+    cur.execute('UPDATE tables SET name = %s WHERE id = %s', (name, _tid()))
+    conn.commit(); cur.close(); conn.close()
+    return jsonify({'ok': True, 'name': name})
+
+
+@app.route('/master/table/new-invite', methods=['POST'])
+@login_required
+def master_new_invite():
+    """Generate a new invite code for the current table."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    new_code = secrets.token_hex(3).upper()
+    conn = _db_raw.get_conn()
+    cur = conn.cursor()
+    cur.execute('UPDATE tables SET invite_code = %s WHERE id = %s', (new_code, _tid()))
+    conn.commit(); cur.close(); conn.close()
+    return jsonify({'ok': True, 'invite_code': new_code})
+
+
+@app.route('/master/table/players', methods=['GET'])
+@login_required
+def master_table_players():
+    """List players in this table."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    users = _db_raw.get_users()
+    tid = _tid()
+    players = [{'id': uid, 'username': u['username']}
+               for uid, u in users.items() if u['role'] == 'player' and u.get('table_id') == tid]
+    return jsonify(players)
+
+
+@app.route('/master/table/kick/<player_id>', methods=['POST'])
+@login_required
+def master_kick_player(player_id):
+    """Remove a player from this table."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    users = _db_raw.get_users()
+    tid = _tid()
+    u = users.get(player_id)
+    if not u or u.get('table_id') != tid:
+        return jsonify({'error': 'Jogador não encontrado nesta mesa'}), 404
+    _db_raw.set_user_table(player_id, None)
+    return jsonify({'ok': True})
 
 @app.route('/master/quests', methods=['POST'])
 @login_required
@@ -212,65 +349,129 @@ def add_quest():
         'category': data.get('category', 'main'),   # 'main' | 'side' | 'urgent'
         'assigned_to': data.get('assigned_to', []),
         'xp_reward': int(data.get('xp_reward', 0)),
+        'money_reward': int(data.get('money_reward', 0)),
+        'item_rewards': data.get('item_rewards', []),  # [{name, qty, file}]
+        'repeatable_per_player': bool(data.get('repeatable_per_player', False)),
         'objectives': objectives,
         'completed': False,
+        'completions': {},   # {player_id: True} for repeatable_per_player quests
         'player_notes': {}   # {player_id: note_text}
     }
     game_state['quests'].append(quest)
     save_game_state(game_state)
-    socketio.emit('new_quest', quest, room='players')
+    socketio.emit('new_quest', quest, room=f'players_{_tid()}')
     return jsonify(quest)
 
 @app.route('/master/quests/<quest_id>/complete', methods=['POST'])
 @login_required
 def complete_quest(quest_id):
-    """Mark a quest as complete and award XP to assigned players."""
+    """Mark a quest as complete and award XP/money/items to assigned players.
+
+    Body (optional): { "player_id": "..." }  — for repeatable_per_player quests,
+    completes only for that specific player. If omitted, completes globally.
+    """
     if current_user.role != 'master':
         return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    target_player = data.get('player_id')   # optional: complete for one player only
     game_state = get_game_state()
     users = get_users()
-    
+    XP_TABLE = [0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500,
+                5500, 6600, 7800, 9100, 10500, 12000, 13600, 15300, 17100, 19000]
+
     for quest in game_state['quests']:
-        if quest['id'] == quest_id and not quest['completed']:
-            quest['completed'] = True
-            xp_reward = quest.get('xp_reward', 0)
-            
-            # Award XP to assigned players
+        if quest['id'] != quest_id:
+            continue
+
+        per_player = quest.get('repeatable_per_player', False)
+
+        # Determine which players to reward
+        if target_player:
+            players_to_reward = [target_player]
+        else:
+            assigned = quest.get('assigned_to', [])
+            players_to_reward = assigned if assigned else [uid for uid, u in users.items() if u['role'] == 'player']
+
+        # Check already completed (global quest)
+        if not per_player and quest.get('completed'):
+            return jsonify({'error': 'Quest já completada'}), 400
+
+        # For per-player, filter out those who already completed
+        if per_player:
+            completions = quest.setdefault('completions', {})
+            players_to_reward = [p for p in players_to_reward if not completions.get(p)]
+            if not players_to_reward:
+                return jsonify({'error': 'Todos os jogadores já completaram esta quest'}), 400
+
+        xp_reward    = quest.get('xp_reward', 0)
+        money_reward = quest.get('money_reward', 0)
+        item_rewards = quest.get('item_rewards', [])
+
+        rewarded = []
+        for player_id in players_to_reward:
+            if player_id not in users:
+                continue
+            trainer = users[player_id].get('trainer_data', {})
+
+            # XP
             if xp_reward > 0:
-                assigned = quest.get('assigned_to', [])
-                if not assigned:
-                    assigned = [uid for uid, u in users.items() if u['role'] == 'player']
-                
-                for player_id in assigned:
-                    if player_id in users:
-                        trainer = users[player_id].get('trainer_data', {})
-                        trainer['xp'] = trainer.get('xp', 0) + xp_reward
-                        # Level up check
-                        xp_table = [0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500,
-                                    5500, 6600, 7800, 9100, 10500, 12000, 13600, 15300, 17100, 19000]
-                        new_level = 1
-                        for i, threshold in enumerate(xp_table):
-                            if trainer['xp'] >= threshold:
-                                new_level = i + 1
-                        old_level = trainer.get('level', 1)
-                        trainer['level'] = new_level
-                        trainer['xp_to_next'] = xp_table[min(new_level, len(xp_table)-1)] if new_level < len(xp_table) else 99999
-                        users[player_id]['trainer_data'] = trainer
-                        
-                        socketio.emit('xp_update', {
-                            'player_id': player_id,
-                            'xp': trainer['xp'],
-                            'level': trainer['level'],
-                            'xp_to_next': trainer['xp_to_next'],
-                            'leveled_up': new_level > old_level
-                        }, room=player_id)
-                
-                save_users(users)
-            
-            save_game_state(game_state)
-            socketio.emit('quest_completed', {'quest_id': quest_id, 'xp_reward': xp_reward}, room='players')
-            return jsonify({'success': True})
-    
+                trainer['xp'] = trainer.get('xp', 0) + xp_reward
+                new_level = 1
+                for i, threshold in enumerate(XP_TABLE):
+                    if trainer['xp'] >= threshold:
+                        new_level = i + 1
+                old_level = trainer.get('level', 1)
+                trainer['level'] = new_level
+                trainer['xp_to_next'] = XP_TABLE[min(new_level, len(XP_TABLE)-1)] if new_level < len(XP_TABLE) else 99999
+                socketio.emit('xp_update', {
+                    'player_id': player_id, 'xp': trainer['xp'],
+                    'level': trainer['level'], 'xp_to_next': trainer['xp_to_next'],
+                    'leveled_up': new_level > old_level
+                }, room=player_id)
+
+            # Money
+            if money_reward > 0:
+                trainer['money'] = trainer.get('money', 0) + money_reward
+
+            # Items
+            for reward_item in item_rewards:
+                if not reward_item.get('name'):
+                    continue
+                bag = trainer.setdefault('bag', [])
+                existing = next((i for i in bag if i.get('name') == reward_item['name']), None)
+                if existing:
+                    existing['qty'] = existing.get('qty', 1) + int(reward_item.get('qty', 1))
+                else:
+                    bag.append({'name': reward_item['name'],
+                                'qty': int(reward_item.get('qty', 1)),
+                                'file': reward_item.get('file', '')})
+
+            users[player_id]['trainer_data'] = trainer
+
+            # Notify player
+            socketio.emit('quest_completed', {
+                'quest_id': quest_id,
+                'xp_reward': xp_reward,
+                'money_reward': money_reward,
+                'item_rewards': item_rewards
+            }, room=player_id)
+
+            if per_player:
+                quest['completions'][player_id] = True
+
+            rewarded.append(player_id)
+
+        # Mark global completion if not per-player
+        if not per_player:
+            quest['completed'] = True
+
+        save_users(users)
+        save_game_state(game_state)
+
+        # Notify master panel
+        socketio.emit('quest_updated', quest, room=f'master_{_tid()}')
+        return jsonify({'success': True, 'rewarded': rewarded})
+
     return jsonify({'error': 'Quest not found'}), 404
 
 
@@ -289,6 +490,9 @@ def update_quest(quest_id):
             if 'description' in data: quest['description'] = data['description']
             if 'category'    in data: quest['category']    = data['category']
             if 'xp_reward'   in data: quest['xp_reward']   = int(data['xp_reward'])
+            if 'money_reward' in data: quest['money_reward'] = int(data['money_reward'])
+            if 'item_rewards' in data: quest['item_rewards'] = data['item_rewards']
+            if 'repeatable_per_player' in data: quest['repeatable_per_player'] = bool(data['repeatable_per_player'])
             if 'objectives'  in data:
                 raw = data['objectives']
                 quest['objectives'] = [
@@ -297,7 +501,7 @@ def update_quest(quest_id):
                     for o in raw
                 ]
             save_game_state(game_state)
-            socketio.emit('quest_updated', quest, room='players')
+            socketio.emit('quest_updated', quest, room=f'players_{_tid()}')
             return jsonify(quest)
     return jsonify({'error': 'Quest not found'}), 404
 
@@ -314,9 +518,18 @@ def delete_quest(quest_id):
     if len(game_state['quests']) == before:
         return jsonify({'error': 'Quest not found'}), 404
     save_game_state(game_state)
-    socketio.emit('quest_deleted', {'quest_id': quest_id}, room='players')
-    socketio.emit('quest_deleted', {'quest_id': quest_id}, room='master')
+    socketio.emit('quest_deleted', {'quest_id': quest_id}, room=f'players_{_tid()}')
+    socketio.emit('quest_deleted', {'quest_id': quest_id}, room=f'master_{_tid()}')
     return jsonify({'success': True})
+
+
+@app.route('/api/game-state', methods=['GET'])
+@login_required
+def api_game_state():
+    """Return current game state (quests, etc.) for master UI refresh."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    return jsonify(get_game_state())
 
 
 @app.route('/quests/<quest_id>/objectives/<int:obj_idx>/toggle', methods=['POST'])
@@ -340,8 +553,8 @@ def toggle_objective(quest_id, obj_idx):
             auto_completed = True
 
         save_game_state(game_state)
-        socketio.emit('quest_updated', quest, room='players')
-        socketio.emit('quest_updated', quest, room='master')
+        socketio.emit('quest_updated', quest, room=f'players_{_tid()}')
+        socketio.emit('quest_updated', quest, room=f'master_{_tid()}')
         return jsonify({'quest': quest, 'auto_completed': auto_completed})
     return jsonify({'error': 'Quest not found'}), 404
 
@@ -452,7 +665,7 @@ def update_npc(npc_id):
         if field in data:
             npc[field] = data[field]
     db.save_npc(npc)
-    socketio.emit('npcs_update', {'npcs': db.get_npcs()}, room='master')
+    socketio.emit('npcs_update', {'npcs': db.get_npcs()}, room=f'master_{_tid()}')
     return jsonify(npc)
 
 
@@ -733,7 +946,7 @@ def give_xp():
             'level': trainer['level'],
             'xp_to_next': trainer['xp_to_next'],
             'leveled_up': new_level > old_level
-        }, room='master')
+        }, room=f'master_{_tid()}')
         
         return jsonify({'success': True, 'level': new_level, 'xp': trainer['xp']})
     return jsonify({'error': 'Player not found'}), 404
@@ -1210,13 +1423,13 @@ def use_evolution_stone():
         'new_name':     evolved['name'],
         'display_name': display_name,
         'method':       f'usou {item_name}'
-    }, room='players')
+    }, room=f'players_{_tid()}')
     socketio.emit('pokemon_evolved', {
         'player_id': current_user.id,
         'old_name':  pokemon['name'],
         'new_name':  evolved['name'],
         'method':    f'usou {item_name}'
-    }, room='master')
+    }, room=f'master_{_tid()}')
 
     stone_evolved_base = POKEMON_BY_NAME.get(evolved['name'].lower(), {})
     stone_new_moves = [m for m in (stone_evolved_base.get('startingMoves') or [])
@@ -1287,11 +1500,11 @@ def friendship_evolve():
     socketio.emit('pokemon_evolved', {
         'player_id': current_user.id, 'old_name': pokemon['name'],
         'new_name': evolved['name'], 'display_name': display_name, 'method': 'amizade'
-    }, room='players')
+    }, room=f'players_{_tid()}')
     socketio.emit('pokemon_evolved', {
         'player_id': current_user.id, 'old_name': pokemon['name'],
         'new_name': evolved['name'], 'method': 'amizade'
-    }, room='master')
+    }, room=f'master_{_tid()}')
 
     friendship_evolved_base = POKEMON_BY_NAME.get(evolved['name'].lower(), {})
     friendship_new_moves = [m for m in (friendship_evolved_base.get('startingMoves') or [])
@@ -1322,7 +1535,7 @@ def pokemon_center():
     socketio.emit('team_update', {
         'player_id': current_user.id,
         'team': team
-    }, room='master')
+    }, room=f'master_{_tid()}')
 
     return jsonify({'ok': True, 'team': team})
 
@@ -1360,7 +1573,7 @@ def level_evolve():
     socketio.emit('pokemon_evolved', {
         'player_id': current_user.id, 'old_name': old_name,
         'new_name': evolved['name'], 'method': 'level'
-    }, room='master')
+    }, room=f'master_{_tid()}')
 
     return jsonify({
         'evolved': True, 'old_name': old_name, 'pokemon': evolved,
@@ -1860,12 +2073,13 @@ def handle_set_auto_mode(data):
 @socketio.on('connect')
 def handle_connect():
     if current_user.is_authenticated:
+        tid = _tid()
         join_room(current_user.id)
         if current_user.role == 'master':
-            join_room('master')
+            join_room(f'master_{tid}')
         else:
-            join_room('players')
-        print(f"[CONNECTED] {current_user.username} ({current_user.role})")
+            join_room(f'players_{tid}')
+        print(f"[CONNECTED] {current_user.username} ({current_user.role}) table={tid}")
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -1913,7 +2127,7 @@ def handle_encounter(data):
         save_game_state(game_state)
         
         # Notify master
-        emit('encounter_started', encounter_data, room='master')
+        emit('encounter_started', encounter_data, room=f'master_{_tid()}')
         
         # Auto-roll initiative if AUTO mode is ON
         if WILD_AUTO_MODE:
@@ -2005,7 +2219,7 @@ def handle_initiative(data):
         'weather': encounter['battle_state'].get('weather'),
     }
 
-    emit('initiative_result', result, room='master')
+    emit('initiative_result', result, room=f'master_{_tid()}')
     emit('initiative_result', result, room=player_id)
 
 @socketio.on('battle_action')
@@ -2126,7 +2340,7 @@ def handle_battle_action(data):
         }
         
         # Notify both sides
-        emit('battle_update', action_result, room='master')
+        emit('battle_update', action_result, room=f'master_{_tid()}')
         emit('battle_update', action_result, room=player_id)
         
         # AUTO-ATTACK: If turn switched to 'wild' and battle not over, wild attacks automatically
@@ -2176,7 +2390,7 @@ def _auto_roll_initiative(player_id, game_state):
         'weather': None,
     }
     
-    socketio.emit('initiative_result', result, room='master')
+    socketio.emit('initiative_result', result, room=f'master_{_tid()}')
     socketio.emit('initiative_result', result, room=player_id)
     
     # If wild goes first, auto-attack after a delay
@@ -2295,7 +2509,7 @@ def _wild_auto_attack(player_id, encounter, game_state):
         'battle_state': battle_state
     }
     
-    socketio.emit('battle_update', action_result, room='master')
+    socketio.emit('battle_update', action_result, room=f'master_{_tid()}')
     socketio.emit('battle_update', action_result, room=player_id)
 
 @socketio.on('end_encounter')
@@ -2322,7 +2536,7 @@ def handle_end_encounter(data):
         if player_id in game_state['active_encounters']:
             del game_state['active_encounters'][player_id]
             save_game_state(game_state)
-        emit('encounter_ended', {'player_id': player_id, 'result': result}, room='master')
+        emit('encounter_ended', {'player_id': player_id, 'result': result}, room=f'master_{_tid()}')
         emit('encounter_ended', {'player_id': player_id, 'result': result}, room=player_id)
 
 @socketio.on('master_action')
@@ -2366,7 +2580,7 @@ def handle_mega_evolve(data):
             # Boost wild pokemon AC in encounter
             pass  # Frontend handles display
         
-        emit('mega_evolved', result, room='master')
+        emit('mega_evolved', result, room=f'master_{_tid()}')
         emit('mega_evolved', result, room=player_id)
 
 # ============================================================
@@ -2477,7 +2691,7 @@ def handle_pvp_challenge(data):
             'challenger': current_user.username,
             'target_id': target_id,
             'mode': mode
-        }, room='master')
+        }, room=f'master_{_tid()}')
 
 @socketio.on('pvp_accept')
 def handle_pvp_accept(data):
@@ -2526,7 +2740,7 @@ def handle_pvp_accept(data):
             'player1': data.get('challenger_name', '???'),
             'player2': current_user.username,
             'mode': mode
-        }, room='master')
+        }, room=f'master_{_tid()}')
 
 @socketio.on('pvp_decline')
 def handle_pvp_decline(data):
@@ -2553,10 +2767,30 @@ def handle_pvp_select(data):
         # If the opponent is an NPC and hasn't selected yet, auto-select for them
         opponent_key = 'player2' if player_key == 'player1' else 'player1'
         if result == 'waiting_opponent' and battle[opponent_key].get('is_npc'):
-            npc_idx = 0
-            opp_team = battle[opponent_key]['team']
-            if opp_team:
-                success2, result = pvp.select_pokemon(battle, opponent_key, npc_idx)
+            opp = battle[opponent_key]
+            opp_team = opp.get('team') or []
+            if not opp_team:
+                # NPC has no team — create a minimal fallback so battle can proceed
+                opp_team = [{'name': 'Rattata', 'number': 19, 'level': 5,
+                              'currentHp': 20, 'maxHp': 20, 'ac': 11,
+                              'types': ['Normal'], 'moves': ['Tackle'], 'stats': {}}]
+                opp['team'] = opp_team
+            # Force mark NPC ready directly if select_pokemon fails (e.g. index out of range)
+            if not opp.get('ready'):
+                s2, result = pvp.select_pokemon(battle, opponent_key, 0)
+                if not s2:
+                    # Manually mark ready as last resort
+                    opp['active_idx'] = 0
+                    opp['ready'] = True
+                    opp['used_pokemon'] = [0]
+                    if battle['player1']['ready'] and battle['player2']['ready']:
+                        import random as _r
+                        battle['phase'] = 'battle'
+                        battle['round'] = 1
+                        i1 = _r.randint(1, 20)
+                        i2 = _r.randint(1, 20)
+                        battle['turn'] = 'player1' if i1 >= i2 else 'player2'
+                        result = 'battle_start'
 
         if result == 'battle_start':
             # Send state to human player(s) only; skip NPC rooms
@@ -2809,7 +3043,7 @@ def handle_tournament_start_match(data):
         'battle_id': battle['id'],
         'p1_name': p1['name'],
         'p2_name': p2['name']
-    }, room='master')
+    }, room=f'master_{_tid()}')
 
 
 @socketio.on('pvp_forfeit')
@@ -2850,7 +3084,7 @@ def _handle_pvp_permadeath(battle):
     socketio.emit('pvp_master_permadeath', {
         'player_id': dead_player_id,
         'pokemon': dead_poke_name
-    }, room='master')
+    }, room=f'master_{_tid()}')
 
 
 @socketio.on('master_force_npc_select')
@@ -2930,7 +3164,7 @@ def _emit_pvp_to_master(battle, event='update'):
         'p2_hp':       max(0, p2_active.get('currentHp', 0)) if isinstance(p2_active.get('currentHp'), (int, float)) else '?',
         'p2_maxhp':    p2_active.get('maxHp', '?'),
         'p2_pokemon':  p2_active.get('nickname') or p2_active.get('name', '?'),
-    }, room='master')
+    }, room=f'master_{_tid()}')
 
 
 def handle_npc_turn(battle, npc_key):
@@ -3091,7 +3325,7 @@ def handle_pvp_victory(battle):
         'battle_id': battle['id'],
         'winner_name': users.get(winner_id, {}).get('username', '???'),
         'mode': mode
-    }, room='master')
+    }, room=f'master_{_tid()}')
     
     _emit_pvp_to_master(battle, 'battle_ended')
 
@@ -3317,8 +3551,8 @@ def start_tournament_route(tourney_id):
         'current_round': tournament['current_round'],
         'participants_count': len(tournament['participants'])
     }
-    socketio.emit('tournament_bracket_update', payload, room='players')
-    socketio.emit('tournament_bracket_update', payload, room='master')
+    socketio.emit('tournament_bracket_update', payload, room=f'players_{_tid()}')
+    socketio.emit('tournament_bracket_update', payload, room=f'master_{_tid()}')
 
     return jsonify({'success': True, 'bracket': bracket})
 
@@ -3366,14 +3600,14 @@ def _apply_tournament_match_result(tournament, tourney_id, match_id, winner_id):
             'bracket': tournament['bracket'],
             'status': tournament['status'],
             'current_round': current_round
-        }, room='players')
+        }, room=f'players_{_tid()}')
         socketio.emit('tournament_bracket_update', {
             'tournament_id': tourney_id,
             'name': tournament['name'],
             'bracket': tournament['bracket'],
             'status': tournament['status'],
             'current_round': current_round
-        }, room='master')
+        }, room=f'master_{_tid()}')
         return 'round_in_progress'
 
     # Round complete — compute winners list
@@ -3404,8 +3638,8 @@ def _apply_tournament_match_result(tournament, tourney_id, match_id, winner_id):
             'current_round': tournament['current_round'],
             'results': tournament['results']
         }
-        socketio.emit('tournament_bracket_update', payload, room='players')
-        socketio.emit('tournament_bracket_update', payload, room='master')
+        socketio.emit('tournament_bracket_update', payload, room=f'players_{_tid()}')
+        socketio.emit('tournament_bracket_update', payload, room=f'master_{_tid()}')
         return 'finished'
     else:
         next_round = current_round + 1
@@ -3430,8 +3664,8 @@ def _apply_tournament_match_result(tournament, tourney_id, match_id, winner_id):
             'status': tournament['status'],
             'current_round': next_round
         }
-        socketio.emit('tournament_bracket_update', payload, room='players')
-        socketio.emit('tournament_bracket_update', payload, room='master')
+        socketio.emit('tournament_bracket_update', payload, room=f'players_{_tid()}')
+        socketio.emit('tournament_bracket_update', payload, room=f'master_{_tid()}')
         return 'next_round'
 
 
@@ -3530,8 +3764,8 @@ def api_create_gym():
     }
     gyms.append(gym)
     db.save_gyms(gyms)
-    socketio.emit('gyms_updated', {'gyms': gyms}, room='players')
-    socketio.emit('gyms_updated', {'gyms': gyms}, room='master')
+    socketio.emit('gyms_updated', {'gyms': gyms}, room=f'players_{_tid()}')
+    socketio.emit('gyms_updated', {'gyms': gyms}, room=f'master_{_tid()}')
     return jsonify(gym), 201
 
 
@@ -3551,8 +3785,8 @@ def api_update_gym(gym_id):
         if field in data:
             gym[field] = data[field]
     db.save_gyms(gyms)
-    socketio.emit('gyms_updated', {'gyms': gyms}, room='players')
-    socketio.emit('gyms_updated', {'gyms': gyms}, room='master')
+    socketio.emit('gyms_updated', {'gyms': gyms}, room=f'players_{_tid()}')
+    socketio.emit('gyms_updated', {'gyms': gyms}, room=f'master_{_tid()}')
     return jsonify(gym)
 
 
@@ -3564,8 +3798,8 @@ def api_delete_gym(gym_id):
     gyms = db.get_gyms()
     gyms = [g for g in gyms if g['id'] != gym_id]
     db.save_gyms(gyms)
-    socketio.emit('gyms_updated', {'gyms': gyms}, room='players')
-    socketio.emit('gyms_updated', {'gyms': gyms}, room='master')
+    socketio.emit('gyms_updated', {'gyms': gyms}, room=f'players_{_tid()}')
+    socketio.emit('gyms_updated', {'gyms': gyms}, room=f'master_{_tid()}')
     return jsonify({'ok': True})
 
 
@@ -3723,7 +3957,7 @@ def _award_gym_badge(winner_id, gym_id):
             'player': trainer.get('name', users[winner_id]['username']),
             'badge': badge,
             'gym': gym['name']
-        }, room='master')
+        }, room=f'master_{_tid()}')
 
 
 # ============================================================
@@ -3749,8 +3983,8 @@ def api_save_league_slots():
     league = db.get_league()
     league['slots'] = data.get('slots', [])
     db.save_league(league)
-    socketio.emit('league_updated', {'slots': league['slots']}, room='players')
-    socketio.emit('league_updated', {'slots': league['slots']}, room='master')
+    socketio.emit('league_updated', {'slots': league['slots']}, room=f'players_{_tid()}')
+    socketio.emit('league_updated', {'slots': league['slots']}, room=f'master_{_tid()}')
     return jsonify({'ok': True})
 
 
@@ -3906,10 +4140,10 @@ def _extended_handle_pvp_victory(battle):
                     db.save_league(league)
                     socketio.emit('league_completed', {
                         'player_name': run['player_name']
-                    }, room='players')
+                    }, room=f'players_{_tid()}')
                     socketio.emit('league_completed', {
                         'player_name': run['player_name']
-                    }, room='master')
+                    }, room=f'master_{_tid()}')
                     socketio.emit('league_victory', {
                         'slots_total': len(slots)
                     }, room=player_id)

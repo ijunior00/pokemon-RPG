@@ -20,12 +20,23 @@
             </div>
             <div class="form-group">
                 <label for="role">Tipo de Conta</label>
-                <select id="role" name="role">
+                <select id="role" name="role" onchange="toggleInviteField(this.value)">
                     <option value="player">Jogador</option>
-                    <option value="master">Mestre</option>
+                    <option value="master">Mestre (cria uma mesa)</option>
                 </select>
             </div>
+            <div class="form-group" id="invite-field">
+                <label for="invite_code">Código de Convite da Mesa</label>
+                <input type="text" id="invite_code" name="invite_code" placeholder="Ex: A3F9C2" style="text-transform:uppercase;" maxlength="6">
+                <small style="color:var(--text-muted);">Peça ao seu Mestre o código de convite da mesa.</small>
+            </div>
             <button type="submit" class="btn btn-primary btn-block">Criar Conta</button>
+<script>
+function toggleInviteField(role) {
+    document.getElementById('invite-field').style.display = role === 'player' ? '' : 'none';
+}
+toggleInviteField('player');
+</script>
         </form>
         <div class="auth-footer">
             <a href="{{ url_for('login') }}">Já tenho conta</a>

@@ -655,8 +655,11 @@ function clearQuestForm() {
     document.getElementById('quest-city').value = '';
     document.getElementById('quest-description').value = '';
     document.getElementById('quest-xp-reward').value = '50';
+    document.getElementById('quest-money-reward').value = '0';
+    document.getElementById('quest-repeatable').checked = false;
     document.getElementById('quest-category').value = 'main';
     document.getElementById('quest-objectives-list').innerHTML = '';
+    document.getElementById('quest-items-list').innerHTML = '';
     document.querySelectorAll('input[name="quest-players"]').forEach(cb => cb.checked = false);
     document.getElementById('quest-cancel-btn').style.display = 'none';
 }
@@ -678,6 +681,16 @@ function editQuest(questId) {
     document.getElementById('quest-title').scrollIntoView({ behavior:'smooth', block:'center' });
 }
 
+function addQuestItemField(name='', qty=1) {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;gap:0.4rem;align-items:center;';
+    div.innerHTML = `
+        <input class="quest-item-name" type="text" placeholder="Nome do item" value="${name}" style="flex:2;">
+        <input class="quest-item-qty" type="number" min="1" value="${qty}" style="width:60px;">
+        <button type="button" class="btn btn-sm btn-danger" onclick="this.parentElement.remove()">✕</button>`;
+    document.getElementById('quest-items-list').appendChild(div);
+}
+
 async function createQuest() {
     const editId = document.getElementById('quest-edit-id').value;
     const title = document.getElementById('quest-title').value.trim();
@@ -685,14 +698,24 @@ async function createQuest() {
     const description = document.getElementById('quest-description').value.trim();
     const category = document.getElementById('quest-category').value;
     const xpReward = parseInt(document.getElementById('quest-xp-reward').value) || 0;
+    const moneyReward = parseInt(document.getElementById('quest-money-reward').value) || 0;
+    const repeatable = document.getElementById('quest-repeatable').checked;
     const checkboxes = document.querySelectorAll('input[name="quest-players"]:checked');
     const assignedTo = Array.from(checkboxes).map(cb => cb.value);
     const objectives = Array.from(document.querySelectorAll('.quest-obj-input'))
         .map(i => i.value.trim()).filter(Boolean);
+    const itemRows = document.querySelectorAll('#quest-items-list > div');
+    const itemRewards = Array.from(itemRows).map(row => ({
+        name: row.querySelector('.quest-item-name').value.trim(),
+        qty: parseInt(row.querySelector('.quest-item-qty').value) || 1
+    })).filter(r => r.name);
 
     if (!title) { alert('Preencha o título da quest!'); return; }
 
-    const payload = { title, city, description, category, xp_reward: xpReward, assigned_to: assignedTo, objectives };
+    const payload = { title, city, description, category,
+        xp_reward: xpReward, money_reward: moneyReward,
+        item_rewards: itemRewards, repeatable_per_player: repeatable,
+        assigned_to: assignedTo, objectives };
 
     if (editId) {
         // Update existing
@@ -732,17 +755,43 @@ function renderMasterQuestCard(quest) {
                     </label>`).join('')}
             </div>
         </div>` : '';
+
+    // Rewards badges
+    const rewardParts = [];
+    if (quest.xp_reward) rewardParts.push(`🌟 ${quest.xp_reward} XP`);
+    if (quest.money_reward) rewardParts.push(`💰 ₽${quest.money_reward}`);
+    (quest.item_rewards || []).forEach(r => rewardParts.push(`🎒 ${r.name}${r.qty > 1 ? ` x${r.qty}` : ''}`));
+    const rewardsHtml = rewardParts.length
+        ? `<div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.3rem;">${rewardParts.map(r => `<span style="background:rgba(255,255,255,0.08);padding:1px 7px;border-radius:10px;font-size:0.78rem;">${r}</span>`).join('')}</div>`
+        : '';
+
+    // Per-player completions
+    const perPlayerBadge = quest.repeatable_per_player
+        ? `<span style="background:rgba(59,76,202,0.25);color:#7ca7ff;padding:1px 7px;border-radius:10px;font-size:0.75rem;">👤 por jogador</span>` : '';
+
+    const completions = quest.completions || {};
+    const completionCount = Object.keys(completions).length;
+    const completionHtml = quest.repeatable_per_player && completionCount
+        ? `<div style="margin-top:0.3rem;font-size:0.78rem;color:var(--text-muted);">✅ ${completionCount} jogador(es) completaram</div>` : '';
+
+    // Complete button — per-player shows player picker
+    const completeBtn = quest.repeatable_per_player
+        ? `<button class="btn btn-sm btn-success" onclick="completeQuestForPlayer('${quest.id}')">✓ Dar recompensa</button>`
+        : `<button class="btn btn-sm btn-success" onclick="completeQuest('${quest.id}')">✓ Completar</button>`;
+
     return `<div class="quest-card" id="quest-${quest.id}" data-quest-id="${quest.id}">
         <div class="quest-header" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
             <span class="quest-category-badge cat-${quest.category||'main'}">${catIcon}</span>
             <h4 style="margin:0;flex:1;">${quest.title}</h4>
+            ${perPlayerBadge}
             <span class="quest-city">📍 ${quest.city||''}</span>
-            <span class="quest-xp">🌟 ${quest.xp_reward||0} XP</span>
             <button class="btn btn-sm btn-warning" onclick="editQuest('${quest.id}')">✏️</button>
-            <button class="btn btn-sm btn-success" onclick="completeQuest('${quest.id}')">✓</button>
+            ${completeBtn}
             <button class="btn btn-sm btn-danger" onclick="deleteQuest('${quest.id}')">🗑️</button>
         </div>
         <p style="margin:0.3rem 0;color:var(--text-muted);font-size:0.9rem;">${quest.description||''}</p>
+        ${rewardsHtml}
+        ${completionHtml}
         ${objHtml}
     </div>`;
 }
@@ -758,10 +807,82 @@ async function masterToggleObjective(questId, idx) {
 }
 
 async function completeQuest(questId) {
-    if (!confirm('Completar esta quest e dar XP aos jogadores?')) return;
-    await fetch(`/master/quests/${questId}/complete`, { method: 'POST' });
+    if (!confirm('Completar esta quest e dar recompensas a todos os jogadores atribuídos?')) return;
+    const res = await fetch(`/master/quests/${questId}/complete`, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({})
+    });
+    const data = await res.json();
+    if (data.success) {
+        const card = document.getElementById(`quest-${questId}`);
+        if (card) card.remove();
+        showNotification(`✅ Quest completada! Recompensas entregues.`, 'success');
+    } else {
+        showNotification(`❌ ${data.error || 'Erro ao completar quest'}`, 'error');
+    }
+}
+
+async function completeQuestForPlayer(questId) {
+    // Build a player picker from the quest's assigned_to or all players
     const card = document.getElementById(`quest-${questId}`);
-    if (card) card.remove();
+    // Collect player checkboxes visible on page
+    const playerOptions = Array.from(document.querySelectorAll('input[name="quest-players"]'))
+        .map(cb => ({ id: cb.value, name: cb.closest('label')?.textContent?.trim() || cb.value }));
+
+    if (!playerOptions.length) {
+        showNotification('Nenhum jogador disponível', 'error');
+        return;
+    }
+
+    // Simple modal-like prompt using a quick inline form
+    const existing = document.getElementById('quest-player-picker');
+    if (existing) existing.remove();
+
+    const div = document.createElement('div');
+    div.id = 'quest-player-picker';
+    div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    div.innerHTML = `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;min-width:260px;max-width:400px;">
+            <h4 style="margin:0 0 1rem;">Dar recompensa para qual jogador?</h4>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
+                ${playerOptions.map(p => `
+                    <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                        <input type="radio" name="quest-reward-player" value="${p.id}"> ${p.name}
+                    </label>`).join('')}
+            </div>
+            <div style="display:flex;gap:0.5rem;">
+                <button class="btn btn-success" onclick="confirmQuestReward('${questId}')">✓ Dar recompensa</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('quest-player-picker').remove()">Cancelar</button>
+            </div>
+        </div>`;
+    document.body.appendChild(div);
+}
+
+async function confirmQuestReward(questId) {
+    const selected = document.querySelector('input[name="quest-reward-player"]:checked');
+    if (!selected) { showNotification('Selecione um jogador', 'error'); return; }
+    const playerId = selected.value;
+    document.getElementById('quest-player-picker')?.remove();
+
+    const res = await fetch(`/master/quests/${questId}/complete`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ player_id: playerId })
+    });
+    const data = await res.json();
+    if (data.success) {
+        showNotification(`✅ Recompensa entregue!`, 'success');
+        // Re-render card with updated completions
+        const gameState = await fetch('/api/game-state').then(r => r.json()).catch(() => null);
+        if (gameState) {
+            const quest = (gameState.quests || []).find(q => q.id === questId);
+            if (quest) {
+                const card = document.getElementById(`quest-${questId}`);
+                if (card) card.outerHTML = renderMasterQuestCard(quest);
+            }
+        }
+    } else {
+        showNotification(`❌ ${data.error || 'Erro'}`, 'error');
+    }
 }
 
 async function deleteQuest(questId) {
@@ -1764,3 +1885,54 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.querySelector('[data-tab="pokedex"]')?.addEventListener('click', loadMasterPokedex);
 });
+
+// ============================================
+// MESA (table management)
+// ============================================
+function copyInviteCode() {
+    const code = document.getElementById('invite-code-display')?.textContent?.trim();
+    if (!code) return;
+    navigator.clipboard.writeText(code).then(() => {
+        showNotification('📋 Código copiado!', 'success');
+    });
+}
+
+async function regenerateInvite() {
+    if (!confirm('Gerar um novo código? O código atual vai parar de funcionar para novos registros.')) return;
+    const res = await fetch('/master/table/new-invite', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+        document.getElementById('invite-code-display').textContent = data.invite_code;
+        showNotification(`🔑 Novo código: ${data.invite_code}`, 'success');
+    }
+}
+
+async function renameMesa() {
+    const name = document.getElementById('mesa-name-input')?.value?.trim();
+    if (!name) return;
+    const res = await fetch('/master/table/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    });
+    const data = await res.json();
+    if (data.ok) showNotification(`✅ Mesa renomeada para "${data.name}"`, 'success');
+}
+
+async function kickPlayer(playerId, playerName) {
+    if (!confirm(`Remover ${playerName} desta mesa? O jogador não poderá mais acessar até se registrar novamente com um código válido.`)) return;
+    const res = await fetch(`/master/table/kick/${playerId}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+        // Remove from UI
+        const rows = document.querySelectorAll('#mesa-players-list > div');
+        rows.forEach(row => {
+            if (row.querySelector('button')?.getAttribute('onclick')?.includes(playerId)) {
+                row.remove();
+            }
+        });
+        showNotification(`✅ ${playerName} removido da mesa.`, 'success');
+    } else {
+        showNotification(`❌ ${data.error || 'Erro'}`, 'error');
+    }
+}

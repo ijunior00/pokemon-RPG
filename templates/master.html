@@ -17,6 +17,7 @@
         <button class="tab" data-tab="map">🗺️ Mapa</button>
         <button class="tab" data-tab="gyms">🏟️ Ginásios</button>
         <button class="tab" data-tab="settings">🎨 Visual</button>
+        <button class="tab" data-tab="mesa">🎲 Mesa</button>
     </div>
 
     <!-- TAB: ENCOUNTERS/BATTLES -->
@@ -311,21 +312,37 @@
                 <label>📋 Objetivos <button type="button" class="btn btn-sm btn-secondary" onclick="addObjectiveField()" style="margin-left:0.5rem;">+ Adicionar</button></label>
                 <div id="quest-objectives-list" style="display:flex;flex-direction:column;gap:0.3rem;margin-top:0.3rem;"></div>
             </div>
+            <!-- Rewards row -->
             <div class="form-row" style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;">
                 <div class="form-group" style="flex:1;min-width:100px;">
-                    <label>🌟 XP de recompensa</label>
+                    <label>🌟 XP</label>
                     <input type="number" id="quest-xp-reward" value="50" min="0">
                 </div>
-                <div class="form-group" style="flex:2;">
-                    <label>Atribuir a:</label>
-                    <div class="checkbox-group" style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-                        {% for uid, player in players.items() %}
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="quest-players" value="{{ uid }}">
-                            {{ player.username }}
-                        </label>
-                        {% endfor %}
-                    </div>
+                <div class="form-group" style="flex:1;min-width:100px;">
+                    <label>💰 Dinheiro (₽)</label>
+                    <input type="number" id="quest-money-reward" value="0" min="0">
+                </div>
+                <div class="form-group" style="flex:1;min-width:120px;">
+                    <label style="display:flex;align-items:center;gap:0.4rem;">
+                        <input type="checkbox" id="quest-repeatable"> Por jogador
+                    </label>
+                    <small style="color:var(--text-muted);font-size:0.75rem;">Cada jogador completa individualmente</small>
+                </div>
+            </div>
+            <!-- Item rewards -->
+            <div class="form-group">
+                <label>🎒 Itens de recompensa <button type="button" class="btn btn-sm btn-secondary" onclick="addQuestItemField()" style="margin-left:0.5rem;">+ Item</button></label>
+                <div id="quest-items-list" style="display:flex;flex-direction:column;gap:0.3rem;margin-top:0.3rem;"></div>
+            </div>
+            <div class="form-group">
+                <label>Atribuir a:</label>
+                <div class="checkbox-group" style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    {% for uid, player in players.items() %}
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="quest-players" value="{{ uid }}">
+                        {{ player.username }}
+                    </label>
+                    {% endfor %}
                 </div>
             </div>
             <div style="display:flex;gap:0.5rem;">
@@ -751,6 +768,66 @@
                 <button class="btn btn-primary" onclick="saveMesaName()">Salvar Nome</button>
             </div>
         </div>
+    </div>
+
+    <!-- TAB: MESA -->
+    <div class="tab-content" id="tab-mesa">
+        <h2>🎲 Minha Mesa</h2>
+
+        {% if current_table %}
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-bottom:1.5rem;">
+
+            <!-- Invite code card -->
+            <div class="card" style="padding:1.25rem;">
+                <h4 style="margin:0 0 0.5rem;">🔑 Código de Convite</h4>
+                <p style="color:var(--text-muted);font-size:0.85rem;margin:0 0 0.75rem;">Compartilhe com seus jogadores para eles se registrarem.</p>
+                <div style="display:flex;align-items:center;gap:0.5rem;">
+                    <span id="invite-code-display" style="font-size:1.8rem;font-weight:700;letter-spacing:0.15em;color:var(--accent);font-family:monospace;">{{ current_table.invite_code }}</span>
+                    <button class="btn btn-sm btn-secondary" onclick="copyInviteCode()" title="Copiar">📋</button>
+                </div>
+                <button class="btn btn-sm btn-warning" onclick="regenerateInvite()" style="margin-top:0.75rem;">🔄 Gerar novo código</button>
+                <small style="display:block;margin-top:0.4rem;color:var(--text-muted);">O código antigo para de funcionar.</small>
+            </div>
+
+            <!-- Table info card -->
+            <div class="card" style="padding:1.25rem;">
+                <h4 style="margin:0 0 0.5rem;">📋 Informações da Mesa</h4>
+                <div class="form-group" style="margin-bottom:0.5rem;">
+                    <label>Nome da Mesa</label>
+                    <input type="text" id="mesa-name-input" value="{{ current_table.name }}" style="font-size:0.9rem;">
+                </div>
+                <button class="btn btn-sm btn-primary" onclick="renameMesa()">💾 Salvar nome</button>
+                <p style="margin:0.75rem 0 0;font-size:0.8rem;color:var(--text-muted);">ID da mesa: <code>{{ current_table.id }}</code></p>
+            </div>
+
+            <!-- Players card -->
+            <div class="card" style="padding:1.25rem;">
+                <h4 style="margin:0 0 0.75rem;">👥 Jogadores na Mesa</h4>
+                <div id="mesa-players-list" style="display:flex;flex-direction:column;gap:0.4rem;">
+                    {% for uid, player in players.items() %}
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:0.35rem 0.5rem;background:rgba(255,255,255,0.05);border-radius:8px;">
+                        <span>👤 {{ player.username }}</span>
+                        <button class="btn btn-sm btn-danger" onclick="kickPlayer('{{ uid }}', '{{ player.username }}')" title="Remover da mesa">✕</button>
+                    </div>
+                    {% else %}
+                    <p style="color:var(--text-muted);font-size:0.85rem;">Nenhum jogador ainda. Compartilhe o código de convite!</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="padding:1rem;background:rgba(255,200,0,0.06);border-color:rgba(255,200,0,0.2);">
+            <strong>ℹ️ Como funciona o isolamento de mesas</strong>
+            <ul style="margin:0.5rem 0 0;padding-left:1.2rem;color:var(--text-muted);font-size:0.85rem;line-height:1.7;">
+                <li>Cada mestre tem sua própria mesa com jogadores, quests, ginásios, NPCs e batalhas separados.</li>
+                <li>Jogadores só veem e interagem com dados da mesa em que estão registrados.</li>
+                <li>Outro mestre com seus jogadores nunca vai ver ou interferir na sua sessão.</li>
+                <li>Para adicionar um jogador: ele se registra escolhendo "Jogador" e usa seu código de convite.</li>
+            </ul>
+        </div>
+        {% else %}
+        <p style="color:var(--warning);">⚠️ Sua conta não está associada a uma mesa. Contate o suporte.</p>
+        {% endif %}
     </div>
 </div>
     <!-- MASTER EDIT MODAL -->
