@@ -1914,6 +1914,10 @@ def handle_encounter(data):
         
         # Notify master
         emit('encounter_started', encounter_data, room='master')
+        
+        # Auto-roll initiative if AUTO mode is ON
+        if WILD_AUTO_MODE:
+            _auto_roll_initiative(current_user.id, game_state)
 
 @socketio.on('roll_initiative')
 def handle_initiative(data):
@@ -1943,10 +1947,13 @@ def handle_initiative(data):
     wild_pokemon = encounter['pokemon']
     player_pokemon = encounter.get('player_pokemon') or {}
     
-    # Initiative = d20 + DEX modifier
-    wild_dex = wild_pokemon.get('stats', {}).get('DEX', 10)
+    # Initiative = d20 + Speed/DEX modifier (support both stat formats)
+    wild_stats = wild_pokemon.get('stats', {})
+    wild_dex = wild_stats.get('DEX', wild_stats.get('SPE', 10))
     wild_mod = (wild_dex - 10) // 2
-    player_dex = player_pokemon.get('stats', {}).get('DEX', 10) if player_pokemon else 10
+    
+    player_stats = player_pokemon.get('stats', {}) if player_pokemon else {}
+    player_dex = player_stats.get('DEX', player_stats.get('SPE', 10))
     player_mod = (player_dex - 10) // 2
     
     wild_init = random.randint(1, 20) + wild_mod
@@ -2122,6 +2129,56 @@ def handle_battle_action(data):
             import time
             time.sleep(1.5)  # Brief delay for dramatic effect
             _wild_auto_attack(player_id, encounter, game_state)
+
+def _auto_roll_initiative(player_id, game_state):
+    """Auto-roll initiative when AUTO mode is ON."""
+    encounter = game_state.get('active_encounters', {}).get(player_id)
+    if not encounter or encounter.get('battle_state', {}).get('initiative_rolled'):
+        return
+    
+    wild_pokemon = encounter['pokemon']
+    player_pokemon = encounter.get('player_pokemon') or {}
+    
+    wild_stats = wild_pokemon.get('stats', {})
+    wild_dex = wild_stats.get('DEX', wild_stats.get('SPE', 10))
+    wild_mod = (wild_dex - 10) // 2
+    
+    player_stats = player_pokemon.get('stats', {}) if player_pokemon else {}
+    player_dex = player_stats.get('DEX', player_stats.get('SPE', 10))
+    player_mod = (player_dex - 10) // 2
+    
+    wild_init = random.randint(1, 20) + wild_mod
+    player_init = random.randint(1, 20) + player_mod
+    first_turn = 'player' if player_init >= wild_init else 'wild'
+    
+    encounter['battle_state']['initiative_rolled'] = True
+    encounter['battle_state']['turn'] = first_turn
+    encounter['battle_state']['round'] = 1
+    encounter['battle_state']['wild_initiative'] = wild_init
+    encounter['battle_state']['player_initiative'] = player_init
+    
+    game_state['active_encounters'][player_id] = encounter
+    save_game_state(game_state)
+    
+    result = {
+        'player_id': player_id,
+        'wild_initiative': wild_init,
+        'wild_mod': wild_mod,
+        'player_initiative': player_init,
+        'player_mod': player_mod,
+        'first_turn': first_turn,
+        'on_enter_abilities': [],
+        'weather': None,
+    }
+    
+    socketio.emit('initiative_result', result, room='master')
+    socketio.emit('initiative_result', result, room=player_id)
+    
+    # If wild goes first, auto-attack after a delay
+    if first_turn == 'wild':
+        import time
+        time.sleep(1.5)
+        _wild_auto_attack(player_id, encounter, game_state)
 
 def _wild_auto_attack(player_id, encounter, game_state):
     """Wild pokemon automatically attacks the player's pokemon."""

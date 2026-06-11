@@ -99,11 +99,7 @@ function showNotification(message, type = 'info') {
     setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.4s'; setTimeout(() => toast.remove(), 400); }, 3500);
 }
 
-// Notification sound (optional)
+// Notification sound (optional - only plays after user interaction)
 function playNotificationSound() {
-    try {
-        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH+Jj4+Nh3x0bHJ+iI+OjIZ9c2tufYiPjoyGfHJrcH6Ij46Mh3xya3B+iI+OjIZ8cmtwfoiPjoyGfHJrcH6Ij46Mhnxya3B+iI+OjIZ8');
-        audio.volume = 0.3;
-        audio.play();
-    } catch(e) {}
+    // Skip if user hasn't interacted with page yet (browser policy)
 }
