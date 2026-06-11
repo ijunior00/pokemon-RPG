@@ -658,9 +658,26 @@
 
     <!-- TAB: MAP -->
     <div class="tab-content" id="tab-map">
-        <h2>Mapa de Galar</h2>
-        <div class="map-container">
-            <img src="{{ url_for('static', filename='img/galar_map.png') }}" alt="Mapa de Galar" class="galar-map" id="galar-map">
+        <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+            <h2 style="margin:0;" id="map-tab-title">🗺️ Mapa</h2>
+            <button class="btn btn-sm btn-primary" onclick="toggleMapPicker()">🗂️ Trocar mapa</button>
+        </div>
+
+        <!-- Map picker panel -->
+        <div id="map-picker" style="display:none;margin-bottom:1rem;">
+            <input type="text" id="map-search" placeholder="Buscar mapa..." oninput="filterMaps(this.value)"
+                   style="width:100%;max-width:400px;margin-bottom:0.75rem;">
+            <div id="map-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:0.5rem;max-height:340px;overflow-y:auto;padding:0.25rem;"></div>
+        </div>
+
+        <div class="map-container" style="position:relative;">
+            <img id="active-map-img"
+                 src="{{ url_for('static', filename='maps/' + (site_settings.active_map.file if site_settings.active_map else 'galar_map.png')) }}"
+                 alt="Mapa"
+                 style="max-width:100%;border-radius:10px;border:1px solid var(--border);">
+            <div id="map-name-badge" style="position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.6);color:#fff;padding:3px 10px;border-radius:20px;font-size:0.8rem;">
+                {{ site_settings.active_map.name if site_settings.active_map else 'Galar' }}
+            </div>
         </div>
     </div>
 
@@ -813,6 +830,14 @@
                     <p style="color:var(--text-muted);font-size:0.85rem;">Nenhum jogador ainda. Compartilhe o código de convite!</p>
                     {% endfor %}
                 </div>
+            </div>
+        </div>
+
+        <!-- Pending transfers -->
+        <div class="card" style="padding:1.25rem;margin-bottom:1rem;" id="transfers-card">
+            <h4 style="margin:0 0 0.75rem;">🔀 Solicitações de Transferência</h4>
+            <div id="pending-transfers-list">
+                <p style="color:var(--text-muted);font-size:0.85rem;">Nenhuma solicitação pendente.</p>
             </div>
         </div>
 

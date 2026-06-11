@@ -797,11 +797,13 @@
 
     <!-- TAB: MAP -->
     <div class="tab-content" id="tab-map">
-        <h2>Mapa de Galar</h2>
+        <h2 id="player-map-title">🗺️ {% if site_settings.active_map %}{{ site_settings.active_map.name }}{% else %}Galar{% endif %}</h2>
         <p class="map-instructions">Marque as rotas por onde já passou!</p>
         <div class="map-container">
-            <img src="{{ url_for('static', filename='img/galar_map.png') }}" alt="Mapa de Galar" 
-                 class="galar-map" id="galar-map">
+            <img id="player-map-img"
+                 src="{{ url_for('static', filename='maps/' + (site_settings.active_map.file if site_settings.active_map else 'galar_map.png')) }}"
+                 alt="Mapa"
+                 style="max-width:100%;border-radius:10px;">
         </div>
         <div class="visited-routes" id="map-routes-section"></div>
     </div>
@@ -916,8 +918,10 @@
     <!-- TAB: CENTRO POKÉMON -->
     <div class="tab-content" id="tab-centro">
         <h2>🏥 Centro Pokémon</h2>
-        <div style="max-width:480px;margin:0 auto;text-align:center;">
-            <div style="background:var(--card);border-radius:var(--radius);padding:2rem;margin-bottom:1.5rem;">
+        <div style="max-width:480px;margin:0 auto;">
+
+            <!-- Heal -->
+            <div style="background:var(--card);border-radius:var(--radius);padding:2rem;margin-bottom:1.5rem;text-align:center;">
                 <div style="font-size:4rem;margin-bottom:1rem;">🏥</div>
                 <h3 style="margin:0 0 0.5rem;">Bem-vindo ao Centro Pokémon!</h3>
                 <p style="color:var(--muted);margin:0 0 1.5rem;">Restauramos seus Pokémon ao pleno vigor e curamos todas as condições de status.</p>
@@ -928,6 +932,20 @@
                     🏥 Curar Equipe
                 </button>
                 <div id="pokemon-center-msg" style="margin-top:1rem;font-weight:bold;min-height:1.5em;"></div>
+            </div>
+
+            <!-- Table transfer -->
+            <div style="background:var(--card);border-radius:var(--radius);padding:1.5rem;">
+                <h3 style="margin:0 0 0.5rem;">🔀 Viajar para outra Mesa</h3>
+                <p style="color:var(--muted);font-size:0.85rem;margin:0 0 1rem;">
+                    Solicite ao mestre de outra mesa um código de convite e entre em uma nova região. O mestre decide se você mantém seu progresso ou começa do zero.
+                </p>
+                <div style="display:flex;gap:0.5rem;">
+                    <input type="text" id="transfer-invite-input" placeholder="Código da mesa (ex: A3F9C2)"
+                           style="flex:1;text-transform:uppercase;" maxlength="6">
+                    <button class="btn btn-primary" onclick="requestTransfer()">Solicitar</button>
+                </div>
+                <div id="transfer-msg" style="margin-top:0.75rem;font-size:0.85rem;min-height:1.2em;"></div>
             </div>
         </div>
     </div>

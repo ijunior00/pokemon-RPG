@@ -325,6 +325,158 @@ def master_kick_player(player_id):
     _db_raw.set_user_table(player_id, None)
     return jsonify({'ok': True})
 
+# ── Player transfer system ──────────────────────────────────
+# Flow:
+# 1. Player requests transfer: POST /player/request-transfer {invite_code}
+# 2. Destination master sees pending request in their mesa tab
+# 3. Master approves: POST /master/table/approve-transfer {request_id, keep_progress}
+#    keep_progress=true → keep trainer_data as-is
+#    keep_progress=false → reset trainer_data to fresh player
+
+PENDING_TRANSFERS = {}  # {request_id: {player_id, from_table, to_table, username, trainer_data}}
+
+@app.route('/player/request-transfer', methods=['POST'])
+@login_required
+def player_request_transfer():
+    """Player requests to move to another table via invite code."""
+    data = request.json or {}
+    invite_code = (data.get('invite_code') or '').strip().upper()
+    if not invite_code:
+        return jsonify({'error': 'Código inválido'}), 400
+    target_table = _db_raw.get_table_by_invite(invite_code)
+    if not target_table:
+        return jsonify({'error': 'Código de convite não encontrado'}), 404
+    current_tid = _tid()
+    if target_table['id'] == current_tid:
+        return jsonify({'error': 'Você já está nesta mesa'}), 400
+
+    users = _db_raw.get_users()
+    user = users.get(current_user.id, {})
+    req_id = secrets.token_hex(6)
+    PENDING_TRANSFERS[req_id] = {
+        'request_id': req_id,
+        'player_id': current_user.id,
+        'username': current_user.username,
+        'from_table': current_tid,
+        'to_table': target_table['id'],
+        'trainer_data': user.get('trainer_data', {})
+    }
+    # Notify destination master
+    socketio.emit('transfer_request', PENDING_TRANSFERS[req_id],
+                  room=f'master_{target_table["id"]}')
+    return jsonify({'ok': True, 'message': f'Solicitação enviada ao mestre da mesa "{target_table["name"]}"'})
+
+
+@app.route('/master/table/approve-transfer', methods=['POST'])
+@login_required
+def master_approve_transfer():
+    """Master approves or rejects a player transfer."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    req_id = data.get('request_id')
+    keep_progress = bool(data.get('keep_progress', True))
+    approved = bool(data.get('approved', True))
+    req = PENDING_TRANSFERS.pop(req_id, None)
+    if not req:
+        return jsonify({'error': 'Solicitação não encontrada ou expirada'}), 404
+    if req['to_table'] != _tid():
+        return jsonify({'error': 'Solicitação não pertence a esta mesa'}), 403
+
+    if not approved:
+        socketio.emit('transfer_result', {'approved': False,
+            'message': 'Sua solicitação de transferência foi recusada pelo mestre.'},
+            room=req['player_id'])
+        return jsonify({'ok': True, 'approved': False})
+
+    users = _db_raw.get_users()
+    user = users.get(req['player_id'])
+    if not user:
+        return jsonify({'error': 'Jogador não encontrado'}), 404
+
+    if not keep_progress:
+        # Reset to fresh trainer
+        user['trainer_data'] = {
+            'name': user['username'],
+            'level': 1, 'xp': 0, 'xp_to_next': 100,
+            'team': [], 'bag': [], 'badges': [], 'visited_routes': [], 'notes': ''
+        }
+    user['table_id'] = req['to_table']
+    _db_raw.save_user(req['player_id'], user)
+
+    socketio.emit('transfer_result', {
+        'approved': True,
+        'keep_progress': keep_progress,
+        'message': 'Transferência aprovada! Faça logout e login novamente para entrar na nova mesa.'
+    }, room=req['player_id'])
+    return jsonify({'ok': True, 'approved': True, 'keep_progress': keep_progress})
+
+
+@app.route('/master/table/pending-transfers', methods=['GET'])
+@login_required
+def master_pending_transfers():
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    tid = _tid()
+    pending = [r for r in PENDING_TRANSFERS.values() if r['to_table'] == tid]
+    return jsonify(pending)
+
+
+# ── Map system ───────────────────────────────────────────────
+import os as _os
+
+MAPS_STATIC_DIR = _os.path.join(_os.path.dirname(__file__), 'static', 'maps')
+
+BUNDLED_MAPS = [
+    {'id': 'galar', 'name': 'Galar', 'file': 'galar_map.png'},
+    {'id': 'galarian', 'name': 'Galar (detalhe)', 'file': 'galarian_map.png'},
+    {'id': 'kalos', 'name': 'Kalos', 'file': 'kalos_map.png'},
+    {'id': 'alola', 'name': 'Alola (geral)', 'file': 'alola_map_geral.jpg'},
+    {'id': 'alola_mele', 'name': 'Alola – Melemele', 'file': 'alola_map_melemele_island.png'},
+    {'id': 'alola_akala', 'name': 'Alola – Akala', 'file': 'alola_map_akala_island.png'},
+    {'id': 'alola_ula', 'name': "Alola – Ula'Ula", 'file': 'alola_map_ula_ula_island.png'},
+    {'id': 'alola_poni', 'name': 'Alola – Poni', 'file': 'alola_map_poni_island.png'},
+    {'id': 'paldea', 'name': 'Paldea', 'file': 'pokemon_paldea_map.jpg'},
+    {'id': 'geral', 'name': 'Mapa Geral', 'file': 'mapa_geral.png'},
+    {'id': 'geral_nomes', 'name': 'Mapa Geral (nomes)', 'file': 'mapa_atualizado_com_nomes.jpg'},
+]
+
+# Add exterior maps dynamically
+_ext_dir = _os.path.join(MAPS_STATIC_DIR, 'exteriores')
+if _os.path.isdir(_ext_dir):
+    for _f in sorted(_os.listdir(_ext_dir)):
+        if _f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+            _name = _f.rsplit('.', 1)[0].replace('_', ' ').title()
+            BUNDLED_MAPS.append({'id': f'ext_{_f}', 'name': f'Exterior – {_name}', 'file': f'exteriores/{_f}'})
+
+
+@app.route('/api/maps', methods=['GET'])
+@login_required
+def api_maps():
+    """List available bundled maps."""
+    return jsonify(BUNDLED_MAPS)
+
+
+@app.route('/master/table/set-map', methods=['POST'])
+@login_required
+def master_set_map():
+    """Set the active map for this table. Broadcasts to all players."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    map_id = data.get('map_id')
+    map_file = data.get('map_file')
+    map_name = data.get('map_name', '')
+
+    settings = db.get_site_settings()
+    settings['active_map'] = {'id': map_id, 'file': map_file, 'name': map_name}
+    db.save_site_settings(settings)
+
+    socketio.emit('map_changed', {'map_file': map_file, 'map_name': map_name},
+                  room=f'players_{_tid()}')
+    return jsonify({'ok': True})
+
+
 @app.route('/master/quests', methods=['POST'])
 @login_required
 def add_quest():

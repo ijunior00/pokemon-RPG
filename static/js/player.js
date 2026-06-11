@@ -1810,6 +1810,55 @@ async function pokemonCenter() {
     }
 }
 
+async function requestTransfer() {
+    const input = document.getElementById('transfer-invite-input');
+    const msg   = document.getElementById('transfer-msg');
+    const code  = (input?.value || '').trim().toUpperCase();
+    if (!code) { if (msg) msg.textContent = '⚠️ Digite o código da mesa.'; return; }
+    if (msg) { msg.textContent = 'Enviando solicitação...'; msg.style.color = 'var(--text-muted)'; }
+    try {
+        const res  = await fetch('/player/request-transfer', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ invite_code: code })
+        });
+        const data = await res.json();
+        if (data.ok) {
+            msg.textContent = `✅ ${data.message}`;
+            msg.style.color = 'var(--success)';
+            input.value = '';
+        } else {
+            msg.textContent = `❌ ${data.error || 'Erro'}`;
+            msg.style.color = 'var(--danger)';
+        }
+    } catch(e) {
+        if (msg) { msg.textContent = '❌ Erro de conexão.'; msg.style.color = 'var(--danger)'; }
+    }
+}
+
+// Map changed by master
+socket.on('map_changed', data => {
+    const img = document.getElementById('player-map-img');
+    const title = document.getElementById('player-map-title');
+    if (img)   img.src = `/static/maps/${data.map_file}`;
+    if (title) title.textContent = `🗺️ ${data.map_name}`;
+});
+
+// Transfer result from master
+socket.on('transfer_result', data => {
+    const msg = document.getElementById('transfer-msg');
+    if (data.approved) {
+        const note = data.keep_progress ? '(seu progresso foi mantido)' : '(você começará do zero)';
+        const text = `✅ Transferência aprovada ${note}! Fazendo logout em 3s...`;
+        if (msg) { msg.textContent = text; msg.style.color = 'var(--success)'; }
+        showNotification(text, 'success');
+        setTimeout(() => { window.location.href = '/logout'; }, 3000);
+    } else {
+        if (msg) { msg.textContent = '❌ ' + (data.message || 'Transferência recusada.'); msg.style.color = 'var(--danger)'; }
+        showNotification(data.message || 'Transferência recusada.', 'error');
+    }
+});
+
 const NATURE_MODIFIERS_JS = {
     'Adamant':{'ATK':1.1,'SPA':0.9},'Modest':{'SPA':1.1,'ATK':0.9},
     'Jolly':{'SPE':1.1,'SPA':0.9},'Timid':{'SPE':1.1,'ATK':0.9},

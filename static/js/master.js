@@ -1887,6 +1887,62 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ============================================
+// MAP PICKER
+// ============================================
+let _allMaps = [];
+
+async function loadMapList() {
+    if (_allMaps.length) return;
+    const res = await fetch('/api/maps');
+    _allMaps = await res.json();
+    renderMapGrid(_allMaps);
+}
+
+function renderMapGrid(maps) {
+    const grid = document.getElementById('map-grid');
+    if (!grid) return;
+    grid.innerHTML = maps.map(m => `
+        <div onclick="selectMap('${m.id}','${m.file}','${m.name.replace(/'/g, "\\'")}')"
+             style="cursor:pointer;border:2px solid var(--border);border-radius:8px;overflow:hidden;transition:border-color .15s;"
+             onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+            <img src="/static/maps/${m.file}" alt="${m.name}"
+                 style="width:100%;height:90px;object-fit:cover;display:block;"
+                 onerror="this.style.display='none'">
+            <div style="padding:4px 6px;font-size:0.72rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
+        </div>`).join('');
+}
+
+function filterMaps(q) {
+    const filtered = q ? _allMaps.filter(m => m.name.toLowerCase().includes(q.toLowerCase())) : _allMaps;
+    renderMapGrid(filtered);
+}
+
+function toggleMapPicker() {
+    const picker = document.getElementById('map-picker');
+    const visible = picker.style.display !== 'none';
+    picker.style.display = visible ? 'none' : '';
+    if (!visible) loadMapList();
+}
+
+async function selectMap(id, file, name) {
+    await fetch('/master/table/set-map', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({map_id: id, map_file: file, map_name: name})
+    });
+    document.getElementById('active-map-img').src = `/static/maps/${file}`;
+    document.getElementById('map-name-badge').textContent = name;
+    document.getElementById('map-tab-title').textContent = `🗺️ ${name}`;
+    document.getElementById('map-picker').style.display = 'none';
+    showNotification(`🗺️ Mapa alterado: ${name}`, 'success');
+}
+
+socket.on('map_changed', data => {
+    // Update map in master view too if needed (already handled above)
+    console.log('[Mapa] Alterado para:', data.map_name);
+});
+
+// ============================================
 // MESA (table management)
 // ============================================
 function copyInviteCode() {
@@ -1918,6 +1974,58 @@ async function renameMesa() {
     const data = await res.json();
     if (data.ok) showNotification(`✅ Mesa renomeada para "${data.name}"`, 'success');
 }
+
+// Transfer requests
+async function loadPendingTransfers() {
+    const res = await fetch('/master/table/pending-transfers');
+    const list = await res.json();
+    renderPendingTransfers(list);
+}
+
+function renderPendingTransfers(list) {
+    const el = document.getElementById('pending-transfers-list');
+    if (!el) return;
+    if (!list.length) {
+        el.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Nenhuma solicitação pendente.</p>';
+        return;
+    }
+    el.innerHTML = list.map(r => `
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;padding:0.6rem;background:rgba(255,255,255,0.05);border-radius:8px;margin-bottom:0.4rem;">
+            <span style="flex:1;font-size:0.9rem;">👤 <strong>${r.username}</strong> quer entrar nesta mesa</span>
+            <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+                <button class="btn btn-sm btn-success" onclick="approveTransfer('${r.request_id}',true,true)">✅ Aceitar (manter progresso)</button>
+                <button class="btn btn-sm btn-warning" onclick="approveTransfer('${r.request_id}',true,false)">🆕 Aceitar (reset)</button>
+                <button class="btn btn-sm btn-danger" onclick="approveTransfer('${r.request_id}',false,false)">❌ Recusar</button>
+            </div>
+        </div>`).join('');
+}
+
+async function approveTransfer(requestId, approved, keepProgress) {
+    const res = await fetch('/master/table/approve-transfer', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({request_id: requestId, approved, keep_progress: keepProgress})
+    });
+    const data = await res.json();
+    if (data.ok) {
+        showNotification(approved
+            ? `✅ Transferência ${keepProgress ? 'aprovada (progresso mantido)' : 'aprovada (reset)'}`
+            : '❌ Transferência recusada', approved ? 'success' : 'warning');
+        loadPendingTransfers();
+    }
+}
+
+// Socket: incoming transfer request
+socket.on('transfer_request', req => {
+    showNotification(`🔀 ${req.username} quer entrar nesta mesa!`, 'warning');
+    loadPendingTransfers();
+});
+
+// Load pending transfers when mesa tab opens
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelector('[data-tab="mesa"]')?.addEventListener('click', loadPendingTransfers);
+    document.querySelector('[data-tab="map"]')?.addEventListener('click', () => {});
+});
 
 async function kickPlayer(playerId, playerName) {
     if (!confirm(`Remover ${playerName} desta mesa? O jogador não poderá mais acessar até se registrar novamente com um código válido.`)) return;
