@@ -412,15 +412,31 @@ async function startBattle() {
     showElement('battle-area');
     hideElement('encounter-result');
     battleActive = true;
-    window._permadeathTriggered  = false;
-    window._masterBallCapture    = false;
-    window._wildIntimidateMod    = 0;
-    window._playerTrapped        = false;
-    window._playerTrappedBy      = null;
-    window._enemyTrapped         = false;
-    window._enemyTrappedBy       = null;
+    window.wildFainted               = false;
+    window.currentTurn               = null;
+    window._permadeathTriggered      = false;
+    window._playerFaintLogged        = false;
+    window._masterBallCapture        = false;
+    window._wildIntimidateMod        = 0;
+    window._playerTrapped            = false;
+    window._playerTrappedBy          = null;
+    window._enemyTrapped             = false;
+    window._enemyTrappedBy           = null;
+    window._wildIsActing             = false;
+    window.wildPokemonStatus         = null;
+    window.playerPokemonStatus       = null;
+    window._playerPreTurnStatusDamage = 0;
+    window._wildPreTurnStatusDamage   = 0;
+    window.playerAccuracyMod         = 0;
+    window.wildAccuracyMod           = 0;
+    window.enemyDodging              = false;
+    window.playerDodging             = false;
+    window._lastStatusInflicted      = null;
+    window._wildStatusApplied        = null;
+    clearTurnCountdown();
 
-    // Store current battle data
+    // Store current battle data (with currentHp tracked in state, not just DOM)
+    enemy.currentHp = enemy.hp;
     window.currentBattleData = { enemy, playerPokemon, level: currentEncounter.level };
 
     // Fire battle transition, then fill data
@@ -518,8 +534,6 @@ socket.on('initiative_result', (data) => {
     }
     window.currentTurn = data.first_turn;
     updateTurnUI();
-    const sb = document.getElementById('scene-round-badge');
-    if (sb) { sb.textContent = '1'; sb.style.display = 'flex'; }
     if (data.first_turn === 'wild') {
         setTimeout(() => wildPokemonAutoAttack(), 1500);
     }
@@ -531,7 +545,8 @@ socket.on('battle_update', (data) => {
     const prevEnemyHp = parseInt(document.getElementById('battle-enemy-hp-text-full')?.textContent) || bs.wild_hp_current;
     const prevPlayerHp = parseInt(document.getElementById('battle-player-hp-text-full')?.textContent) || bs.player_hp_current;
 
-    // Update HP bars
+    // Update HP bars (also keep enemy.currentHp in sync as authoritative source)
+    if (window.currentBattleData?.enemy) window.currentBattleData.enemy.currentHp = bs.wild_hp_current;
     setHpBar('battle-enemy-hp-bar-full', bs.wild_hp_current, bs.wild_hp_max);
     document.getElementById('battle-enemy-hp-text-full').textContent = `${bs.wild_hp_current}/${bs.wild_hp_max} HP`;
     setHpBar('battle-player-hp-bar-full', bs.player_hp_current, bs.player_hp_max);
@@ -600,8 +615,6 @@ socket.on('battle_update', (data) => {
     const turnDisplay = document.getElementById('battle-turn-display');
     if (roundDisplay) roundDisplay.textContent = `⚔️ Round ${bs.round || 1}`;
     if (turnDisplay) turnDisplay.textContent = bs.turn === 'player' ? '🟢 Seu turno' : '🔴 Turno do oponente';
-    const sceneBadge = document.getElementById('scene-round-badge');
-    if (sceneBadge) { sceneBadge.textContent = bs.round || 1; sceneBadge.style.display = 'flex'; }
 
     // Update turn
     window.currentTurn = bs.turn;
@@ -614,8 +627,7 @@ socket.on('battle_update', (data) => {
 
     // Check faint
     if (bs.wild_hp_current <= 0) {
-        const fb = document.getElementById('scene-round-badge');
-        if (fb) fb.style.display = 'none';
+        clearTurnCountdown();
         battleSpriteFaint('battle-enemy-sprite');
         playSound('faint');
         addBattleLog(`<strong>💀 Pokémon Selvagem desmaiou!</strong>`);
@@ -3789,9 +3801,9 @@ async function checkMoveStatusEffect(moveName, attackRoll, damage) {
 }
 
 async function processPlayerTurnStart() {
-    // Process status effects at start of player turn.
-    if (!window.playerPokemonStatus) return true;
+    // Always reset first so stale damage never leaks into next action.
     window._playerPreTurnStatusDamage = 0;
+    if (!window.playerPokemonStatus) return true;
     
     try {
         const resp = await fetch('/api/check-status', {
@@ -3963,25 +3975,8 @@ updateTurnUI = async function() {
     }
 };
 
-// When master applies status to player's pokemon (from battle_update)
-const _originalBattleUpdate = socket._callbacks?.['$battle_update'];
-socket.on('battle_update', (data) => {
-    // Check if master applied a status effect
-    if (data.status_effect && data.action_by === 'master') {
-        if (!window.playerPokemonStatus) {
-            window.playerPokemonStatus = { condition: data.status_effect, turns_active: 0 };
-            const cond = _getStatusCond(data.status_effect);
-            if (cond) {
-                addBattleLog(`${cond.icon} Seu Pokémon ficou <strong>${cond.name}</strong>! ${cond.description || ''}`);
-            } else {
-                addBattleLog(`⚠️ Seu Pokémon ficou com <strong>${data.status_effect}</strong>!`);
-            }
-            updateStatusDisplay();
-        }
-    }
-});
-
-// Status reset is already handled inside endBattle above
+// Status handling for master-applied effects is done inside the main battle_update handler above
+// (bs.player_status sync at lines ~588-595). No second handler needed.
 
 
 // ============================================
@@ -4028,12 +4023,11 @@ async function _executeWildTurn() {
             if (statusResult.damage > 0) {
                 wildPreTurnStatusDamage = statusResult.damage;
                 window._wildPreTurnStatusDamage = statusResult.damage;
-                // Apply status damage directly to wild HP display
+                // Apply status damage to wild HP (use state variable, not DOM)
                 const maxHp = enemy?.maxHp || enemy?.hp || 20;
-                const hpText = document.getElementById('battle-enemy-hp-text-full')?.textContent || '';
-                const hpMatch = hpText.match(/(-?\d+)\s*\/\s*(\d+)/);
-                const currentHp = hpMatch ? parseInt(hpMatch[1]) : maxHp;
+                const currentHp = (enemy.currentHp !== undefined) ? enemy.currentHp : maxHp;
                 const newHp = Math.max(-30, currentHp - statusResult.damage);
+                enemy.currentHp = newHp;
                 document.getElementById('battle-enemy-hp-text-full').textContent = `${newHp}/${maxHp} HP`;
                 setHpBar('battle-enemy-hp-bar-full', newHp, maxHp);
                 const condName = window.statusEffectsData?.conditions?.[window.wildPokemonStatus.condition]?.name || window.wildPokemonStatus.condition;
@@ -5509,7 +5503,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ============================================================
 let _turnTimer = null;
 let _turnSeconds = 0;
-const TURN_LIMIT = 60;
+const TURN_LIMIT = 20;
 
 function startTurnCountdown() {
     clearTurnCountdown();
@@ -5530,26 +5524,24 @@ function startTurnCountdown() {
 
 function clearTurnCountdown() {
     if (_turnTimer) { clearInterval(_turnTimer); _turnTimer = null; }
-    const el = document.getElementById('turn-countdown');
-    if (el) el.textContent = '';
+    const badge = document.getElementById('scene-round-badge');
+    if (badge) badge.style.display = 'none';
 }
 
 function _updateCountdownUI() {
-    let el = document.getElementById('turn-countdown');
-    if (!el) {
-        const passBtn = document.getElementById('btn-pass-turn');
-        if (passBtn) {
-            el = document.createElement('span');
-            el.id = 'turn-countdown';
-            el.style.cssText = 'margin-left:0.75rem;font-size:0.9rem;font-weight:bold;';
-            passBtn.parentNode.insertBefore(el, passBtn.nextSibling);
-        }
-    }
-    if (el) {
-        const color = _turnSeconds <= 10 ? '#f44336' : _turnSeconds <= 20 ? '#ff9800' : 'var(--text-muted)';
-        el.style.color = color;
-        el.textContent = `⏱ ${_turnSeconds}s`;
-    }
+    const badge = document.getElementById('scene-round-badge');
+    const numEl = document.getElementById('timer-number');
+    const ring  = document.getElementById('timer-ring');
+    if (!badge) return;
+
+    badge.style.display = 'block';
+    const fraction = _turnSeconds / TURN_LIMIT;
+    const circumference = 2 * Math.PI * 18; // r=18 → ~113.1
+    const offset = circumference * (1 - fraction);
+    const color = _turnSeconds <= 5 ? '#f44336' : _turnSeconds <= 10 ? '#ff9800' : '#ffde00';
+
+    if (ring) { ring.style.strokeDashoffset = offset; ring.style.stroke = color; }
+    if (numEl) { numEl.textContent = _turnSeconds; numEl.style.color = color; }
 }
 
 // Countdown integrado diretamente em updateTurnUI acima

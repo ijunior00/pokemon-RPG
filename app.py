@@ -2018,7 +2018,7 @@ def api_status_effects():
     return jsonify({
         'conditions': {k: {'name': v['name'], 'icon': v['icon'], 'color': v['color'], 'description': v['description']} 
                        for k, v in effects.STATUS_CONDITIONS.items()},
-        'move_effects': {k: {'status': v['status'], 'chance': v['chance'], 'on': v['on']} 
+        'move_effects': {k: {'status': v['status'], 'chance': v.get('chance', None), 'on': v['on']}
                          for k, v in effects.MOVE_STATUS_EFFECTS.items()}
     })
 
@@ -2422,7 +2422,14 @@ def handle_battle_action(data):
             return
         
         battle_state = encounter['battle_state']
-        
+
+        # Validate turn ownership — ignore out-of-turn actions to prevent race conditions.
+        # 'apply_status' events never switch turn so they are always allowed.
+        if action_type != 'apply_status':
+            expected = 'player' if action_by == 'player' else 'wild'
+            if battle_state.get('turn') and battle_state['turn'] != expected:
+                return
+
         # Apply pre-turn status damage first (doesn't count as an action)
         PERMADEATH_FLOOR = -30
         if wild_status_damage > 0:

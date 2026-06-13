@@ -168,8 +168,16 @@
                         </div>
                     </div>
 
-                    <!-- Round badge: center of scene -->
-                    <div id="scene-round-badge">1</div>
+                    <!-- Turn countdown timer: center of scene -->
+                    <div id="scene-round-badge" style="display:none;">
+                        <svg width="44" height="44" viewBox="0 0 44 44">
+                            <circle cx="22" cy="22" r="18" fill="rgba(10,10,30,0.82)" stroke="#333" stroke-width="2.5"/>
+                            <circle id="timer-ring" cx="22" cy="22" r="18" fill="none" stroke="#ffde00" stroke-width="3"
+                                    stroke-dasharray="113.1" stroke-dashoffset="0"
+                                    style="transform:rotate(-90deg);transform-origin:22px 22px;transition:stroke-dashoffset 0.9s linear,stroke 0.3s"/>
+                        </svg>
+                        <span id="timer-number">20</span>
+                    </div>
 
                 </div><!-- /poke-scene -->
 

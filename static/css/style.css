@@ -1077,28 +1077,28 @@ h1, h2 {
     margin-right: 40px;
 }
 
-/* Round badge in center of battle scene */
+/* Turn countdown timer: center of battle scene */
 #scene-round-badge {
     position: absolute;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: rgba(10, 10, 30, 0.82);
-    border: 2.5px solid #ffde00;
-    color: #ffde00;
-    font-family: var(--font-pixel);
-    font-size: 0.85rem;
-    font-weight: 800;
+    width: 44px;
+    height: 44px;
+    z-index: 10;
+    pointer-events: none;
+}
+#scene-round-badge svg { display: block; }
+#timer-number {
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 10;
-    box-shadow: 0 0 10px rgba(255, 222, 0, 0.4), 0 2px 8px rgba(0,0,0,0.6);
-    pointer-events: none;
-    display: none; /* hidden until battle starts */
+    font-family: var(--font-pixel);
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: #ffde00;
 }
 
 /* platforms under sprites */
