@@ -242,6 +242,19 @@ function animateDice(result, label) {
 // ============================================
 // ENCOUNTER SYSTEM
 // ============================================
+function filterRouteRegion(region, btn) {
+    document.querySelectorAll('.region-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const sel = document.getElementById('current-route');
+    let firstMatch = null;
+    for (const opt of sel.options) {
+        const show = opt.dataset.region === region;
+        opt.hidden = !show;
+        if (show && !firstMatch) firstMatch = opt;
+    }
+    if (firstMatch) sel.value = firstMatch.value;
+}
+
 async function searchWildPokemon() {
     const routeId = document.getElementById('current-route').value;
     const huntMode = document.getElementById('hunt-mode').value;
@@ -579,6 +592,12 @@ socket.on('battle_update', (data) => {
         if (cond) addBattleLog(`${cond.icon} Seu Pokémon ficou <strong>${cond.name}</strong>! ${cond.description}`);
         updateStatusDisplay();
     }
+
+    // Update round counter display
+    const roundDisplay = document.getElementById('battle-round-display');
+    const turnDisplay = document.getElementById('battle-turn-display');
+    if (roundDisplay) roundDisplay.textContent = `⚔️ Round ${bs.round || 1}`;
+    if (turnDisplay) turnDisplay.textContent = bs.turn === 'player' ? '🟢 Seu turno' : '🔴 Turno do oponente';
 
     // Update turn
     window.currentTurn = bs.turn;
@@ -1456,6 +1475,9 @@ async function registerAndShow(number) {
 
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('[data-tab="pokedex"]')?.addEventListener('click', loadFullPokedex);
+    // initialize route filter to kanto on page load
+    const firstTab = document.querySelector('.region-tab');
+    if (firstTab) filterRouteRegion('kanto', firstTab);
 });
 
 // ============================================
@@ -3861,32 +3883,45 @@ async function processWildTurnStart() {
     } catch(e) { return true; }
 }
 
+const _STATUS_FALLBACK = {
+    'badly_poisoned': { icon: '☠️', name: 'Envenenado', color: '#7030a0' },
+    'queimado':       { icon: '🔥', name: 'Queimado',   color: '#f08030' },
+    'paralisado':     { icon: '⚡', name: 'Paralisado', color: '#f8d030' },
+    'dormindo':       { icon: '💤', name: 'Dormindo',   color: '#6890f0' },
+    'congelado':      { icon: '🧊', name: 'Congelado',  color: '#98d8d8' },
+    'confuso':        { icon: '💫', name: 'Confuso',    color: '#f85888' },
+    'atordoado':      { icon: '⭐', name: 'Atordoado',  color: '#705898' },
+};
+function _getStatusCond(key) {
+    return window.statusEffectsData?.conditions?.[key] || _STATUS_FALLBACK[key] || null;
+}
+
 function updateStatusDisplay() {
     // Show status icons near HP bars
     const enemyHpEl = document.getElementById('battle-enemy-hp-text-full');
     const playerHpEl = document.getElementById('battle-player-hp-text-full');
-    
+
     // Remove old badges
     document.querySelectorAll('.status-badge-display').forEach(el => el.remove());
-    
+
     if (window.wildPokemonStatus) {
-        const cond = window.statusEffectsData?.conditions?.[window.wildPokemonStatus.condition];
-        if (cond && enemyHpEl) {
+        const cond = _getStatusCond(window.wildPokemonStatus.condition);
+        if (enemyHpEl) {
             const badge = document.createElement('span');
             badge.className = 'status-badge-display';
-            badge.style.cssText = `display:inline-block;background:${cond.color};color:white;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem;margin-left:0.5rem;`;
-            badge.textContent = `${cond.icon} ${cond.name}`;
+            badge.style.cssText = `display:inline-block;background:${cond?.color||'#7030a0'};color:white;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem;margin-left:0.5rem;`;
+            badge.textContent = cond ? `${cond.icon} ${cond.name}` : window.wildPokemonStatus.condition;
             enemyHpEl.parentElement.appendChild(badge);
         }
     }
-    
+
     if (window.playerPokemonStatus) {
-        const cond = window.statusEffectsData?.conditions?.[window.playerPokemonStatus.condition];
-        if (cond && playerHpEl) {
+        const cond = _getStatusCond(window.playerPokemonStatus.condition);
+        if (playerHpEl) {
             const badge = document.createElement('span');
             badge.className = 'status-badge-display';
-            badge.style.cssText = `display:inline-block;background:${cond.color};color:white;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem;margin-left:0.5rem;`;
-            badge.textContent = `${cond.icon} ${cond.name}`;
+            badge.style.cssText = `display:inline-block;background:${cond?.color||'#7030a0'};color:white;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem;margin-left:0.5rem;`;
+            badge.textContent = cond ? `${cond.icon} ${cond.name}` : window.playerPokemonStatus.condition;
             playerHpEl.parentElement.appendChild(badge);
         }
     }
@@ -3920,12 +3955,16 @@ const _originalBattleUpdate = socket._callbacks?.['$battle_update'];
 socket.on('battle_update', (data) => {
     // Check if master applied a status effect
     if (data.status_effect && data.action_by === 'master') {
-        window.playerPokemonStatus = { condition: data.status_effect, turns_active: 0 };
-        const cond = window.statusEffectsData?.conditions?.[data.status_effect];
-        if (cond) {
-            addBattleLog(`${cond.icon} Seu Pokémon ficou <strong>${cond.name}</strong>! ${cond.description}`);
+        if (!window.playerPokemonStatus) {
+            window.playerPokemonStatus = { condition: data.status_effect, turns_active: 0 };
+            const cond = _getStatusCond(data.status_effect);
+            if (cond) {
+                addBattleLog(`${cond.icon} Seu Pokémon ficou <strong>${cond.name}</strong>! ${cond.description || ''}`);
+            } else {
+                addBattleLog(`⚠️ Seu Pokémon ficou com <strong>${data.status_effect}</strong>!`);
+            }
+            updateStatusDisplay();
         }
-        updateStatusDisplay();
     }
 });
 

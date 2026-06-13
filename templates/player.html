@@ -25,12 +25,18 @@
         <h2>Caça Pokémon</h2>
         
         <div class="encounter-controls">
+            <div class="region-tabs">
+                <button class="region-tab active" onclick="filterRouteRegion('kanto', this)">🗺️ Kanto</button>
+                <button class="region-tab" onclick="filterRouteRegion('johto', this)">🌿 Johto</button>
+                <button class="region-tab" onclick="filterRouteRegion('hoenn', this)">🌊 Hoenn</button>
+                <button class="region-tab" onclick="filterRouteRegion('galar', this)">⚔️ Galar</button>
+            </div>
             <div class="form-row">
                 <div class="form-group">
                     <label>Rota Atual</label>
                     <select id="current-route">
                         {% for route_id, route in routes.items() %}
-                        <option value="{{ route_id }}">{{ route.name }}</option>
+                        <option value="{{ route_id }}" data-region="{{ route.region_id }}">{{ route.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -166,6 +172,12 @@
 
                 <!-- ── BOTTOM PANEL ───────────────────────────────── -->
                 <div class="poke-bottom-panel">
+
+                    <!-- Round counter -->
+                    <div id="battle-round-bar" style="display:flex;align-items:center;justify-content:space-between;padding:0.2rem 0.6rem;background:var(--darker);border-bottom:1px solid var(--card-border);font-size:0.78rem;color:var(--text-muted);">
+                        <span id="battle-round-display">⚔️ Round 1</span>
+                        <span id="battle-turn-display">—</span>
+                    </div>
 
                     <!-- Text box (log) -->
                     <div class="poke-textbox" id="battle-log-full"></div>

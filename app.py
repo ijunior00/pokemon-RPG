@@ -915,7 +915,10 @@ def generate_npc():
         candidates = unique
     else:
         candidates = POKEMON_DB[:]
-    
+
+    # Restrict to Gen 1-3 (≤386)
+    candidates = [p for p in candidates if p.get('number', 999) <= 386]
+
     # Filter by level appropriateness
     level_filtered = [p for p in candidates if p.get('minLevel', 1) <= level]
     if not level_filtered:
@@ -1242,12 +1245,31 @@ def api_encounter():
     # Dungeon/night use dungeon types (stronger/rarer)
     if hunt_mode in ('dungeon', 'night'):
         route_types = route.get('dungeon_types', route_types)
-    
-    # Get all pokemon of matching types
-    candidates = []
-    for ptype in route_types:
-        candidates.extend(POKEMON_BY_TYPE.get(ptype.lower(), []))
-    
+
+    # Gen 1-3 filter (up to #386)
+    GEN3_MAX = 386
+
+    # If route has an explicit pokemon list, use it (route-specific encounters)
+    route_pokemon_names = route.get('pokemon', [])
+    if route_pokemon_names:
+        # Resolve names to data entries (try exact match, then case-insensitive)
+        candidates = []
+        for pname in route_pokemon_names:
+            entry = POKEMON_BY_NAME.get(pname.lower())
+            if entry and entry['number'] <= GEN3_MAX:
+                candidates.append(entry)
+        # Fallback to type pool if nothing matched
+        if not candidates:
+            route_pokemon_names = []
+
+    if not route_pokemon_names:
+        # Type-based pool, filtered to Gen 1-3
+        candidates = []
+        for ptype in route_types:
+            for p in POKEMON_BY_TYPE.get(ptype.lower(), []):
+                if p['number'] <= GEN3_MAX:
+                    candidates.append(p)
+
     # Remove duplicates
     seen_nums = set()
     unique_candidates = []
@@ -1256,9 +1278,10 @@ def api_encounter():
             seen_nums.add(c['number'])
             unique_candidates.append(c)
     candidates = unique_candidates
-    
+
     if not candidates:
-        candidates = POKEMON_BY_TYPE.get('normal', [])
+        # Last resort: all Gen 1-3 Normal-type
+        candidates = [p for p in POKEMON_BY_TYPE.get('normal', []) if p['number'] <= GEN3_MAX]
     
     # Level filtering based on mode
     if hunt_mode == 'night':
@@ -2273,17 +2296,19 @@ def handle_encounter(data):
                 'initiative_rolled': False
             }
         }
-        # Save to game state
+        # Save to game state — use str key so JSON roundtrip doesn't change it
+        pid = str(current_user.id)
+        encounter_data['player_id'] = pid
         game_state = get_game_state()
-        game_state['active_encounters'][current_user.id] = encounter_data
+        game_state['active_encounters'][pid] = encounter_data
         save_game_state(game_state)
-        
+
         # Notify master
         emit('encounter_started', encounter_data, room=f'master_{_tid()}')
-        
+
         # Auto-roll initiative if AUTO mode is ON
         if WILD_AUTO_MODE:
-            _auto_roll_initiative(current_user.id, game_state)
+            _auto_roll_initiative(pid, game_state)
 
 @socketio.on('roll_initiative')
 def handle_initiative(data):
@@ -2294,13 +2319,13 @@ def handle_initiative(data):
     
     # Determine player_id: if master triggers, use data; if player triggers, use own id
     if current_user.role == 'master':
-        player_id = data.get('player_id')
+        player_id = str(data.get('player_id', ''))
     else:
-        player_id = current_user.id
-    
+        player_id = str(current_user.id)
+
     if not player_id:
-        player_id = current_user.id
-    
+        player_id = str(current_user.id)
+
     game_state = get_game_state()
     encounter = game_state.get('active_encounters', {}).get(player_id)
     if not encounter:
@@ -2378,7 +2403,7 @@ def handle_initiative(data):
 def handle_battle_action(data):
     """Handle a battle action (attack, status move, etc.)."""
     if current_user.is_authenticated:
-        player_id = data.get('player_id', current_user.id)
+        player_id = str(data.get('player_id', current_user.id))
         action_by = data.get('action_by')  # 'player' or 'master' (for wild pokemon)
         action_type = data.get('action_type')  # 'attack', 'status', 'item'
         move_name = data.get('move_name', '')
@@ -2669,7 +2694,7 @@ def handle_end_encounter(data):
     """End an encounter."""
     if current_user.is_authenticated:
         game_state = get_game_state()
-        player_id = data.get('player_id', current_user.id)
+        player_id = str(data.get('player_id', current_user.id))
         result = data.get('result', '')
 
         # Track battle_wins on active Pokémon when player wins
@@ -2702,7 +2727,7 @@ def handle_master_action(data):
 def handle_mega_evolve(data):
     """Handle mega evolution in battle."""
     if current_user.is_authenticated:
-        player_id = data.get('player_id', current_user.id)
+        player_id = str(data.get('player_id', current_user.id))
         side = data.get('side', 'player')  # 'player' or 'wild'
         stone_name = data.get('stone_name', '')
         

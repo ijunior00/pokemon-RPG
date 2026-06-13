@@ -1,146 +1,853 @@
 {
   "route_1": {
-    "name": "Rota 1 - Postwick",
-    "description": "Caminho tranquilo entre Postwick e Wedgehurst. Gramados verdes com Pokémon dóceis.",
-    "types": ["Normal", "Bug", "Flying"],
+    "name": "Rota 1 — Pallet→Viridian",
+    "description": "Caminho tranquilo entre Pallet Town e Viridian City.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Normal", "Flying"], "dungeon_types": ["Normal", "Dark"],
     "level_range": [1, 5],
-    "dungeon_types": ["Dark", "Ghost"],
-    "region": "Sul de Galar"
+    "pokemon": ["Pidgey", "Rattata", "Sentret", "Zigzagoon"]
   },
   "route_2": {
-    "name": "Rota 2 - Wedgehurst",
-    "description": "Rota curta com lago. Pokémon aquáticos e de grama aparecem frequentemente.",
-    "types": ["Water", "Grass", "Normal"],
+    "name": "Rota 2 — Viridian→Pewter",
+    "description": "Estrada arborizada que corta a Viridian Forest.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Normal", "Bug", "Flying"], "dungeon_types": ["Bug", "Poison"],
     "level_range": [2, 7],
-    "dungeon_types": ["Poison", "Dark"],
-    "region": "Sul de Galar"
+    "pokemon": ["Pidgey", "Rattata", "Caterpie", "Weedle", "Metapod", "Kakuna", "Sentret", "Hoothoot"]
+  },
+  "viridian_forest": {
+    "name": "Viridian Forest",
+    "description": "Floresta densa e labiríntica. Pikachu aparece raramente.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Bug", "Electric", "Grass"], "dungeon_types": ["Bug", "Poison", "Ghost"],
+    "level_range": [3, 7],
+    "pokemon": ["Caterpie", "Metapod", "Weedle", "Kakuna", "Pikachu", "Ledyba", "Spinarak", "Wurmple"]
   },
   "route_3": {
-    "name": "Rota 3 - Galar Mine Approach",
-    "description": "Terreno rochoso que leva à primeira mina. Pokémon de pedra e terra dominam.",
-    "types": ["Rock", "Ground", "Fighting"],
-    "level_range": [4, 10],
-    "dungeon_types": ["Steel", "Rock", "Ground"],
-    "region": "Sul de Galar"
+    "name": "Rota 3 — Pewter→Mt. Moon",
+    "description": "Planícies com colinas suaves. Nidoran e Jigglypuff são frequentes.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Normal", "Fairy", "Fighting"], "dungeon_types": ["Poison", "Fighting", "Dark"],
+    "level_range": [6, 12],
+    "pokemon": ["Pidgey", "Nidoran-m", "Nidoran-f", "Jigglypuff", "Mankey", "Marill", "Shroomish", "Slakoth"]
   },
-  "galar_mine_1": {
-    "name": "Mina de Galar 1",
-    "description": "Caverna escura com cristais. Pokémon de pedra e aço habitam as profundezas.",
-    "types": ["Rock", "Steel", "Ground"],
-    "level_range": [5, 12],
-    "dungeon_types": ["Rock", "Steel", "Dark", "Ghost"],
-    "region": "Sul de Galar"
+  "mt_moon": {
+    "name": "Mt. Moon",
+    "description": "Montanha cheia de cavernas e cristais de Clefairy.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Rock", "Ground", "Fairy"], "dungeon_types": ["Rock", "Ground", "Ghost", "Dark"],
+    "level_range": [7, 14],
+    "pokemon": ["Zubat", "Geodude", "Clefairy", "Paras", "Golbat", "Sandshrew", "Ralts", "Nosepass"]
   },
   "route_4": {
-    "name": "Rota 4 - Turffield Approach",
-    "description": "Campos de trigo dourados. Pokémon de grama e elétricos entre as plantações.",
-    "types": ["Grass", "Electric", "Bug"],
-    "level_range": [6, 13],
-    "dungeon_types": ["Grass", "Poison", "Bug"],
-    "region": "Sul de Galar"
+    "name": "Rota 4 — Mt. Moon→Cerulean",
+    "description": "Saída leste da montanha. Terreno seco com Ekans e Spearow.",
+    "region": "Centro de Kanto", "region_id": "kanto",
+    "types": ["Normal", "Poison", "Flying"], "dungeon_types": ["Poison", "Ground", "Dark"],
+    "level_range": [10, 17],
+    "pokemon": ["Spearow", "Ekans", "Sandshrew", "Mankey", "Snubbull", "Taillow"]
+  },
+  "route_24": {
+    "name": "Rota 24 — Nugget Bridge",
+    "description": "Ponte famosa ao norte de Cerulean.",
+    "region": "Norte de Kanto", "region_id": "kanto",
+    "types": ["Grass", "Bug", "Psychic"], "dungeon_types": ["Poison", "Bug", "Psychic"],
+    "level_range": [12, 17],
+    "pokemon": ["Caterpie", "Weedle", "Pidgey", "Oddish", "Bellsprout", "Abra", "Hoppip", "Sunkern"]
+  },
+  "route_25": {
+    "name": "Rota 25 — Cape Cerulean",
+    "description": "Extremidade norte com vista para o mar.",
+    "region": "Norte de Kanto", "region_id": "kanto",
+    "types": ["Grass", "Psychic", "Bug"], "dungeon_types": ["Psychic", "Poison", "Ghost"],
+    "level_range": [13, 18],
+    "pokemon": ["Pidgey", "Oddish", "Bellsprout", "Abra", "Hoppip", "Yanma", "Ralts"]
   },
   "route_5": {
-    "name": "Rota 5 - Hulbury Road",
-    "description": "Estrada costeira com brisa marinha. Pokémon aquáticos e voadores.",
-    "types": ["Water", "Flying", "Normal"],
-    "level_range": [8, 16],
-    "dungeon_types": ["Water", "Ice", "Dragon"],
-    "region": "Sul de Galar"
-  },
-  "galar_mine_2": {
-    "name": "Mina de Galar 2",
-    "description": "Mina mais profunda com trilhos antigos. Pokémon de aço e lutadores.",
-    "types": ["Steel", "Fighting", "Rock"],
-    "level_range": [10, 18],
-    "dungeon_types": ["Steel", "Fighting", "Dark"],
-    "region": "Centro de Galar"
-  },
-  "wild_area_south": {
-    "name": "Wild Area - Sul",
-    "description": "Área selvagem vasta com clima variável. Todos os tipos podem aparecer dependendo do clima.",
-    "types": ["Normal", "Fire", "Water", "Grass", "Electric", "Flying", "Ground"],
-    "level_range": [5, 25],
-    "dungeon_types": ["Dragon", "Psychic", "Ghost", "Dark", "Steel", "Fairy"],
-    "region": "Centro de Galar"
-  },
-  "wild_area_north": {
-    "name": "Wild Area - Norte",
-    "description": "Parte norte da Wild Area. Pokémon mais fortes e raros habitam aqui.",
-    "types": ["Fire", "Ice", "Dragon", "Psychic", "Fighting", "Steel"],
-    "level_range": [15, 40],
-    "dungeon_types": ["Dragon", "Ghost", "Dark", "Fairy", "Steel"],
-    "region": "Centro de Galar"
+    "name": "Rota 5 — Cerulean→Vermilion",
+    "description": "Caminho sul de Cerulean. Meowth e Grass Pokémon.",
+    "region": "Centro de Kanto", "region_id": "kanto",
+    "types": ["Normal", "Grass", "Psychic"], "dungeon_types": ["Poison", "Grass", "Dark"],
+    "level_range": [13, 18],
+    "pokemon": ["Pidgey", "Meowth", "Mankey", "Oddish", "Bellsprout", "Hoppip", "Aipom"]
   },
   "route_6": {
-    "name": "Rota 6 - Stow-on-Side Path",
-    "description": "Desfiladeiro rochoso com ruínas antigas. Pokémon de pedra e psíquicos.",
-    "types": ["Rock", "Psychic", "Ground"],
-    "level_range": [12, 22],
-    "dungeon_types": ["Ghost", "Psychic", "Dark"],
-    "region": "Centro de Galar"
+    "name": "Rota 6 — Vermilion North",
+    "description": "Estrada sul com terrenos variados. Psyduck aparece perto do lago.",
+    "region": "Centro de Kanto", "region_id": "kanto",
+    "types": ["Normal", "Water", "Grass"], "dungeon_types": ["Water", "Poison", "Dark"],
+    "level_range": [13, 20],
+    "pokemon": ["Pidgey", "Meowth", "Psyduck", "Oddish", "Bellsprout", "Marill", "Wooper"]
   },
-  "route_7": {
-    "name": "Rota 7 - Hammerlocke Hills",
-    "description": "Colinas ventosas próximas a Hammerlocke. Pokémon de aço e dragão.",
-    "types": ["Steel", "Dragon", "Flying"],
-    "level_range": [15, 28],
-    "dungeon_types": ["Dragon", "Steel", "Fire"],
-    "region": "Centro de Galar"
-  },
-  "route_8": {
-    "name": "Rota 8 - Circhester Approach",
-    "description": "Terreno montanhoso com neve. Pokémon de gelo e pedra.",
-    "types": ["Ice", "Rock", "Ground"],
-    "level_range": [18, 32],
-    "dungeon_types": ["Ice", "Dragon", "Steel"],
-    "region": "Norte de Galar"
+  "route_11": {
+    "name": "Rota 11 — Vermilion East",
+    "description": "Planícies a leste de Vermilion. Spearow e Ekans são comuns.",
+    "region": "Leste de Kanto", "region_id": "kanto",
+    "types": ["Normal", "Poison", "Flying"], "dungeon_types": ["Poison", "Ground", "Dark"],
+    "level_range": [13, 18],
+    "pokemon": ["Spearow", "Ekans", "Drowzee", "Sandshrew", "Yanma", "Girafarig"]
   },
   "route_9": {
-    "name": "Rota 9 - Spikemuth Outskirts",
-    "description": "Área urbana decadente. Pokémon noturnos e venenosos.",
-    "types": ["Dark", "Poison", "Electric"],
-    "level_range": [20, 35],
-    "dungeon_types": ["Dark", "Ghost", "Poison"],
-    "region": "Norte de Galar"
+    "name": "Rota 9 — Rock Tunnel Approach",
+    "description": "Terreno rochoso que leva ao Rock Tunnel.",
+    "region": "Leste de Kanto", "region_id": "kanto",
+    "types": ["Rock", "Ground", "Normal"], "dungeon_types": ["Rock", "Ground", "Fighting"],
+    "level_range": [13, 19],
+    "pokemon": ["Rattata", "Spearow", "Ekans", "Sandshrew", "Nidoran-m", "Nidoran-f", "Aron"]
   },
   "route_10": {
-    "name": "Rota 10 - Wyndon Approach",
-    "description": "Caminho nevado final antes de Wyndon. Pokémon de gelo e aço.",
-    "types": ["Ice", "Steel", "Normal"],
-    "level_range": [25, 40],
-    "dungeon_types": ["Ice", "Dragon", "Psychic", "Steel"],
-    "region": "Norte de Galar"
+    "name": "Rota 10 — Usina de Energia",
+    "description": "Área perto da Power Plant. Pokémon elétricos e voadores.",
+    "region": "Leste de Kanto", "region_id": "kanto",
+    "types": ["Electric", "Flying", "Ground"], "dungeon_types": ["Electric", "Steel", "Dark"],
+    "level_range": [15, 23],
+    "pokemon": ["Spearow", "Voltorb", "Magnemite", "Ekans", "Sandshrew", "Elekid", "Plusle", "Minun"]
   },
-  "dusty_bowl": {
-    "name": "Dusty Bowl",
-    "description": "Área desértica na Wild Area. Tempestades de areia frequentes.",
-    "types": ["Ground", "Rock", "Steel"],
-    "level_range": [15, 35],
-    "dungeon_types": ["Ground", "Dragon", "Steel"],
-    "region": "Wild Area"
+  "rock_tunnel": {
+    "name": "Rock Tunnel",
+    "description": "Caverna sem luz natural. Zubat e Onix habitam as profundezas.",
+    "region": "Leste de Kanto", "region_id": "kanto",
+    "types": ["Rock", "Ground", "Fighting"], "dungeon_types": ["Rock", "Ground", "Dark", "Ghost"],
+    "level_range": [15, 22],
+    "pokemon": ["Zubat", "Geodude", "Onix", "Machop", "Golbat", "Graveler", "Aron", "Sableye"]
   },
-  "lake_of_outrage": {
-    "name": "Lake of Outrage",
-    "description": "Lago misterioso com pedras de evolução. Pokémon raros e poderosos.",
-    "types": ["Dragon", "Fairy", "Psychic", "Ghost"],
-    "level_range": [30, 50],
-    "dungeon_types": ["Dragon", "Ghost", "Dark", "Fairy"],
-    "region": "Wild Area"
+  "power_plant": {
+    "name": "Usina de Energia",
+    "description": "Usina abandonada infestada de Pokémon elétricos.",
+    "region": "Leste de Kanto", "region_id": "kanto",
+    "types": ["Electric", "Steel"], "dungeon_types": ["Electric", "Steel", "Ghost"],
+    "level_range": [24, 48],
+    "pokemon": ["Voltorb", "Magneton", "Electrode", "Electabuzz", "Magnemite", "Pikachu", "Elekid", "Manectric", "Plusle", "Minun"]
   },
-  "slumbering_weald": {
-    "name": "Slumbering Weald",
-    "description": "Floresta mística envolta em névoa. Pokémon fantasmas e fadas.",
-    "types": ["Fairy", "Ghost", "Grass"],
+  "route_7": {
+    "name": "Rota 7 — Celadon East",
+    "description": "Caminho leste de Celadon. Vulpix e Growlithe dependendo da versão.",
+    "region": "Centro de Kanto", "region_id": "kanto",
+    "types": ["Fire", "Normal", "Grass"], "dungeon_types": ["Fire", "Dark", "Poison"],
+    "level_range": [18, 23],
+    "pokemon": ["Pidgey", "Meowth", "Vulpix", "Growlithe", "Oddish", "Bellsprout", "Snubbull", "Numel"]
+  },
+  "route_8": {
+    "name": "Rota 8 — Lavender West",
+    "description": "Estrada entre Celadon e Lavender. Pokémon psíquicos sob a névoa.",
+    "region": "Leste de Kanto", "region_id": "kanto",
+    "types": ["Normal", "Psychic", "Poison"], "dungeon_types": ["Psychic", "Ghost", "Poison"],
+    "level_range": [18, 23],
+    "pokemon": ["Pidgey", "Meowth", "Growlithe", "Vulpix", "Drowzee", "Oddish", "Bellsprout", "Misdreavus"]
+  },
+  "pokemon_tower": {
+    "name": "Torre Pokémon (Lavender)",
+    "description": "Torre assombrada com Gastly e Haunter. Cubone chora pelos corredores.",
+    "region": "Leste de Kanto", "region_id": "kanto",
+    "types": ["Ghost", "Psychic", "Normal"], "dungeon_types": ["Ghost", "Dark", "Psychic"],
+    "level_range": [14, 30],
+    "pokemon": ["Gastly", "Haunter", "Cubone", "Misdreavus", "Duskull", "Shuppet", "Sableye"]
+  },
+  "route_12": {
+    "name": "Rota 12 — Lavender South",
+    "description": "Rota litorânea ao sul de Lavender.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Grass", "Bug", "Flying"], "dungeon_types": ["Poison", "Bug", "Dark"],
+    "level_range": [15, 23],
+    "pokemon": ["Pidgey", "Venonat", "Oddish", "Bellsprout", "Weepinbell", "Gloom", "Hoppip", "Yanma"]
+  },
+  "route_13": {
+    "name": "Rota 13 — Fuchsia Approach",
+    "description": "Área com arbustos densos e ventos costeiros.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Poison", "Flying", "Bug"], "dungeon_types": ["Poison", "Bug", "Dark"],
+    "level_range": [18, 26],
+    "pokemon": ["Pidgey", "Venonat", "Weepinbell", "Gloom", "Scyther", "Pinsir", "Swellow", "Beautifly"]
+  },
+  "route_14": {
+    "name": "Rota 14 — Fuchsia South",
+    "description": "Área aberta com gramados. Fearow domina os céus.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Flying", "Poison", "Normal"], "dungeon_types": ["Poison", "Dark", "Ghost"],
+    "level_range": [19, 28],
+    "pokemon": ["Pidgey", "Fearow", "Venonat", "Weepinbell", "Gloom", "Murkrow", "Taillow", "Swellow"]
+  },
+  "route_15": {
+    "name": "Rota 15 — Fuchsia→Celadon",
+    "description": "Último trecho antes de Celadon.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Grass", "Poison", "Bug"], "dungeon_types": ["Poison", "Dark", "Bug"],
+    "level_range": [18, 27],
+    "pokemon": ["Pidgey", "Nidoran-m", "Nidoran-f", "Venonat", "Oddish", "Bellsprout", "Roselia", "Surskit"]
+  },
+  "safari_zone": {
+    "name": "Safari Zone (Fuchsia)",
+    "description": "Reserva natural enorme. Pokémon raros que não aparecem em mais lugar nenhum.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Normal", "Water", "Grass", "Ground"], "dungeon_types": ["Dragon", "Ground", "Water", "Psychic"],
+    "level_range": [22, 40],
+    "pokemon": ["Nidoran-m", "Nidoran-f", "Nidorino", "Nidorina", "Exeggcute", "Rhyhorn", "Kangaskhan", "Tauros", "Chansey", "Parasect", "Scyther", "Pinsir", "Dratini", "Aipom", "Wooper", "Quagsire", "Girafarig", "Tropius", "Seviper", "Zangoose"]
+  },
+  "seafoam_islands": {
+    "name": "Ilhas Seafoam",
+    "description": "Cavernas geladas nas ilhas ao sul. Seel nada nas águas frias.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Ice", "Water"], "dungeon_types": ["Ice", "Water", "Ghost"],
+    "level_range": [30, 48],
+    "pokemon": ["Seel", "Dewgong", "Slowpoke", "Slowbro", "Shellder", "Cloyster", "Jynx", "Zubat", "Golbat", "Swinub", "Spheal", "Snorunt"]
+  },
+  "route_16": {
+    "name": "Rota 16 — Cycling Road Entry",
+    "description": "Entrada da Cycling Road. Rattata e Doduo correm pela área.",
+    "region": "Oeste de Kanto", "region_id": "kanto",
+    "types": ["Normal", "Flying", "Ground"], "dungeon_types": ["Normal", "Dark", "Flying"],
+    "level_range": [18, 24],
+    "pokemon": ["Rattata", "Raticate", "Pidgey", "Doduo", "Spearow", "Fearow", "Sentret", "Taillow"]
+  },
+  "route_17": {
+    "name": "Rota 17 — Cycling Road",
+    "description": "Estrada íngreme para ciclistas. Doduo e Fearow voam pelos cruzamentos.",
+    "region": "Oeste de Kanto", "region_id": "kanto",
+    "types": ["Normal", "Flying", "Fire"], "dungeon_types": ["Flying", "Dark", "Steel"],
+    "level_range": [20, 32],
+    "pokemon": ["Rattata", "Raticate", "Doduo", "Fearow", "Ponyta", "Murkrow", "Skarmory"]
+  },
+  "route_18": {
+    "name": "Rota 18 — Cycling Road Exit",
+    "description": "Saída sul da Cycling Road.",
+    "region": "Oeste de Kanto", "region_id": "kanto",
+    "types": ["Flying", "Normal", "Ground"], "dungeon_types": ["Dark", "Flying", "Ghost"],
+    "level_range": [18, 30],
+    "pokemon": ["Rattata", "Raticate", "Doduo", "Fearow", "Spearow", "Taillow", "Wingull"]
+  },
+  "route_21": {
+    "name": "Rota 21 — Pallet Sul",
+    "description": "Rota marítima ao sul. Tangela na grama e Pokémon aquáticos no mar.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Water", "Grass", "Flying"], "dungeon_types": ["Water", "Poison", "Ice"],
+    "level_range": [20, 30],
+    "pokemon": ["Tangela", "Oddish", "Bellsprout", "Pidgey", "Pidgeot", "Tentacool", "Lotad", "Lileep"]
+  },
+  "route_22": {
+    "name": "Rota 22 — Viridian West",
+    "description": "Área ao oeste de Viridian. Rivais te desafiam aqui antes do Victory Road.",
+    "region": "Oeste de Kanto", "region_id": "kanto",
+    "types": ["Normal", "Poison", "Flying"], "dungeon_types": ["Poison", "Ground", "Dark"],
     "level_range": [3, 45],
-    "dungeon_types": ["Fairy", "Ghost", "Psychic", "Dark"],
-    "region": "Sul de Galar"
+    "pokemon": ["Nidoran-m", "Nidoran-f", "Spearow", "Mankey", "Ekans", "Sandshrew", "Zigzagoon", "Poochyena"]
   },
-  "glimwood_tangle": {
-    "name": "Glimwood Tangle",
-    "description": "Floresta bioluminescente e misteriosa. Pokémon de fada e psíquicos.",
-    "types": ["Fairy", "Psychic", "Grass", "Bug"],
+  "digletts_cave": {
+    "name": "Caverna de Diglett",
+    "description": "Túnel subterrâneo conectando Vermilion e sul de Pewter.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Ground"], "dungeon_types": ["Ground", "Rock", "Dark"],
+    "level_range": [15, 31],
+    "pokemon": ["Diglett", "Dugtrio", "Trapinch", "Sandshrew"]
+  },
+  "route_23": {
+    "name": "Rota 23 — Caminho para a Liga",
+    "description": "Área final antes de Victory Road. Treinadores fortes; Ditto raramente.",
+    "region": "Norte de Kanto", "region_id": "kanto",
+    "types": ["Normal", "Fighting", "Psychic"], "dungeon_types": ["Psychic", "Dark", "Ghost"],
+    "level_range": [23, 40],
+    "pokemon": ["Ekans", "Sandshrew", "Spearow", "Fearow", "Primeape", "Ditto", "Girafarig", "Medicham"]
+  },
+  "victory_road": {
+    "name": "Victory Road",
+    "description": "Caverna da lenda. Machoke e Graveler guardam os corredores.",
+    "region": "Norte de Kanto", "region_id": "kanto",
+    "types": ["Rock", "Ground", "Fighting"], "dungeon_types": ["Rock", "Ground", "Fighting", "Ghost"],
+    "level_range": [33, 50],
+    "pokemon": ["Zubat", "Geodude", "Onix", "Machop", "Golbat", "Graveler", "Machoke", "Aron", "Lairon", "Hariyama", "Medicham"]
+  },
+  "cerulean_cave": {
+    "name": "Cerulean Cave (Desconhecida)",
+    "description": "Caverna proibida ao norte de Cerulean. Pokémon brutais; Mewtwo habita o fundo.",
+    "region": "Norte de Kanto", "region_id": "kanto",
+    "types": ["Psychic", "Ground", "Water"], "dungeon_types": ["Psychic", "Dark", "Ghost", "Dragon"],
+    "level_range": [50, 80],
+    "pokemon": ["Lickitung", "Parasect", "Golduck", "Rhydon", "Ditto", "Electrode", "Wobbuffet", "Dunsparce", "Kadabra", "Hypno", "Chansey", "Marowak"]
+  },
+  "route_26": {
+    "name": "Rota 26 — Pós-Liga Leste",
+    "description": "Território avançado ao leste da Liga. Pokémon evoluídos.",
+    "region": "Leste de Kanto", "region_id": "kanto",
+    "types": ["Normal", "Flying", "Water"], "dungeon_types": ["Psychic", "Ghost", "Dragon"],
+    "level_range": [40, 60],
+    "pokemon": ["Fearow", "Raticate", "Arcanine", "Electrode", "Golduck", "Ditto", "Donphan", "Flygon"]
+  },
+  "route_27": {
+    "name": "Rota 27 — Tohjo Falls",
+    "description": "Entrada para Johto. Pokémon de Kanto avançados.",
+    "region": "Leste de Kanto", "region_id": "kanto",
+    "types": ["Water", "Normal", "Rock"], "dungeon_types": ["Water", "Ice", "Dragon"],
+    "level_range": [40, 55],
+    "pokemon": ["Fearow", "Raticate", "Tentacruel", "Golduck", "Nidoking", "Nidoqueen", "Donphan", "Azumarill"]
+  },
+  "route_28": {
+    "name": "Rota 28 — Mt. Silver Approach",
+    "description": "Caminho íngreme para Mt. Silver. Pokémon fortes de todos os tipos.",
+    "region": "Norte de Kanto", "region_id": "kanto",
+    "types": ["Rock", "Ice", "Normal"], "dungeon_types": ["Dragon", "Ice", "Ghost"],
+    "level_range": [45, 65],
+    "pokemon": ["Arcanine", "Golduck", "Primeape", "Ursaring", "Larvitar", "Donphan", "Steelix"]
+  },
+  "mt_silver": {
+    "name": "Mt. Silver",
+    "description": "A montanha mais alta de Kanto. Apenas campeões chegam aqui.",
+    "region": "Norte de Kanto", "region_id": "kanto",
+    "types": ["Ice", "Rock", "Dragon"], "dungeon_types": ["Dragon", "Ghost", "Ice", "Dark"],
+    "level_range": [45, 80],
+    "pokemon": ["Donphan", "Ursaring", "Steelix", "Larvitar", "Pupitar", "Magmar", "Golbat", "Marowak", "Misdreavus", "Sneasel", "Piloswine", "Bagon"]
+  },
+
+  "route_29_j": {
+    "name": "Rota 29 — New Bark→Cherrygrove",
+    "description": "Primeiros passos na aventura de Johto. Sentret e Hoothoot dominam a grama.",
+    "region": "Sul de Johto", "region_id": "johto",
+    "types": ["Normal", "Flying"], "dungeon_types": ["Normal", "Dark"],
+    "level_range": [1, 5],
+    "pokemon": ["Sentret", "Hoothoot", "Pidgey", "Rattata", "Zigzagoon"]
+  },
+  "route_30_j": {
+    "name": "Rota 30 — Cherrygrove North",
+    "description": "Caminho arborizado com bagas. Spinarak e Ledyba aparecem de noite.",
+    "region": "Sul de Johto", "region_id": "johto",
+    "types": ["Bug", "Normal", "Flying"], "dungeon_types": ["Bug", "Poison"],
+    "level_range": [2, 7],
+    "pokemon": ["Caterpie", "Weedle", "Pidgey", "Hoothoot", "Spinarak", "Ledyba", "Wurmple"]
+  },
+  "route_31_j": {
+    "name": "Rota 31 — Dark Cave Entrance",
+    "description": "Terreno montanhoso com entrada para a Dark Cave. Gastly aparece à noite.",
+    "region": "Sul de Johto", "region_id": "johto",
+    "types": ["Bug", "Ghost", "Poison"], "dungeon_types": ["Ghost", "Poison", "Dark"],
+    "level_range": [3, 8],
+    "pokemon": ["Bellsprout", "Spinarak", "Zubat", "Gastly", "Caterpie", "Weedle"]
+  },
+  "dark_cave_j": {
+    "name": "Dark Cave",
+    "description": "Caverna completamente escura. Dunsparce se esconde nos cantos.",
+    "region": "Sul de Johto", "region_id": "johto",
+    "types": ["Rock", "Ground", "Normal"], "dungeon_types": ["Rock", "Ground", "Dark", "Ghost"],
+    "level_range": [4, 25],
+    "pokemon": ["Zubat", "Geodude", "Wobbuffet", "Dunsparce", "Golbat", "Graveler"]
+  },
+  "route_32_j": {
+    "name": "Rota 32 — Ruins of Alph South",
+    "description": "Rota úmida ao sul de Violet City. Mareep pasta nos campos.",
+    "region": "Centro de Johto", "region_id": "johto",
+    "types": ["Electric", "Water", "Grass"], "dungeon_types": ["Electric", "Water", "Poison"],
+    "level_range": [5, 12],
+    "pokemon": ["Mareep", "Bellsprout", "Wooper", "Ekans", "Hoppip", "Marill"]
+  },
+  "ruins_of_alph_j": {
+    "name": "Ruínas de Alph",
+    "description": "Ruínas antigas com inscrições misteriosas. Natu e Smeargle habitam os arredores.",
+    "region": "Centro de Johto", "region_id": "johto",
+    "types": ["Psychic", "Normal", "Rock"], "dungeon_types": ["Psychic", "Ghost", "Rock"],
+    "level_range": [5, 15],
+    "pokemon": ["Natu", "Smeargle", "Wobbuffet", "Geodude", "Sandshrew"]
+  },
+  "route_33_j": {
+    "name": "Rota 33 — Azalea Approach",
+    "description": "Caminho que leva à Azalea Town. Pokémon comuns mas resilientes.",
+    "region": "Sul de Johto", "region_id": "johto",
+    "types": ["Normal", "Poison", "Flying"], "dungeon_types": ["Poison", "Ground", "Dark"],
+    "level_range": [6, 10],
+    "pokemon": ["Ekans", "Rattata", "Spearow", "Zubat", "Hoppip"]
+  },
+  "slowpoke_well_j": {
+    "name": "Poço Slowpoke",
+    "description": "Poço profundo habitado por Slowpoke. Rockets usaram o local para crimes.",
+    "region": "Sul de Johto", "region_id": "johto",
+    "types": ["Water", "Psychic"], "dungeon_types": ["Water", "Dark", "Ghost"],
+    "level_range": [8, 18],
+    "pokemon": ["Slowpoke", "Zubat", "Slowbro", "Golbat"]
+  },
+  "ilex_forest_j": {
+    "name": "Floresta Ilex",
+    "description": "Floresta sagrada conectando Azalea a Goldenrod. Hoothoot nidifica aqui.",
+    "region": "Centro de Johto", "region_id": "johto",
+    "types": ["Grass", "Bug", "Normal"], "dungeon_types": ["Bug", "Ghost", "Dark"],
+    "level_range": [7, 15],
+    "pokemon": ["Caterpie", "Metapod", "Oddish", "Psyduck", "Hoothoot", "Paras", "Pikachu"]
+  },
+  "route_34_j": {
+    "name": "Rota 34 — Goldenrod South",
+    "description": "Ao sul da grande Goldenrod City. Drowzee é frequente ao anoitecer.",
+    "region": "Centro de Johto", "region_id": "johto",
+    "types": ["Normal", "Psychic"], "dungeon_types": ["Psychic", "Dark", "Ghost"],
+    "level_range": [10, 16],
+    "pokemon": ["Drowzee", "Rattata", "Abra", "Ditto", "Jigglypuff"]
+  },
+  "route_35_j": {
+    "name": "Rota 35 — Goldenrod North",
+    "description": "Área ao norte de Goldenrod. Yanma aparece em dias ensolarados.",
+    "region": "Centro de Johto", "region_id": "johto",
+    "types": ["Normal", "Bug", "Flying"], "dungeon_types": ["Poison", "Bug", "Dark"],
+    "level_range": [11, 17],
+    "pokemon": ["Nidoran-m", "Nidoran-f", "Yanma", "Pidgey", "Hoppip", "Drowzee"]
+  },
+  "national_park_j": {
+    "name": "Parque Nacional",
+    "description": "Parque famoso pelo Bug-Catching Contest. Scyther e Pinsir são os mais cobiçados.",
+    "region": "Centro de Johto", "region_id": "johto",
+    "types": ["Bug", "Grass", "Flying"], "dungeon_types": ["Bug", "Poison", "Grass"],
+    "level_range": [10, 20],
+    "pokemon": ["Caterpie", "Metapod", "Weedle", "Kakuna", "Scyther", "Pinsir", "Venonat", "Butterfree", "Beedrill"]
+  },
+  "route_36_j": {
+    "name": "Rota 36 — Ecruteak Approach",
+    "description": "Área ao norte do parque. Stantler é avistado entre as árvores.",
+    "region": "Norte de Johto", "region_id": "johto",
+    "types": ["Normal", "Fire", "Fairy"], "dungeon_types": ["Dark", "Fire", "Ghost"],
+    "level_range": [13, 20],
+    "pokemon": ["Vulpix", "Stantler", "Nidoran-m", "Nidoran-f", "Growlithe", "Flaaffy"]
+  },
+  "route_37_j": {
+    "name": "Rota 37 — Ecruteak South",
+    "description": "Floresta ao sul de Ecruteak. Teddiursa dorme nas raízes das árvores.",
+    "region": "Norte de Johto", "region_id": "johto",
+    "types": ["Normal", "Fire", "Fairy"], "dungeon_types": ["Dark", "Ghost", "Fire"],
+    "level_range": [14, 20],
+    "pokemon": ["Vulpix", "Stantler", "Teddiursa", "Snubbull", "Growlithe", "Girafarig"]
+  },
+  "burned_tower_j": {
+    "name": "Torre Queimada (Ecruteak)",
+    "description": "Torre incendiada onde os três Pokémon lendários foram selados.",
+    "region": "Norte de Johto", "region_id": "johto",
+    "types": ["Ghost", "Fire", "Poison"], "dungeon_types": ["Ghost", "Dark", "Fire"],
+    "level_range": [15, 22],
+    "pokemon": ["Koffing", "Rattata", "Zubat", "Magmar", "Golbat", "Weezing"]
+  },
+  "route_38_j": {
+    "name": "Rota 38 — Olivine Approach",
+    "description": "Pastagens abertas com pecuária. Miltank e Tauros vagam livres.",
+    "region": "Oeste de Johto", "region_id": "johto",
+    "types": ["Normal", "Electric", "Flying"], "dungeon_types": ["Electric", "Normal", "Dark"],
+    "level_range": [14, 22],
+    "pokemon": ["Magnemite", "Farfetch'd", "Tauros", "Miltank", "Pidgey", "Flaaffy"]
+  },
+  "route_39_j": {
+    "name": "Rota 39 — Olivine North",
+    "description": "Prados ao norte de Olivine. Miltank e Magnemite são frequentes.",
+    "region": "Oeste de Johto", "region_id": "johto",
+    "types": ["Normal", "Electric"], "dungeon_types": ["Electric", "Normal", "Steel"],
+    "level_range": [15, 22],
+    "pokemon": ["Miltank", "Tauros", "Magnemite", "Flaaffy", "Meowth"]
+  },
+  "route_40_j": {
+    "name": "Rota 40 — Cianwood Approach",
+    "description": "Rota costeira rumo à Cianwood. Marill adora os riachos.",
+    "region": "Oeste de Johto", "region_id": "johto",
+    "types": ["Water", "Normal", "Flying"], "dungeon_types": ["Water", "Ice", "Dark"],
+    "level_range": [15, 24],
+    "pokemon": ["Marill", "Tentacool", "Wingull", "Seel"]
+  },
+  "route_41_j": {
+    "name": "Rota 41 — Alto-Mar Johto",
+    "description": "Rota oceânica com ondas fortes. Mantine nada próximo da costa.",
+    "region": "Oeste de Johto", "region_id": "johto",
+    "types": ["Water", "Flying"], "dungeon_types": ["Water", "Ice", "Dark"],
+    "level_range": [18, 30],
+    "pokemon": ["Tentacruel", "Mantine", "Chinchou", "Tentacool", "Wailmer"]
+  },
+  "whirl_islands_j": {
+    "name": "Ilhas Espirais",
+    "description": "Arquipélago misterioso com cavernas alagadas. Diz-se que Lugia habita o fundo.",
+    "region": "Oeste de Johto", "region_id": "johto",
+    "types": ["Water", "Ice", "Flying"], "dungeon_types": ["Ice", "Water", "Ghost"],
+    "level_range": [20, 35],
+    "pokemon": ["Seel", "Dewgong", "Zubat", "Golbat", "Horsea", "Seadra", "Swinub"]
+  },
+  "route_42_j": {
+    "name": "Rota 42 — Mt. Mortar West",
+    "description": "Caminho entre Ecruteak e Mahogany. Flaaffy pasta perto do rio.",
+    "region": "Leste de Johto", "region_id": "johto",
+    "types": ["Electric", "Water", "Fighting"], "dungeon_types": ["Electric", "Water", "Rock"],
+    "level_range": [15, 24],
+    "pokemon": ["Marill", "Goldeen", "Flaaffy", "Ampharos", "Heracross"]
+  },
+  "mt_mortar_j": {
+    "name": "Monte Mortar",
+    "description": "Caverna montanhosa com três entradas. Tyrogue vive aqui com Hitmonchan.",
+    "region": "Leste de Johto", "region_id": "johto",
+    "types": ["Rock", "Ground", "Fighting"], "dungeon_types": ["Rock", "Ground", "Fighting"],
+    "level_range": [18, 30],
+    "pokemon": ["Geodude", "Rattata", "Machop", "Marill", "Golbat", "Graveler"]
+  },
+  "route_43_j": {
+    "name": "Rota 43 — Lake of Rage Road",
+    "description": "Estrada que leva ao legendário Lago da Raiva. Girafarig aparece aqui.",
+    "region": "Norte de Johto", "region_id": "johto",
+    "types": ["Normal", "Electric", "Flying"], "dungeon_types": ["Electric", "Dark", "Ghost"],
+    "level_range": [18, 26],
+    "pokemon": ["Girafarig", "Noctowl", "Flaaffy", "Ampharos", "Pidgey", "Yanma"]
+  },
+  "lake_of_rage_j": {
+    "name": "Lago da Raiva",
+    "description": "Lago famoso pelo Gyarados vermelho. Dratini é encontrado nas profundezas.",
+    "region": "Norte de Johto", "region_id": "johto",
+    "types": ["Water", "Dragon"], "dungeon_types": ["Water", "Dragon", "Dark"],
+    "level_range": [20, 35],
+    "pokemon": ["Gyarados", "Magikarp", "Dratini", "Dragonair", "Goldeen"]
+  },
+  "route_44_j": {
+    "name": "Rota 44 — Blackthorn Approach",
+    "description": "Área densa a leste de Mahogany. Lickitung e Tangela aparecem raramente.",
+    "region": "Norte de Johto", "region_id": "johto",
+    "types": ["Grass", "Normal", "Water"], "dungeon_types": ["Poison", "Water", "Dark"],
+    "level_range": [20, 30],
+    "pokemon": ["Weepinbell", "Lickitung", "Tangela", "Poliwag", "Noctowl", "Bellsprout"]
+  },
+  "ice_path_j": {
+    "name": "Caminho de Gelo",
+    "description": "Caverna gelada que conecta Mahogany e Blackthorn. Delibird congela intrusos.",
+    "region": "Norte de Johto", "region_id": "johto",
+    "types": ["Ice", "Ground", "Water"], "dungeon_types": ["Ice", "Ghost", "Dark"],
+    "level_range": [22, 35],
+    "pokemon": ["Jynx", "Swinub", "Piloswine", "Delibird", "Zubat", "Sneasel", "Snorunt"]
+  },
+  "dragons_den_j": {
+    "name": "Covil do Dragão",
+    "description": "Caverna aquática sob Blackthorn City. Dratini nada nas águas profundas.",
+    "region": "Norte de Johto", "region_id": "johto",
+    "types": ["Dragon", "Water"], "dungeon_types": ["Dragon", "Water", "Ghost"],
+    "level_range": [28, 45],
+    "pokemon": ["Dratini", "Dragonair", "Magikarp", "Horsea", "Seadra"]
+  },
+  "route_45_j": {
+    "name": "Rota 45 — Blackthorn South",
+    "description": "Descida íngreme ao sul de Blackthorn. Gligar e Skarmory planam nas correntes.",
+    "region": "Leste de Johto", "region_id": "johto",
+    "types": ["Rock", "Flying", "Ground"], "dungeon_types": ["Rock", "Steel", "Dark"],
+    "level_range": [22, 35],
+    "pokemon": ["Geodude", "Gligar", "Skarmory", "Donphan", "Graveler", "Phanpy"]
+  },
+  "route_46_j": {
+    "name": "Rota 46 — Dark Cave Exit",
+    "description": "Saída sul da Dark Cave. Phanpy e Geodude habitam os morros.",
+    "region": "Sul de Johto", "region_id": "johto",
+    "types": ["Ground", "Rock", "Normal"], "dungeon_types": ["Ground", "Rock", "Dark"],
+    "level_range": [3, 20],
+    "pokemon": ["Phanpy", "Geodude", "Rattata", "Spearow"]
+  },
+  "mt_silver_j": {
+    "name": "Mt. Silver (Johto)",
+    "description": "Encosta johto de Mt. Silver. Larvitar habita as profundezas da montanha.",
+    "region": "Norte de Johto", "region_id": "johto",
+    "types": ["Rock", "Ice", "Dragon"], "dungeon_types": ["Dragon", "Ghost", "Ice", "Dark"],
+    "level_range": [40, 70],
+    "pokemon": ["Larvitar", "Pupitar", "Ursaring", "Misdreavus", "Golbat", "Donphan", "Piloswine", "Steelix"]
+  },
+
+  "route_101_h": {
+    "name": "Rota 101 — Littleroot→Oldale",
+    "description": "Primeiros passos em Hoenn. Poochyena corre pelos gramados.",
+    "region": "Sul de Hoenn", "region_id": "hoenn",
+    "types": ["Normal", "Dark"], "dungeon_types": ["Normal", "Dark"],
+    "level_range": [2, 5],
+    "pokemon": ["Poochyena", "Zigzagoon", "Wurmple"]
+  },
+  "route_102_h": {
+    "name": "Rota 102 — Oldale West",
+    "description": "Rota úmida a oeste de Oldale. Ralts aparece raramente.",
+    "region": "Sul de Hoenn", "region_id": "hoenn",
+    "types": ["Grass", "Water", "Psychic"], "dungeon_types": ["Grass", "Water", "Psychic"],
+    "level_range": [3, 7],
+    "pokemon": ["Marill", "Ralts", "Seedot", "Lotad", "Surskit", "Zigzagoon"]
+  },
+  "route_103_h": {
+    "name": "Rota 103 — Oldale East",
+    "description": "Área litorânea a leste de Oldale. Wingull voa sobre as ondas.",
+    "region": "Sul de Hoenn", "region_id": "hoenn",
+    "types": ["Normal", "Flying", "Water"], "dungeon_types": ["Normal", "Dark", "Flying"],
+    "level_range": [2, 7],
+    "pokemon": ["Poochyena", "Zigzagoon", "Wingull", "Taillow"]
+  },
+  "petalburg_woods_h": {
+    "name": "Floresta Petalburg",
+    "description": "Floresta densa entre Petalburg e Rustboro. Shroomish dorme nas raízes.",
+    "region": "Sul de Hoenn", "region_id": "hoenn",
+    "types": ["Bug", "Grass", "Normal"], "dungeon_types": ["Bug", "Poison", "Dark"],
+    "level_range": [5, 10],
+    "pokemon": ["Wurmple", "Silcoon", "Cascoon", "Shroomish", "Slakoth", "Beautifly", "Dustox"]
+  },
+  "route_104_h": {
+    "name": "Rota 104 — Petalburg North",
+    "description": "Caminho ao norte de Petalburg com vista para o mar.",
+    "region": "Sul de Hoenn", "region_id": "hoenn",
+    "types": ["Normal", "Water", "Flying"], "dungeon_types": ["Water", "Normal", "Dark"],
+    "level_range": [5, 10],
+    "pokemon": ["Wingull", "Zigzagoon", "Marill", "Taillow", "Wurmple"]
+  },
+  "route_116_h": {
+    "name": "Rota 116 — Rusturf Tunnel East",
+    "description": "A leste de Rustboro. Whismur se esconde nas fendas rochosas.",
+    "region": "Centro de Hoenn", "region_id": "hoenn",
+    "types": ["Normal", "Rock", "Ground"], "dungeon_types": ["Rock", "Ground", "Dark"],
+    "level_range": [7, 13],
+    "pokemon": ["Nincada", "Skitty", "Whismur", "Taillow", "Zigzagoon", "Abra"]
+  },
+  "rusturf_tunnel_h": {
+    "name": "Túnel Rusturf",
+    "description": "Caverna curta entre Rustboro e Verdanturf. Whismur ecoa pelos corredores.",
+    "region": "Centro de Hoenn", "region_id": "hoenn",
+    "types": ["Rock", "Normal", "Steel"], "dungeon_types": ["Rock", "Ground", "Steel"],
+    "level_range": [8, 15],
+    "pokemon": ["Whismur", "Geodude", "Aron"]
+  },
+  "route_117_h": {
+    "name": "Rota 117 — Mauville West",
+    "description": "Prados floridos a oeste de Mauville. Illumise e Volbeat dançam ao anoitecer.",
+    "region": "Centro de Hoenn", "region_id": "hoenn",
+    "types": ["Grass", "Bug", "Electric"], "dungeon_types": ["Grass", "Electric", "Bug"],
+    "level_range": [10, 16],
+    "pokemon": ["Marill", "Roselia", "Volbeat", "Illumise", "Plusle", "Minun", "Oddish"]
+  },
+  "route_111_desert_h": {
+    "name": "Rota 111 — Deserto Mauville",
+    "description": "Deserto árido com tempestades de areia constantes. Trapinch escava buracos.",
+    "region": "Centro de Hoenn", "region_id": "hoenn",
+    "types": ["Ground", "Rock", "Steel"], "dungeon_types": ["Ground", "Rock", "Steel"],
     "level_range": [15, 30],
-    "dungeon_types": ["Fairy", "Ghost", "Psychic", "Dark"],
-    "region": "Centro de Galar"
+    "pokemon": ["Sandshrew", "Trapinch", "Cacnea", "Baltoy", "Sandslash"]
+  },
+  "route_112_h": {
+    "name": "Rota 112 — Mt. Chimney Road",
+    "description": "Caminho que sobe ao vulcão. Numel caminha em bandos.",
+    "region": "Centro de Hoenn", "region_id": "hoenn",
+    "types": ["Fire", "Ground", "Rock"], "dungeon_types": ["Fire", "Ground", "Dark"],
+    "level_range": [14, 22],
+    "pokemon": ["Numel", "Machop", "Spinda", "Torkoal"]
+  },
+  "fiery_path_h": {
+    "name": "Caminho Ardente",
+    "description": "Caverna próxima ao vulcão. Koffing flutua entre as fendas de lava.",
+    "region": "Centro de Hoenn", "region_id": "hoenn",
+    "types": ["Fire", "Poison", "Ground"], "dungeon_types": ["Fire", "Poison", "Ghost"],
+    "level_range": [15, 24],
+    "pokemon": ["Koffing", "Slugma", "Machop", "Grimer", "Torkoal", "Numel"]
+  },
+  "route_114_h": {
+    "name": "Rota 114 — Fallarbor North",
+    "description": "Área norte próxima à Fallarbor. Lombre e Surskit nadam nos riachos.",
+    "region": "Norte de Hoenn", "region_id": "hoenn",
+    "types": ["Grass", "Water", "Dragon"], "dungeon_types": ["Grass", "Water", "Dragon"],
+    "level_range": [15, 22],
+    "pokemon": ["Lotad", "Lombre", "Surskit", "Nuzleaf", "Swablu", "Zangoose", "Seviper"]
+  },
+  "meteor_falls_h": {
+    "name": "Meteor Falls",
+    "description": "Caverna onde meteoros caem há séculos. Bagon sonha em voar.",
+    "region": "Norte de Hoenn", "region_id": "hoenn",
+    "types": ["Rock", "Dragon", "Water"], "dungeon_types": ["Rock", "Dragon", "Ghost"],
+    "level_range": [22, 50],
+    "pokemon": ["Zubat", "Bagon", "Solrock", "Lunatone", "Goldeen", "Golbat"]
+  },
+  "route_119_h": {
+    "name": "Rota 119 — Fortree Approach",
+    "description": "Rota chuvosa coberta de grama alta. Tropius pasta calmamente.",
+    "region": "Leste de Hoenn", "region_id": "hoenn",
+    "types": ["Grass", "Flying", "Bug"], "dungeon_types": ["Grass", "Bug", "Poison"],
+    "level_range": [24, 32],
+    "pokemon": ["Oddish", "Tropius", "Zigzagoon", "Linoone", "Kecleon", "Wingull"]
+  },
+  "route_120_h": {
+    "name": "Rota 120 — Fortree North",
+    "description": "Ao norte de Fortree. Absol aparece antes de grandes desastres.",
+    "region": "Leste de Hoenn", "region_id": "hoenn",
+    "types": ["Normal", "Dark", "Grass"], "dungeon_types": ["Dark", "Psychic", "Ghost"],
+    "level_range": [25, 35],
+    "pokemon": ["Absol", "Kecleon", "Roselia", "Oddish", "Gloom", "Marill"]
+  },
+  "mt_pyre_h": {
+    "name": "Monte Pira",
+    "description": "Montanha cemitério à beira-mar. Shuppet dança no topo sob a lua.",
+    "region": "Sul de Hoenn", "region_id": "hoenn",
+    "types": ["Ghost", "Fire", "Psychic"], "dungeon_types": ["Ghost", "Dark", "Psychic"],
+    "level_range": [25, 40],
+    "pokemon": ["Shuppet", "Duskull", "Vulpix", "Meditite", "Banette", "Misdreavus"]
+  },
+  "route_121_h": {
+    "name": "Rota 121 — Safari Zone Road",
+    "description": "Rota costeira que leva à Safari Zone.",
+    "region": "Sul de Hoenn", "region_id": "hoenn",
+    "types": ["Grass", "Water", "Flying"], "dungeon_types": ["Grass", "Water", "Dark"],
+    "level_range": [24, 34],
+    "pokemon": ["Shuppet", "Duskull", "Wingull", "Gloom", "Oddish", "Zigzagoon"]
+  },
+  "safari_zone_h": {
+    "name": "Safari Zone (Hoenn)",
+    "description": "Reserva selvagem de Hoenn. Pokémon raros de diversas regiões.",
+    "region": "Sul de Hoenn", "region_id": "hoenn",
+    "types": ["Normal", "Water", "Grass", "Ground"], "dungeon_types": ["Dragon", "Ground", "Water", "Psychic"],
+    "level_range": [25, 45],
+    "pokemon": ["Pikachu", "Wobbuffet", "Girafarig", "Heracross", "Pinsir", "Dodrio", "Rhyhorn", "Natu", "Psyduck", "Golduck", "Corsola"]
+  },
+  "seafloor_cavern_h": {
+    "name": "Caverna do Fundo do Mar",
+    "description": "Caverna alagada no oceano profundo. Pokémon primitivos habitam aqui.",
+    "region": "Sul de Hoenn", "region_id": "hoenn",
+    "types": ["Water", "Rock", "Ground"], "dungeon_types": ["Water", "Rock", "Dark", "Ghost"],
+    "level_range": [30, 50],
+    "pokemon": ["Zubat", "Golbat", "Tentacool", "Magikarp", "Relicanth", "Clamperl"]
+  },
+  "sky_pillar_h": {
+    "name": "Pilar do Céu",
+    "description": "Torre ancestral que toca as nuvens. Claydol guarda os andares superiores.",
+    "region": "Sul de Hoenn", "region_id": "hoenn",
+    "types": ["Dragon", "Psychic", "Flying"], "dungeon_types": ["Dragon", "Ghost", "Psychic"],
+    "level_range": [45, 70],
+    "pokemon": ["Claydol", "Banette", "Mawile", "Altaria", "Dusclops"]
+  },
+  "victory_road_h": {
+    "name": "Caminho da Vitória (Hoenn)",
+    "description": "Caminho final antes da Liga Pokémon de Hoenn.",
+    "region": "Norte de Hoenn", "region_id": "hoenn",
+    "types": ["Rock", "Ground", "Fighting"], "dungeon_types": ["Rock", "Ground", "Fighting", "Dark"],
+    "level_range": [33, 55],
+    "pokemon": ["Hariyama", "Lairon", "Golbat", "Medicham", "Machoke", "Mawile", "Geodude", "Graveler"]
+  },
+
+  "route_1_g": {
+    "name": "Rota 1 (Galar)",
+    "description": "Primeira rota da região de Galar. Paisagens verdes e ventos suaves.",
+    "region": "Sul de Galar", "region_id": "galar",
+    "types": ["Normal", "Flying", "Bug"], "dungeon_types": ["Normal", "Dark", "Bug"],
+    "level_range": [2, 6],
+    "pokemon": ["Caterpie", "Pidgey", "Sentret", "Zigzagoon", "Rattata", "Wurmple"]
+  },
+  "route_2_g": {
+    "name": "Rota 2 (Galar)",
+    "description": "Rota com lago central. Lotad e Marill nadam nas margens.",
+    "region": "Sul de Galar", "region_id": "galar",
+    "types": ["Normal", "Water", "Grass"], "dungeon_types": ["Water", "Normal", "Dark"],
+    "level_range": [3, 8],
+    "pokemon": ["Nidoran-m", "Nidoran-f", "Poochyena", "Zigzagoon", "Lotad", "Marill"]
+  },
+  "wild_area_south_g": {
+    "name": "Área Selvagem Sul",
+    "description": "Vasta área aberta de Galar. Vento suave e Pokémon de todos os tipos.",
+    "region": "Centro de Galar", "region_id": "galar",
+    "types": ["Normal", "Grass", "Psychic", "Fairy"], "dungeon_types": ["Grass", "Psychic", "Ghost"],
+    "level_range": [15, 45],
+    "pokemon": ["Marill", "Roselia", "Oddish", "Wobbuffet", "Ralts", "Seedot", "Nuzleaf", "Snubbull", "Meowth"]
+  },
+  "wild_area_north_g": {
+    "name": "Área Selvagem Norte",
+    "description": "Norte da Área Selvagem. Pokémon mais fortes e tempestades de raios.",
+    "region": "Centro de Galar", "region_id": "galar",
+    "types": ["Electric", "Rock", "Ground", "Fighting"], "dungeon_types": ["Electric", "Rock", "Dark"],
+    "level_range": [25, 55],
+    "pokemon": ["Geodude", "Machop", "Meowth", "Electabuzz", "Snubbull", "Mankey", "Primeape"]
+  },
+  "wild_area_east_g": {
+    "name": "Área Selvagem Leste",
+    "description": "Leste da Área Selvagem com lago e floresta. Dratini raramente aparece.",
+    "region": "Centro de Galar", "region_id": "galar",
+    "types": ["Dragon", "Ice", "Psychic", "Water"], "dungeon_types": ["Dragon", "Ghost", "Ice"],
+    "level_range": [30, 60],
+    "pokemon": ["Dratini", "Spheal", "Snorunt", "Ralts", "Sneasel", "Jynx", "Lapras"]
+  },
+  "galar_mine_g": {
+    "name": "Mina de Galar Nº1",
+    "description": "Mina de extração de minérios. Aron escava os veios de metal.",
+    "region": "Centro de Galar", "region_id": "galar",
+    "types": ["Rock", "Ground", "Steel"], "dungeon_types": ["Rock", "Steel", "Dark"],
+    "level_range": [12, 22],
+    "pokemon": ["Diglett", "Geodude", "Zubat", "Aron", "Machop"]
+  },
+  "galar_mine_2_g": {
+    "name": "Mina de Galar Nº2",
+    "description": "Extensão subterrânea da primeira mina. Lairon guarda os andares mais profundos.",
+    "region": "Centro de Galar", "region_id": "galar",
+    "types": ["Rock", "Ground", "Steel"], "dungeon_types": ["Rock", "Steel", "Ghost"],
+    "level_range": [22, 35],
+    "pokemon": ["Diglett", "Aron", "Lairon", "Graveler", "Mawile", "Golbat"]
+  },
+  "route_3_g": {
+    "name": "Rota 3 (Galar)",
+    "description": "Rota com morros e correntes de vento. Meowth e Growlithe brigam pelo território.",
+    "region": "Sul de Galar", "region_id": "galar",
+    "types": ["Normal", "Fire", "Flying"], "dungeon_types": ["Fire", "Dark", "Flying"],
+    "level_range": [8, 15],
+    "pokemon": ["Meowth", "Growlithe", "Vulpix", "Wingull", "Taillow", "Spinda"]
+  },
+  "motostoke_outskirts_g": {
+    "name": "Arredores de Motostoke",
+    "description": "Área industrial próxima à cidade industrial de Galar. Koffing flutua entre as chaminés.",
+    "region": "Centro de Galar", "region_id": "galar",
+    "types": ["Fire", "Poison", "Steel"], "dungeon_types": ["Fire", "Poison", "Ghost"],
+    "level_range": [14, 24],
+    "pokemon": ["Koffing", "Magmar", "Slugma", "Numel", "Houndour", "Torkoal"]
+  },
+  "route_4_g": {
+    "name": "Rota 4 (Galar)",
+    "description": "Campos dourados de trigo. Jigglypuff canta ao entardecer.",
+    "region": "Centro de Galar", "region_id": "galar",
+    "types": ["Normal", "Fairy", "Grass"], "dungeon_types": ["Fairy", "Normal", "Dark"],
+    "level_range": [16, 26],
+    "pokemon": ["Ralts", "Snubbull", "Jigglypuff", "Meowth", "Oddish", "Hoppip", "Skitty"]
+  },
+  "hammerlocke_hills_g": {
+    "name": "Colinas de Hammerlocke",
+    "description": "Colinas ao redor da cidade-fortaleza. Absol aparece antes de tempestades.",
+    "region": "Norte de Galar", "region_id": "galar",
+    "types": ["Dark", "Steel", "Ice"], "dungeon_types": ["Dark", "Steel", "Ghost"],
+    "level_range": [30, 50],
+    "pokemon": ["Houndoom", "Sneasel", "Absol", "Sableye", "Murkrow", "Skarmory"]
+  },
+  "route_6_g": {
+    "name": "Rota 6 (Galar)",
+    "description": "Região árida com ventos quentes. Cacnea e Trapinch habitam as pedras.",
+    "region": "Norte de Galar", "region_id": "galar",
+    "types": ["Ground", "Ghost", "Fire"], "dungeon_types": ["Ghost", "Ground", "Dark"],
+    "level_range": [26, 38],
+    "pokemon": ["Trapinch", "Cacnea", "Shuppet", "Duskull", "Numel", "Baltoy"]
+  },
+  "glimwood_tangle_g": {
+    "name": "Floresta Glimwood",
+    "description": "Floresta mágica e nebulosa. Ralts e Misdreavus aparecem entre os cogumelos brilhantes.",
+    "region": "Norte de Galar", "region_id": "galar",
+    "types": ["Ghost", "Fairy", "Grass"], "dungeon_types": ["Ghost", "Fairy", "Dark"],
+    "level_range": [32, 42],
+    "pokemon": ["Gastly", "Haunter", "Misdreavus", "Ralts", "Shroomish", "Breloom", "Corsola"]
+  },
+  "route_7_g": {
+    "name": "Rota 7 (Galar)",
+    "description": "Região nevada e ventosa. Swinub escava sob a neve em busca de comida.",
+    "region": "Norte de Galar", "region_id": "galar",
+    "types": ["Ice", "Flying", "Dark"], "dungeon_types": ["Ice", "Dark", "Ghost"],
+    "level_range": [34, 45],
+    "pokemon": ["Swinub", "Sneasel", "Delibird", "Jynx", "Piloswine"]
+  },
+  "route_8_g": {
+    "name": "Rota 8 (Galar)",
+    "description": "Costa marítima com falésias. Wailmer salta nas ondas ao longe.",
+    "region": "Norte de Galar", "region_id": "galar",
+    "types": ["Water", "Ice", "Flying"], "dungeon_types": ["Water", "Ice", "Dark"],
+    "level_range": [36, 48],
+    "pokemon": ["Wingull", "Wailmer", "Tentacool", "Spheal", "Seel", "Shellder"]
+  },
+  "spikemuth_g": {
+    "name": "Arredores de Spikemuth",
+    "description": "Cidade sem sol permanente. Houndour e Grimer dominam as ruas.",
+    "region": "Norte de Galar", "region_id": "galar",
+    "types": ["Dark", "Poison", "Ghost"], "dungeon_types": ["Dark", "Poison", "Ghost"],
+    "level_range": [38, 50],
+    "pokemon": ["Grimer", "Koffing", "Houndour", "Murkrow", "Sableye", "Muk"]
+  },
+  "route_9_g": {
+    "name": "Rota 9 (Galar)",
+    "description": "Rota costeira final antes da Liga. Corsola e Shellder nadam próximo das pedras.",
+    "region": "Norte de Galar", "region_id": "galar",
+    "types": ["Water", "Ice", "Rock"], "dungeon_types": ["Water", "Ice", "Ghost"],
+    "level_range": [38, 52],
+    "pokemon": ["Tentacool", "Wailmer", "Corsola", "Shellder", "Spheal", "Dewgong"]
+  },
+  "crown_tundra_g": {
+    "name": "Tundra da Coroa",
+    "description": "Região gelada coberta de neve permanente. Pokémon lendários dormem aqui.",
+    "region": "Norte de Galar", "region_id": "galar",
+    "types": ["Ice", "Dragon", "Rock"], "dungeon_types": ["Ice", "Dragon", "Ghost", "Dark"],
+    "level_range": [55, 80],
+    "pokemon": ["Swinub", "Piloswine", "Snorunt", "Sneasel", "Jynx", "Bagon", "Dratini", "Delibird", "Absol", "Lapras"]
   }
 }

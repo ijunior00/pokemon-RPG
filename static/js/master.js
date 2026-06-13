@@ -2,6 +2,20 @@
    POKEMON 5E RPG - MASTER JS
    ============================================ */
 
+// Status condition display names + icons (must match STATUS_CONDITIONS keys in status_effects.py)
+const STATUS_DISPLAY = {
+    'badly_poisoned': '☠️ Envenenado',
+    'queimado':       '🔥 Queimado',
+    'paralisado':     '⚡ Paralisado',
+    'congelado':      '🧊 Congelado',
+    'dormindo':       '💤 Dormindo',
+    'confuso':        '💫 Confuso',
+    'atordoado':      '⭐ Atordoado',
+};
+function statusLabel(key) {
+    return key ? (STATUS_DISPLAY[key] || key) : '';
+}
+
 // Auto mode state
 let wildAutoMode = true;
 
@@ -70,17 +84,35 @@ socket.on('battle_update', (data) => {
     if (log) {
         const who = data.action_by === 'player' ? '🟢 Jogador' : '🔴 Selvagem';
         let msg = `${who} usou <strong>${data.move_name}</strong>`;
-        if (data.damage > 0) msg += ` → ${data.damage} de dano!`;
+        if (data.damage > 0) msg += ` → <strong>${data.damage} de dano!</strong>`;
         if (data.heal > 0) msg += ` → curou ${data.heal} HP!`;
-        if (data.status_effect) msg += ` → aplicou ${data.status_effect}!`;
-        if (data.message) msg += ` (${data.message})`;
+        if (data.status_effect) msg += ` → aplicou <strong>${statusLabel(data.status_effect)}</strong>!`;
+        if (data.message) msg += ` <em>(${data.message})</em>`;
         log.innerHTML += `<p>${msg}</p>`;
         log.scrollTop = log.scrollHeight;
     }
-    
-    // Update turn indicator
+
+    // Update status badges
+    const wildStatusBadge = card.querySelector('.wild-status-badge');
+    const playerStatusBadge = card.querySelector('.player-status-badge');
+    if (wildStatusBadge) {
+        const ws = bs.wild_status;
+        const wKey = ws ? (typeof ws === 'string' ? ws : ws.condition) : null;
+        wildStatusBadge.textContent = wKey ? statusLabel(wKey) : '';
+        wildStatusBadge.style.display = wKey ? 'inline-block' : 'none';
+    }
+    if (playerStatusBadge) {
+        const ps = bs.player_status;
+        const pKey = ps ? (typeof ps === 'string' ? ps : ps.condition) : null;
+        playerStatusBadge.textContent = pKey ? statusLabel(pKey) : '';
+        playerStatusBadge.style.display = pKey ? 'inline-block' : 'none';
+    }
+
+    // Update turn indicator + round counter
     const turnEl = card.querySelector('.turn-indicator');
     if (turnEl) turnEl.textContent = bs.turn === 'player' ? '🟢 Turno do Jogador' : '🔴 Turno do Selvagem (Mestre)';
+    const roundEl = card.querySelector('.round-counter');
+    if (roundEl) roundEl.textContent = `⚔️ Round ${bs.round || 1}`;
     
     // Show/hide master controls based on auto mode
     const masterControls = card.querySelector('.master-attack-controls');
@@ -142,7 +174,10 @@ function addEncounterCard(data) {
     card.innerHTML = `
         <div class="encounter-header">
             <h4>⚔️ ${data.player_name}</h4>
-            <span class="turn-indicator">Aguardando iniciativa...</span>
+            <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                <span class="turn-indicator">Aguardando iniciativa...</span>
+                <span class="round-counter" style="background:var(--darker);padding:0.2rem 0.6rem;border-radius:999px;font-size:0.8rem;font-weight:700;color:var(--accent);">⚔️ Round 1</span>
+            </div>
             <button class="btn btn-sm btn-primary" onclick="rollInitiative('${data.player_id}')">🎲 Rolar Iniciativa</button>
         </div>
         
@@ -153,6 +188,7 @@ function addEncounterCard(data) {
                 <div class="type-badges">${formatTypes(pokemon.types)}</div>
                 <div class="hp-bar-container"><div class="hp-bar enemy-hp wild-hp-bar" style="width:100%"></div></div>
                 <span class="wild-hp-text">${pokemon.hp}/${pokemon.hp}</span>
+                <span class="wild-status-badge" style="display:none;background:#7030a0;color:#fff;padding:0.1rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-left:0.4rem;"></span>
                 <div class="mini-stats-master">
                     <span>AC: ${pokemon.ac}</span> <span>SPD: ${pokemon.speed || '30ft'}</span>
                     ${pokemon.stats ? Object.entries(pokemon.stats).map(([k,v]) => `<span>${k}:${v}(${Math.floor((v-10)/2) >= 0 ? '+' : ''}${Math.floor((v-10)/2)})</span>`).join('') : ''}
@@ -167,6 +203,7 @@ function addEncounterCard(data) {
                 <h5>🟢 ${playerPoke.nickname || playerPoke.name || '???'} Nv.${playerPoke.level || '?'} (Jogador)</h5>
                 <div class="hp-bar-container"><div class="hp-bar player-hp player-hp-bar-master" style="width:100%"></div></div>
                 <span class="player-hp-text-master">${playerPoke.currentHp || playerPoke.maxHp || '?'}/${playerPoke.maxHp || '?'}</span>
+                <span class="player-status-badge" style="display:none;background:#7030a0;color:#fff;padding:0.1rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-left:0.4rem;"></span>
                 <div class="mini-stats-master">
                     <span>AC: ${playerPoke.ac || '?'}</span>
                     ${playerPoke.stats ? Object.entries(playerPoke.stats).map(([k,v]) => `<span>${k}:${v}</span>`).join('') : ''}
@@ -188,13 +225,13 @@ function addEncounterCard(data) {
                     <label>Status (extra)</label>
                     <select class="wild-status-select">
                         <option value="">Nenhum</option>
-                        <option value="Envenenado">Envenenado</option>
-                        <option value="Queimado">Queimado</option>
-                        <option value="Paralisado">Paralisado</option>
-                        <option value="Congelado">Congelado</option>
-                        <option value="Dormindo">Dormindo</option>
-                        <option value="Confuso">Confuso</option>
-                        <option value="Atordoado">Atordoado</option>
+                        <option value="badly_poisoned">☠️ Envenenado</option>
+                        <option value="queimado">🔥 Queimado</option>
+                        <option value="paralisado">⚡ Paralisado</option>
+                        <option value="congelado">🧊 Congelado</option>
+                        <option value="dormindo">💤 Dormindo</option>
+                        <option value="confuso">💫 Confuso</option>
+                        <option value="atordoado">⭐ Atordoado</option>
                     </select>
                 </div>
                 <button class="btn btn-danger" onclick="masterAttack('${data.player_id}', this)">⚔️ Atacar!</button>

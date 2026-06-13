@@ -336,6 +336,19 @@ h1, h2 {
     background: var(--card-bg); padding: 1.5rem; border-radius: var(--radius);
     margin-bottom: 1rem; border: 1px solid var(--card-border);
 }
+.region-tabs {
+    display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap;
+}
+.region-tab {
+    padding: 0.4rem 1rem; border-radius: 999px; border: 1.5px solid var(--card-border);
+    background: var(--darker); color: var(--text-muted); cursor: pointer;
+    font-size: 0.85rem; font-weight: 600; transition: all 0.18s ease;
+}
+.region-tab:hover { border-color: var(--accent); color: var(--text); }
+.region-tab.active {
+    background: var(--accent); border-color: var(--accent);
+    color: #fff; box-shadow: 0 0 10px var(--accent-glow, var(--accent));
+}
 .encounter-result { margin-top: 1rem; }
 
 .wild-pokemon-card {
