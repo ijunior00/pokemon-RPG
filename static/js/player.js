@@ -577,13 +577,18 @@ socket.on('battle_update', (data) => {
 
     // Log action (only if not already logged locally by wild auto-attack)
     if (!window._wildIsActing || data.action_by === 'player') {
-        const who = data.action_by === 'player' ? '🟢 Seu Pokémon' : '🔴 Selvagem';
-        let msg = `${who} usou <strong>${data.move_name}</strong>`;
-        if (data.damage > 0) msg += ` → ${data.damage} de dano!`;
-        if (data.heal > 0) msg += ` → curou ${data.heal} HP!`;
-        if (data.status_effect) msg += ` → ${data.status_effect}!`;
-        if (data.message) msg += ` <em>(${data.message})</em>`;
-        addBattleLog(msg);
+        if (data.action_by === 'player' && data.action_log) {
+            // Server-calculated result for player attacks — show full detail line
+            addBattleLog(`🟢 <strong>${data.move_name}</strong>: ${data.action_log}`);
+        } else {
+            const who = data.action_by === 'player' ? '🟢 Seu Pokémon' : '🔴 Selvagem';
+            let msg = `${who} usou <strong>${data.move_name}</strong>`;
+            if (data.damage > 0) msg += ` → ${data.damage} de dano!`;
+            if (data.heal > 0) msg += ` → curou ${data.heal} HP!`;
+            if (data.status_effect) msg += ` → ${data.status_effect}!`;
+            if (data.message) msg += ` <em>(${data.message})</em>`;
+            addBattleLog(msg);
+        }
     }
     // Show ability trigger from server
     if (data.ability_trigger) {
@@ -811,6 +816,7 @@ function showMoveModal(moveName) {
 }
 
 function _lockPlayerActions() {
+    clearTurnCountdown();
     document.querySelectorAll('#battle-player-moves .selectable-move').forEach(btn => {
         btn.style.opacity = '0.5';
         btn.style.pointerEvents = 'none';
@@ -856,154 +862,24 @@ async function useMove(moveName) {
         'rain dance', 'sunny day', 'sandstorm', 'hail', 'attract', 'taunt', 'encore',
         'disable', 'torment', 'spite', 'wish', 'heal bell', 'aromatherapy',
         'venom drench', 'toxic spikes', 'spikes', 'stealth rock', 'sticky web'];
-    
+
     if (!m.baseDamage || PLAYER_STATUS_MOVES.includes(moveName.toLowerCase())) {
         await processStatusMove(moveName, poke, window.currentBattleData?.enemy);
         return;
     }
-    
-    // Determine enemy's AC based on move category and dodge state
-    const enemy = window.currentBattleData?.enemy || {};
-    const enemyStats = enemy.stats || {};
-    let enemyAC;
-    let defenseType;
-    
-    if (window.enemyDodging) {
-        // Enemy is dodging: use SPE-based AC, but hits deal 1.25x damage
-        enemyAC = 8 + Math.floor(((enemyStats.SPE || 10) - 10) / 2) + getProficiencyForLevel(currentEncounter?.level || 5) / 2;
-        defenseType = '🏃 Esquiva';
-    } else if (moveCategory === 'physical') {
-        enemyAC = 8 + Math.floor(((enemyStats.DEF || 10) - 10) / 2) + Math.floor(getProficiencyForLevel(currentEncounter?.level || 5) / 2);
-        defenseType = '🛡️ DEF';
-    } else {
-        enemyAC = 8 + Math.floor(((enemyStats.SPD || 10) - 10) / 2) + Math.floor(getProficiencyForLevel(currentEncounter?.level || 5) / 2);
-        defenseType = '✨ SPD';
-    }
-    enemyAC = Math.max(8, Math.floor(enemyAC));
-    
-    // Roll d20 for attack
+
+    // Roll d20 for local animation only — server recalculates damage authoritatively
     const attackRoll = Math.floor(Math.random() * 20) + 1;
-    const isCrit = attackRoll === 20;
-    const isMiss = attackRoll === 1;
-    // Apply accuracy mod (from Smokescreen etc.)
-    const accMod = window.playerAccuracyMod || 0;
-    const totalAttack = attackRoll + moveMod + profBonus + accMod;
-    
     const categoryLabel = moveCategory === 'physical' ? '⚔️ Físico' : '✨ Especial';
-    const statLabel = moveCategory === 'physical' ? 'ATK' : 'SPA';
-    addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) + ${statLabel}(${moveMod}) + Prof(${profBonus})${accMod ? ` + Acc(${accMod})` : ''} = <strong>${totalAttack}</strong> vs ${defenseType}(${enemyAC})${isCrit ? ' 💥 CRÍTICO!' : ''}${isMiss ? ' 💨 Falha!' : ''}`);
+    addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) — aguardando servidor...`);
     animateDice(attackRoll, 'd20');
-    
-    if (isMiss) {
-        addBattleLog(`❌ Falha crítica!`);
-        socket.emit('battle_action', { action_by: 'player', action_type: 'attack', move_name: moveName, damage: 0, player_status_damage: window._playerPreTurnStatusDamage || 0, message: 'Nat 1 - Falha' });
-    } else if (totalAttack >= enemyAC || isCrit) {
-        // Auto-calculate damage with level-scaled dice
-        const scaledDice = getScaledDice(m.baseDamage || '1d6', pokeLevel, m.higherLevels || '');
-        const diceRoll = rollDamageFromString(scaledDice, pokeLevel);
-        let damage = diceRoll + moveMod;
-        if (isCrit) {
-            const critExtra = rollDamageFromString(scaledDice, pokeLevel);
-            damage = diceRoll + critExtra + moveMod;
-        }
-        
-        // STAB check (uses scaled stab from pokemon data)
-        const pokeTypes = (poke?.types || []).map(t => t.toLowerCase());
-        const moveType = (typeof m.type === 'string' ? m.type : String(m.type || '')).toLowerCase();
-        const stab = pokeTypes.includes(moveType) ? (poke?.stab || getStabForLevel(pokeLevel)) : 0;
-        damage += stab;
 
-        // Attacker ability bonus: Blaze/Torrent/Overgrow/Swarm (HP ≤ 1/3 → +1d6 same-type)
-        const atkAbility = (poke?.ability?.name || poke?.ability || '').toLowerCase();
-        const PINCH_ABILITIES = { blaze:'fire', torrent:'water', overgrow:'grass', swarm:'bug' };
-        const pinchType = PINCH_ABILITIES[atkAbility];
-        const pokeHp = window.currentBattleData?.playerPokemon?.currentHp ?? poke?.currentHp ?? poke?.maxHp;
-        const pokeMaxHp = poke?.maxHp || 1;
-        if (pinchType && moveType === pinchType && pokeHp <= pokeMaxHp / 3) {
-            const bonus = Math.floor(Math.random() * 6) + 1;
-            damage += bonus;
-            addBattleLog(`🔥 <strong>${atkAbility.charAt(0).toUpperCase()+atkAbility.slice(1)}</strong> ativado! +${bonus} dano!`);
-        }
-
-        if (damage < 1) damage = 1;
-        
-        // Dodge penalty: if enemy was dodging and got hit, 1.25x damage
-        if (window.enemyDodging) {
-            damage = Math.floor(damage * 1.25);
-            addBattleLog(`🏃 Acertou em esquiva! Dano ×1.25 → ${damage}`);
-        }
-        
-        // Type effectiveness vs enemy
-        // Move types are in PT (Fogo, Grama, etc.) but vulnerabilities are in EN (Fire, Grass, etc.)
-        const typeMapPtToEn = {
-            'fogo':'fire', 'água':'water', 'grama':'grass', 'elétrico':'electric',
-            'gelo':'ice', 'lutador':'fighting', 'venenoso':'poison', 'terra':'ground',
-            'voador':'flying', 'psíquico':'psychic', 'inseto':'bug', 'pedra':'rock',
-            'fantasma':'ghost', 'dragão':'dragon', 'sombrio':'dark', 'aço':'steel',
-            'fada':'fairy', 'normal':'normal'
-        };
-        const moveTypeEn = typeMapPtToEn[moveType] || moveType;
-        
-        const enemyForType = window.currentBattleData?.enemy || {}; 
-        const enemyVulns = (enemyForType.vulnerabilities || []).map(t => t.toLowerCase());
-        const enemyResists = (enemyForType.resistances || []).map(t => t.toLowerCase());
-        const enemyImmunities = (enemyForType.immunities || []).map(t => t.toLowerCase());
-        
-        let effectiveness = 1;
-        let effectLabel = '';
-        if (enemyImmunities.includes(moveTypeEn)) {
-            effectiveness = 0;
-            effectLabel = '⛔ IMUNE (0x)';
-        } else {
-            if (enemyVulns.includes(moveTypeEn)) effectiveness *= 2;
-            if (enemyResists.includes(moveTypeEn)) effectiveness *= 0.5;
-        }
-        
-        damage = Math.floor(damage * effectiveness);
-        if (effectiveness === 0) damage = 0;
-        if (effectiveness > 1) effectLabel = `⚡ Super Efetivo (x${effectiveness})`;
-        else if (effectiveness < 1 && effectiveness > 0) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
-
-        // Check enemy ability (client-side preview — server also validates)
-        const _rawEnemyAbility = window.currentBattleData?.enemy?.ability;
-        const enemyAbility = (typeof _rawEnemyAbility === 'string' ? _rawEnemyAbility : '').toLowerCase();
-        if (damage > 0 && enemyAbility) {
-            const abilityCheck = checkAbilityVsMove(enemyAbility, moveTypeEn, damage,
-                window.currentBattleData?.enemy?.currentHp, window.currentBattleData?.enemy?.hp);
-            if (abilityCheck.blocked) {
-                damage = 0;
-                addBattleLog(`🛡️ <strong>${enemyAbility}</strong>: ${abilityCheck.message}`);
-            } else if (abilityCheck.modified_damage !== damage) {
-                addBattleLog(`🛡️ <strong>${enemyAbility}</strong>: ${abilityCheck.message}`);
-                damage = abilityCheck.modified_damage;
-            }
-        }
-
-        const statUsed = moveCategory === 'physical' ? 'ATK' : 'SPA';
-        addBattleLog(`✅ Acertou! (${totalAttack} vs AC ${enemyAC}) → ${scaledDice}(${diceRoll}) + ${statUsed}(${moveMod})${stab > 0 ? ` + STAB(${stab})` : ''}${isCrit ? ' ×2 CRIT' : ''}${window.enemyDodging ? ' ×1.25(esquiva)' : ''}${effectLabel ? ' ' + effectLabel : ''} = <strong>${damage} dano ${m.type||''}</strong>`);
-
-        // Emit immediately so the turn is not delayed by the async status-check fetch.
-        // Status effect is applied in a follow-up event if it triggers.
-        socket.emit('battle_action', {
-            action_by: 'player', action_type: 'attack', move_name: moveName,
-            move_type: moveTypeEn,
-            damage: damage, message: `${totalAttack} vs AC ${enemyAC}${isCrit ? ' Crítico!' : ''}`,
-            player_status_damage: window._playerPreTurnStatusDamage || 0,
-            status_effect: null
-        });
-        window._lastStatusInflicted = null;
-
-        // Fire-and-forget status check; if something triggers, persist it via separate event
-        checkMoveStatusEffect(moveName, attackRoll, damage).then(() => {
-            if (window._lastStatusInflicted) {
-                socket.emit('apply_wild_status', { status: window._lastStatusInflicted });
-                window._lastStatusInflicted = null;
-            }
-        });
-    } else {
-        addBattleLog(`❌ Errou! (${totalAttack} < AC ${enemyAC})`);
-        socket.emit('battle_action', { action_by: 'player', action_type: 'attack', move_name: moveName, damage: 0, player_status_damage: window._playerPreTurnStatusDamage || 0, message: `Errou (${totalAttack} vs AC ${enemyAC})` });
-    }
+    socket.emit('battle_action', {
+        action_by: 'player', action_type: 'attack', move_name: moveName,
+        attack_roll: attackRoll,
+        damage: 0,
+        player_status_damage: window._playerPreTurnStatusDamage || 0
+    });
 }
 
 function rollDamageFromString(diceStr, pokeLevel) {

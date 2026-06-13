@@ -59,6 +59,165 @@ MOVES_FILE = os.path.join(DATA_DIR, 'moves.json')
 MOVES_DB = load_json(MOVES_FILE)
 MOVES_BY_NAME = {k.lower(): v for k, v in MOVES_DB.items()}
 
+# ============================================================
+# BATTLE HELPERS — server-side damage calculation
+# ============================================================
+import re as _re
+
+def _prof_for_level(level):
+    if level >= 91: return 10
+    if level >= 81: return 9
+    if level >= 71: return 8
+    if level >= 61: return 7
+    if level >= 51: return 6
+    if level >= 41: return 5
+    if level >= 31: return 4
+    if level >= 17: return 3
+    return 2
+
+def _stab_for_level(level):
+    if level >= 81: return 6
+    if level >= 61: return 5
+    if level >= 41: return 4
+    if level >= 26: return 3
+    if level >= 11: return 2
+    return 1
+
+def _roll_dice(dice_str):
+    m = _re.match(r'(\d+)d(\d+)', str(dice_str))
+    if not m: return 0
+    count, sides = int(m.group(1)), int(m.group(2))
+    return sum(random.randint(1, sides) for _ in range(count))
+
+def _get_scaled_dice(base_damage, level, higher_levels=''):
+    if not base_damage: return '1d6'
+    m = _re.match(r'(\d+)d(\d+)', str(base_damage))
+    if not m: return str(base_damage)
+    count, sides = int(m.group(1)), int(m.group(2))
+    if higher_levels:
+        matches = _re.findall(r'(\d+d\d+)\s+no\s+n[ií]vel\s+(\d+)', higher_levels, _re.IGNORECASE)
+        best = base_damage
+        for dice_str, trainer_lv in matches:
+            if level >= int(trainer_lv) * 5:
+                best = dice_str
+        return best
+    if level >= 80: mult = 3.0
+    elif level >= 60: mult = 2.5
+    elif level >= 40: mult = 2.0
+    elif level >= 20: mult = 1.5
+    elif level >= 10: mult = 1.25
+    else: mult = 1.0
+    new_count = max(count, int(count * mult + 0.5))
+    return f'{new_count}d{sides}'
+
+_TYPE_MAP_PT = {
+    'fogo':'fire','água':'water','grama':'grass','elétrico':'electric',
+    'gelo':'ice','lutador':'fighting','venenoso':'poison','terra':'ground',
+    'voador':'flying','psíquico':'psychic','inseto':'bug','pedra':'rock',
+    'fantasma':'ghost','dragão':'dragon','sombrio':'dark','aço':'steel',
+    'fada':'fairy','normal':'normal'
+}
+
+def _calc_player_attack(encounter, move_name, attack_roll=None):
+    """Calculate player attack fully server-side. Returns result dict."""
+    player_poke = encounter.get('player_pokemon') or {}
+    wild_poke   = encounter.get('pokemon') or {}
+    move = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name) or {}
+
+    level  = int(player_poke.get('level') or 1)
+    stats  = player_poke.get('stats') or {}
+    category = move.get('category', 'physical')
+
+    if category == 'physical':
+        stat_val = int(stats.get('ATK') or stats.get('STR') or 10)
+    elif category == 'special':
+        stat_val = int(stats.get('SPA') or stats.get('INT') or 10)
+    else:
+        stat_val = 10
+    mod  = (stat_val - 10) // 2
+    prof = int(player_poke.get('proficiency') or _prof_for_level(level))
+
+    wild_stats  = wild_poke.get('stats') or {}
+    wild_level  = int(wild_poke.get('level') or encounter.get('level') or 5)
+    wild_prof_h = _prof_for_level(wild_level) // 2
+
+    if category == 'physical':
+        enemy_ac = 8 + (int(wild_stats.get('DEF', 10)) - 10) // 2 + wild_prof_h
+    else:
+        enemy_ac = 8 + (int(wild_stats.get('SPD', 10)) - 10) // 2 + wild_prof_h
+    enemy_ac = max(8, int(enemy_ac))
+
+    if attack_roll is None:
+        attack_roll = random.randint(1, 20)
+    attack_roll = int(attack_roll)
+    is_crit  = attack_roll == 20
+    is_nat1  = attack_roll == 1
+    total    = attack_roll + mod + prof
+
+    move_type_raw = (move.get('type') or '').lower()
+    move_type_en  = _TYPE_MAP_PT.get(move_type_raw, move_type_raw)
+
+    if is_nat1:
+        return {'hit': False, 'damage': 0, 'message': 'Nat 1 - Falha',
+                'attack_roll': attack_roll, 'move_type_en': move_type_en,
+                'log': f'❌ Falha crítica! (Nat 1)'}
+
+    hit = (total >= enemy_ac) or is_crit
+    if not hit:
+        return {'hit': False, 'damage': 0,
+                'message': f'Errou ({total} vs AC {enemy_ac})',
+                'attack_roll': attack_roll, 'move_type_en': move_type_en,
+                'log': f'❌ Errou! ({total} < AC {enemy_ac})'}
+
+    base_dmg    = move.get('baseDamage', '1d6')
+    higher_lvs  = move.get('higherLevels', '') or ''
+    scaled_dice = _get_scaled_dice(base_dmg, level, higher_lvs)
+    roll1   = _roll_dice(scaled_dice)
+    damage  = roll1 + mod
+    if is_crit:
+        roll2   = _roll_dice(scaled_dice)
+        damage  = roll1 + roll2 + mod
+
+    # STAB
+    poke_types = [t.lower() for t in (player_poke.get('types') or [])]
+    if move_type_raw in poke_types:
+        stab = int(player_poke.get('stab') or _stab_for_level(level))
+        damage += stab
+    else:
+        stab = 0
+
+    # Type effectiveness
+    vulns      = [t.lower() for t in (wild_poke.get('vulnerabilities') or [])]
+    resists    = [t.lower() for t in (wild_poke.get('resistances') or [])]
+    immunities = [t.lower() for t in (wild_poke.get('immunities') or [])]
+    eff = 1.0
+    if move_type_en in immunities:
+        eff = 0.0
+    else:
+        if move_type_en in vulns:   eff *= 2
+        if move_type_en in resists: eff *= 0.5
+    damage = max(0, int(damage * eff))
+    if damage < 1 and eff > 0:
+        damage = 1
+
+    cat_label = '⚔️ Físico' if category == 'physical' else '✨ Especial'
+    stat_lbl  = 'ATK' if category == 'physical' else 'SPA'
+    eff_label = ''
+    if eff == 0:   eff_label = ' ⛔ IMUNE (0x)'
+    elif eff > 1:  eff_label = f' ⚡ Super Efetivo (x{eff:.0f})'
+    elif eff < 1:  eff_label = f' 🛡️ Não Efetivo (x{eff})'
+
+    log = (f'✅ Acertou! ({total} vs AC {enemy_ac}) → '
+           f'{scaled_dice}({roll1}) + {stat_lbl}({mod})'
+           f'{f" + STAB({stab})" if stab else ""}'
+           f'{" ×2 CRIT" if is_crit else ""}'
+           f'{eff_label} = <strong>{damage} dano {move.get("type","")}</strong>')
+
+    return {'hit': True, 'damage': damage,
+            'message': f'{total} vs AC {enemy_ac}{"  Crítico!" if is_crit else ""}',
+            'attack_roll': attack_roll, 'move_type_en': move_type_en,
+            'is_crit': is_crit, 'log': log}
+
 # Load mega stones database
 MEGA_FILE = os.path.join(DATA_DIR, 'mega_stones.json')
 MEGA_DB = load_json(MEGA_FILE)
@@ -2430,6 +2589,16 @@ def handle_battle_action(data):
             if battle_state.get('turn') and battle_state['turn'] != expected:
                 return
 
+        # Server-side damage calculation for player attacks
+        action_log = None
+        if action_by == 'player' and action_type == 'attack':
+            attack_roll = data.get('attack_roll')
+            calc = _calc_player_attack(encounter, move_name, attack_roll)
+            damage = calc['damage']
+            message = calc['message']
+            move_type = calc.get('move_type_en', move_type)
+            action_log = calc.get('log')
+
         # Apply pre-turn status damage first (doesn't count as an action)
         PERMADEATH_FLOOR = -30
         if wild_status_damage > 0:
@@ -2521,6 +2690,7 @@ def handle_battle_action(data):
             'message': message,
             'battle_state': battle_state,
             'ability_trigger': ability_result if (ability_result and ability_result.get('triggered')) else None,
+            'action_log': action_log,
         }
         
         # Notify both sides
