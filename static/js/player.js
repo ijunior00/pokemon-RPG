@@ -874,6 +874,10 @@ async function useMove(moveName) {
     addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) — aguardando servidor...`);
     animateDice(attackRoll, 'd20');
 
+    // Cancel turn timer - action was taken
+    clearTurnCountdown();
+    _lockPlayerActions();
+
     socket.emit('battle_action', {
         action_by: 'player', action_type: 'attack', move_name: moveName,
         attack_roll: attackRoll,
@@ -3085,8 +3089,9 @@ async function pvpUseMove(moveName) {
     socket.emit('pvp_attack', {
         battle_id: window.pvpState.battleId,
         move_name: moveName,
+        attack_roll: attackRoll,
         move_type: moveType,
-        damage: damage,
+        damage: 0,           // server calculates
         message: message,
         status_effect: statusEffect
     });
@@ -3709,36 +3714,34 @@ async function processPlayerTurnStart() {
         if (data.ability_messages?.length) {
             data.ability_messages.forEach(m => addBattleLog(`✨ <em>${m}</em>`));
         }
+        const playerPoke = window.currentBattleData?.playerPokemon;
+        const maxHp = playerPoke?.maxHp || 20;
+        const curHp = playerPoke?.currentHp ?? maxHp;
+
         if (data.damage > 0) {
             window._playerPreTurnStatusDamage = data.damage;
-            const hpText = document.getElementById('battle-player-hp-text-full').textContent;
-            const hpMatch = hpText.match(/(\d+)\/(\d+)/);
-            if (hpMatch) {
-                const newHp = Math.max(0, parseInt(hpMatch[1]) - data.damage);
-                const maxHp = parseInt(hpMatch[2]);
-                document.getElementById('battle-player-hp-text-full').textContent = `${newHp}/${maxHp} HP`;
-                setHpBar('battle-player-hp-bar-full', newHp, maxHp);
-                battleSpriteHit('battle-player-sprite');
-                hpBarShake(document.querySelector('.player-side .hp-bar-container'));
-                playSound('status');
-            }
+            const newHp = Math.max(-30, curHp - data.damage);
+            if (playerPoke) playerPoke.currentHp = newHp;
+            const hpEl = document.getElementById('battle-player-hp-text-full');
+            if (hpEl) hpEl.textContent = `${Math.max(0,newHp)}/${maxHp} HP`;
+            setHpBar('battle-player-hp-bar-full', newHp, maxHp);
+            battleSpriteHit('battle-player-sprite');
+            hpBarShake(document.querySelector('.player-side .hp-bar-container'));
+            playSound('status');
         } else if (data.damage < 0) {
-            // Poison Heal: heal instead of damage
             const healAmt = Math.abs(data.damage);
-            const hpText = document.getElementById('battle-player-hp-text-full').textContent;
-            const hpMatch = hpText.match(/(\d+)\/(\d+)/);
-            if (hpMatch) {
-                const newHp = Math.min(parseInt(hpMatch[2]), parseInt(hpMatch[1]) + healAmt);
-                const maxHp = parseInt(hpMatch[2]);
-                document.getElementById('battle-player-hp-text-full').textContent = `${newHp}/${maxHp} HP`;
-                setHpBar('battle-player-hp-bar-full', newHp, maxHp);
-            }
+            const newHp = Math.min(maxHp, curHp + healAmt);
+            if (playerPoke) playerPoke.currentHp = newHp;
+            const hpEl = document.getElementById('battle-player-hp-text-full');
+            if (hpEl) hpEl.textContent = `${newHp}/${maxHp} HP`;
+            setHpBar('battle-player-hp-bar-full', newHp, maxHp);
         }
-        
-        if (data.turns_active) window.playerPokemonStatus.turns_active = data.turns_active;
+
+        if (data.turns_active && window.playerPokemonStatus) window.playerPokemonStatus.turns_active = data.turns_active;
         if (data.status_removed) {
             window.playerPokemonStatus = null;
             updateStatusDisplay();
+            socket.emit('status_resolved', { target: 'player' });
         }
 
         return data.can_act;
@@ -3944,6 +3947,7 @@ async function _executeWildTurn() {
             if (statusResult.status_removed) {
                 window.wildPokemonStatus = null;
                 updateStatusDisplay();
+                socket.emit('status_resolved', { target: 'wild' });
             }
             if (!statusResult.can_act) {
                 addBattleLog(`🔴 Pokémon Selvagem não conseguiu agir!`);
@@ -4460,6 +4464,10 @@ function useBattleItem(itemName) {
 // PROCESS STATUS MOVES (calls server for auto-detection)
 // ============================================
 async function processStatusMove(moveName, attackerPoke, targetPoke) {
+    // Cancel turn timer - action was taken
+    clearTurnCountdown();
+    _lockPlayerActions();
+    
     // Build attacker stats for the server
     const attackerStats = {
         level: attackerPoke?.level || 1,

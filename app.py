@@ -218,6 +218,79 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
             'attack_roll': attack_roll, 'move_type_en': move_type_en,
             'is_crit': is_crit, 'log': log}
 
+
+def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
+    """Server-side damage for PVP: attacker_poke vs defender_poke (both full pokemon dicts)."""
+    move = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name) or {}
+
+    level    = int(attacker_poke.get('level') or 1)
+    stats    = attacker_poke.get('stats') or {}
+    category = move.get('category', 'physical')
+
+    if category == 'physical':
+        stat_val = int(stats.get('ATK') or stats.get('STR') or 10)
+    elif category == 'special':
+        stat_val = int(stats.get('SPA') or stats.get('INT') or 10)
+    else:
+        stat_val = 10
+    mod  = (stat_val - 10) // 2
+    prof = int(attacker_poke.get('proficiency') or _prof_for_level(level))
+
+    def_stats   = defender_poke.get('stats') or {}
+    def_level   = int(defender_poke.get('level') or 1)
+    def_prof_h  = _prof_for_level(def_level) // 2
+
+    if category == 'physical':
+        enemy_ac = 8 + (int(def_stats.get('DEF', 10)) - 10) // 2 + def_prof_h
+    else:
+        enemy_ac = 8 + (int(def_stats.get('SPD', 10)) - 10) // 2 + def_prof_h
+    enemy_ac = max(8, int(enemy_ac))
+
+    if attack_roll is None:
+        attack_roll = random.randint(1, 20)
+    attack_roll = int(attack_roll)
+    is_crit = attack_roll == 20
+    is_nat1 = attack_roll == 1
+    total   = attack_roll + mod + prof
+
+    move_type_raw = (move.get('type') or '').lower()
+    move_type_en  = _TYPE_MAP_PT.get(move_type_raw, move_type_raw)
+
+    if is_nat1:
+        return {'hit': False, 'damage': 0, 'message': 'Nat 1 - Falha', 'move_type_en': move_type_en}
+
+    hit = (total >= enemy_ac) or is_crit
+    if not hit:
+        return {'hit': False, 'damage': 0, 'message': f'Errou ({total} vs AC {enemy_ac})', 'move_type_en': move_type_en}
+
+    base_dmg    = move.get('baseDamage', '1d6')
+    higher_lvs  = move.get('higherLevels', '') or ''
+    scaled_dice = _get_scaled_dice(base_dmg, level, higher_lvs)
+    roll1   = _roll_dice(scaled_dice)
+    damage  = roll1 + mod
+    if is_crit:
+        damage = roll1 + _roll_dice(scaled_dice) + mod
+
+    # STAB
+    poke_types = [t.lower() for t in (attacker_poke.get('types') or [])]
+    if move_type_raw in poke_types:
+        damage += int(attacker_poke.get('stab') or _stab_for_level(level))
+
+    # Type effectiveness
+    vulns      = [t.lower() for t in (defender_poke.get('vulnerabilities') or [])]
+    resists    = [t.lower() for t in (defender_poke.get('resistances') or [])]
+    immunities = [t.lower() for t in (defender_poke.get('immunities') or [])]
+    eff = 1.0
+    if move_type_en in immunities:  eff = 0.0
+    elif move_type_en in vulns:     eff *= 2
+    if move_type_en in resists:     eff *= 0.5
+    damage = max(0, int(damage * eff))
+    if damage < 1 and eff > 0: damage = 1
+
+    return {'hit': True, 'damage': damage,
+            'message': f'{total} vs AC {enemy_ac}{"  Crítico!" if is_crit else ""}',
+            'move_type_en': move_type_en}
+
 # Load mega stones database
 MEGA_FILE = os.path.join(DATA_DIR, 'mega_stones.json')
 MEGA_DB = load_json(MEGA_FILE)
@@ -2882,6 +2955,28 @@ def handle_apply_wild_status(data):
         save_game_state(game_state)
         emit('wild_status_applied', {'status': status, 'player_id': player_id}, room=f'master_{_tid()}')
 
+@socketio.on('status_resolved')
+def handle_status_resolved(data):
+    """Client reports a status condition expired — clear it from server battle_state."""
+    if not current_user.is_authenticated:
+        return
+    player_id = str(current_user.id)
+    target = data.get('target')  # 'player' or 'wild'
+    game_state = get_game_state()
+    encounter = game_state['active_encounters'].get(player_id)
+    if not encounter:
+        return
+    battle_state = encounter['battle_state']
+    if target == 'player':
+        battle_state['player_status'] = None
+    elif target == 'wild':
+        battle_state['wild_status'] = None
+    else:
+        return
+    encounter['battle_state'] = battle_state
+    game_state['active_encounters'][player_id] = encounter
+    save_game_state(game_state)
+
 @socketio.on('end_encounter')
 def handle_end_encounter(data):
     """End an encounter."""
@@ -3202,6 +3297,16 @@ def handle_pvp_attack(data):
         if battle['turn'] != player_key:
             emit('pvp_error', {'message': 'Não é seu turno!'})
             return
+
+        # Server-side damage calculation (ignore client damage)
+        attacker = battle[player_key]
+        defender = battle[defender_key]
+        att_poke = attacker['team'][attacker['active_idx']]
+        def_poke = defender['team'][defender['active_idx']]
+        calc = _calc_pvp_attack(att_poke, def_poke, move_name, data.get('attack_roll'))
+        damage   = calc['damage']
+        message  = calc['message']
+        move_type = calc.get('move_type_en', move_type)
 
         # Process attacker's own status damage before acting
         status_dmg, status_info = pvp.process_turn_status(battle, player_key)
@@ -3540,40 +3645,36 @@ def _emit_pvp_to_master(battle, event='update'):
 def handle_npc_turn(battle, npc_key):
     """Handle NPC's automatic turn."""
     move = pvp.npc_choose_action(battle, npc_key)
-    damage = random.randint(3, 12)
-
-    # Check defender (human player) ability against NPC move type
     defender_key = 'player2' if npc_key == 'player1' else 'player1'
-    if not battle[defender_key].get('is_npc'):
-        move_data = MOVES_BY_NAME.get(move.lower(), {})
-        move_type = move_data.get('type', '').lower()
-        defender_team = battle[defender_key].get('team', [])
-        defender_active_idx = battle[defender_key].get('active_idx')
-        defender_active = defender_team[defender_active_idx] if (defender_active_idx is not None and defender_team) else None
-        if defender_active and move_type:
-            def_ability = defender_active.get('ability', '') or ''
-            if def_ability:
-                ab_result = ab.check_defender_ability(
-                    def_ability, move_type, damage,
-                    defender_active.get('currentHp', 999), defender_active.get('maxHp', 999)
-                )
-                if ab_result['triggered']:
-                    damage = ab_result['modified_damage']
-                    if ab_result['heal']:
-                        defender_active['currentHp'] = min(
-                            defender_active.get('maxHp', 999),
-                            defender_active.get('currentHp', 0) + ab_result['heal']
-                        )
-                    # Emit ability trigger to the defender's room
-                    defender_id = battle[defender_key]['id']
-                    socketio.emit('ability_triggered', {
-                        'message': ab_result['message'],
-                        'blocked': ab_result['blocked'],
-                        'heal': ab_result['heal'],
-                        'boost': ab_result['boost'],
-                    }, room=defender_id)
 
-    result = pvp.apply_damage(battle, npc_key, damage, move, 'NPC auto-attack')
+    npc_poke = battle[npc_key]['team'][battle[npc_key]['active_idx']]
+    def_poke = battle[defender_key]['team'][battle[defender_key]['active_idx']]
+    calc     = _calc_pvp_attack(npc_poke, def_poke, move)
+    damage   = calc['damage']
+    move_type = calc.get('move_type_en', '')
+
+    # Check defender ability
+    if damage > 0 and move_type and not battle[defender_key].get('is_npc'):
+        def_ability = (def_poke.get('ability') or '').lower()
+        if def_ability:
+            ab_result = ab.check_defender_ability(
+                def_ability, move_type, damage,
+                def_poke.get('currentHp', 999), def_poke.get('maxHp', 999)
+            )
+            if ab_result['triggered']:
+                damage = ab_result['modified_damage']
+                if ab_result['heal']:
+                    def_poke['currentHp'] = min(
+                        def_poke.get('maxHp', 999),
+                        def_poke.get('currentHp', 0) + ab_result['heal']
+                    )
+                defender_id = battle[defender_key]['id']
+                socketio.emit('ability_triggered', {
+                    'message': ab_result['message'], 'blocked': ab_result['blocked'],
+                    'heal': ab_result['heal'], 'boost': ab_result['boost'],
+                }, room=defender_id)
+
+    result = pvp.apply_damage(battle, npc_key, damage, move, calc['message'])
 
     p1_state = pvp.get_battle_state_for_player(battle, 'player1')
     p2_state = pvp.get_battle_state_for_player(battle, 'player2')
