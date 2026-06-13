@@ -2683,6 +2683,28 @@ def _wild_auto_attack(player_id, encounter, game_state):
     socketio.emit('battle_update', action_result, room=f'master_{_tid()}')
     socketio.emit('battle_update', action_result, room=player_id)
 
+@socketio.on('apply_wild_status')
+def handle_apply_wild_status(data):
+    """Apply status to wild pokemon without switching turn (follow-up after on-hit status)."""
+    if not current_user.is_authenticated:
+        return
+    player_id = str(current_user.id)
+    status = data.get('status')
+    if not status:
+        return
+    game_state = get_game_state()
+    encounter = game_state['active_encounters'].get(player_id)
+    if not encounter:
+        return
+    battle_state = encounter['battle_state']
+    if not battle_state.get('wild_status'):
+        status_dict = status if isinstance(status, dict) else {'condition': status, 'turns_active': 0}
+        battle_state['wild_status'] = status_dict
+        encounter['battle_state'] = battle_state
+        game_state['active_encounters'][player_id] = encounter
+        save_game_state(game_state)
+        emit('wild_status_applied', {'status': status, 'player_id': player_id}, room=f'master_{_tid()}')
+
 @socketio.on('end_encounter')
 def handle_end_encounter(data):
     """End an encounter."""

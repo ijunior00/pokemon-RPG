@@ -982,8 +982,8 @@ h1, h2 {
     border-radius: 50%;
     background: radial-gradient(ellipse, #6ab04c 60%, #4a8a2c 100%);
 }
-.enemy-grass  { width: 200px; height: 50px; top: 95px;  left: 5%;  opacity: 0.7; }
-.player-grass { width: 180px; height: 45px; bottom: 40px; right: 8%; opacity: 0.7; }
+.enemy-grass  { width: 200px; height: 50px; top: 200px; left: 2%;  opacity: 0.7; }
+.player-grass { width: 180px; height: 45px; top: 140px; right: 5%; opacity: 0.7; }
 
 /* enemy block: top-left area */
 .poke-enemy-block {
@@ -1075,6 +1075,30 @@ h1, h2 {
     image-rendering: pixelated;
     filter: drop-shadow(-2px 4px 6px rgba(0,0,0,0.5));
     margin-right: 40px;
+}
+
+/* Round badge in center of battle scene */
+#scene-round-badge {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(10, 10, 30, 0.82);
+    border: 2.5px solid #ffde00;
+    color: #ffde00;
+    font-family: var(--font-pixel);
+    font-size: 0.85rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    box-shadow: 0 0 10px rgba(255, 222, 0, 0.4), 0 2px 8px rgba(0,0,0,0.6);
+    pointer-events: none;
+    display: none; /* hidden until battle starts */
 }
 
 /* platforms under sprites */

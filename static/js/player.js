@@ -518,6 +518,8 @@ socket.on('initiative_result', (data) => {
     }
     window.currentTurn = data.first_turn;
     updateTurnUI();
+    const sb = document.getElementById('scene-round-badge');
+    if (sb) { sb.textContent = '1'; sb.style.display = 'flex'; }
     if (data.first_turn === 'wild') {
         setTimeout(() => wildPokemonAutoAttack(), 1500);
     }
@@ -593,11 +595,13 @@ socket.on('battle_update', (data) => {
         updateStatusDisplay();
     }
 
-    // Update round counter display
+    // Update round counter display (log bar + scene badge)
     const roundDisplay = document.getElementById('battle-round-display');
     const turnDisplay = document.getElementById('battle-turn-display');
     if (roundDisplay) roundDisplay.textContent = `⚔️ Round ${bs.round || 1}`;
     if (turnDisplay) turnDisplay.textContent = bs.turn === 'player' ? '🟢 Seu turno' : '🔴 Turno do oponente';
+    const sceneBadge = document.getElementById('scene-round-badge');
+    if (sceneBadge) { sceneBadge.textContent = bs.round || 1; sceneBadge.style.display = 'flex'; }
 
     // Update turn
     window.currentTurn = bs.turn;
@@ -610,6 +614,8 @@ socket.on('battle_update', (data) => {
 
     // Check faint
     if (bs.wild_hp_current <= 0) {
+        const fb = document.getElementById('scene-round-badge');
+        if (fb) fb.style.display = 'none';
         battleSpriteFaint('battle-enemy-sprite');
         playSound('faint');
         addBattleLog(`<strong>💀 Pokémon Selvagem desmaiou!</strong>`);
@@ -955,17 +961,24 @@ async function useMove(moveName) {
         const statUsed = moveCategory === 'physical' ? 'ATK' : 'SPA';
         addBattleLog(`✅ Acertou! (${totalAttack} vs AC ${enemyAC}) → ${scaledDice}(${diceRoll}) + ${statUsed}(${moveMod})${stab > 0 ? ` + STAB(${stab})` : ''}${isCrit ? ' ×2 CRIT' : ''}${window.enemyDodging ? ' ×1.25(esquiva)' : ''}${effectLabel ? ' ' + effectLabel : ''} = <strong>${damage} dano ${m.type||''}</strong>`);
 
-        // Check for status effect (await so the result is ready before emitting)
-        await checkMoveStatusEffect(moveName, attackRoll, damage);
-
+        // Emit immediately so the turn is not delayed by the async status-check fetch.
+        // Status effect is applied in a follow-up event if it triggers.
         socket.emit('battle_action', {
             action_by: 'player', action_type: 'attack', move_name: moveName,
             move_type: moveTypeEn,
             damage: damage, message: `${totalAttack} vs AC ${enemyAC}${isCrit ? ' Crítico!' : ''}`,
             player_status_damage: window._playerPreTurnStatusDamage || 0,
-            status_effect: window._lastStatusInflicted || null
+            status_effect: null
         });
         window._lastStatusInflicted = null;
+
+        // Fire-and-forget status check; if something triggers, persist it via separate event
+        checkMoveStatusEffect(moveName, attackRoll, damage).then(() => {
+            if (window._lastStatusInflicted) {
+                socket.emit('apply_wild_status', { status: window._lastStatusInflicted });
+                window._lastStatusInflicted = null;
+            }
+        });
     } else {
         addBattleLog(`❌ Errou! (${totalAttack} < AC ${enemyAC})`);
         socket.emit('battle_action', { action_by: 'player', action_type: 'attack', move_name: moveName, damage: 0, player_status_damage: window._playerPreTurnStatusDamage || 0, message: `Errou (${totalAttack} vs AC ${enemyAC})` });
