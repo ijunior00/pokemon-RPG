@@ -810,9 +810,18 @@ function showMoveModal(moveName) {
     modal.classList.remove('hidden');
 }
 
+function _lockPlayerActions() {
+    document.querySelectorAll('#battle-player-moves .selectable-move').forEach(btn => {
+        btn.style.opacity = '0.5';
+        btn.style.pointerEvents = 'none';
+    });
+    document.getElementById('btn-pass-turn')?.classList.add('hidden');
+}
+
 async function useMove(moveName) {
     if (window.currentTurn !== 'player') { alert('Não é seu turno!'); return; }
-    
+    _lockPlayerActions();
+
     const m = MOVES_CACHE[moveName] || {};
     const poke = window.currentBattleData?.playerPokemon;
     const stats = poke?.stats || {};
@@ -1062,6 +1071,7 @@ function getProficiencyForLevel(level) {
 
 function passTurn() {
     if (window.currentTurn !== 'player') return;
+    _lockPlayerActions();
     addBattleLog(`⏭️ Turno passado.`);
     socket.emit('battle_action', { action_by: 'player', action_type: 'pass', move_name: 'Passar', damage: 0, player_status_damage: window._playerPreTurnStatusDamage || 0, message: 'Passou o turno' });
 }
@@ -3957,20 +3967,27 @@ const _originalUpdateTurnUI = updateTurnUI;
 updateTurnUI = async function() {
     _originalUpdateTurnUI();
     // Process PLAYER's status effects at the START of PLAYER's turn (before player acts)
-    // This is a "pre-turn" step: status resolves, then the pokemon acts (or can't)
     if (window.currentTurn === 'player' && window.playerPokemonStatus && !window._processingPlayerStatus) {
+        // Lock buttons BEFORE awaiting — player must not act until status resolves
+        _lockPlayerActions();
         window._processingPlayerStatus = true;
         const canAct = await processPlayerTurnStart();
         window._processingPlayerStatus = false;
         if (!canAct) {
             addBattleLog('⏭️ Seu Pokémon não conseguiu agir por causa do status!');
-            // Pass the turn (this will trigger server to switch to wild turn)
             socket.emit('battle_action', {
                 action_by: 'player', action_type: 'pass',
                 move_name: 'Status impediu', damage: 0,
                 player_status_damage: window._playerPreTurnStatusDamage || 0,
                 message: 'Não pôde agir'
             });
+        } else {
+            // Status resolved but player can act — re-enable buttons
+            document.querySelectorAll('#battle-player-moves .selectable-move').forEach(btn => {
+                btn.style.opacity = '1';
+                btn.style.pointerEvents = 'auto';
+            });
+            document.getElementById('btn-pass-turn')?.classList.remove('hidden');
         }
     }
 };
