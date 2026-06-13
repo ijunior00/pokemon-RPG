@@ -868,10 +868,64 @@ async function useMove(moveName) {
         return;
     }
 
-    // Roll d20 for local animation only — server recalculates damage authoritatively
+    // Roll d20 for attack
     const attackRoll = Math.floor(Math.random() * 20) + 1;
+    const isCrit = attackRoll === 20;
+    const isMiss = attackRoll === 1;
+    const totalAttack = attackRoll + mod + prof;
     const categoryLabel = moveCategory === 'physical' ? '⚔️ Físico' : '✨ Especial';
-    addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) — aguardando servidor...`);
+
+    // Get enemy AC (use appropriate AC based on move category)
+    const enemy = window.currentBattleData?.enemy || {};
+    const enemyAC = moveCategory === 'physical' 
+        ? (enemy.phys_ac || enemy.ac || 13)
+        : (enemy.spec_ac || enemy.ac || 13);
+
+    let damage = 0;
+    let message = '';
+    let effectLabel = '';
+
+    if (isMiss) {
+        message = 'Nat 1 - Falha';
+        addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) + MOD(${mod}) + Prof(${prof}) = ${totalAttack} 💨 Falha!`);
+    } else if (totalAttack >= enemyAC || isCrit) {
+        // Calculate damage locally
+        const scaledDice = getScaledDice(m.baseDamage || '1d6', pokeLevel, m.higherLevels);
+        let diceRoll = rollDamageFromString(scaledDice, pokeLevel);
+        damage = diceRoll + mod;
+        if (isCrit) {
+            const critExtra = rollDamageFromString(scaledDice, pokeLevel);
+            damage = diceRoll + critExtra + mod;
+        }
+        // STAB
+        const pokeTypes = (poke?.types || []).map(t => t.toLowerCase());
+        const moveTypeLC = (m.type || '').toLowerCase();
+        const stab = poke?.stab || 0;
+        const stabBonus = pokeTypes.includes(moveTypeLC) ? stab : 0;
+        damage += stabBonus;
+        // Type effectiveness
+        const enemyVulns = (enemy.vulnerabilities || []).map(t => t.toLowerCase());
+        const enemyResists = (enemy.resistances || []).map(t => t.toLowerCase());
+        const enemyImmunes = (enemy.immunities || []).map(t => t.toLowerCase());
+        let effectiveness = 1;
+        if (enemyImmunes.includes(moveTypeLC)) effectiveness = 0;
+        else {
+            if (enemyVulns.includes(moveTypeLC)) effectiveness *= 2;
+            if (enemyResists.includes(moveTypeLC)) effectiveness *= 0.5;
+        }
+        damage = Math.floor(damage * effectiveness);
+        if (effectiveness === 0) { damage = 0; effectLabel = '⛔ IMUNE'; }
+        else if (effectiveness > 1) effectLabel = `⚡ Super Efetivo (x${effectiveness})`;
+        else if (effectiveness < 1) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
+        if (damage < 1 && effectiveness > 0) damage = 1;
+
+        message = `${totalAttack} vs AC ${enemyAC}${isCrit ? ' Crítico!' : ''}`;
+        addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) + MOD(${mod}) + Prof(${prof}) = ${totalAttack} vs AC ${enemyAC} ✅ → ${scaledDice}(${diceRoll}) + MOD(${mod})${stabBonus > 0 ? ` + STAB(${stabBonus})` : ''}${effectLabel ? ' ' + effectLabel : ''}${isCrit ? ' ×2 CRIT' : ''} = <strong>${damage} dano</strong>`);
+    } else {
+        message = `Errou (${totalAttack} vs AC ${enemyAC})`;
+        addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) + MOD(${mod}) + Prof(${prof}) = ${totalAttack} vs AC ${enemyAC} ❌ Errou!`);
+    }
+
     animateDice(attackRoll, 'd20');
 
     // Cancel turn timer - action was taken
@@ -881,7 +935,8 @@ async function useMove(moveName) {
     socket.emit('battle_action', {
         action_by: 'player', action_type: 'attack', move_name: moveName,
         attack_roll: attackRoll,
-        damage: 0,
+        damage: damage,
+        message: message,
         player_status_damage: window._playerPreTurnStatusDamage || 0
     });
 }
