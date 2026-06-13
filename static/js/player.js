@@ -4024,7 +4024,6 @@ async function _executeWildTurn() {
                 document.getElementById('battle-enemy-hp-text-full').textContent = `${newHp}/${maxHp} HP`;
                 setHpBar('battle-enemy-hp-bar-full', newHp, maxHp);
                 const condName = window.statusEffectsData?.conditions?.[window.wildPokemonStatus.condition]?.name || window.wildPokemonStatus.condition;
-                addBattleLog(`🔴 Dano: ${condName} → ${statusResult.damage} de dano! (Dano de condição)`);
                 // Check if wild fainted from status damage
                 if (newHp <= 0) {
                     addBattleLog(`💀 Pokémon Selvagem desmaiou por ${condName}!`);

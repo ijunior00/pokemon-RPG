@@ -2520,11 +2520,9 @@ def handle_battle_action(data):
         emit('battle_update', action_result, room=f'master_{_tid()}')
         emit('battle_update', action_result, room=player_id)
         
-        # AUTO-ATTACK: If turn switched to 'wild' and battle not over, wild attacks automatically
-        if WILD_AUTO_MODE and battle_state['turn'] == 'wild' and battle_state['wild_hp_current'] > 0 and battle_state['player_hp_current'] > 0:
-            import time
-            time.sleep(1.5)  # Brief delay for dramatic effect
-            _wild_auto_attack(player_id, encounter, game_state)
+        # Wild auto-attack is handled client-side (player.js wildPokemonAutoAttack) to support
+        # status damage, move variety, and status moves. Server-side auto-attack removed to
+        # prevent race condition: server used stale encounter state and overwrote correct HP.
 
 def _auto_roll_initiative(player_id, game_state):
     """Auto-roll initiative when AUTO mode is ON."""
@@ -2570,11 +2568,7 @@ def _auto_roll_initiative(player_id, game_state):
     socketio.emit('initiative_result', result, room=f'master_{_tid()}')
     socketio.emit('initiative_result', result, room=player_id)
     
-    # If wild goes first, auto-attack after a delay
-    if first_turn == 'wild':
-        import time
-        time.sleep(1.5)
-        _wild_auto_attack(player_id, encounter, game_state)
+    # Wild auto-attack when wild goes first is handled client-side via initiative_result handler.
 
 def _wild_auto_attack(player_id, encounter, game_state):
     """Wild pokemon automatically attacks the player's pokemon."""
