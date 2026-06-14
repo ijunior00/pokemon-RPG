@@ -872,12 +872,12 @@ async function useMove(moveName) {
     const attackRoll = Math.floor(Math.random() * 20) + 1;
     const isCrit = attackRoll === 20;
     const isMiss = attackRoll === 1;
-    const totalAttack = attackRoll + mod + prof;
+    const totalAttack = attackRoll + moveMod + profBonus;
     const categoryLabel = moveCategory === 'physical' ? '⚔️ Físico' : '✨ Especial';
 
     // Get enemy AC (use appropriate AC based on move category)
     const enemy = window.currentBattleData?.enemy || {};
-    const enemyAC = moveCategory === 'physical' 
+    const enemyAC = moveCategory === 'physical'
         ? (enemy.phys_ac || enemy.ac || 13)
         : (enemy.spec_ac || enemy.ac || 13);
 
@@ -887,15 +887,15 @@ async function useMove(moveName) {
 
     if (isMiss) {
         message = 'Nat 1 - Falha';
-        addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) + MOD(${mod}) + Prof(${prof}) = ${totalAttack} 💨 Falha!`);
+        addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) + MOD(${moveMod}) + Prof(${profBonus}) = ${totalAttack} 💨 Falha!`);
     } else if (totalAttack >= enemyAC || isCrit) {
         // Calculate damage locally
         const scaledDice = getScaledDice(m.baseDamage || '1d6', pokeLevel, m.higherLevels);
         let diceRoll = rollDamageFromString(scaledDice, pokeLevel);
-        damage = diceRoll + mod;
+        damage = diceRoll + moveMod;
         if (isCrit) {
             const critExtra = rollDamageFromString(scaledDice, pokeLevel);
-            damage = diceRoll + critExtra + mod;
+            damage = diceRoll + critExtra + moveMod;
         }
         // STAB
         const pokeTypes = (poke?.types || []).map(t => t.toLowerCase());
@@ -920,10 +920,10 @@ async function useMove(moveName) {
         if (damage < 1 && effectiveness > 0) damage = 1;
 
         message = `${totalAttack} vs AC ${enemyAC}${isCrit ? ' Crítico!' : ''}`;
-        addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) + MOD(${mod}) + Prof(${prof}) = ${totalAttack} vs AC ${enemyAC} ✅ → ${scaledDice}(${diceRoll}) + MOD(${mod})${stabBonus > 0 ? ` + STAB(${stabBonus})` : ''}${effectLabel ? ' ' + effectLabel : ''}${isCrit ? ' ×2 CRIT' : ''} = <strong>${damage} dano</strong>`);
+        addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) + MOD(${moveMod}) + Prof(${profBonus}) = ${totalAttack} vs AC ${enemyAC} ✅ → ${scaledDice}(${diceRoll}) + MOD(${moveMod})${stabBonus > 0 ? ` + STAB(${stabBonus})` : ''}${effectLabel ? ' ' + effectLabel : ''}${isCrit ? ' ×2 CRIT' : ''} = <strong>${damage} dano</strong>`);
     } else {
         message = `Errou (${totalAttack} vs AC ${enemyAC})`;
-        addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) + MOD(${mod}) + Prof(${prof}) = ${totalAttack} vs AC ${enemyAC} ❌ Errou!`);
+        addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) + MOD(${moveMod}) + Prof(${profBonus}) = ${totalAttack} vs AC ${enemyAC} ❌ Errou!`);
     }
 
     animateDice(attackRoll, 'd20');

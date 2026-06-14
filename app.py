@@ -2662,24 +2662,7 @@ def handle_battle_action(data):
             if battle_state.get('turn') and battle_state['turn'] != expected:
                 return
 
-        # Server-side damage calculation for player attacks
         action_log = None
-        if action_by == 'player' and action_type == 'attack':
-            # Trust client-calculated damage if provided, otherwise calc server-side
-            client_damage = data.get('damage', 0)
-            if client_damage and int(client_damage) > 0:
-                damage = int(client_damage)
-                message = data.get('message', '')
-            else:
-                attack_roll = data.get('attack_roll')
-                calc = _calc_player_attack(encounter, move_name, attack_roll)
-                damage = calc['damage']
-                message = calc['message']
-                move_type = calc.get('move_type_en', move_type)
-                action_log = calc.get('log')
-            message = calc['message']
-            move_type = calc.get('move_type_en', move_type)
-            action_log = calc.get('log')
 
         # Apply pre-turn status damage first (doesn't count as an action)
         PERMADEATH_FLOOR = -30
