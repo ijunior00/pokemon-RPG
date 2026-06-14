@@ -1781,9 +1781,10 @@ def player_dashboard():
         return redirect(url_for('master_dashboard'))
     users = get_users()
     trainer_data = users.get(current_user.id, {}).get('trainer_data', {})
+    _enrich_team(trainer_data.get('team', []))
     game_state = get_game_state()
     # Filter quests for this player
-    my_quests = [q for q in game_state.get('quests', []) 
+    my_quests = [q for q in game_state.get('quests', [])
                  if current_user.id in q.get('assigned_to', []) or not q.get('assigned_to')]
     return render_template('player.html',
                          trainer=trainer_data,
@@ -2123,13 +2124,27 @@ def level_evolve():
     })
 
 
+def _enrich_team(team):
+    """Fill in missing evolutionInfo / phys_ac / spec_ac from base pokemon data."""
+    for poke in team:
+        if not poke:
+            continue
+        base = POKEMON_BY_NAME.get((poke.get('name') or '').lower())
+        if not base:
+            continue
+        if not poke.get('evolutionInfo'):
+            poke['evolutionInfo'] = base.get('evolutionInfo', '')
+        if not poke.get('evolutionStage'):
+            poke['evolutionStage'] = base.get('evolutionStage', '')
+    return team
+
 @app.route('/player/team-data')
 @login_required
 def get_team_data():
     """Return the current player's team (for live refresh after evolution)."""
     users = get_users()
     team = users.get(current_user.id, {}).get('trainer_data', {}).get('team', [])
-    return jsonify(team)
+    return jsonify(_enrich_team(team))
 
 @app.route('/player/team', methods=['POST'])
 @login_required
@@ -2254,10 +2269,19 @@ def api_shop():
     catalog = [item for item in SHOP_CATALOG if item['id'] not in hidden_items]
     return jsonify(catalog)
 
+def _cha_modifier(cha: int):
+    """Returns (buy_multiplier, sell_multiplier) based on trainer CHA stat.
+    CHA 10 = normal prices. Each point above/below 10 = -2% buy / +3% sell.
+    Capped at ±20% buy and ±30% sell."""
+    delta = max(-9, min(10, cha - 10))  # clamp to [-9, 10]
+    buy_mult  = max(0.80, 1.0 - delta * 0.02)   # CHA 20 → 0.80, CHA 1 → 1.18
+    sell_mult = min(0.70, 0.50 + delta * 0.02)  # CHA 20 → 0.70, CHA 1 → 0.32
+    return round(buy_mult, 4), round(sell_mult, 4)
+
 @app.route('/api/shop/buy', methods=['POST'])
 @login_required
 def api_shop_buy():
-    """Buy an item. Deducts money and adds to player bag."""
+    """Buy an item. Deducts money (modified by CHA) and adds to player bag."""
     if current_user.role == 'master':
         return jsonify({'error': 'Mestre não pode comprar itens'}), 403
     data = request.json or {}
@@ -2268,9 +2292,13 @@ def api_shop_buy():
     if not item:
         return jsonify({'error': 'Item não encontrado'}), 404
 
-    total_cost = item['price'] * qty
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    cha = int(trainer.get('cha', 10))
+    buy_mult, _ = _cha_modifier(cha)
+    unit_price = max(1, int(item['price'] * buy_mult))
+    total_cost = unit_price * qty
+
     money = trainer.get('money', 0)
     if money < total_cost:
         return jsonify({'error': f'Sem dinheiro suficiente! Precisa de ₽{total_cost}, tem ₽{money}'}), 400
@@ -2285,7 +2313,71 @@ def api_shop_buy():
     trainer['bag'] = bag
     users[current_user.id]['trainer_data'] = trainer
     save_users(users)
-    return jsonify({'success': True, 'money_left': trainer['money'], 'item': item, 'qty': qty})
+    return jsonify({'success': True, 'money_left': trainer['money'], 'item': item,
+                    'qty': qty, 'unit_price': unit_price, 'cha_bonus': cha != 10})
+
+@app.route('/api/shop/sell', methods=['POST'])
+@login_required
+def api_shop_sell():
+    """Sell an item from the player's bag. Price affected by CHA stat."""
+    if current_user.role == 'master':
+        return jsonify({'error': 'Mestre não pode vender itens'}), 403
+    data = request.json or {}
+    item_name = data.get('item_name', '').strip()
+    qty = max(1, int(data.get('qty', 1)))
+
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    bag = trainer.get('bag', [])
+
+    bag_item = next((b for b in bag if isinstance(b, dict) and b.get('name', '').lower() == item_name.lower()), None)
+    if not bag_item or (bag_item.get('qty') or 0) < qty:
+        return jsonify({'error': f'Você não tem {qty}x {item_name} na bolsa'}), 400
+
+    # Find base price from catalog
+    catalog_item = next((i for i in SHOP_CATALOG if i['name'].lower() == item_name.lower()), None)
+    base_sell_price = int((catalog_item['price'] if catalog_item else 100) * 0.5)
+
+    cha = int(trainer.get('cha', 10))
+    _, sell_mult = _cha_modifier(cha)
+    unit_price = max(1, int((catalog_item['price'] if catalog_item else 200) * sell_mult))
+    total_earned = unit_price * qty
+
+    # Remove from bag
+    bag_item['qty'] = bag_item.get('qty', qty) - qty
+    if bag_item['qty'] <= 0:
+        bag.remove(bag_item)
+
+    trainer['bag'] = bag
+    trainer['money'] = trainer.get('money', 0) + total_earned
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+
+    return jsonify({
+        'success': True,
+        'item_name': item_name,
+        'qty': qty,
+        'unit_price': unit_price,
+        'total_earned': total_earned,
+        'money': trainer['money'],
+        'cha': cha,
+        'cha_bonus': cha != 10
+    })
+
+@app.route('/api/shop/sell-price', methods=['POST'])
+@login_required
+def api_shop_sell_price():
+    """Preview sell price for an item based on player CHA."""
+    data = request.json or {}
+    item_name = data.get('item_name', '').strip()
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    cha = int(trainer.get('cha', 10))
+    _, sell_mult = _cha_modifier(cha)
+    catalog_item = next((i for i in SHOP_CATALOG if i['name'].lower() == item_name.lower()), None)
+    base_price = catalog_item['price'] if catalog_item else 0
+    unit_price = max(1, int(base_price * sell_mult)) if base_price else 0
+    return jsonify({'unit_price': unit_price, 'cha': cha, 'sell_mult': round(sell_mult * 100)})
 
 @app.route('/player/pc/items', methods=['GET'])
 @login_required

@@ -887,13 +887,19 @@
     <!-- TAB: LOJA / POKÉMART -->
     <div class="tab-content" id="tab-shop">
         <h2>🏪 Pokémart</h2>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-            <p style="color:var(--muted);margin:0;">Compre itens que vão direto para sua bolsa.</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;flex-wrap:wrap;gap:0.5rem;">
+            <span id="shop-cha-info" style="font-size:0.85rem;color:var(--muted);"></span>
             <span style="font-size:1.1rem;font-weight:bold;">💰 ₽<span id="shop-money-display">{{ trainer.money or 0 }}</span></span>
         </div>
 
-        <!-- Category filter -->
-        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <!-- Comprar / Vender toggle -->
+        <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;">
+            <button id="shop-tab-buy"  class="btn btn-sm btn-primary"   onclick="setShopMode('buy')">🛒 Comprar</button>
+            <button id="shop-tab-sell" class="btn btn-sm btn-secondary" onclick="setShopMode('sell')">💰 Vender</button>
+        </div>
+
+        <!-- Category filter (only relevant when buying) -->
+        <div id="shop-filter-bar" style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:1rem;">
             <button class="btn btn-sm btn-primary" onclick="filterShop('')">Tudo</button>
             <button class="btn btn-sm btn-secondary" onclick="filterShop('pokeball')">⚪ Pokébolas</button>
             <button class="btn btn-sm btn-secondary" onclick="filterShop('medicine')">💊 Medicina</button>

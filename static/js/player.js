@@ -2710,6 +2710,16 @@ function selectSpecialization(spec) {
 document.addEventListener('DOMContentLoaded', async () => {
     await loadItemSprites();
     initBag();
+    // Refresh team from server to pick up evolutionInfo and any server-side enrichment
+    try {
+        const r = await fetch('/player/team-data');
+        const team = await r.json();
+        if (Array.isArray(team)) {
+            playerTeam = team;
+            TRAINER_DATA.team = team;
+            refreshTeamDisplay();
+        }
+    } catch(e) {}
 });
 
 
@@ -5373,6 +5383,23 @@ async function pcWithdrawItem(itemName) {
 // ============================================================
 let _shopCatalog = [];
 let _shopFilter  = '';
+let _shopMode    = 'buy'; // 'buy' | 'sell'
+
+// CHA modifier mirror of backend _cha_modifier()
+function _chaModifier(cha) {
+    const delta = Math.max(-9, Math.min(10, (cha || 10) - 10));
+    const buyMult  = Math.max(0.80, 1.0 - delta * 0.02);
+    const sellMult = Math.min(0.70, 0.50 + delta * 0.02);
+    return { buyMult, sellMult };
+}
+
+function _chaPrice(basePrice, mode) {
+    const cha = TRAINER_DATA.cha || 10;
+    const { buyMult, sellMult } = _chaModifier(cha);
+    if (mode === 'buy')  return Math.max(1, Math.round(basePrice * buyMult));
+    if (mode === 'sell') return Math.max(1, Math.round(basePrice * sellMult));
+    return basePrice;
+}
 
 async function loadShop() {
     if (_shopCatalog.length) { renderShop(); return; }
@@ -5388,24 +5415,60 @@ function filterShop(cat) {
     renderShop();
 }
 
+function setShopMode(mode) {
+    _shopMode = mode;
+    document.getElementById('shop-tab-buy')?.classList.toggle('btn-primary', mode === 'buy');
+    document.getElementById('shop-tab-buy')?.classList.toggle('btn-secondary', mode !== 'buy');
+    document.getElementById('shop-tab-sell')?.classList.toggle('btn-primary', mode === 'sell');
+    document.getElementById('shop-tab-sell')?.classList.toggle('btn-secondary', mode !== 'sell');
+    const filterBar = document.getElementById('shop-filter-bar');
+    if (filterBar) filterBar.style.display = mode === 'sell' ? 'none' : 'flex';
+    renderShop();
+}
+
 function renderShop() {
     const moneyEl = document.getElementById('shop-money-display');
     if (moneyEl) moneyEl.textContent = (TRAINER_DATA.money || 0).toLocaleString('pt-BR');
 
-    const list = _shopFilter ? _shopCatalog.filter(i => i.category === _shopFilter) : _shopCatalog;
+    const cha = TRAINER_DATA.cha || 10;
+    const { buyMult, sellMult } = _chaModifier(cha);
+    const chaEl = document.getElementById('shop-cha-info');
+    if (chaEl) {
+        const buyPct  = Math.round((1 - buyMult)  * 100);
+        const sellPct = Math.round(sellMult * 100);
+        const buyTxt  = buyPct > 0 ? `<span style="color:#4caf50">-${buyPct}% compra</span>` :
+                        buyPct < 0 ? `<span style="color:#e53935">+${Math.abs(buyPct)}% compra</span>` : 'preço normal';
+        const sellTxt = `vende a <span style="color:${sellPct > 50 ? '#4caf50' : '#e53935'}">${sellPct}%</span> do valor`;
+        chaEl.innerHTML = `✨ CHA ${cha} — ${buyTxt}, ${sellTxt}`;
+    }
+
     const grid = document.getElementById('shop-grid');
     if (!grid) return;
 
-    const catLabels = { pokeball:'⚪ Pokébolas', medicine:'💊 Medicina', battle:'⚔️ Batalha', evo_stone:'💎 Pedra Evo', held:'📎 Segurado', special:'✨ Especial' };
+    if (_shopMode === 'sell') {
+        renderSellGrid(grid);
+        return;
+    }
+
     const catColors = { pokeball:'#e53935', medicine:'#4caf50', battle:'#ff9800', evo_stone:'#9c27b0', held:'#2196f3', special:'#ffb300' };
+    const list = _shopFilter ? _shopCatalog.filter(i => i.category === _shopFilter) : _shopCatalog;
 
     grid.innerHTML = list.map(item => {
-        const canAfford = (TRAINER_DATA.money || 0) >= item.price;
+        const realPrice = _chaPrice(item.price, 'buy');
+        const discounted = realPrice < item.price;
+        const canAfford = (TRAINER_DATA.money || 0) >= realPrice;
         const color = catColors[item.category] || 'var(--accent)';
+        const priceHtml = discounted
+            ? `<span style="text-decoration:line-through;opacity:0.5;font-size:0.8rem;">₽${item.price.toLocaleString('pt-BR')}</span>
+               <span style="color:#4caf50;font-weight:bold;"> ₽${realPrice.toLocaleString('pt-BR')}</span>`
+            : realPrice > item.price
+            ? `<span style="text-decoration:line-through;opacity:0.5;font-size:0.8rem;">₽${item.price.toLocaleString('pt-BR')}</span>
+               <span style="color:#e53935;font-weight:bold;"> ₽${realPrice.toLocaleString('pt-BR')}</span>`
+            : `<span style="color:${color};font-weight:bold;">₽${item.price.toLocaleString('pt-BR')}</span>`;
         return `<div class="card" style="border-left:4px solid ${color};padding:0.75rem;">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.3rem;">
                 <strong style="font-size:0.95rem;">${item.name}</strong>
-                <span style="color:${color};font-weight:bold;white-space:nowrap;">₽${item.price.toLocaleString('pt-BR')}</span>
+                <span style="white-space:nowrap;">${priceHtml}</span>
             </div>
             <p style="color:var(--muted);font-size:0.8rem;margin:0 0 0.5rem;">${item.description}</p>
             <div style="display:flex;align-items:center;gap:0.4rem;">
@@ -5420,14 +5483,45 @@ function renderShop() {
     }).join('');
 }
 
+function renderSellGrid(grid) {
+    const bag = (TRAINER_DATA.bag || []).filter(b => b && (b.qty || 0) > 0);
+    if (!bag.length) {
+        grid.innerHTML = '<p style="color:var(--muted);text-align:center;padding:2rem;">Bolsa vazia — nada para vender.</p>';
+        return;
+    }
+    grid.innerHTML = bag.map((item, idx) => {
+        const catalog = _shopCatalog.find(c => c.name.toLowerCase() === item.name.toLowerCase());
+        const basePrice = catalog ? catalog.price : 0;
+        const sellPrice = basePrice ? _chaPrice(basePrice, 'sell') : 0;
+        const priceHtml = sellPrice
+            ? `<span style="color:#4caf50;font-weight:bold;">₽${sellPrice.toLocaleString('pt-BR')}/un</span>`
+            : `<span style="color:var(--muted);font-size:0.8rem;">Não vendável</span>`;
+        return `<div class="card" style="border-left:4px solid #4caf50;padding:0.75rem;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.3rem;">
+                <strong style="font-size:0.95rem;">${item.name}</strong>
+                ${priceHtml}
+            </div>
+            <p style="color:var(--muted);font-size:0.8rem;margin:0 0 0.5rem;">Qtd na bolsa: <strong>${item.qty}</strong></p>
+            ${sellPrice ? `<div style="display:flex;align-items:center;gap:0.4rem;">
+                <input type="number" id="sell-qty-${idx}" value="1" min="1" max="${item.qty}"
+                       style="width:55px;font-size:0.85rem;padding:0.25rem 0.4rem;">
+                <button class="btn btn-sm btn-primary" onclick="sellItem('${item.name}', ${idx})">
+                    💰 Vender
+                </button>
+            </div>` : ''}
+        </div>`;
+    }).join('');
+}
+
 async function buyItem(itemId) {
     const qty = parseInt(document.getElementById(`shop-qty-${itemId}`)?.value || 1);
     const item = _shopCatalog.find(i => i.id === itemId);
     if (!item) return;
-    const total = item.price * qty;
+    const unitPrice = _chaPrice(item.price, 'buy');
+    const total = unitPrice * qty;
     if (!confirm(`Comprar ${qty}x ${item.name} por ₽${total.toLocaleString('pt-BR')}?`)) return;
 
-    const res  = await fetch('/api/shop/buy', {
+    const res = await fetch('/api/shop/buy', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ item_id: itemId, qty })
     });
@@ -5435,7 +5529,6 @@ async function buyItem(itemId) {
     if (data.error) { showNotification(data.error, 'error'); return; }
 
     TRAINER_DATA.money = data.money_left;
-    // Sync bag
     const existing = (TRAINER_DATA.bag || []).find(b => b && b.name?.toLowerCase() === item.name.toLowerCase());
     if (existing) {
         existing.qty = (existing.qty || 1) + qty;
@@ -5444,7 +5537,36 @@ async function buyItem(itemId) {
         TRAINER_DATA.bag.push({ name: item.name, qty, description: item.description });
     }
     renderShop();
-    showNotification(`✅ ${qty}x ${item.name} comprado! Saldo: ₽${data.money_left.toLocaleString('pt-BR')}`, 'success');
+    const chaMsg = data.cha_bonus ? ` (bônus CHA!)` : '';
+    showNotification(`✅ ${qty}x ${item.name} comprado por ₽${(data.unit_price * qty).toLocaleString('pt-BR')}${chaMsg}`, 'success');
+}
+
+async function sellItem(itemName, bagIdx) {
+    const qty = parseInt(document.getElementById(`sell-qty-${bagIdx}`)?.value || 1);
+    const bagItem = (TRAINER_DATA.bag || []).find(b => b && b.name?.toLowerCase() === itemName.toLowerCase());
+    if (!bagItem || qty < 1 || qty > (bagItem.qty || 0)) { showNotification('Quantidade inválida', 'error'); return; }
+
+    const catalog = _shopCatalog.find(c => c.name.toLowerCase() === itemName.toLowerCase());
+    const previewPrice = catalog ? _chaPrice(catalog.price, 'sell') * qty : '?';
+    if (!confirm(`Vender ${qty}x ${itemName} por ₽${typeof previewPrice === 'number' ? previewPrice.toLocaleString('pt-BR') : previewPrice}?`)) return;
+
+    const res = await fetch('/api/shop/sell', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ item_name: itemName, qty })
+    });
+    const data = await res.json();
+    if (data.error) { showNotification(data.error, 'error'); return; }
+
+    TRAINER_DATA.money = data.money;
+    // Update local bag
+    bagItem.qty -= qty;
+    if (bagItem.qty <= 0) {
+        const idx = TRAINER_DATA.bag.indexOf(bagItem);
+        if (idx !== -1) TRAINER_DATA.bag.splice(idx, 1);
+    }
+    renderShop();
+    const chaMsg = data.cha_bonus ? ` (bônus CHA!)` : '';
+    showNotification(`💰 Vendeu ${qty}x ${itemName} por ₽${data.total_earned.toLocaleString('pt-BR')}${chaMsg}! Saldo: ₽${data.money.toLocaleString('pt-BR')}`, 'success');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
