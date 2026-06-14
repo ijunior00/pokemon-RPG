@@ -56,7 +56,7 @@
       "name": "Chlorophyll",
       "description": "This Pokémon’s speed is doubled in harsh sunlight."
     },
-    "evolutionInfo": "Bulbasaur can evolve into Ivysaur at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Bulbasaur can evolve into Ivysaur at level 3 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Growl"
@@ -190,7 +190,7 @@
       "name": "Chlorophyll",
       "description": "This Pokémon’s speed is doubled in harsh sunlight."
     },
-    "evolutionInfo": "Ivysaur can evolve into Venusaur at level 14 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Ivysaur can evolve into Venusaur at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Growl",
@@ -418,7 +418,7 @@
       "name": "Solar Power",
       "description": "Damage rolls for this Pokémon get an additional +2 during harsh sunlight."
     },
-    "evolutionInfo": "Charmander can evolve into Charmeleon at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Charmander can evolve into Charmeleon at level 3 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Scratch"
@@ -552,7 +552,7 @@
       "name": "Solar Power",
       "description": "Damage rolls for this Pokémon get an additional +2 during harsh sunlight."
     },
-    "evolutionInfo": "Charmeleon can evolve into Charizard at level 14 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Charmeleon can evolve into Charizard at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Scratch",
@@ -792,7 +792,7 @@
       "name": "Rain Dish",
       "description": "In rainy conditions, this Pokémon heals for an amount of HP equal to its proficiency bonus at the end of each of its turns."
     },
-    "evolutionInfo": "Squirtle can evolve into Wartortle at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Squirtle can evolve into Wartortle at level 3 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Tail Whip"
@@ -919,7 +919,7 @@
       "name": "Rain Dish",
       "description": "In rainy conditions, this Pokémon heals for an amount of HP equal to its proficiency bonus at the end of each of its turns."
     },
-    "evolutionInfo": "Wartortle can evolve into Blastoise at level 14 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Wartortle can evolve into Blastoise at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Tail Whip",
@@ -1117,7 +1117,7 @@
       "name": "Run Away",
       "description": "This Pokémon cannot be the target of an attack of opportunity."
     },
-    "evolutionInfo": "Caterpie can evolve into Metapod at level 4 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Caterpie can evolve into Metapod at level 1 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
     "startingMoves": [
       "String Shot",
       "Tackle"
@@ -1175,7 +1175,7 @@
       "name": "Resistances",
       "description": "Grass, Ground, Fighting Shed Skin: If this Pokémon is affected by a negative status ailment, they can roll a d4 at the end of each of their turns. On a result of 4, they are cured."
     },
-    "evolutionInfo": "Metapod can evolve into Butterfree at level 6 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Metapod can evolve into Butterfree at level 2 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Harden"
     ]
@@ -1355,7 +1355,7 @@
       "name": "Run Away",
       "description": "This Pokémon cannot be the target of an attack of opportunity."
     },
-    "evolutionInfo": "Weedle can evolve into Kakuna at level 4 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Weedle can evolve into Kakuna at level 1 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Poison Sting",
       "String Shot"
@@ -1417,7 +1417,7 @@
       "name": "Resistances",
       "description": "Bug, Fairy, Fighting, Grass, Poison Shed Skin: If this Pokémon is affected by a negative status ailment, they can roll a d4 at the end of each of their turns. On a result of 4, they are cured."
     },
-    "evolutionInfo": "Kakuna can evolve into Beedrill at level 6 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Kakuna can evolve into Beedrill at level 2 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Harden"
     ]
@@ -1594,7 +1594,7 @@
       "name": "Big Pecks",
       "description": "This Pokémon's AC cannot be reduced by an opponent's moves."
     },
-    "evolutionInfo": "Pidgey can evolve into Pidgeotto at level 6 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Pidgey can evolve into Pidgeotto at level 4 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle"
     ],
@@ -1714,7 +1714,7 @@
       "name": "Big Pecks",
       "description": "This Pokémon's AC cannot be reduced by an opponent's moves."
     },
-    "evolutionInfo": "Pidgeotto can evolve into Pidgeot at level 14 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Pidgeotto can evolve into Pidgeot at level 7 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Sand Attack",
@@ -1923,7 +1923,7 @@
       "name": "Hustle",
       "description": "When you score a critical hit, you may immediately gain an additional action on your turn. If this action is used to make an attack, you have disadvantage on the roll. You may only ever have one additional action per round."
     },
-    "evolutionInfo": "Rattata can evolve into Raticate at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Rattata can evolve into Raticate at level 4 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Tail Whip"
@@ -2164,7 +2164,7 @@
       "name": "Sniper",
       "description": "On a critical hit made by this Pokémon, triple the dice roll instead of doubling it."
     },
-    "evolutionInfo": "Spearow can evolve into Fearow at level 6 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Spearow can evolve into Fearow at level 4 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Peck",
@@ -2394,7 +2394,7 @@
       "name": "Unnerve",
       "description": "Opponents in combat with this Pokémon cannot eat held berries."
     },
-    "evolutionInfo": "Ekans can evolve into Arbok at level 7 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Ekans can evolve into Arbok at level 4 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Wrap",
@@ -2849,7 +2849,7 @@
       "name": "Sand Rush",
       "description": "This Pokémon is immune to Sandstorm damage, and its speed is doubled in desert terrain, or during a Sandstorm."
     },
-    "evolutionInfo": "Sandshrew can evolve into Sandslash at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Sandshrew can evolve into Sandslash at level 4 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Defense Curl",
       "Scratch",
@@ -3101,7 +3101,7 @@
       "name": "Hustle",
       "description": "When you score a critical hit, you may immediately gain an additional action on your turn. If this action is used to make an attack, you have disadvantage on the roll. You may only ever have one additional action per round."
     },
-    "evolutionInfo": "Nidoran ♀ can evolve into Nidorina at level 6 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Nidoran ♀ can evolve into Nidorina at level 3 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Scratch"
@@ -3463,7 +3463,7 @@
       "name": "Hustle",
       "description": "When you score a critical hit, you may immediately gain an additional action on your turn. If this action is used to make an attack, you have disadvantage on the roll. You may only ever have one additional action per round."
     },
-    "evolutionInfo": "Nidoran ♂ can evolve into Nidorino at level 6 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Nidoran ♂ can evolve into Nidorino at level 3 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Peck"
@@ -4504,7 +4504,7 @@
       "name": "Infiltrator",
       "description": "This Pokémon bypasses Light Screen, Reflect, Substitute, Mist, Safeguard, and Aurora Veil."
     },
-    "evolutionInfo": "Zubat can evolve into Golbat at level 7 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Zubat can evolve into Golbat at level 4 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Absorb"
     ],
@@ -4638,7 +4638,7 @@
       "name": "Infiltrator",
       "description": "This Pokémon bypasses Light Screen, Reflect, Substitute, Mist, Safeguard, and Aurora Veil."
     },
-    "evolutionInfo": "Golbat can evolve into Crobat at level 14 and above when its loyalty is +2 or higher. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Golbat can evolve into Crobat at level 6 and above when its loyalty is +2 or higher. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Absorb",
       "Astonish",
@@ -4757,7 +4757,7 @@
       "name": "Run Away",
       "description": "This Pokémon cannot be the target of an attack of opportunity."
     },
-    "evolutionInfo": "Oddish can evolve into Gloom at level 7 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Oddish can evolve into Gloom at level 4 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Absorb",
       "Growth"
@@ -5089,7 +5089,7 @@
       "name": "Damp",
       "description": "This Pokémon is unaffected by Self Destruct and Explosion moves."
     },
-    "evolutionInfo": "Paras can evolve into Parasect at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Paras can evolve into Parasect at level 5 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Scratch"
     ],
@@ -5341,7 +5341,7 @@
       "name": "Run Away",
       "description": "This Pokémon cannot be the target of an attack of opportunity."
     },
-    "evolutionInfo": "Venonat can evolve into Venomoth at level 9 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Venonat can evolve into Venomoth at level 6 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Disable",
       "Foresight",
@@ -5530,7 +5530,7 @@
       "name": "Sand Force",
       "description": "During a Sandstorm, this Pokémon can double its STAB when it hits an opponent."
     },
-    "evolutionInfo": "Diglett can evolve into Dugtrio at level 8 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Diglett can evolve into Dugtrio at level 5 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Sand Attack",
       "Scratch"
@@ -5772,7 +5772,7 @@
       "name": "Unnerve",
       "description": "Opponents in combat with this Pokémon cannot eat held berries."
     },
-    "evolutionInfo": "Meowth can evolve into Persian at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Meowth can evolve into Persian at level 6 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Scratch"
@@ -6020,7 +6020,7 @@
       "name": "Swift Swim",
       "description": "This Pokémon's speed is doubled in rainy conditions."
     },
-    "evolutionInfo": "Psyduck can evolve into Golduck at level 9 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Psyduck can evolve into Golduck at level 7 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Scratch",
       "Water Sport"
@@ -6275,7 +6275,7 @@
       "name": "Defiant",
       "description": "While this Pokémon is suffering from a negative status effect or stat change imposed by an opponent, it gains +2 to all attack rolls."
     },
-    "evolutionInfo": "Mankey can evolve into Primeape at level 8 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Mankey can evolve into Primeape at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Covet",
       "Focus Energy",
@@ -6732,7 +6732,7 @@
       "name": "Swift Swim",
       "description": "This Pokémon's speed is doubled in rainy conditions."
     },
-    "evolutionInfo": "Poliwag can evolve into Poliwhirl at level 7 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Poliwag can evolve into Poliwhirl at level 5 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Water Sport"
     ],
@@ -7074,7 +7074,7 @@
       "name": "Magic Guard",
       "description": "If this Pokémon is subjected to a move that forces it to make a saving throw to take only half damage, it instead takes no damage on a success."
     },
-    "evolutionInfo": "Abra can evolve into Kadabra at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Abra can evolve into Kadabra at level 3 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Teleport",
       "Scratch"
@@ -7419,7 +7419,7 @@
       "name": "Steadfast",
       "description": "Once per long rest, when this Pokémon fails a saving throw against a negative condition, it can choose to pass instead."
     },
-    "evolutionInfo": "Machop can evolve into Machoke at level 8 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Machop can evolve into Machoke at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Low Kick",
@@ -7799,7 +7799,7 @@
       "name": "Gluttony",
       "description": "This Pokémon must eat its held berry when it falls below ½ of its maximum HP."
     },
-    "evolutionInfo": "Bellsprout can evolve into Weepinbell at level 7 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Bellsprout can evolve into Weepinbell at level 4 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Vine Whip"
     ],
@@ -8148,7 +8148,7 @@
       "name": "Rain Dish",
       "description": "In rainy conditions, this Pokémon heals for an amount of HP equal to its proficiency bonus at the end of each of its turns."
     },
-    "evolutionInfo": "Tentacool can evolve into Tentacruel at level 8 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Tentacool can evolve into Tentacruel at level 6 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Poison Sting"
     ],
@@ -8411,7 +8411,7 @@
       "name": "Sand Veil",
       "description": "This Pokémon is immune to Sandstorm damage. In addition, its AC increases by 2 in desert terrain, or during a Sandstorm."
     },
-    "evolutionInfo": "Geodude can evolve into Graveler at level 7 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Geodude can evolve into Graveler at level 5 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Defense Curl",
       "Tackle"
@@ -8790,7 +8790,7 @@
       "name": "Flame Body",
       "description": "The flames from this Pokémon's body shine dim light in a 15 ft radius. In addition, when hit by a melee attack, roll a d10. On a 10, the attacker is burned."
     },
-    "evolutionInfo": "Ponyta can evolve into Rapidash at level 10 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Ponyta can evolve into Rapidash at level 8 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Tackle"
@@ -9026,7 +9026,7 @@
       "name": "Regenerator",
       "description": "Once per long rest, this Pokémon regains hit points equal to its level when it returns to its Pokéball."
     },
-    "evolutionInfo": "Slowpoke can evolve into Slowbro at level 10 and above, or Slowking at level 10 and above while holding a King's Rock. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Slowpoke can evolve into Slowbro at level 7 and above, or Slowking at level 10 and above while holding a King's Rock. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Curse",
       "Tackle",
@@ -9298,7 +9298,7 @@
       "name": "Analytic",
       "description": "After this Pokémon misses an attack, its next attack is done at advantage."
     },
-    "evolutionInfo": "Magnemite can evolve into Magneton at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Magnemite can evolve into Magneton at level 6 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Supersonic",
       "Tackle"
@@ -9676,7 +9676,7 @@
       "name": "Tangled Feet",
       "description": "Attacks against this Pokémon have disadvantage when it is confused."
     },
-    "evolutionInfo": "Doduo can evolve into Dodrio at level 9 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Doduo can evolve into Dodrio at level 6 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Peck"
@@ -9911,7 +9911,7 @@
       "name": "Ice Body",
       "description": "While it is snowing or hailing, this Pokémon heals for an amount of HP equal to its proficiency modifier at the end of each of its turns."
     },
-    "evolutionInfo": "Seel can evolve into Dewgong at level 9 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Seel can evolve into Dewgong at level 7 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Headbutt",
       "Growl"
@@ -10154,7 +10154,7 @@
       "name": "Poison Touch",
       "description": "On melee attacks made by this Pokémon, roll a d10 on a hit. On a result of a 10, the target is poisoned."
     },
-    "evolutionInfo": "Grimer can evolve into Muk at level 10 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Grimer can evolve into Muk at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Poison Gas",
       "Pound"
@@ -10633,7 +10633,7 @@
       "name": "Resistances",
       "description": "Bug, Fairy, Grass, Poison Immunities: Fighting, Normal Senses: Darkvision 30ft Levitate: This Pokémon is immune to ground moves."
     },
-    "evolutionInfo": "Gastly can evolve into Haunter at level 7 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Gastly can evolve into Haunter at level 5 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Hypnosis",
       "Lick"
@@ -11159,7 +11159,7 @@
       "name": "Inner Focus",
       "description": "This Pokémon is immune to flinching."
     },
-    "evolutionInfo": "Drowzee can evolve into Hypno at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Drowzee can evolve into Hypno at level 5 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Hypnosis",
       "Pound"
@@ -11412,7 +11412,7 @@
       "name": "Sheer Force",
       "description": "When activating a move that has a chance to impose a stat change or inflict a status, this creature instead doubles its move modifier for the damage with no chance of the additional effect."
     },
-    "evolutionInfo": "Krabby can evolve into Kingler at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Krabby can evolve into Kingler at level 6 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bubble",
       "Mud Sport"
@@ -11653,7 +11653,7 @@
       "name": "Aftermath",
       "description": "This Pokémon deals damage to an attacker equal to half of the damage received when knocked out by a melee move."
     },
-    "evolutionInfo": "Voltorb can evolve into Electrode at level 8 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Voltorb can evolve into Electrode at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Charge",
       "Tackle"
@@ -12126,7 +12126,7 @@
       "name": "Battle Armor",
       "description": "This Pokémon is immune to extra damage dealt by a Critical Hit."
     },
-    "evolutionInfo": "Cubone can evolve into Marowak at level 8 and above or Alolan Marowak at level 8 and above with the help of an Alola Stone. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Cubone can evolve into Marowak at level 6 and above or Alolan Marowak at level 8 and above with the help of an Alola Stone. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Tail Whip"
@@ -12734,7 +12734,7 @@
       "name": "Resistances",
       "description": "Bug, Fairy, Fighting, Grass, Poison Levitate: This Pokémon is immune to ground moves."
     },
-    "evolutionInfo": "Koffing can evolve into Weezing at level 9 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Koffing can evolve into Weezing at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Poison Gas",
       "Tackle"
@@ -12984,7 +12984,7 @@
       "name": "Reckless",
       "description": "When attacking with moves with recoil damage, this Pokémon doubles its STAB bonus."
     },
-    "evolutionInfo": "Rhyhorn can evolve into Rhydon at level 11 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Rhyhorn can evolve into Rhydon at level 8 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Horn Attack",
       "Tail Whip"
@@ -13261,7 +13261,7 @@
       "name": "Healer",
       "description": "As an action, this Pokemon may touch a creature to heal poison, burn, or paralysis. When it uses this ability, roll a d4. On the a result of 1 or 2, the status effect is moved to itself."
     },
-    "evolutionInfo": "Chansey can evolve into Blissey at level 14 and above if it has a Loyalty level of +2 or higher. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Chansey can evolve into Blissey at level 6 and above if it has a Loyalty level of +2 or higher. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Defense Curl",
       "Growl",
@@ -13660,7 +13660,7 @@
       "name": "Damp",
       "description": "This Pokémon is unaffected by Self Destruct and Explosion moves."
     },
-    "evolutionInfo": "Horsea can evolve into Seadra at level 9 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Horsea can evolve into Seadra at level 6 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bubble"
     ],
@@ -13881,7 +13881,7 @@
       "name": "Lightning Rod",
       "description": "If this Pokemon or an ally within 30 feet is targeted with a direct electric-type, damage- dealing move, the Pokemon may use a reaction to redirect the target to itself and take half damage from it if it hits."
     },
-    "evolutionInfo": "Goldeen can evolve into Seaking at level 9 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Goldeen can evolve into Seaking at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Peck",
       "Tail Whip",
@@ -15182,7 +15182,7 @@
       "name": "Rattled",
       "description": "When this Pokémon is hit by a damaging Dark, Bug, or Ghost move, it makes its next attack at advantage."
     },
-    "evolutionInfo": "Magikarp can evolve into Gyarados at level 8 and above. When it evolves, its health increases by double its level, and it gains 16 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Magikarp can evolve into Gyarados at level 4 and above. When it evolves, its health increases by double its level, and it gains 16 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Splash"
     ],
@@ -16131,7 +16131,7 @@
       "name": "Weak Armor",
       "description": "When an attack hits this Pokémon, its speed increases by 5 feet, but its AC is temporarily reduced by 1 until the end of battle (for a maximum reduction of -5)."
     },
-    "evolutionInfo": "Omanyte can evolve into Omastar at level 10 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Omanyte can evolve into Omastar at level 8 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Constrict",
       "Withdraw"
@@ -16380,7 +16380,7 @@
       "name": "Weak Armor",
       "description": "When an attack hits this Pokémon, its speed increases by 5 feet, but its AC is temporarily reduced by 1 until the end of battle (for a maximum reduction of -5)."
     },
-    "evolutionInfo": "Kabuto can evolve into Kabutops at level 10 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Kabuto can evolve into Kabutops at level 8 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Harden",
       "Scratch"
@@ -17343,7 +17343,7 @@
       "name": "Marvel Scale",
       "description": "This Pokémon's AC increase by 2 when suffering from a negative status condition."
     },
-    "evolutionInfo": "Dragonair can evolve into Dragonite at level 16 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Dragonair can evolve into Dragonite at level 11 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Thunder Wave",
@@ -17795,7 +17795,7 @@
       "name": "Leaf Guard",
       "description": "This Pokémon does not suffer from any negative status ailments in harsh sunlight."
     },
-    "evolutionInfo": "Chikorita can evolve into Bayleef at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Chikorita can evolve into Bayleef at level 3 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Tackle"
@@ -17926,7 +17926,7 @@
       "name": "Leaf Guard",
       "description": "This Pokémon does not suffer from any negative status ailments in harsh sunlight."
     },
-    "evolutionInfo": "Bayleef can evolve into Meganium at level 14 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Bayleef can evolve into Meganium at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Poison Powder",
@@ -18146,7 +18146,7 @@
       "name": "Flash Fire",
       "description": "This Pokémon takes no damage from fire or fire-type attacks. Instead, immediately after taking a hit from a fire-type move, or in open flames, double the STAB bonus on the next fire-type move."
     },
-    "evolutionInfo": "Cyndaquil can evolve into Quilava at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Cyndaquil can evolve into Quilava at level 3 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Tackle"
@@ -18275,7 +18275,7 @@
       "name": "Flash Fire",
       "description": "This Pokémon takes no damage from fire or fire-type attacks. Instead, immediately after taking a hit from a fire-type move, or in open flames, double the STAB bonus on the next fire-type move."
     },
-    "evolutionInfo": "Quilava can evolve into Typhlosion at level 14 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Quilava can evolve into Typhlosion at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Smokescreen",
@@ -18502,7 +18502,7 @@
       "name": "Sheer Force",
       "description": "When activating a move that has a chance to impose a stat change or inflict a status, this creature instead doubles its move modifier for the damage with no chance of the additional effect."
     },
-    "evolutionInfo": "Totodile can evolve into Croconaw at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Totodile can evolve into Croconaw at level 4 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Scratch"
@@ -18633,7 +18633,7 @@
       "name": "Sheer Force",
       "description": "When activating a move that has a chance to impose a stat change or inflict a status, this creature instead doubles its move modifier for the damage with no chance of the additional effect."
     },
-    "evolutionInfo": "Croconaw can evolve into Feraligatr at level 14 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Croconaw can evolve into Feraligatr at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Scratch",
@@ -18865,7 +18865,7 @@
       "name": "Frisk",
       "description": "Upon entering a battle, a single opponent’s held item is revealed, if it has one."
     },
-    "evolutionInfo": "Sentret can evolve into Furret at level 5 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Sentret can evolve into Furret at level 3 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Foresight",
       "Scratch",
@@ -19121,7 +19121,7 @@
       "name": "Tinted Lens",
       "description": "This Pokémon’s moves ignore resistances."
     },
-    "evolutionInfo": "Hoothoot can evolve into Noctowl at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Hoothoot can evolve into Noctowl at level 4 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Foresight",
       "Growl",
@@ -19375,7 +19375,7 @@
       "name": "Rattled",
       "description": "When this Pokémon is hit by a damaging Dark, Bug, or Ghost move, it makes its next attack at advantage."
     },
-    "evolutionInfo": "Ledyba can evolve into Ledian at level 6 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Ledyba can evolve into Ledian at level 4 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle"
     ],
@@ -19619,7 +19619,7 @@
       "name": "Sniper",
       "description": "On a critical hit made by this Pokémon, triple the dice roll instead of doubling it."
     },
-    "evolutionInfo": "Spinarak can evolve into Ariados at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Spinarak can evolve into Ariados at level 4 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Constrict",
       "Poison Sting",
@@ -19987,7 +19987,7 @@
       "name": "Water Absorb",
       "description": "This Pokémon takes no damage from water or water-type attacks. Instead, half of any water damage done is absorbed, restoring the Pokémon's HP."
     },
-    "evolutionInfo": "Chinchou can evolve into Lanturn at level 8 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Chinchou can evolve into Lanturn at level 5 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bubble",
       "Supersonic"
@@ -20863,7 +20863,7 @@
       "name": "Magic Bounce",
       "description": "Once per long rest, when succumbing to a negative status effect, this Pokémon can instead reflect the effect back on the attacker."
     },
-    "evolutionInfo": "Natu can evolve into Xatu at level 7 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Natu can evolve into Xatu at level 5 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Peck",
@@ -21123,7 +21123,7 @@
       "name": "Plus",
       "description": "This Pokémon boosts its attack and damage rolls by 2 if an ally also has a Plus or Minus ability"
     },
-    "evolutionInfo": "Mareep can evolve into Flaaffy at level 5 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Mareep can evolve into Flaaffy at level 3 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Tackle",
@@ -21245,7 +21245,7 @@
       "name": "Plus",
       "description": "This Pokémon boosts its attack and damage rolls by 2 if an ally also has a Plus or Minus ability"
     },
-    "evolutionInfo": "Flaaffy can evolve into Ampharos at level 11 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Flaaffy can evolve into Ampharos at level 6 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Tackle",
@@ -21573,7 +21573,7 @@
       "name": "Sap Sipper",
       "description": "This Pokémon takes no damage from grass-type attacks. If hit by a grass type move, it takes no damage and instead absorbs the energy, granting advantage on its next attack."
     },
-    "evolutionInfo": "Marill can evolve into Azumarill at level 6 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Marill can evolve into Azumarill at level 4 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Water Gun",
@@ -22031,7 +22031,7 @@
       "name": "Infiltrator",
       "description": "This Pokémon bypasses Light Screen, Reflect, Substitute, Mist, Safeguard, and Aurora Veil."
     },
-    "evolutionInfo": "Hoppip can evolve into Skiploom at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Hoppip can evolve into Skiploom at level 4 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Splash",
       "Synthesis"
@@ -22169,7 +22169,7 @@
       "name": "Infiltrator",
       "description": "This Pokémon bypasses Light Screen, Reflect, Substitute, Mist, Safeguard, and Aurora Veil."
     },
-    "evolutionInfo": "Skiploom can evolve into Jumpluff at level 12 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Skiploom can evolve into Jumpluff at level 5 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Tail Whip",
@@ -22894,7 +22894,7 @@
       "name": "Unaware",
       "description": "When this Pokémon attacks an opponent, it ignores any stat changes the opponent has been affected with after the start of battle."
     },
-    "evolutionInfo": "Wooper can evolve into Quagsire at level 6 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Wooper can evolve into Quagsire at level 4 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tail Whip",
       "Water Gun"
@@ -24030,7 +24030,7 @@
       "name": "Overcoat",
       "description": "This Pokémon does not take damage from weather-related moves and phenomena like Hail, Weather Ball, etc."
     },
-    "evolutionInfo": "Pineco can evolve into Forretress at level 9 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Pineco can evolve into Forretress at level 6 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Protect",
       "Tackle"
@@ -24705,7 +24705,7 @@
       "name": "Rattled",
       "description": "When this Pokémon is hit by a damaging Dark, Bug, or Ghost move, it makes its next attack at advantage."
     },
-    "evolutionInfo": "Snubbull can evolve into Granbull at level 7 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Snubbull can evolve into Granbull at level 5 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Charm",
       "Fire Fang",
@@ -25647,7 +25647,7 @@
       "name": "Honey Gather",
       "description": "At the end of each battle, this Pokémon may roll a d20 + its proficiency bonus. On a result of 20 or higher, its trainer adds a Honey to their inventory."
     },
-    "evolutionInfo": "Teddiursa can evolve into Ursaring at level 8 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Teddiursa can evolve into Ursaring at level 6 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Baby-Doll Eyes",
       "Covet",
@@ -25901,7 +25901,7 @@
       "name": "Weak Armor",
       "description": "When an attack hits this Pokémon, its speed increases by 5 feet, but its AC is temporarily reduced by 1 until the end of battle (for a maximum reduction of -5)."
     },
-    "evolutionInfo": "Slugma can evolve into Magcargo at level 10 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Slugma can evolve into Magcargo at level 8 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Smog",
       "Yawn"
@@ -26154,7 +26154,7 @@
       "name": "Thick Fat",
       "description": "This Pokemon takes half the damage it otherwise would from Ice and Fire damage."
     },
-    "evolutionInfo": "Swinub can evolve into Piloswine at level 9 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Swinub can evolve into Piloswine at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Odor Sleuth",
       "Tackle"
@@ -26544,7 +26544,7 @@
       "name": "Moody",
       "description": "At the end of each long rest, this Pokémon rerolls on the nature table, replacing its nature with the result until the next long rest."
     },
-    "evolutionInfo": "Remoraid can evolve into Octillery at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Remoraid can evolve into Octillery at level 5 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Water Gun"
     ],
@@ -27161,7 +27161,7 @@
       "name": "Unnerve",
       "description": "Opponents in combat with this Pokémon cannot eat held berries."
     },
-    "evolutionInfo": "Houndour can evolve into Houndoom at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Houndour can evolve into Houndoom at level 5 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Ember",
       "Leer",
@@ -27522,7 +27522,7 @@
       "name": "Sand Veil",
       "description": "This Pokémon is immune to Sandstorm damage. In addition, its AC increases by 2 in desert terrain, or during a Sandstorm."
     },
-    "evolutionInfo": "Phanpy can evolve into Donphan at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Phanpy can evolve into Donphan at level 5 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Defense Curl",
       "Growl",
@@ -28078,7 +28078,7 @@
       "name": "Vital Spirit",
       "description": "This Pokémon cannot be put to sleep."
     },
-    "evolutionInfo": "Starting at level 6, Tyrogue can evolve into Hitmonchan if its STR is higher than its DEX, Hitmonlee if its DEX is higher than its STR, or Hitmontop if its STR is equal to its DEX. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Starting at level 4, Tyrogue can evolve into Hitmonchan if its STR is higher than its DEX, Hitmonlee if its DEX is higher than its STR, or Hitmontop if its STR is equal to its DEX. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Fake Out",
       "Foresight",
@@ -28290,7 +28290,7 @@
       "name": "Hydration",
       "description": "This Pokémon is unaffected by negative status ailments in water or during rainy conditions."
     },
-    "evolutionInfo": "Smoochum can evolve into Jynx at level 8 and above if its Loyalty level is +2 or higher. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Smoochum can evolve into Jynx at level 6 and above if its Loyalty level is +2 or higher. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Pound"
     ],
@@ -28418,7 +28418,7 @@
       "name": "Vital Spirit",
       "description": "This Pokémon cannot be put to sleep."
     },
-    "evolutionInfo": "Elekid can evolve into Electabuzz at level 8 and above if its Loyalty level is +2 or higher. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Elekid can evolve into Electabuzz at level 6 and above if its Loyalty level is +2 or higher. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Quick Attack"
@@ -28544,7 +28544,7 @@
       "name": "Vital Spirit",
       "description": "This Pokémon cannot be put to sleep."
     },
-    "evolutionInfo": "Magby can evolve into Magmar at level 8 and above if its Loyalty level is +2 or higher. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Magby can evolve into Magmar at level 6 and above if its Loyalty level is +2 or higher. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Smog"
@@ -29257,7 +29257,7 @@
       "name": "Sand Veil",
       "description": "This Pokémon is immune to Sandstorm damage. In addition, its AC increases by 2 in desert terrain, or during a Sandstorm."
     },
-    "evolutionInfo": "Larvitar can evolve into Pupitar at level 8 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Larvitar can evolve into Pupitar at level 6 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bite",
       "Leer"
@@ -29392,7 +29392,7 @@
       "name": "Water\nResistances",
       "description": "Fire, Flying, Normal, Poison, Rock Immunities: Electric Senses: Tremorsense 50ft Shed Skin: If this Pokémon is affected by a negative status ailment, they can roll a d4 at the end of each of their turns. On a result of 4, they are cured."
     },
-    "evolutionInfo": "Pupitar can evolve into Tyranitar at level 16 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Pupitar can evolve into Tyranitar at level 11 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bite",
       "Leer",
@@ -30015,7 +30015,7 @@
       "name": "Unburden",
       "description": "While this Pokémon is not holding an item, it gains 10 feet to its speed."
     },
-    "evolutionInfo": "Treecko can evolve into Grovyle at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Treecko can evolve into Grovyle at level 3 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Pound"
@@ -30149,7 +30149,7 @@
       "name": "Unburden",
       "description": "While this Pokémon is not holding an item, it gains 10 feet to its speed."
     },
-    "evolutionInfo": "Grovyle can evolve into Sceptile at level 14 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Grovyle can evolve into Sceptile at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Fury Cutter",
       "Leer",
@@ -30387,7 +30387,7 @@
       "name": "Speed Boost",
       "description": "This Pokémon's speed is increased by 10 feet while in an environment related to its type (DM Discretion)."
     },
-    "evolutionInfo": "Torchic can evolve into Combusken at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Torchic can evolve into Combusken at level 3 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Scratch"
@@ -30519,7 +30519,7 @@
       "name": "Speed Boost",
       "description": "This Pokémon's speed is increased by 10 feet while in an environment related to its type (DM Discretion)."
     },
-    "evolutionInfo": "Combusken can evolve into Blaziken at level 14 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Combusken can evolve into Blaziken at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Double Kick",
       "Ember",
@@ -30759,7 +30759,7 @@
       "name": "Damp",
       "description": "This Pokémon is unaffected by Self Destruct and Explosion moves."
     },
-    "evolutionInfo": "Mudkip can evolve into Marshtomp at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Mudkip can evolve into Marshtomp at level 3 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Tackle",
@@ -30891,7 +30891,7 @@
       "name": "Damp",
       "description": "This Pokémon is unaffected by Self Destruct and Explosion moves."
     },
-    "evolutionInfo": "Marshtomp can evolve into Swampert at level 14 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Marshtomp can evolve into Swampert at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Mud Shot",
@@ -31122,7 +31122,7 @@
       "name": "Rattled",
       "description": "When this Pokémon is hit by a damaging Dark, Bug, or Ghost move, it makes its next attack at advantage."
     },
-    "evolutionInfo": "Poochyena can evolve into Mightyena at level 6 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Poochyena can evolve into Mightyena at level 4 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Howl"
@@ -31362,7 +31362,7 @@
       "name": "Quick Feet",
       "description": "When suffering from a negative status condition, this Pokémon’s speed increases by 15 ft."
     },
-    "evolutionInfo": "Zigzagoon can evolve into Linoone at level 6 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Zigzagoon can evolve into Linoone at level 4 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Tackle"
@@ -31601,7 +31601,7 @@
       "name": "Run Away",
       "description": "This Pokémon cannot be the target of an attack of opportunity."
     },
-    "evolutionInfo": "Wurmple can evolve into Silcoon when it reaches level 4 and above during the day, or Cascoon when it reaches level 4 and above at night. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Wurmple can evolve into Silcoon when it reaches level 1 and above during the day, or Cascoon when it reaches level 4 and above at night. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "String Shot",
       "Tackle"
@@ -31663,7 +31663,7 @@
       "name": "Resistances",
       "description": "Grass, Ground, Fighting Shed Skin: If this Pokémon is affected by a negative status ailment, they can roll a d4 at the end of each of their turns. On a result of 4, they are cured."
     },
-    "evolutionInfo": "Silcoon can evolve into Beautifly at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Silcoon can evolve into Beautifly at level 2 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Harden"
     ],
@@ -31827,7 +31827,7 @@
       "name": "Resistances",
       "description": "Grass, Ground, Fighting Shed Skin: If this Pokémon is affected by a negative status ailment, they can roll a d4 at the end of each of their turns. On a result of 4, they are cured."
     },
-    "evolutionInfo": "Cascoon can evolve into Dustox at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Cascoon can evolve into Dustox at level 2 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Harden"
     ],
@@ -31996,7 +31996,7 @@
       "name": "Own Tempo",
       "description": "This Pokémon is immune to becoming confused."
     },
-    "evolutionInfo": "Lotad can evolve into Lombre at level 5 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Lotad can evolve into Lombre at level 3 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Astonish",
       "Growl"
@@ -32331,7 +32331,7 @@
       "name": "Pickpocket",
       "description": "When hit by a melee attack, this Pokémon may use a reaction to attempt to steal the creature's held item with a Sleight of Hand check contested by the target's Passive Perception. After the first attempt, all other attempts against the same opponent are rolled at disadvantage."
     },
-    "evolutionInfo": "Seedot can evolve into Nuzleaf at level 5 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Seedot can evolve into Nuzleaf at level 3 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bide",
       "Harden"
@@ -32696,7 +32696,7 @@
       "name": "Scrappy",
       "description": "This Pokémon's Normal and Fighting type moves ignore immunities granted by a Pokémon's type. If a target’s secondary type gives it vulnerability or resistance to the attack, it follows the secondary type for that effect."
     },
-    "evolutionInfo": "Taillow can evolve into Swellow at level 7 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Taillow can evolve into Swellow at level 4 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Peck"
@@ -32932,7 +32932,7 @@
       "name": "Rain Dish",
       "description": "In rainy conditions, this Pokémon heals for an amount of HP equal to its proficiency bonus at the end of each of its turns."
     },
-    "evolutionInfo": "Wingull can evolve into Pelipper at level 7 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Wingull can evolve into Pelipper at level 5 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Water Gun"
@@ -33180,7 +33180,7 @@
       "name": "Telepathy",
       "description": "This Pokémon cannot be damaged by its allies' attacks."
     },
-    "evolutionInfo": "Ralts can evolve into Kirlia at level 6 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Ralts can evolve into Kirlia at level 4 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Confusion"
@@ -33320,7 +33320,7 @@
       "name": "Telepathy",
       "description": "This Pokémon cannot be damaged by its allies' attacks."
     },
-    "evolutionInfo": "A Kirlia can evolve into Gardevoir at level 12 and above. A male Kirlia can evolve into Gallade as level 12 and above while holding a Dawn Stone. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "A Kirlia can evolve into Gardevoir at level 6 and above. A male Kirlia can evolve into Gallade as level 12 and above while holding a Dawn Stone. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Confusion",
       "Double Team",
@@ -33573,7 +33573,7 @@
       "name": "Rain Dish",
       "description": "In rainy conditions, this Pokémon heals for an amount of HP equal to its proficiency bonus at the end of each of its turns."
     },
-    "evolutionInfo": "Surskit can evolve into Masquerain at level 7 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Surskit can evolve into Masquerain at level 4 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bubble"
     ],
@@ -33808,7 +33808,7 @@
       "name": "Quick Feet",
       "description": "When suffering from a negative status condition, this Pokémon’s speed increases by 15 ft."
     },
-    "evolutionInfo": "Shroomish can evolve into Breloom at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Shroomish can evolve into Breloom at level 5 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Absorb",
       "Tackle"
@@ -34042,7 +34042,7 @@
       "name": "Resistances",
       "description": "None Immunities: Ghost Truant: This Pokémon cannot use the same move in back to back rounds."
     },
-    "evolutionInfo": "Slakoth can evolve into Vigoroth at level 6 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Slakoth can evolve into Vigoroth at level 4 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Scratch",
       "Yawn"
@@ -34161,7 +34161,7 @@
       "name": "Resistances",
       "description": "None Immunities: Ghost Vital Spirit: This Pokémon cannot be put to sleep."
     },
-    "evolutionInfo": "Vigoroth can evolve into Slaking at level 14 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Vigoroth can evolve into Slaking at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Encore",
       "Focus Energy",
@@ -34395,7 +34395,7 @@
       "name": "Run Away",
       "description": "This Pokémon cannot be the target of an attack of opportunity."
     },
-    "evolutionInfo": "Nincada can evolve into Ninjask at level 6 and above. If its trainer has an empty Pokeslot and Pokeball (any kind), they also acquire a Shedinja at the same level. The Shedinja has all the base statistics that are in its stat block, plus any health and Ability Score Increases it would obtain from leveling up from its minimum found level. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Nincada can evolve into Ninjask at level 4 and above. If its trainer has an empty Pokeslot and Pokeball (any kind), they also acquire a Shedinja at the same level. The Shedinja has all the base statistics that are in its stat block, plus any health and Ability Score Increases it would obtain from leveling up from its minimum found level. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Harden",
       "Scratch"
@@ -34728,7 +34728,7 @@
       "name": "Rattled",
       "description": "When this Pokémon is hit by a damaging Dark, Bug, or Ghost move, it makes its next attack at advantage."
     },
-    "evolutionInfo": "Whismur can evolve into Loudred at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Whismur can evolve into Loudred at level 4 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Pound",
       "Echoed Voice"
@@ -34850,7 +34850,7 @@
       "name": "Scrappy",
       "description": "This Pokémon's Normal and Fighting type moves ignore immunities granted by a Pokémon's type. If a target’s secondary type gives it vulnerability or resistance to the attack, it follows the secondary type for that effect."
     },
-    "evolutionInfo": "Loudred can evolve into Exploud at level 14 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Loudred can evolve into Exploud at level 8 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Astonish",
       "Bite",
@@ -35086,7 +35086,7 @@
       "name": "Sheer Force",
       "description": "When activating a move that has a chance to impose a stat change or inflict a status, this creature instead doubles its move modifier for the damage with no chance of the additional effect."
     },
-    "evolutionInfo": "Makuhita can evolve into Hariyama at level 7 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Makuhita can evolve into Hariyama at level 5 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Focus Energy",
       "Tackle",
@@ -36127,7 +36127,7 @@
       "name": "Heavy Metal",
       "description": "This Pokémon is especially heavy. Once per long rest, after being targeted by an attack, it may increase its AC by 2 if it would cause an attack to miss."
     },
-    "evolutionInfo": "Aron can evolve into Lairon at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Aron can evolve into Lairon at level 6 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Harden",
       "Tackle",
@@ -36262,7 +36262,7 @@
       "name": "Heavy Metal",
       "description": "This Pokémon is especially heavy. Once per long rest, after being targeted by an attack, it may increase its AC by 2 if it would cause an attack to miss."
     },
-    "evolutionInfo": "Lairon can evolve into Aggron at level 16 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Lairon can evolve into Aggron at level 8 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Harden",
       "Headbutt",
@@ -36509,7 +36509,7 @@
       "name": "Telepathy",
       "description": "This Pokémon cannot be damaged by its allies' attacks."
     },
-    "evolutionInfo": "Meditite can evolve into Medicham at level 10 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Meditite can evolve into Medicham at level 7 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bide",
       "Meditate"
@@ -36763,7 +36763,7 @@
       "name": "Minus",
       "description": "This Pokémon boosts its attack and damage rolls by 2 if an ally also has a Plus or Minus ability"
     },
-    "evolutionInfo": "Electrike can evolve into Manectric at level 8 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Electrike can evolve into Manectric at level 5 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Thunder Wave",
@@ -37608,7 +37608,7 @@
       "name": "Gluttony",
       "description": "This Pokémon must eat its held berry when it falls below ½ of its maximum HP."
     },
-    "evolutionInfo": "Gulpin can evolve into Swalot at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Gulpin can evolve into Swalot at level 5 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Pound"
     ],
@@ -37850,7 +37850,7 @@
       "name": "Speed Boost",
       "description": "This Pokémon's speed is increased by 10 feet while in an environment related to its type (DM Discretion)."
     },
-    "evolutionInfo": "Carvanha can evolve into Sharpedo at level 8 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Carvanha can evolve into Sharpedo at level 6 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bite",
       "Leer",
@@ -38098,7 +38098,7 @@
       "name": "Pressure",
       "description": "Any move targeting this Pokémon directly (non-area of effect moves) reduces its PP by two when activated."
     },
-    "evolutionInfo": "Wailmer can evolve into Wailord at level 10 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Wailmer can evolve into Wailord at level 8 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Splash",
       "Growl"
@@ -38345,7 +38345,7 @@
       "name": "Own Tempo",
       "description": "This Pokémon is immune to becoming confused."
     },
-    "evolutionInfo": "Numel can evolve into Camerupt at level 9 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Numel can evolve into Camerupt at level 7 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Tackle"
@@ -38729,7 +38729,7 @@
       "name": "Gluttony",
       "description": "This Pokémon must eat its held berry when it falls below ½ of its maximum HP."
     },
-    "evolutionInfo": "Spoink can evolve into Grumpig at level 9 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Spoink can evolve into Grumpig at level 6 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Splash"
     ],
@@ -39115,7 +39115,7 @@
       "name": "Sheer Force",
       "description": "When activating a move that has a chance to impose a stat change or inflict a status, this creature instead doubles its move modifier for the damage with no chance of the additional effect."
     },
-    "evolutionInfo": "Trapinch can evolve into Vibrava at level 9 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Trapinch can evolve into Vibrava at level 7 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bide",
       "Bite",
@@ -39237,7 +39237,7 @@
       "name": "Resistances",
       "description": "Fire, Poison, Rock Immunities: Electric Levitate: This Pokémon is immune to ground moves."
     },
-    "evolutionInfo": "Vibrava can evolve into Flygon at level 16 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Vibrava can evolve into Flygon at level 9 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bide",
       "Dragon Breath",
@@ -39468,7 +39468,7 @@
       "name": "Water Absorb",
       "description": "This Pokémon takes no damage from water or water-type attacks. Instead, half of any water damage done is absorbed, restoring the Pokémon's HP."
     },
-    "evolutionInfo": "Cacnea can evolve into Cacturne at level 9 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Cacnea can evolve into Cacturne at level 6 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Poison Sting",
@@ -39731,7 +39731,7 @@
       "name": "Cloud Nine",
       "description": "While this Pokémon is in battle, weather-related abilities have no effect on the Pokémon that have them."
     },
-    "evolutionInfo": "Swablu can evolve into Altaria at level 9 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Swablu can evolve into Altaria at level 7 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Peck",
@@ -40519,7 +40519,7 @@
       "name": "Hydration",
       "description": "This Pokémon is unaffected by negative status ailments in water or during rainy conditions."
     },
-    "evolutionInfo": "Barboach can evolve into Whiscash at level 8 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Barboach can evolve into Whiscash at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Mud-Slap"
     ],
@@ -40759,7 +40759,7 @@
       "name": "Adaptability",
       "description": "When this Pokémon uses a move of its own type, it may roll the damage twice and choose either total."
     },
-    "evolutionInfo": "Corphish can evolve into Crawdaunt at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Corphish can evolve into Crawdaunt at level 6 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bubble"
     ],
@@ -41025,7 +41025,7 @@
       "name": "Resistances",
       "description": "Fighting, Poison, Psychic, Rock Immunities: Electric Senses: Darkvision 20ft Levitate: This Pokémon is immune to ground moves."
     },
-    "evolutionInfo": "Baltoy can evolve into Claydol at level 10 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Baltoy can evolve into Claydol at level 7 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Confusion",
       "Harden",
@@ -41282,7 +41282,7 @@
       "name": "Storm Drain",
       "description": "If this Pokemon or an ally within 30 feet is targeted with a direct water-type, damage- dealing move, the Pokemon may use a reaction to redirect the target to itself and take half damage from it if it hits."
     },
-    "evolutionInfo": "Lileep can evolve into Cradily at level 10 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Lileep can evolve into Cradily at level 8 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Astonish",
       "Constrict"
@@ -41516,7 +41516,7 @@
       "name": "Swift Swim",
       "description": "This Pokémon's speed is doubled in rainy conditions."
     },
-    "evolutionInfo": "Anorith can evolve into Armaldo at level 10 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Anorith can evolve into Armaldo at level 8 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Harden",
       "Scratch",
@@ -42232,7 +42232,7 @@
       "name": "Cursed Body",
       "description": "When hit by a melee attack, this Pokémon may roll 1d4. On a result of 4, the opponent who made the attack cannot use the same move on its next turn."
     },
-    "evolutionInfo": "Shuppet can evolve into Banette at level 10 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Shuppet can evolve into Banette at level 7 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Knock Off",
       "Screech"
@@ -42492,7 +42492,7 @@
       "name": "Frisk",
       "description": "Upon entering a battle, a single opponent’s held item is revealed, if it has one."
     },
-    "evolutionInfo": "Duskull can evolve into Dusclops at level 10 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Duskull can evolve into Dusclops at level 7 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Night Shade"
@@ -43143,7 +43143,7 @@
       "name": "Telepathy",
       "description": "This Pokémon cannot be damaged by its allies' attacks."
     },
-    "evolutionInfo": "Wynaut can evolve into Wobbuffet at level 5 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Wynaut can evolve into Wobbuffet at level 3 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Charm",
       "Encore",
@@ -43209,7 +43209,7 @@
       "name": "Moody",
       "description": "At the end of each long rest, this Pokémon rerolls on the nature table, replacing its nature with the result until the next long rest."
     },
-    "evolutionInfo": "A Snorunt can evolve into Glalie at level 14 and above naturally. A female Snorunt can evolve into a Froslass at level 14 and above with the help of a Dawn Stone. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "A Snorunt can evolve into Glalie at level 8 and above naturally. A female Snorunt can evolve into a Froslass at level 14 and above with the help of a Dawn Stone. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Powder Snow"
@@ -43436,7 +43436,7 @@
       "name": "Oblivious",
       "description": "This Pokémon is immune to moves that attempt to charm or taunt it."
     },
-    "evolutionInfo": "Spheal can evolve into Sealeo at level 9 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Spheal can evolve into Sealeo at level 6 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Defense Curl",
       "Growl",
@@ -43564,7 +43564,7 @@
       "name": "Oblivious",
       "description": "This Pokémon is immune to moves that attempt to charm or taunt it."
     },
-    "evolutionInfo": "Sealeo can evolve into Walrein at level 16 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Sealeo can evolve into Walrein at level 9 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Defense Curl",
       "Growl",
@@ -44358,7 +44358,7 @@
       "name": "Sheer Force",
       "description": "When activating a move that has a chance to impose a stat change or inflict a status, this creature instead doubles its move modifier for the damage with no chance of the additional effect."
     },
-    "evolutionInfo": "Bagon can evolve into Shelgon at level 8 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Bagon can evolve into Shelgon at level 6 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Rage",
       "Ember"
@@ -44481,7 +44481,7 @@
       "name": "Overcoat",
       "description": "This Pokémon does not take damage from weather-related moves and phenomena like Hail, Weather Ball, etc."
     },
-    "evolutionInfo": "Shelgon can evolve into Salamence at level 16 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Shelgon can evolve into Salamence at level 10 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bite",
       "Ember",
@@ -44721,7 +44721,7 @@
       "name": "Light Metal",
       "description": "This Pokémon is especially light for its species. Once per long rest, it may impose disadvantage on an attack roll against it."
     },
-    "evolutionInfo": "Beldum can evolve into Metang at level 6 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Beldum can evolve into Metang at level 4 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Take Down"
     ],
@@ -44789,7 +44789,7 @@
       "name": "Light Metal",
       "description": "This Pokémon is especially light for its species. Once per long rest, it may impose disadvantage on an attack roll against it."
     },
-    "evolutionInfo": "Metang can evolve into Metagross at level 15 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Metang can evolve into Metagross at level 9 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Confusion",
       "Magnet Rise",
@@ -47329,7 +47329,7 @@
       "name": "Reckless",
       "description": "When attacking with moves with recoil damage, this Pokémon doubles its STAB bonus."
     },
-    "evolutionInfo": "Starly can evolve into Staravia at level 5 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Starly can evolve into Staravia at level 3 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Tackle"
@@ -47454,7 +47454,7 @@
       "name": "Reckless",
       "description": "When attacking with moves with recoil damage, this Pokémon doubles its STAB bonus."
     },
-    "evolutionInfo": "Staravia can evolve into Staraptor at level 12 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Staravia can evolve into Staraptor at level 7 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Quick Attack",
@@ -47663,7 +47663,7 @@
       "name": "Moody",
       "description": "At the end of each long rest, this Pokémon rerolls on the nature table, replacing its nature with the result until the next long rest."
     },
-    "evolutionInfo": "Bidoof can evolve into Bibarel at level 5 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Bidoof can evolve into Bibarel at level 3 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Tackle"
@@ -47913,7 +47913,7 @@
       "name": "Run Away",
       "description": "This Pokémon cannot be the target of an attack of opportunity."
     },
-    "evolutionInfo": "Kricketot can evolve into Kricketune at level 4 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Kricketot can evolve into Kricketune at level 2 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bide",
       "Growl"
@@ -48085,7 +48085,7 @@
       "name": "Guts",
       "description": "When this Pokémon is burned or poisoned, they are not affected by the disadvantage or reduced damage effects. They still take damage at the end of each of their turns."
     },
-    "evolutionInfo": "Shinx can evolve into Luxio at level 5 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Shinx can evolve into Luxio at level 3 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle"
     ],
@@ -48207,7 +48207,7 @@
       "name": "Guts",
       "description": "When this Pokémon is burned or poisoned, they are not affected by the disadvantage or reduced damage effects. They still take damage at the end of each of their turns."
     },
-    "evolutionInfo": "Luxio can evolve into Luxray at level 11 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Luxio can evolve into Luxray at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Tackle",
@@ -48632,7 +48632,7 @@
       "name": "Sheer Force",
       "description": "When activating a move that has a chance to impose a stat change or inflict a status, this creature instead doubles its move modifier for the damage with no chance of the additional effect."
     },
-    "evolutionInfo": "Cranidos can evolve into Rampardos at level 8 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Cranidos can evolve into Rampardos at level 6 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Headbutt",
       "Leer"
@@ -48897,7 +48897,7 @@
       "name": "Soundproof",
       "description": "This Pokémon is immune to sound- based moves."
     },
-    "evolutionInfo": "Shieldon can evolve into Bastiodon at level 8 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Shieldon can evolve into Bastiodon at level 6 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Protect",
       "Tackle"
@@ -49154,7 +49154,7 @@
       "name": "Overcoat",
       "description": "This Pokémon does not take damage from weather-related moves and phenomena like Hail, Weather Ball, etc."
     },
-    "evolutionInfo": "A male Burmy can evolve into Mothim at level 6 and above. A female Burmy can evolve into Wormadam at level 6 and above, taking on a cloak based upon where it evolved: Plant Cloak for tall grass/forest, Sand Cloak for caves/desert/mountain, and Trash cloak for cities and buildings. When female or male Burmy evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "A male Burmy can evolve into Mothim at level 4 and above. A female Burmy can evolve into Wormadam at level 6 and above, taking on a cloak based upon where it evolved: Plant Cloak for tall grass/forest, Sand Cloak for caves/desert/mountain, and Trash cloak for cities and buildings. When female or male Burmy evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Protect"
     ],
@@ -49465,7 +49465,7 @@
       "name": "Hustle",
       "description": "When you score a critical hit, you may immediately gain an additional action on your turn. If this action is used to make an attack, you have disadvantage on the roll. You may only ever have one additional action per round."
     },
-    "evolutionInfo": "A female Combee can evolve into Vespiquen at level 7 and above. When it evolves, its health increases by double its level, and it gains 17 points to add to its ability scores (max 20).",
+    "evolutionInfo": "A female Combee can evolve into Vespiquen at level 4 and above. When it evolves, its health increases by double its level, and it gains 17 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Gust",
       "Sweet Scent"
@@ -49775,7 +49775,7 @@
       "name": "Water Veil",
       "description": "This Pokémon is immune to burning."
     },
-    "evolutionInfo": "Buizel can evolve into Floatzel at level 8 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Buizel can evolve into Floatzel at level 5 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Quick Attack",
       "Growl"
@@ -50016,7 +50016,7 @@
       "name": "Resistances",
       "description": "Electric, Grass, Ground, Water Chlorophyll: This Pokémon’s speed is doubled in harsh sunlight."
     },
-    "evolutionInfo": "Cherubi can evolve into Cherrim at level 7 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Cherubi can evolve into Cherrim at level 5 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Morning Sun",
       "Tackle"
@@ -50240,7 +50240,7 @@
       "name": "Sand Force",
       "description": "During a Sandstorm, this Pokémon can double its STAB when it hits an opponent."
     },
-    "evolutionInfo": "Shellos can evolve into Gastrodon at level 8 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Shellos can evolve into Gastrodon at level 6 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Mud-Slap",
       "Mud Sport",
@@ -50595,7 +50595,7 @@
       "name": "Flare Boost",
       "description": "This Pokémon adds proficiency to its damage rolls while burned."
     },
-    "evolutionInfo": "Drifloon can evolve into Drifblim at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Drifloon can evolve into Drifblim at level 6 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Constrict",
       "Minimize",
@@ -51322,7 +51322,7 @@
       "name": "Keen Eye",
       "description": "This Pokémon ignores disadvantage when it relates to sight."
     },
-    "evolutionInfo": "Glameow can evolve into Purugly at level 10 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Glameow can evolve into Purugly at level 8 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Fake Out"
     ],
@@ -51678,7 +51678,7 @@
       "name": "Keen Eye",
       "description": "This Pokémon ignores disadvantage when it relates to sight."
     },
-    "evolutionInfo": "Stunky can evolve into Skuntank at level 10 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Stunky can evolve into Skuntank at level 7 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Focus Energy",
       "Scratch",
@@ -51936,7 +51936,7 @@
       "name": "Heavy Metal",
       "description": "This Pokémon is especially heavy. Once per long rest, after being targeted by an attack, it may increase its AC by 2 if it would cause an attack to miss."
     },
-    "evolutionInfo": "Bronzor can evolve into Bronzong at level 9 and above. When it evolves, its health increases by double its level, and it gains 17 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Bronzor can evolve into Bronzong at level 7 and above. When it evolves, its health increases by double its level, and it gains 17 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Confusion",
       "Tackle"
@@ -52837,7 +52837,7 @@
       "name": "Rough Skin",
       "description": "When this Pokémon is hit by a melee attack, it may roll a d4. On a 4, deal an amount of typeless damage equal to its proficiency modifier to its attacker."
     },
-    "evolutionInfo": "Gible can evolve into Gabite at level 7 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Gible can evolve into Gabite at level 5 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Sand Attack"
@@ -52963,7 +52963,7 @@
       "name": "Rough Skin",
       "description": "When this Pokémon is hit by a melee attack, it may roll a d4. On a 4, deal an amount of typeless damage equal to its proficiency modifier to its attacker."
     },
-    "evolutionInfo": "Gabite can evolve into Garchomp at level 16 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Gabite can evolve into Garchomp at level 10 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Dragon Rage",
       "Dual Chop",
@@ -53586,7 +53586,7 @@
       "name": "Sand Force",
       "description": "During a Sandstorm, this Pokémon can double its STAB when it hits an opponent."
     },
-    "evolutionInfo": "Hippopotas can evolve into Hippowdon at level 9 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Hippopotas can evolve into Hippowdon at level 7 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Sand Attack",
       "Tackle"
@@ -53811,7 +53811,7 @@
       "name": "Keen Eye",
       "description": "This Pokémon ignores disadvantage when it relates to sight."
     },
-    "evolutionInfo": "Skorupi can evolve into Drapion at level 10 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Skorupi can evolve into Drapion at level 8 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bite",
       "Leer",
@@ -54080,7 +54080,7 @@
       "name": "Poison Touch",
       "description": "On melee attacks made by this Pokémon, roll a d10 on a hit. On a result of a 10, the target is poisoned."
     },
-    "evolutionInfo": "Croagunk can evolve into Toxicroak at level 10 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Croagunk can evolve into Toxicroak at level 7 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Astonish",
       "Mud-Slap"
@@ -54469,7 +54469,7 @@
       "name": "Water Veil",
       "description": "This Pokémon is immune to burning."
     },
-    "evolutionInfo": "Finneon can evolve into Lumineon at level 9 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Finneon can evolve into Lumineon at level 6 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Pound"
     ],
@@ -54837,7 +54837,7 @@
       "name": "Soundproof",
       "description": "This Pokémon is immune to sound- based moves."
     },
-    "evolutionInfo": "Snover can evolve into Abomasnow at level 11 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Snover can evolve into Abomasnow at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Powder Snow"
@@ -59081,7 +59081,7 @@
       "name": "Contrary",
       "description": "Moves that affect this Pokémon's stats have the opposite effect. (For example, Defense Curl would lower AC by 4. Growl would increase its attack by +1)"
     },
-    "evolutionInfo": "Snivy can evolve into Servine at level 6 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Snivy can evolve into Servine at level 3 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Leer"
@@ -59210,7 +59210,7 @@
       "name": "Contrary",
       "description": "Moves that affect this Pokémon's stats have the opposite effect. (For example, Defense Curl would lower AC by 4. Growl would increase its attack by +1)"
     },
-    "evolutionInfo": "Servine can evolve into Serperior at level 14 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Servine can evolve into Serperior at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Leer",
@@ -59436,7 +59436,7 @@
       "name": "Thick Fat",
       "description": "This Pokemon takes half the damage it otherwise would from Ice and Fire damage."
     },
-    "evolutionInfo": "Tepig can evolve into Pignite at level 6 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Tepig can evolve into Pignite at level 3 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Tail Whip"
@@ -59567,7 +59567,7 @@
       "name": "Thick Fat",
       "description": "This Pokemon takes half the damage it otherwise would from Ice and Fire damage."
     },
-    "evolutionInfo": "Pignite can evolve into Emboar at level 14 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Pignite can evolve into Emboar at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Arm Thrust",
       "Ember",
@@ -59814,7 +59814,7 @@
       "name": "Shell Armor",
       "description": "This Pokémon is immune to extra damage dealt by a Critical Hit."
     },
-    "evolutionInfo": "Oshawott can evolve into Dewott at level 6 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Oshawott can evolve into Dewott at level 3 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Tail Whip"
@@ -59937,7 +59937,7 @@
       "name": "Shell Armor",
       "description": "This Pokémon is immune to extra damage dealt by a Critical Hit."
     },
-    "evolutionInfo": "Dewott can evolve into Samurott at level 14 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Dewott can evolve into Samurott at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Tail Whip",
@@ -60161,7 +60161,7 @@
       "name": "Analytic",
       "description": "After this Pokémon misses an attack, its next attack is done at advantage."
     },
-    "evolutionInfo": "Patrat can evolve into Watchog at level 6 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Patrat can evolve into Watchog at level 4 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Leer"
@@ -60389,7 +60389,7 @@
       "name": "Run Away",
       "description": "This Pokémon cannot be the target of an attack of opportunity."
     },
-    "evolutionInfo": "Lillipup can evolve into Herdier at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Lillipup can evolve into Herdier at level 3 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Tackle"
@@ -60512,7 +60512,7 @@
       "name": "Scrappy",
       "description": "This Pokémon's Normal and Fighting type moves ignore immunities granted by a Pokémon's type. If a target’s secondary type gives it vulnerability or resistance to the attack, it follows the secondary type for that effect."
     },
-    "evolutionInfo": "Herdier can evolve into Stoutland at level 13 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Herdier can evolve into Stoutland at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bite",
       "Leer",
@@ -60730,7 +60730,7 @@
       "name": "Prankster",
       "description": "Once per short rest, this Pokémon can move to the top of initiative order in a single round, but must use a status-affecting move on its turn."
     },
-    "evolutionInfo": "Purrloin can evolve into Liepard at level 6 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Purrloin can evolve into Liepard at level 4 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Scratch",
       "Growl"
@@ -61902,7 +61902,7 @@
       "name": "Rivalry",
       "description": "This Pokémon adds its proficiency bonus to damage when attacking a Pokémon of the same type."
     },
-    "evolutionInfo": "Pidove can evolve into Tranquill at level 7 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Pidove can evolve into Tranquill at level 4 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Gust",
       "Growl"
@@ -62025,7 +62025,7 @@
       "name": "Rivalry",
       "description": "This Pokémon adds its proficiency bonus to damage when attacking a Pokémon of the same type."
     },
-    "evolutionInfo": "Tranquill can evolve into Unfezant at level 14 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Tranquill can evolve into Unfezant at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Gust",
@@ -62240,7 +62240,7 @@
       "name": "Sap Sipper",
       "description": "This Pokémon takes no damage from grass-type attacks. If hit by a grass type move, it takes no damage and instead absorbs the energy, granting advantage on its next attack."
     },
-    "evolutionInfo": "Blitzle can evolve into Zebstrika at level 8 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Blitzle can evolve into Zebstrika at level 5 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Quick Attack",
       "Tail Whip"
@@ -62461,7 +62461,7 @@
       "name": "Sand Force",
       "description": "During a Sandstorm, this Pokémon can double its STAB when it hits an opponent."
     },
-    "evolutionInfo": "Roggenrola can evolve into Boldore at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Roggenrola can evolve into Boldore at level 5 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Harden"
@@ -63070,7 +63070,7 @@
       "name": "Mold Breaker",
       "description": "This Pokémon's moves ignore any abilities that would lessen their effect or ability to hit an opponent (Due to things like Water Absorb, Snow Cloak, Thick Fat, Sturdy, etc.)"
     },
-    "evolutionInfo": "Drilbur can evolve into Excadrill at level 9 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Drilbur can evolve into Excadrill at level 6 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Mud Sport",
       "Scratch"
@@ -63453,7 +63453,7 @@
       "name": "Iron Fist",
       "description": "When attacking with a punch-based move (Mega Punch, Dynamic Punch, Ice/Fire/Thunder Punch, etc.), this Pokémon may roll the damage twice and choose either total."
     },
-    "evolutionInfo": "Timburr can evolve into Gurdurr at level 7 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Timburr can evolve into Gurdurr at level 5 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Pound",
@@ -63810,7 +63810,7 @@
       "name": "Water Absorb",
       "description": "This Pokémon takes no damage from water or water-type attacks. Instead, half of any water damage done is absorbed, restoring the Pokémon's HP."
     },
-    "evolutionInfo": "Tympole can evolve into Palpitoad at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Tympole can evolve into Palpitoad at level 5 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bubble",
       "Growl"
@@ -63930,7 +63930,7 @@
       "name": "Water Absorb",
       "description": "This Pokémon takes no damage from water or water-type attacks. Instead, half of any water damage done is absorbed, restoring the Pokémon's HP."
     },
-    "evolutionInfo": "Palpitoad can evolve into Seismitoad at level 14 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Palpitoad can evolve into Seismitoad at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bubble",
       "Growl",
@@ -64380,7 +64380,7 @@
       "name": "Overcoat",
       "description": "This Pokémon does not take damage from weather-related moves and phenomena like Hail, Weather Ball, etc."
     },
-    "evolutionInfo": "Sewaddle can evolve into Swadloon at level 5 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Sewaddle can evolve into Swadloon at level 4 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
     "startingMoves": [
       "String Shot",
       "Tackle"
@@ -64706,7 +64706,7 @@
       "name": "Speed Boost",
       "description": "This Pokémon's speed is increased by 10 feet while in an environment related to its type (DM Discretion)."
     },
-    "evolutionInfo": "Venipede can evolve into Whirlipede at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Venipede can evolve into Whirlipede at level 4 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Defense Curl",
       "Rollout"
@@ -64823,7 +64823,7 @@
       "name": "Speed Boost",
       "description": "This Pokémon's speed is increased by 10 feet while in an environment related to its type (DM Discretion)."
     },
-    "evolutionInfo": "Whirlipede can evolve into Scolipede at level 13 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Whirlipede can evolve into Scolipede at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Defense Curl",
       "Iron Defense",
@@ -65633,7 +65633,7 @@
       "name": "Anger Point",
       "description": "After suffering a critical hit, this Pokémon doubles the damage dice for a single move it activates on the following turn."
     },
-    "evolutionInfo": "Sandile can evolve into Krokorok at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Sandile can evolve into Krokorok at level 6 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Rage",
@@ -65771,7 +65771,7 @@
       "name": "Anger Point",
       "description": "After suffering a critical hit, this Pokémon doubles the damage dice for a single move it activates on the following turn."
     },
-    "evolutionInfo": "Krokorok can evolve into Krookodile at level 15 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Krokorok can evolve into Krookodile at level 8 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bite",
       "Leer",
@@ -66026,7 +66026,7 @@
       "name": "Inner Focus",
       "description": "This Pokémon is immune to flinching."
     },
-    "evolutionInfo": "Darumaka can evolve into Darmanitan at level 9 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Darumaka can evolve into Darmanitan at level 7 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Rollout"
@@ -66404,7 +66404,7 @@
       "name": "Weak Armor",
       "description": "When an attack hits this Pokémon, its speed increases by 5 feet, but its AC is temporarily reduced by 1 until the end of battle (for a maximum reduction of -5)."
     },
-    "evolutionInfo": "Dwebble can evolve into Crustle at level 9 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Dwebble can evolve into Crustle at level 7 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Fury Cutter"
     ],
@@ -66648,7 +66648,7 @@
       "name": "Intimidate",
       "description": "Once per short rest, you can impose disadvantage on an enemy attack roll of your choice."
     },
-    "evolutionInfo": "Scraggy can evolve into Scrafty at level 10 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Scraggy can evolve into Scrafty at level 8 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Headbutt",
       "Leer"
@@ -67054,7 +67054,7 @@
       "name": "Resistances",
       "description": "Bug, Poison Immunities: Fighting, Normal Senses: Truesight 15ft Mummy: When this Pokémon is hit by a melee attack, one random ability of its attacker changes to Mummy for the remainder of the encounter."
     },
-    "evolutionInfo": "Yamask can evolve into Cofagrigus at level 9 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Yamask can evolve into Cofagrigus at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Astonish",
       "Protect"
@@ -67296,7 +67296,7 @@
       "name": "Swift Swim",
       "description": "This Pokémon's speed is doubled in rainy conditions."
     },
-    "evolutionInfo": "Tirtouga can evolve into Carracosta at level 10 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Tirtouga can evolve into Carracosta at level 7 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bide",
       "Water Gun",
@@ -67542,7 +67542,7 @@
       "name": "Resistances",
       "description": "Bug, Fire, Flying, Normal, Poison Immunities: Ground Defeatist: When this Pokémon drops below 25% of its maximum HP, all of its attacks are rolled with disadvantage."
     },
-    "evolutionInfo": "Archen can evolve into Archeops at level 10 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Archen can evolve into Archeops at level 7 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Quick Attack",
@@ -67791,7 +67791,7 @@
       "name": "Aftermath",
       "description": "This Pokémon deals damage to an attacker equal to half of the damage received when knocked out by a melee move."
     },
-    "evolutionInfo": "Trubbish can evolve into Garbodor at level 10 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Trubbish can evolve into Garbodor at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Poison Gas",
       "Pound",
@@ -68021,7 +68021,7 @@
       "name": "Resistances",
       "description": "Dark, Ghost Immunities: Psychic Illusion: This Pokémon can take the visual form of any Pokémon it can see. It can do this a number of times per long rest equal to its level. This illusion lasts for one hour or until the Pokémon is hit by a damaging move."
     },
-    "evolutionInfo": "Zorua can evolve into Zoroark at level 8 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Zorua can evolve into Zoroark at level 6 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Scratch"
@@ -68484,7 +68484,7 @@
       "name": "Shadow Tag",
       "description": "Creatures within 50 feet of this Pokémon may not flee or switch out, except by item, Move, or ability."
     },
-    "evolutionInfo": "Gothita can evolve into Gothorita at level 9 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Gothita can evolve into Gothorita at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Pound",
       "Confusion"
@@ -68618,7 +68618,7 @@
       "name": "Shadow Tag",
       "description": "Creatures within 50 feet of this Pokémon may not flee or switch out, except by item, Move, or ability."
     },
-    "evolutionInfo": "Gothorita can evolve into Gothitelle at level 16 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Gothorita can evolve into Gothitelle at level 8 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Confusion",
       "Pound",
@@ -68859,7 +68859,7 @@
       "name": "Regenerator",
       "description": "Once per long rest, this Pokémon regains hit points equal to its level when it returns to its Pokéball."
     },
-    "evolutionInfo": "Solosis can evolve into Duosion at level 9 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Solosis can evolve into Duosion at level 6 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Psywave",
       "Reflect"
@@ -68989,7 +68989,7 @@
       "name": "Regenerator",
       "description": "Once per long rest, this Pokémon regains hit points equal to its level when it returns to its Pokéball."
     },
-    "evolutionInfo": "Duosion can evolve into Reuniclus at level 16 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Duosion can evolve into Reuniclus at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Psywave",
       "Reflect",
@@ -69231,7 +69231,7 @@
       "name": "Hydration",
       "description": "This Pokémon is unaffected by negative status ailments in water or during rainy conditions."
     },
-    "evolutionInfo": "Ducklett can evolve into Swanna at level 9 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Ducklett can evolve into Swanna at level 7 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Water Gun",
       "Water Sport"
@@ -69460,7 +69460,7 @@
       "name": "Weak Armor",
       "description": "When an attack hits this Pokémon, its speed increases by 5 feet, but its AC is temporarily reduced by 1 until the end of battle (for a maximum reduction of -5)."
     },
-    "evolutionInfo": "Vanillite can evolve into Vanillish at level 9 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Vanillite can evolve into Vanillish at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Icicle Spear",
       "Harden"
@@ -69575,7 +69575,7 @@
       "name": "Weak Armor",
       "description": "When an attack hits this Pokémon, its speed increases by 5 feet, but its AC is temporarily reduced by 1 until the end of battle (for a maximum reduction of -5)."
     },
-    "evolutionInfo": "Vanillish can evolve into Vanilluxe at level 16 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Vanillish can evolve into Vanilluxe at level 9 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Astonish",
       "Harden",
@@ -69790,7 +69790,7 @@
       "name": "Serene Grace",
       "description": "The Move DC to pass a saving throw against one of this Pokémon's moves is increased by 1."
     },
-    "evolutionInfo": "Deerling can evolve into Sawsbuck at level 9 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Deerling can evolve into Sawsbuck at level 7 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Camouflage",
       "Tackle",
@@ -70398,7 +70398,7 @@
       "name": "Regenerator",
       "description": "Once per long rest, this Pokémon regains hit points equal to its level when it returns to its Pokéball."
     },
-    "evolutionInfo": "Foongus can evolve into Amoonguss at level 10 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Foongus can evolve into Amoonguss at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Absorb"
     ],
@@ -70634,7 +70634,7 @@
       "name": "Damp",
       "description": "This Pokémon is unaffected by Self Destruct and Explosion moves."
     },
-    "evolutionInfo": "Frillish can evolve into Jellicent at level 10 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Frillish can evolve into Jellicent at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bubble",
       "Water Sport"
@@ -71004,7 +71004,7 @@
       "name": "Swarm",
       "description": "This Pokémon doubles its STAB bonus when it has 25% or less of its maximum health."
     },
-    "evolutionInfo": "Joltik can evolve into Galvantula at level 10 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Joltik can evolve into Galvantula at level 7 and above. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Absorb",
       "Spider Web",
@@ -71245,7 +71245,7 @@
       "name": "Resistances",
       "description": "Dragon, Electric, Fairy, Grass, Normal, Psychic, Rock, Steel, Water Immunities: Poison Iron Barbs: When this Pokémon is hit by a melee attack, it may roll a d4. On a 4, deal an amount of steel damage equal to its proficiency modifier to its attacker."
     },
-    "evolutionInfo": "Ferroseed can evolve into Ferrothorn at level 10 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Ferroseed can evolve into Ferrothorn at level 8 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Harden",
       "Tackle"
@@ -71497,7 +71497,7 @@
       "name": "Clear Body",
       "description": "Other Pokémon's moves or abilities cannot lower this Pokémon stats."
     },
-    "evolutionInfo": "Klink can evolve into Klang at level 10 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Klink can evolve into Klang at level 8 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Vice Grip"
     ],
@@ -71609,7 +71609,7 @@
       "name": "Clear Body",
       "description": "Other Pokémon's moves or abilities cannot lower this Pokémon stats."
     },
-    "evolutionInfo": "Klang can evolve into Klinklang at level 15 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Klang can evolve into Klinklang at level 10 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Charge",
       "Thunder Shock",
@@ -71815,7 +71815,7 @@
       "name": "Resistances",
       "description": "Electric, Flying, Steel Levitate: This Pokémon is immune to ground moves."
     },
-    "evolutionInfo": "Tynamo can evolve into Eelektrik at level 10 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Tynamo can evolve into Eelektrik at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Charge Beam",
       "Spark",
@@ -72074,7 +72074,7 @@
       "name": "Analytic",
       "description": "After this Pokémon misses an attack, its next attack is done at advantage."
     },
-    "evolutionInfo": "Elgyem can evolve into Beheeyem at level 10 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Elgyem can evolve into Beheeyem at level 8 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Confusion",
       "Growl"
@@ -72341,7 +72341,7 @@
       "name": "Infiltrator",
       "description": "This Pokémon bypasses Light Screen, Reflect, Substitute, Mist, Safeguard, and Aurora Veil."
     },
-    "evolutionInfo": "Litwick can evolve into Lampent at level 10 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Litwick can evolve into Lampent at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Astonish",
       "Ember",
@@ -72712,7 +72712,7 @@
       "name": "Unnerve",
       "description": "Opponents in combat with this Pokémon cannot eat held berries."
     },
-    "evolutionInfo": "Axew can evolve into Fraxure at level 10 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Axew can evolve into Fraxure at level 8 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Scratch",
       "Leer"
@@ -72838,7 +72838,7 @@
       "name": "Unnerve",
       "description": "Opponents in combat with this Pokémon cannot eat held berries."
     },
-    "evolutionInfo": "Fraxure can evolve into Haxorus at level 15 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Fraxure can evolve into Haxorus at level 10 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Assurance",
       "Dragon Rage",
@@ -73068,7 +73068,7 @@
       "name": "Rattled",
       "description": "When this Pokémon is hit by a damaging Dark, Bug, or Ghost move, it makes its next attack at advantage."
     },
-    "evolutionInfo": "Cubchoo can evolve into Beartic at level 10 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Cubchoo can evolve into Beartic at level 7 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Powder Snow"
@@ -73776,7 +73776,7 @@
       "name": "Reckless",
       "description": "When attacking with moves with recoil damage, this Pokémon doubles its STAB bonus."
     },
-    "evolutionInfo": "Mienfoo can evolve into Mienshao at level 12 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Mienfoo can evolve into Mienshao at level 10 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Pound"
     ],
@@ -74175,7 +74175,7 @@
       "name": "No Guard",
       "description": "Any attack made by or against this Pokémon has advantage."
     },
-    "evolutionInfo": "Golett can evolve into Golurk at level 11 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Golett can evolve into Golurk at level 9 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Astonish",
       "Defense Curl",
@@ -74428,7 +74428,7 @@
       "name": "Pressure",
       "description": "Any move targeting this Pokémon directly (non-area of effect moves) reduces its PP by two when activated."
     },
-    "evolutionInfo": "Pawniard can evolve into Bisharp at level 13 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Pawniard can evolve into Bisharp at level 10 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Scratch"
     ],
@@ -74812,7 +74812,7 @@
       "name": "Hustle",
       "description": "When you score a critical hit, you may immediately gain an additional action on your turn. If this action is used to make an attack, you have disadvantage on the roll. You may only ever have one additional action per round."
     },
-    "evolutionInfo": "Rufflet can evolve into Braviary at level 13 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Rufflet can evolve into Braviary at level 11 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Peck"
@@ -75044,7 +75044,7 @@
       "name": "Weak Armor",
       "description": "When an attack hits this Pokémon, its speed increases by 5 feet, but its AC is temporarily reduced by 1 until the end of battle (for a maximum reduction of -5)."
     },
-    "evolutionInfo": "Vullaby can evolve into Mandibuzz at level 13 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Vullaby can evolve into Mandibuzz at level 11 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Gust",
       "Leer"
@@ -75553,7 +75553,7 @@
       "name": "Resistances",
       "description": "Dark, Electric, Fire, Ghost, Grass, Water Immunities: Psychic Senses: Blindsight 10ft Hustle: When you score a critical hit, you may immediately gain an additional action on your turn. If this action is used to make an attack, you have disadvantage on the roll. You may only ever have one additional action per round."
     },
-    "evolutionInfo": "Deino can evolve into Zweilous at level 13 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Deino can evolve into Zweilous at level 10 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Dragon Rage",
       "Tackle",
@@ -75681,7 +75681,7 @@
       "name": "Resistances",
       "description": "Dark, Electric, Fire, Ghost, Grass, Water Immunities: Psychic Senses: Blindsight 30ft Hustle: When you score a critical hit, you may immediately gain an additional action on your turn. If this action is used to make an attack, you have disadvantage on the roll. You may only ever have one additional action per round."
     },
-    "evolutionInfo": "Zweilous can evolve into Hydreigon at level 17 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Zweilous can evolve into Hydreigon at level 13 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bite",
       "Double Hit",
@@ -75923,7 +75923,7 @@
       "name": "Swarm",
       "description": "This Pokémon doubles its STAB bonus when it has 25% or less of its maximum health."
     },
-    "evolutionInfo": "Larvesta can evolve into Volcarona at level 14 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Larvesta can evolve into Volcarona at level 12 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Ember",
       "String Shot"
@@ -77558,7 +77558,7 @@
       "name": "Bulletproof",
       "description": "This Pokémon is immune to damage from moves with Bullet, Ball, or Bomb in their name."
     },
-    "evolutionInfo": "Chespin can evolve into Quilladin at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Chespin can evolve into Quilladin at level 3 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Vine Whip"
@@ -77691,7 +77691,7 @@
       "name": "Bulletproof",
       "description": "This Pokémon is immune to damage from moves with Bullet, Ball, or Bomb in their name."
     },
-    "evolutionInfo": "Quilladin can evolve into Chesnaught at level 14 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Quilladin can evolve into Chesnaught at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Needle Arm",
       "Growl",
@@ -77946,7 +77946,7 @@
       "name": "Magician",
       "description": "If not already holding an item, this Pokémon steals the held item of any Pokémon it hits with a melee attack."
     },
-    "evolutionInfo": "Fennekin can evolve into Braixen at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Fennekin can evolve into Braixen at level 3 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Scratch",
       "Tail Whip"
@@ -78073,7 +78073,7 @@
       "name": "Magician",
       "description": "If not already holding an item, this Pokémon steals the held item of any Pokémon it hits with a melee attack."
     },
-    "evolutionInfo": "Braixen can evolve into Delphox at level 14 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Braixen can evolve into Delphox at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Scratch",
       "Tail Whip",
@@ -78319,7 +78319,7 @@
       "name": "Protean",
       "description": "This Pokémon's type changes to the type of move it uses, just before the move is used. It takes on the new type's resistances, vulnerabilities, and immunities."
     },
-    "evolutionInfo": "Froakie can evolve into Frogadier at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Froakie can evolve into Frogadier at level 3 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Pound",
       "Growl"
@@ -78443,7 +78443,7 @@
       "name": "Protean",
       "description": "This Pokémon's type changes to the type of move it uses, just before the move is used. It takes on the new type's resistances, vulnerabilities, and immunities."
     },
-    "evolutionInfo": "Frogadier can evolve into Greninja at level 14 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Frogadier can evolve into Greninja at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Pound",
       "Growl",
@@ -78682,7 +78682,7 @@
       "name": "Huge Power",
       "description": "Once per short rest, this Pokémon may double the damage dice for a single damage roll. The player must announce that they are using this ability before the attack roll."
     },
-    "evolutionInfo": "Bunnelby can evolve into Diggersby at level 6 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Bunnelby can evolve into Diggersby at level 4 and above. When it evolves, its health increases by double its level, and it gains 15 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Agility",
@@ -78938,7 +78938,7 @@
       "name": "Gale Wings",
       "description": "This Pokémon adds an additional +1 to hit when using flying-type attacks."
     },
-    "evolutionInfo": "Fletchling can evolve into Fletchinder at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Fletchling can evolve into Fletchinder at level 3 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Growl"
@@ -79060,7 +79060,7 @@
       "name": "Gale Wings",
       "description": "This Pokémon adds an additional +1 to hit when using flying-type attacks."
     },
-    "evolutionInfo": "Fletchinder can evolve into Talonflame at level 13 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Fletchinder can evolve into Talonflame at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Ember",
       "Tackle",
@@ -79294,7 +79294,7 @@
       "name": "Friend Guard",
       "description": "Once per long rest, when an ally within 15 feet of this Pokémon is hit by an attack, it may choose to halve the damage dealt."
     },
-    "evolutionInfo": "Scatterbug can evolve into Spewpa at level 4 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Scatterbug can evolve into Spewpa at level 2 and above. When it evolves, its health increases by double its level, and it gains 5 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "String Shot"
@@ -79367,7 +79367,7 @@
       "name": "Friend Guard",
       "description": "Once per long rest, when an ally within 15 feet of this Pokémon is hit by an attack, it may choose to halve the damage dealt."
     },
-    "evolutionInfo": "Spewpa can evolve into Vivillon at level 7 and above. When it evolves, its health increases by double its level, and it gains 18 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Spewpa can evolve into Vivillon at level 2 and above. When it evolves, its health increases by double its level, and it gains 18 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Protect",
       "Harden"
@@ -79554,7 +79554,7 @@
       "name": "Moxie",
       "description": "Upon causing an opponent to faint, this Pokémon may immediately take another action."
     },
-    "evolutionInfo": "Litleo can evolve into Pyroar at level 9 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Litleo can evolve into Pyroar at level 7 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Leer"
@@ -79804,7 +79804,7 @@
       "name": "Symbiosis",
       "description": "This Pokémon may swap held items with an ally as a free action, as long as they are within 15 feet of each other."
     },
-    "evolutionInfo": "Flabébé can evolve into Floette at level 6 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Flabébé can evolve into Floette at level 4 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Vine Whip"
@@ -80138,7 +80138,7 @@
       "name": "Grass Pelt",
       "description": "This Pokémon gains +1 to AC while in grassy terrain."
     },
-    "evolutionInfo": "Skiddo can evolve into Gogoat at level 9 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Skiddo can evolve into Gogoat at level 6 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growth",
       "Tackle"
@@ -80379,7 +80379,7 @@
       "name": "Scrappy",
       "description": "This Pokémon's Normal and Fighting type moves ignore immunities granted by a Pokémon's type. If a target’s secondary type gives it vulnerability or resistance to the attack, it follows the secondary type for that effect."
     },
-    "evolutionInfo": "Pancham can evolve into Pangoro at level 9 and above, only if its trainer has another dark-type Pokemon in their party. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Pancham can evolve into Pangoro at level 6 and above, only if its trainer has another dark-type Pokemon in their party. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Tackle"
@@ -80756,7 +80756,7 @@
       "name": "Own Tempo",
       "description": "This Pokémon is immune to becoming confused."
     },
-    "evolutionInfo": "Espurr can evolve into Meowstic at level 7 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Espurr can evolve into Meowstic at level 5 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Scratch"
@@ -81000,7 +81000,7 @@
       "name": "Resistances",
       "description": "Bug, Dragon, Fairy, Flying, Grass, Ice, Psychic, Rock, Steel Immunities: Fighting, Normal, Poison No Guard: Any attack made by or against this Pokémon has advantage."
     },
-    "evolutionInfo": "Honedge can evolve into Doublade at level 9 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Honedge can evolve into Doublade at level 7 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Swords Dance",
       "Tackle"
@@ -81822,7 +81822,7 @@
       "name": "Infiltrator",
       "description": "This Pokémon bypasses Light Screen, Reflect, Substitute, Mist, Safeguard, and Aurora Veil."
     },
-    "evolutionInfo": "Inkay can evolve into Malamar at level 8 and above. When it evolves, its health increases by double its level, and it gains 19 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Inkay can evolve into Malamar at level 6 and above. When it evolves, its health increases by double its level, and it gains 19 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Constrict",
       "Peck",
@@ -82079,7 +82079,7 @@
       "name": "Pickpocket",
       "description": "When hit by a melee attack, this Pokémon may use a reaction to attempt to steal the creature's held item with a Sleight of Hand check contested by the target's Passive Perception. After the first attempt, all other attempts against the same opponent are rolled at disadvantage."
     },
-    "evolutionInfo": "Binacle can evolve into Barbaracle at level 10 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Binacle can evolve into Barbaracle at level 8 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Sand Attack",
       "Scratch",
@@ -82362,7 +82362,7 @@
       "name": "Adaptability",
       "description": "When this Pokémon uses a move of its own type, it may roll the damage twice and choose either total."
     },
-    "evolutionInfo": "Skrelp can evolve into Dragalge at level 12 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Skrelp can evolve into Dragalge at level 10 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Smokescreen",
       "Tackle",
@@ -82595,7 +82595,7 @@
       "name": "Resistances",
       "description": "Fire, Ice, Steel, Water Mega Launcher: Aura and Pulse moves made by this Pokémon deal additional damage/healing equal to this Pokémon's proficiency bonus."
     },
-    "evolutionInfo": "Clauncher can evolve into Clawitzer at level 10 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Clauncher can evolve into Clawitzer at level 7 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Splash",
       "Water Gun"
@@ -83062,7 +83062,7 @@
       "name": "Sturdy",
       "description": "When taking damage equal to half or more of your current HP, roll a d4. On a result of 3 of 4, halve the damage dealt."
     },
-    "evolutionInfo": "Tyrunt can evolve into Tyrantrum at level 10 and above, only during the day. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Tyrunt can evolve into Tyrantrum at level 8 and above, only during the day. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Tail Whip"
@@ -83310,7 +83310,7 @@
       "name": "Snow Warning",
       "description": "When this Pokémon enters an outside battle, the weather immediately changes to hail for 5 rounds. In the case of another Pokémon with a similar weather ability, the tie goes to the Pokémon with the highest DEX score."
     },
-    "evolutionInfo": "Amaura can evolve into Aurorus at level 10 and above, only at night time. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Amaura can evolve into Aurorus at level 8 and above, only at night time. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Powder Snow"
@@ -84069,7 +84069,7 @@
       "name": "Gooey",
       "description": "When this Pokémon is hit with a melee attack, roll 1d4. On a result of 3 or 4, the attacker's speed is reduced to 0 until the end of its next turn."
     },
-    "evolutionInfo": "Goomy can evolve into Sliggoo at level 12 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Goomy can evolve into Sliggoo at level 8 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bubble",
       "Tackle"
@@ -84180,7 +84180,7 @@
       "name": "Gooey",
       "description": "When this Pokémon is hit with a melee attack, roll 1d4. On a result of 3 or 4, the attacker's speed is reduced to 0 until the end of its next turn."
     },
-    "evolutionInfo": "Sliggoo can evolve into Goodra at level 16 and above, only when it is raining. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Sliggoo can evolve into Goodra at level 10 and above, only when it is raining. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bubble",
       "Tackle",
@@ -85034,7 +85034,7 @@
       "name": "Sturdy",
       "description": "When taking damage equal to half or more of your current HP, roll a d4. On a result of 3 of 4, halve the damage dealt."
     },
-    "evolutionInfo": "Bergmite can evolve into Avalugg at level 10 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Bergmite can evolve into Avalugg at level 7 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bite",
       "Harden",
@@ -85275,7 +85275,7 @@
       "name": "Telepathy",
       "description": "This Pokémon cannot be damaged by its allies' attacks."
     },
-    "evolutionInfo": "Noibat can evolve into Noivern at level 12 and above. When it evolves, its health increases by double its level, and it gains 18 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Noibat can evolve into Noivern at level 10 and above. When it evolves, its health increases by double its level, and it gains 18 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Screech",
       "Supersonic",
@@ -86253,7 +86253,7 @@
       "name": "Long Reach",
       "description": "This Pokémon has an additional 5 feet of reach with all melee attacks and Attacks of Opportunity."
     },
-    "evolutionInfo": "Rowlet can evolve into Dartrix at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Rowlet can evolve into Dartrix at level 3 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leafage",
       "Tackle",
@@ -86380,7 +86380,7 @@
       "name": "Long Reach",
       "description": "This Pokémon has an additional 5 feet of reach with all melee attacks and Attacks of Opportunity."
     },
-    "evolutionInfo": "Dartrix can evolve into Decidueye at level 13 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Dartrix can evolve into Decidueye at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Growl",
       "Leafage",
@@ -86619,7 +86619,7 @@
       "name": "Intimidate",
       "description": "Once per short rest, you can impose disadvantage on an enemy attack roll of your choice."
     },
-    "evolutionInfo": "Litten can evolve into Torracat at level 6 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Litten can evolve into Torracat at level 3 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Ember",
       "Scratch",
@@ -86746,7 +86746,7 @@
       "name": "Intimidate",
       "description": "Once per short rest, you can impose disadvantage on an enemy attack roll of your choice."
     },
-    "evolutionInfo": "Torracat can evolve into Incineroar at level 13 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Torracat can evolve into Incineroar at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Ember",
       "Growl",
@@ -86994,7 +86994,7 @@
       "name": "Liquid Voice",
       "description": "Any sound-based move activated by this Pokémon is water-type."
     },
-    "evolutionInfo": "Popplio can evolve into Brionne at level 6 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Popplio can evolve into Brionne at level 3 and above. When it evolves, its health increases by double its level, and it gains 8 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Pound",
       "Water Gun",
@@ -87112,7 +87112,7 @@
       "name": "Liquid Voice",
       "description": "Any sound-based move activated by this Pokémon is water-type."
     },
-    "evolutionInfo": "Brionne can evolve into Primarina at level 13 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Brionne can evolve into Primarina at level 7 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Disarming Voice",
       "Growl",
@@ -87343,7 +87343,7 @@
       "name": "Pickup",
       "description": "If an opponent uses a consumable held item in battle, this Pokémon gains a copy of it if it is not currently holding an item."
     },
-    "evolutionInfo": "Pikipek can evolve into Trumbeak at level 5 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Pikipek can evolve into Trumbeak at level 3 and above. When it evolves, its health increases by double its level, and it gains 7 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Peck",
       "Growl"
@@ -87460,7 +87460,7 @@
       "name": "Pickup",
       "description": "If an opponent uses a consumable held item in battle, this Pokémon gains a copy of it if it is not currently holding an item."
     },
-    "evolutionInfo": "Trumbeak can evolve into Toucannon at level 11 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Trumbeak can evolve into Toucannon at level 6 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Echoed Voice",
       "Growl",
@@ -87677,7 +87677,7 @@
       "name": "Adaptability",
       "description": "When this Pokémon uses a move of its own type, it may roll the damage twice and choose either total."
     },
-    "evolutionInfo": "Yungoos can evolve into Gumshoos at level 6 and above, during the day. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Yungoos can evolve into Gumshoos at level 4 and above, during the day. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
       "Leer"
@@ -87893,7 +87893,7 @@
       "name": "Resistances",
       "description": "Grass, Ground, Fighting Swarm: This Pokémon doubles its STAB bonus when it has 25% or less of its maximum health."
     },
-    "evolutionInfo": "Grubbin can evolve into Charjabug at level 6 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Grubbin can evolve into Charjabug at level 4 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Vice Grip",
       "String Shot"
@@ -88580,7 +88580,7 @@
       "name": "Sweet Veil",
       "description": "Any ally within 15 feet of this Pokémon is immune to the sleep condition."
     },
-    "evolutionInfo": "Cutiefly can evolve into Ribombee at level 7 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Cutiefly can evolve into Ribombee at level 5 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Absorb",
       "Fairy Wind"
@@ -88821,7 +88821,7 @@
       "name": "Steadfast",
       "description": "Once per long rest, when this Pokémon fails a saving throw against a negative condition, it can choose to pass instead."
     },
-    "evolutionInfo": "Starting at level 9, Rockruff can evolve into Lycanroc Midday Form during the morning, Lycanroc Dusk Form in the afternoon, or Lycanroc Midnight Form at night. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Starting at level 5, Rockruff can evolve into Lycanroc Midday Form during the morning, Lycanroc Dusk Form in the afternoon, or Lycanroc Midnight Form at night. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Tackle",
@@ -89160,7 +89160,7 @@
       "name": "Regenerator",
       "description": "Once per long rest, this Pokémon regains hit points equal to its level when it returns to its Pokéball."
     },
-    "evolutionInfo": "Mareanie can evolve into Toxapex at level 10 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Mareanie can evolve into Toxapex at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Poison Sting"
     ],
@@ -89390,7 +89390,7 @@
       "name": "Inner Focus",
       "description": "This Pokémon is immune to flinching."
     },
-    "evolutionInfo": "Mudbray can evolve into Mudsdale at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Mudbray can evolve into Mudsdale at level 6 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Mud-Slap",
       "Mud Sport"
@@ -89611,7 +89611,7 @@
       "name": "Water Absorb",
       "description": "This Pokémon takes no damage from water or water-type attacks. Instead, half of any water damage done is absorbed, restoring the Pokémon's HP."
     },
-    "evolutionInfo": "Dewpider can evolve into Araquanid at level 7 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Dewpider can evolve into Araquanid at level 4 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Bubble",
       "Water Sport"
@@ -89839,7 +89839,7 @@
       "name": "Contrary",
       "description": "Moves that affect this Pokémon's stats have the opposite effect. (For example, Defense Curl would lower AC by 4. Growl would increase its attack by +1)"
     },
-    "evolutionInfo": "Fomantis can evolve into Lurantis at level 9 and above during the day. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Fomantis can evolve into Lurantis at level 7 and above during the day. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Fury Cutter"
     ],
@@ -90073,7 +90073,7 @@
       "name": "Rain Dish",
       "description": "In rainy conditions, this Pokémon heals for an amount of HP equal to its proficiency bonus at the end of each of its turns."
     },
-    "evolutionInfo": "Morelull can evolve into Shiinotic at level 7 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Morelull can evolve into Shiinotic at level 5 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Absorb",
       "Astonish"
@@ -90311,7 +90311,7 @@
       "name": "Oblivious",
       "description": "This Pokémon is immune to moves that attempt to charm or taunt it."
     },
-    "evolutionInfo": "A female Salandit can evolve into Salazzle at level 9 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "A female Salandit can evolve into Salazzle at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Poison Gas",
       "Scratch"
@@ -90558,7 +90558,7 @@
       "name": "Cute Charm",
       "description": "Once per short rest, you can impose disadvantage on an enemy attack roll of your choice."
     },
-    "evolutionInfo": "Stufful can evolve into Bewear at level 8 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Stufful can evolve into Bewear at level 5 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Leer",
       "Tackle"
@@ -90799,7 +90799,7 @@
       "name": "Sweet Veil",
       "description": "Any ally within 15 feet of this Pokémon is immune to the sleep condition."
     },
-    "evolutionInfo": "Bounsweet can evolve into Steenee at level 6 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Bounsweet can evolve into Steenee at level 4 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Splash",
       "Play Nice"
@@ -91511,7 +91511,7 @@
       "name": "Resistances",
       "description": "Fighting, Ground, Ice, Steel, Water Wimp Out: When a damaging move causes this Pokémon to fall below 50% of its maximum HP, it MUST disengage and move up to its speed in a straight line towards its trainer as a free action. If this would put the Pokémon in range of switching out, it must do so as another free action if another Pokémon is available to replace it."
     },
-    "evolutionInfo": "Wimpod can evolve into Golisopod at level 8 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Wimpod can evolve into Golisopod at level 6 and above. When it evolves, its health increases by double its level, and it gains 13 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Defense Curl",
       "Sand Attack",
@@ -91737,7 +91737,7 @@
       "name": "Sand Veil",
       "description": "This Pokémon is immune to Sandstorm damage. In addition, its AC increases by 2 in desert terrain, or during a Sandstorm."
     },
-    "evolutionInfo": "Sandygast can evolve into Palossand at level 11 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Sandygast can evolve into Palossand at level 8 and above. When it evolves, its health increases by double its level, and it gains 11 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Absorb",
       "Harden"
@@ -93279,7 +93279,7 @@
       "name": "Overcoat",
       "description": "This Pokémon does not take damage from weather-related moves and phenomena like Hail, Weather Ball, etc."
     },
-    "evolutionInfo": "Jangmo-o can evolve into Hakamo-o at level 9 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Jangmo-o can evolve into Hakamo-o at level 7 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle"
     ],
@@ -93409,7 +93409,7 @@
       "name": "Overcoat",
       "description": "This Pokémon does not take damage from weather-related moves and phenomena like Hail, Weather Ball, etc."
     },
-    "evolutionInfo": "Hakamo-o can evolve into Kommo-o at level 16 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Hakamo-o can evolve into Kommo-o at level 9 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Autotomize",
       "Bide",
@@ -94154,7 +94154,7 @@
       "name": "Resistances",
       "description": "Fighting, Psychic Senses: Darkvision 50ft, Truesight 10ft Unaware: When this Pokémon attacks an opponent, it ignores any stat changes the opponent has been affected with after the start of battle."
     },
-    "evolutionInfo": "Cosmog can evolve into Cosmoem at level 10 and above. When it evolves, its health increases by double its level, and it gains 17 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Cosmog can evolve into Cosmoem at level 9 and above. When it evolves, its health increases by double its level, and it gains 17 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Splash"
     ],
@@ -94213,7 +94213,7 @@
       "name": "Resistances",
       "description": "Fighting, Psychic Senses: Darkvision 80ft, Truesight 20ft Sturdy: When taking damage equal to half or more of your current HP, roll a d4. On a result of 3 of 4, halve the damage dealt."
     },
-    "evolutionInfo": "Cosmoem can evolve into Solgaleo at level 16 and above during the day, or Lunala at level 16 and above at night. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
+    "evolutionInfo": "Cosmoem can evolve into Solgaleo at level 11 and above during the day, or Lunala at level 16 and above at night. When it evolves, its health increases by double its level, and it gains 14 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Cosmic Power",
       "Teleport"

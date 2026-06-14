@@ -498,10 +498,26 @@ EVOLUTION_STONES = {
     "king's rock", 'metal coat', 'dragon scale',
 }
 
+_STONE_PT_TO_EN = {
+    'pedra fogo':        'fire stone',
+    'pedra água':        'water stone',
+    'pedra agua':        'water stone',
+    'pedra trovão':      'thunder stone',
+    'pedra trovao':      'thunder stone',
+    'pedra folha':       'leaf stone',
+    'pedra lua':         'moon stone',
+    'pedra solar':       'sun stone',
+    'pedra brilhante':   'shiny stone',
+    'pedra crepúsculo':  'dusk stone',
+    'pedra crepusculo':  'dusk stone',
+    'pedra aurora':      'dawn stone',
+    'pedra gelo':        'ice stone',
+}
+
 def get_special_evolution(pokemon_name: str, stone_used: str = None, battle_wins: int = 0, moves: list = None):
     """
     Returns (evolved_into: str, condition_met: bool) for special evolutions.
-    stone_used: lowercase item name from bag
+    stone_used: item name from bag (Portuguese or English)
     battle_wins: how many battles this pokemon has won
     moves: list of move names the pokemon knows
     """
@@ -512,11 +528,16 @@ def get_special_evolution(pokemon_name: str, stone_used: str = None, battle_wins
 
     candidates = entry if isinstance(entry, list) else [entry]
 
+    # Normalise stone name: Portuguese → English
+    stone_normalised = None
+    if stone_used:
+        stone_normalised = _STONE_PT_TO_EN.get(stone_used.strip().lower(), stone_used.strip().lower())
+
     for cond in candidates:
         evo_type = cond['type']
 
-        if evo_type == 'stone' and stone_used:
-            if stone_used.lower() == cond['stone'].lower():
+        if evo_type == 'stone' and stone_normalised:
+            if stone_normalised == cond['stone'].lower():
                 return cond['into'], True
 
         elif evo_type == 'friendship':
@@ -530,7 +551,7 @@ def get_special_evolution(pokemon_name: str, stone_used: str = None, battle_wins
 
         elif evo_type == 'stat_check':
             # Tyrogue — caller passes extra context via stone_used field as condition key
-            if stone_used == cond['condition']:
+            if stone_used and stone_used == cond['condition']:
                 return cond['into'], True
 
     return None, False

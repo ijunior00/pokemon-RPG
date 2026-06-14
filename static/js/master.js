@@ -965,7 +965,7 @@ async function giveXP() {
 async function giveXPAll() {
     const amount = parseInt(document.getElementById('xp-amount').value);
     const select = document.getElementById('xp-player');
-    
+
     for (let option of select.options) {
         await fetch('/master/xp', {
             method: 'POST',
@@ -973,6 +973,46 @@ async function giveXPAll() {
             body: JSON.stringify({ player_id: option.value, xp: amount })
         });
     }
+}
+
+async function givePokemonXP() {
+    const playerId = document.getElementById('poke-xp-player').value;
+    const pokemonIdx = parseInt(document.getElementById('poke-xp-slot').value);
+    const amount = parseInt(document.getElementById('poke-xp-amount').value);
+    if (!playerId || isNaN(pokemonIdx) || isNaN(amount) || amount <= 0) {
+        alert('Preencha todos os campos corretamente.'); return;
+    }
+    const resp = await fetch('/master/pokemon-xp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ player_id: playerId, pokemon_idx: pokemonIdx, xp: amount })
+    });
+    const result = await resp.json();
+    if (result.success) {
+        let msg = `✅ ${result.pokemon_name} recebeu ${amount} XP`;
+        if (result.leveled_up) msg += ` e subiu para nível ${result.level}!`;
+        if (result.evolution) msg += `\n🌟 Evoluiu para ${result.evolution.to}!`;
+        alert(msg);
+    } else {
+        alert('❌ Erro: ' + (result.error || 'Falha'));
+    }
+}
+
+async function loadPokemonXPSlots() {
+    const playerId = document.getElementById('poke-xp-player').value;
+    const slotSelect = document.getElementById('poke-xp-slot');
+    slotSelect.innerHTML = '<option value="">Carregando...</option>';
+    if (!playerId) { slotSelect.innerHTML = '<option value="">Selecione jogador primeiro</option>'; return; }
+    const resp = await fetch(`/master/player-team/${playerId}`);
+    const data = await resp.json();
+    slotSelect.innerHTML = '';
+    (data.team || []).forEach((p, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = `${i+1}. ${p.name} (Nv. ${p.level || 1})`;
+        slotSelect.appendChild(opt);
+    });
+    if (!slotSelect.options.length) slotSelect.innerHTML = '<option value="">Sem Pokémon</option>';
 }
 
 // Initial pokedex load
@@ -1586,6 +1626,25 @@ async function saveMasterEditTrainer() {
     const result = await resp.json();
     if (result.success) {
         alert('✅ Treinador atualizado!');
+    } else {
+        alert('❌ Erro: ' + (result.error || 'Falha'));
+    }
+}
+
+async function masterResetPassword(playerId, playerName) {
+    const newPass = prompt(`Nova senha para ${playerName}:`);
+    if (!newPass || newPass.trim().length < 4) {
+        if (newPass !== null) alert('Senha deve ter pelo menos 4 caracteres.');
+        return;
+    }
+    const resp = await fetch(`/master/players/${playerId}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPass.trim() })
+    });
+    const result = await resp.json();
+    if (result.success) {
+        alert(`✅ Senha de ${result.username} redefinida!`);
     } else {
         alert('❌ Erro: ' + (result.error || 'Falha'));
     }

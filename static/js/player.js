@@ -1879,11 +1879,11 @@ function getLevelEvoIndicator(poke, idx) {
     const match = info.match(/evolve into ([A-Za-z\-\s]+?) at (?:trainer )?level (\d+)/i);
     if (!match) return '';
     const evoInto = match[1].trim();
-    const evoLevel = parseInt(match[2]);
-    const pokeEvoLevel = evoLevel * 5;
-    const currentLevel = poke.level || 1;
-    if (currentLevel < pokeEvoLevel) return '';
-    return `<button class="btn btn-sm" style="background:var(--accent);color:#fff;animation:pvp-blink 1s infinite;" onclick="triggerLevelEvolve(${idx})" title="Nível ${currentLevel} ≥ ${pokeEvoLevel}">⬆️ Evoluir → ${evoInto}!</button>`;
+    const evoTrainerLevel = parseInt(match[2]);
+    // evolutionInfo stores trainer level; pokemon.level ≈ trainer_level - 2
+    const effectiveTrainerLevel = (poke.level || 1) + 2;
+    if (effectiveTrainerLevel < evoTrainerLevel) return '';
+    return `<button class="btn btn-sm" style="background:var(--accent);color:#fff;animation:pvp-blink 1s infinite;" onclick="triggerLevelEvolve(${idx})" title="Pronto para evoluir!">⬆️ Evoluir → ${evoInto}!</button>`;
 }
 
 async function triggerLevelEvolve(idx) {

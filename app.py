@@ -992,6 +992,22 @@ def master_edit_player(player_id):
     save_users(users)
     return jsonify({'success': True, 'trainer_data': trainer})
 
+@app.route('/master/players/<player_id>/reset-password', methods=['POST'])
+@login_required
+def master_reset_password(player_id):
+    """Master resets a player's password."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    new_password = (request.json or {}).get('password', '').strip()
+    if not new_password or len(new_password) < 4:
+        return jsonify({'error': 'Senha deve ter pelo menos 4 caracteres'}), 400
+    users = get_users()
+    if player_id not in users:
+        return jsonify({'error': 'Player não encontrado'}), 404
+    users[player_id]['password_hash'] = generate_password_hash(new_password)
+    save_users(users)
+    return jsonify({'success': True, 'username': users[player_id]['username']})
+
 @app.route('/master/players/<player_id>/team', methods=['POST'])
 @login_required
 def master_edit_team(player_id):
@@ -1210,28 +1226,33 @@ def generate_npc():
     db.save_npc(npc)
     return jsonify(npc)
 
-def check_and_evolve_pokemon(pokemon):
-    """Check if a Pokemon should evolve based on its current level.
+def check_and_evolve_pokemon(pokemon, trainer_level=None):
+    """Check if a Pokemon should evolve based on trainer level.
+    evolutionInfo stores the required *trainer* level (not pokemon level).
     Returns (evolved_pokemon_data, evolved_name) or (None, None) if no evolution."""
     import re
     info = pokemon.get('evolutionInfo', '') or ''
     if not info:
+        # Fall back to base Pokémon data in case team entry predates evolutionInfo field
+        base = POKEMON_BY_NAME.get((pokemon.get('name') or '').lower())
+        info = (base or {}).get('evolutionInfo', '') or ''
+    if not info:
         return None, None
 
-    # Parse: "X can evolve into Y at level N and above."
+    # Parse: "X can evolve into Y at trainer level N"
     match = re.search(r'evolve into ([A-Za-z\-\s]+?) at (?:trainer )?level (\d+)', info, re.IGNORECASE)
-    if not match:
-        match = re.search(r'evolve into ([A-Za-z\-\s]+?) at level (\d+)', info, re.IGNORECASE)
     if not match:
         return None, None
 
     evolved_name = match.group(1).strip()
     evo_trainer_level = int(match.group(2))
-    evo_pokemon_level = evo_trainer_level * 5  # trainer level scale to pokemon level scale
+
+    # trainer_level explicit; fallback: pokemon.level ≈ trainer_level - 2
+    effective_trainer_level = trainer_level if trainer_level is not None else (pokemon.get('level', 1) + 2)
+    if effective_trainer_level < evo_trainer_level:
+        return None, None
 
     current_level = pokemon.get('level', 1)
-    if current_level < evo_pokemon_level:
-        return None, None
 
     evolved_base = POKEMON_BY_NAME.get(evolved_name.lower())
     if not evolved_base:
@@ -1310,7 +1331,7 @@ def give_xp():
                     pokemon['stab'] = scaled['stab']
                     pokemon['phys_ac'] = scaled['phys_ac']
                     pokemon['spec_ac'] = scaled['spec_ac']
-            evolved, evolved_name = check_and_evolve_pokemon(pokemon)
+            evolved, evolved_name = check_and_evolve_pokemon(pokemon, trainer_level=new_level)
             if evolved:
                 old_name = pokemon.get('name', '')
                 old_number = pokemon.get('number', 0)
@@ -1349,6 +1370,105 @@ def give_xp():
         
         return jsonify({'success': True, 'level': new_level, 'xp': trainer['xp']})
     return jsonify({'error': 'Player not found'}), 404
+
+@app.route('/master/player-team/<player_id>', methods=['GET'])
+@login_required
+def master_get_player_team(player_id):
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    users = get_users()
+    if player_id not in users:
+        return jsonify({'error': 'Player não encontrado'}), 404
+    team = users[player_id].get('trainer_data', {}).get('team', [])
+    return jsonify({'team': [{'name': p.get('name'), 'level': p.get('level', 1)} for p in team]})
+
+@app.route('/master/pokemon-xp', methods=['POST'])
+@login_required
+def give_pokemon_xp():
+    """Master gives XP directly to a specific Pokémon on a player's team."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    player_id = data.get('player_id')
+    pokemon_idx = data.get('pokemon_idx')
+    xp_amount = int(data.get('xp', 0))
+
+    if not player_id or pokemon_idx is None or xp_amount <= 0:
+        return jsonify({'error': 'Parâmetros inválidos'}), 400
+
+    users = get_users()
+    if player_id not in users:
+        return jsonify({'error': 'Player não encontrado'}), 404
+
+    trainer = users[player_id].get('trainer_data', {})
+    team = trainer.get('team', [])
+    if pokemon_idx < 0 or pokemon_idx >= len(team):
+        return jsonify({'error': 'Pokémon inválido'}), 400
+
+    pokemon = team[pokemon_idx]
+    old_level = pokemon.get('level', 1)
+    pokemon['xp'] = pokemon.get('xp', 0) + xp_amount
+
+    # Simple Pokémon XP table: each level requires level*10 XP
+    new_level = old_level
+    while True:
+        xp_needed = new_level * 10
+        if pokemon['xp'] >= xp_needed:
+            pokemon['xp'] -= xp_needed
+            new_level += 1
+        else:
+            break
+    pokemon['level'] = new_level
+
+    leveled_up = new_level > old_level
+    if leveled_up:
+        base_poke = POKEMON_BY_NAME.get((pokemon.get('name') or '').lower())
+        if base_poke:
+            scaled = scaling.calculate_pokemon_stats(base_poke, new_level, pokemon.get('nature'))
+            old_ratio = pokemon.get('currentHp', scaled['hp']) / max(1, pokemon.get('maxHp', scaled['hp']))
+            pokemon['stats'] = scaled['stats']
+            pokemon['maxHp'] = scaled['hp']
+            pokemon['currentHp'] = max(1, int(scaled['hp'] * old_ratio))
+            pokemon['proficiency'] = scaled['proficiency']
+            pokemon['stab'] = scaled['stab']
+            pokemon['phys_ac'] = scaled['phys_ac']
+            pokemon['spec_ac'] = scaled['spec_ac']
+
+    # Check evolution (use trainer level to determine eligibility)
+    trainer_level = trainer.get('level', 1)
+    evolved, evolved_name = check_and_evolve_pokemon(pokemon, trainer_level=trainer_level)
+    evolution = None
+    if evolved:
+        old_name = pokemon.get('name', '')
+        old_number = pokemon.get('number', 0)
+        trainer['team'][pokemon_idx] = evolved
+        evolution = {
+            'from': old_name, 'to': evolved_name, 'slot': pokemon_idx,
+            'old_number': old_number, 'new_number': evolved.get('number', 0)
+        }
+    else:
+        trainer['team'][pokemon_idx] = pokemon
+
+    users[player_id]['trainer_data'] = trainer
+    save_users(users)
+
+    socketio.emit('pokemon_xp_update', {
+        'pokemon_idx': pokemon_idx,
+        'pokemon_name': pokemon.get('name'),
+        'level': new_level,
+        'xp': pokemon.get('xp', 0),
+        'leveled_up': leveled_up,
+        'evolution': evolution
+    }, room=player_id)
+
+    return jsonify({
+        'success': True,
+        'pokemon_name': pokemon.get('name'),
+        'level': new_level,
+        'xp': pokemon.get('xp', 0),
+        'leveled_up': leveled_up,
+        'evolution': evolution
+    })
 
 # ============================================================
 # SITE SETTINGS API
@@ -1975,7 +2095,8 @@ def level_evolve():
 
     pokemon = team[slot]
     old_name = pokemon.get('name', '')
-    evolved, evolved_name = check_and_evolve_pokemon(pokemon)
+    trainer_level = trainer.get('level', 1)
+    evolved, evolved_name = check_and_evolve_pokemon(pokemon, trainer_level=trainer_level)
 
     if not evolved:
         return jsonify({'evolved': False, 'message': f'{old_name} não atingiu o nível necessário para evoluir ainda.'})

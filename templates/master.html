@@ -78,6 +78,7 @@
                     <span class="level-badge">Nv. {{ player.trainer_data.level if player.trainer_data else 1 }}</span>
                     <button class="btn btn-sm btn-secondary" onclick="togglePlayerDetails('{{ uid }}')">Expandir</button>
                     <button class="btn btn-sm btn-warning" onclick="openMasterEdit('{{ uid }}', '{{ player.username }}')">✏️ Editar</button>
+                    <button class="btn btn-sm btn-secondary" onclick="masterResetPassword('{{ uid }}', '{{ player.username }}')">🔑 Senha</button>
                 </div>
                 <div class="player-summary">
                     <span>XP: {{ player.trainer_data.xp if player.trainer_data else 0 }}</span>
@@ -428,7 +429,33 @@
                 <button class="btn btn-secondary" onclick="giveXPAll()">Dar XP a Todos</button>
             </div>
         </div>
-        
+
+        <h3>XP para Pokémon</h3>
+        <div class="xp-controls">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Jogador</label>
+                    <select id="poke-xp-player" onchange="loadPokemonXPSlots()">
+                        <option value="">Selecionar jogador...</option>
+                        {% for uid, player in players.items() %}
+                        <option value="{{ uid }}">{{ player.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Pokémon</label>
+                    <select id="poke-xp-slot">
+                        <option value="">Selecione o jogador primeiro</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>XP a dar</label>
+                    <input type="number" id="poke-xp-amount" value="20" min="1">
+                </div>
+                <button class="btn btn-primary" onclick="givePokemonXP()">Dar XP ao Pokémon</button>
+            </div>
+        </div>
+
         <h3>Status dos Jogadores</h3>
         <div class="xp-players-list">
             {% for uid, player in players.items() %}
@@ -824,7 +851,10 @@
                     {% for uid, player in players.items() %}
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:0.35rem 0.5rem;background:rgba(255,255,255,0.05);border-radius:8px;">
                         <span>👤 {{ player.username }}</span>
-                        <button class="btn btn-sm btn-danger" onclick="kickPlayer('{{ uid }}', '{{ player.username }}')" title="Remover da mesa">✕</button>
+                        <div style="display:flex;gap:0.3rem;">
+                            <button class="btn btn-sm btn-secondary" onclick="masterResetPassword('{{ uid }}', '{{ player.username }}')" title="Redefinir senha">🔑</button>
+                            <button class="btn btn-sm btn-danger" onclick="kickPlayer('{{ uid }}', '{{ player.username }}')" title="Remover da mesa">✕</button>
+                        </div>
                     </div>
                     {% else %}
                     <p style="color:var(--text-muted);font-size:0.85rem;">Nenhum jogador ainda. Compartilhe o código de convite!</p>
@@ -860,6 +890,9 @@
         <div class="modal-content modal-lg" style="max-height:90vh;overflow-y:auto;">
             <button class="modal-close" onclick="hideElement('master-edit-modal')">&times;</button>
             <h3 id="master-edit-title">Editar Jogador</h3>
+            <div style="margin-bottom:0.75rem;">
+                <button class="btn btn-sm btn-secondary" onclick="masterResetPassword(_editingPlayerId, document.getElementById('master-edit-title').textContent.replace('✏️ Editar: ',''))">🔑 Redefinir Senha</button>
+            </div>
             <div id="master-edit-content"></div>
         </div>
     </div>
