@@ -1478,12 +1478,13 @@ function editPokemon(slot) {
     document.getElementById('poke-speed').value = pokemon.speed || '';
     document.getElementById('poke-saves').value = pokemon.savingThrows || '';
     if (pokemon.stats) {
-        document.getElementById('poke-str').value = pokemon.stats.STR || 10;
-        document.getElementById('poke-dex').value = pokemon.stats.DEX || 10;
-        document.getElementById('poke-con').value = pokemon.stats.CON || 10;
-        document.getElementById('poke-int').value = pokemon.stats.INT || 10;
-        document.getElementById('poke-wis').value = pokemon.stats.WIS || 10;
-        document.getElementById('poke-cha').value = pokemon.stats.CHA || 10;
+        const s = pokemon.stats;
+        document.getElementById('poke-str').value = s.ATK || s.STR || 10;
+        document.getElementById('poke-dex').value = s.DEF || s.DEX || 10;
+        document.getElementById('poke-con').value = s.SPA || s.CON || 10;
+        document.getElementById('poke-int').value = s.SPD || s.INT || 10;
+        document.getElementById('poke-wis').value = s.SPE || s.WIS || 10;
+        document.getElementById('poke-cha').value = s.HP  || s.CHA || 10;
     }
     document.getElementById('poke-moves').value = (pokemon.moves || []).join(', ');
     document.getElementById('poke-ability').value = pokemon.ability || '';
@@ -1550,12 +1551,12 @@ async function savePokemon() {
         speed: document.getElementById('poke-speed').value,
         savingThrows: document.getElementById('poke-saves').value,
         stats: {
-            STR: parseInt(document.getElementById('poke-str').value),
-            DEX: parseInt(document.getElementById('poke-dex').value),
-            CON: parseInt(document.getElementById('poke-con').value),
-            INT: parseInt(document.getElementById('poke-int').value),
-            WIS: parseInt(document.getElementById('poke-wis').value),
-            CHA: parseInt(document.getElementById('poke-cha').value)
+            ATK: parseInt(document.getElementById('poke-str').value),
+            DEF: parseInt(document.getElementById('poke-dex').value),
+            SPA: parseInt(document.getElementById('poke-con').value),
+            SPD: parseInt(document.getElementById('poke-int').value),
+            SPE: parseInt(document.getElementById('poke-wis').value),
+            HP:  parseInt(document.getElementById('poke-cha').value)
         },
         moves: document.getElementById('poke-moves').value.split(',').map(m => m.trim()).filter(m => m),
         ability: document.getElementById('poke-ability').value,

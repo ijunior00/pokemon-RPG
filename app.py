@@ -1298,6 +1298,18 @@ def give_xp():
         for i, pokemon in enumerate(trainer.get('team', [])):
             if pokemon.get('level', 1) < new_level - 2:
                 pokemon['level'] = max(1, new_level - 2)
+                # Recalculate stats for the new level
+                base_poke = POKEMON_BY_NAME.get((pokemon.get('name') or '').lower())
+                if base_poke:
+                    scaled = scaling.calculate_pokemon_stats(base_poke, pokemon['level'], pokemon.get('nature'))
+                    old_ratio = pokemon.get('currentHp', scaled['hp']) / max(1, pokemon.get('maxHp', scaled['hp']))
+                    pokemon['stats'] = scaled['stats']
+                    pokemon['maxHp'] = scaled['hp']
+                    pokemon['currentHp'] = max(1, int(scaled['hp'] * old_ratio))
+                    pokemon['proficiency'] = scaled['proficiency']
+                    pokemon['stab'] = scaled['stab']
+                    pokemon['phys_ac'] = scaled['phys_ac']
+                    pokemon['spec_ac'] = scaled['spec_ac']
             evolved, evolved_name = check_and_evolve_pokemon(pokemon)
             if evolved:
                 old_name = pokemon.get('name', '')
