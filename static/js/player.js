@@ -385,10 +385,6 @@ async function startBattle() {
     
     const enemy = currentEncounter.pokemon;
     
-    console.log('BATTLE - playerPokemon:', JSON.stringify(playerPokemon));
-    console.log('BATTLE - heldItem:', playerPokemon.heldItem, '| bag has pedra-chave:', (TRAINER_DATA.bag || []).join(' ').toLowerCase().includes('pedra-chave'));
-    console.log('BATTLE - enemy:', enemy.name);
-
     // Notify master with full pokemon data
     socket.emit('start_encounter', {
         pokemon: enemy, level: currentEncounter.level,
@@ -5719,6 +5715,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     if (migrated) {
         saveTeam();
-        console.log('Stats migrados para novo formato (ATK/DEF/SPA/SPD/SPE/HP)');
     }
 });

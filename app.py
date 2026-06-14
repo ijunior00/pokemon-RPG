@@ -2382,12 +2382,6 @@ def api_check_status():
         elif passive == 'speed_up_turn':
             ability_msgs.append('⚡ Impulso: SPE aumentou!')
 
-        elif passive == 'cure_on_switch':
-            # Handled client-side on switch
-            pass
-
-        elif passive == 'heal_on_switch':
-            pass  # Handled client-side on switch
 
         if pokemon_status and not removed:
             # Shed Skin: 33% chance to cure status
@@ -2824,119 +2818,6 @@ def _auto_roll_initiative(player_id, game_state):
     
     # Wild auto-attack when wild goes first is handled client-side via initiative_result handler.
 
-def _wild_auto_attack(player_id, encounter, game_state):
-    """Wild pokemon automatically attacks the player's pokemon."""
-    wild_pokemon = encounter['pokemon']
-    battle_state = encounter['battle_state']
-    wild_moves = encounter.get('wild_moves', wild_pokemon.get('startingMoves', ['Tackle'])[:4])
-    
-    if not wild_moves:
-        wild_moves = ['Tackle']
-    
-    # Choose random move
-    move_name = random.choice(wild_moves)
-    move_data = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name) or {}
-    
-    # Calculate attack
-    wild_stats = wild_pokemon.get('stats', {})
-    wild_level = encounter.get('level', 5)
-    
-    # Determine MOVE modifier
-    power = (move_data.get('power', 'FOR') or 'FOR').upper()
-    move_mod = 0
-    stat_map = {'FOR': 'STR', 'DES': 'DEX', 'INT': 'INT', 'SAB': 'WIS', 'CAR': 'CHA', 'CON': 'CON'}
-    for abbr, stat_key in stat_map.items():
-        if abbr in power:
-            val = wild_stats.get(stat_key, 10)
-            move_mod = max(move_mod, (val - 10) // 2)
-    
-    # Proficiency
-    prof = 2 if wild_level < 5 else (3 if wild_level < 9 else (4 if wild_level < 13 else (5 if wild_level < 17 else 6)))
-    
-    # Roll d20
-    attack_roll = random.randint(1, 20)
-    total_attack = attack_roll + move_mod + prof
-    is_crit = attack_roll == 20
-    is_miss = attack_roll == 1
-    
-    # Target AC
-    player_pokemon = encounter.get('player_pokemon', {})
-    target_ac = player_pokemon.get('ac', 13) if player_pokemon else 13
-    
-    damage = 0
-    message = ''
-    
-    if is_miss:
-        message = f'Nat 1 - Falha!'
-    elif total_attack >= target_ac or is_crit:
-        # Roll damage
-        base_damage = move_data.get('baseDamage', '1d6')
-        if base_damage:
-            match = __import__('re').match(r'(\d+)d(\d+)', base_damage)
-            if match:
-                count, sides = int(match.group(1)), int(match.group(2))
-                for _ in range(count):
-                    damage += random.randint(1, sides)
-                if is_crit:
-                    for _ in range(count):
-                        damage += random.randint(1, sides)
-        damage += move_mod
-        
-        # STAB
-        wild_types = [t.lower() for t in wild_pokemon.get('types', [])]
-        move_type = (move_data.get('type', '') or '').lower()
-        stab_table = [0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5]
-        stab = stab_table[min(wild_level, 20)] if move_type in wild_types else 0
-        damage += stab
-        
-        # Type effectiveness
-        player_vulns = [v.lower() for v in (player_pokemon.get('vulnerabilities') or [])]
-        player_resists = [r.lower() for r in (player_pokemon.get('resistances') or [])]
-        player_immunes = [i.lower() for i in (player_pokemon.get('immunities') or [])]
-        
-        effectiveness = 1
-        if move_type in player_immunes:
-            effectiveness = 0
-        else:
-            if move_type in player_vulns: effectiveness *= 2
-            if move_type in player_resists: effectiveness *= 0.5
-        
-        damage = int(damage * effectiveness)
-        if damage < 1 and effectiveness > 0: damage = 1
-        
-        eff_label = ''
-        if effectiveness == 0: eff_label = ' ⛔ IMUNE'
-        elif effectiveness > 1: eff_label = f' ⚡ Super Efetivo (x{effectiveness})'
-        elif effectiveness < 1: eff_label = f' 🛡️ Não Efetivo (x{effectiveness})'
-        
-        message = f'd20({attack_roll})+MOD({move_mod})+Prof({prof})={total_attack} vs AC {target_ac} → {damage} dano{eff_label}{"💥 CRIT" if is_crit else ""}'
-    else:
-        message = f'Errou ({total_attack} vs AC {target_ac})'
-    
-    # Apply damage
-    battle_state['player_hp_current'] = max(0, battle_state['player_hp_current'] - damage)
-    
-    # Switch turn back to player
-    battle_state['turn'] = 'player'
-    battle_state['round'] += 1
-    
-    encounter['battle_state'] = battle_state
-    game_state['active_encounters'][player_id] = encounter
-    save_game_state(game_state)
-    
-    action_result = {
-        'player_id': player_id,
-        'action_by': 'wild',
-        'action_type': 'attack',
-        'move_name': move_name,
-        'damage': damage,
-        'message': message,
-        'battle_state': battle_state
-    }
-    
-    socketio.emit('battle_update', action_result, room=f'master_{_tid()}')
-    socketio.emit('battle_update', action_result, room=player_id)
-
 @socketio.on('apply_wild_status')
 def handle_apply_wild_status(data):
     """Apply status to wild pokemon without switching turn (follow-up after on-hit status)."""
@@ -3043,11 +2924,6 @@ def handle_mega_evolve(data):
             'new_types': stone_data.get('newTypes'),
             'bonuses': bonuses
         }
-        
-        # Apply AC bonus to battle state
-        if side == 'wild' and 'ac' in bonuses:
-            # Boost wild pokemon AC in encounter
-            pass  # Frontend handles display
         
         emit('mega_evolved', result, room=f'master_{_tid()}')
         emit('mega_evolved', result, room=player_id)
