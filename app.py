@@ -831,12 +831,19 @@ def complete_quest(quest_id):
             assigned = quest.get('assigned_to', [])
             players_to_reward = assigned if assigned else [uid for uid, u in users.items() if u['role'] == 'player']
 
-        # Check already completed (global quest)
-        if not per_player and quest.get('completed'):
+        # Check already completed:
+        # - With target_player: use per-player completion tracking so each player
+        #   can receive rewards independently without blocking others.
+        # - Without target_player: global completion flag (original behavior).
+        if target_player:
+            completions = quest.setdefault('completions', {})
+            if completions.get(target_player):
+                return jsonify({'error': 'Quest já completada para este jogador'}), 400
+        elif not per_player and quest.get('completed'):
             return jsonify({'error': 'Quest já completada'}), 400
 
-        # For per-player, filter out those who already completed
-        if per_player:
+        # For per-player repeatable quests, filter out those who already completed
+        if per_player and not target_player:
             completions = quest.setdefault('completions', {})
             players_to_reward = [p for p in players_to_reward if not completions.get(p)]
             if not players_to_reward:
@@ -888,13 +895,13 @@ def complete_quest(quest_id):
                 'item_rewards': item_rewards
             }, room=player_id)
 
-            if per_player:
-                quest['completions'][player_id] = True
+            if per_player or target_player:
+                quest.setdefault('completions', {})[player_id] = True
 
             rewarded.append(player_id)
 
-        # Mark global completion if not per-player
-        if not per_player:
+        # Mark global completion only when no specific player targeted
+        if not per_player and not target_player:
             quest['completed'] = True
 
         save_users(users)
@@ -1787,8 +1794,8 @@ def api_encounter():
     - Dungeon: ±15 levels, skews harder. Rare/evolved Pokemon. Shiny 3%.
     - Night: +10 to +30 above player. Extremely dangerous. Shiny 5%.
     """
-    # Rate limit: max 30 encounters per IP per minute (prevents encounter spam)
-    if _rate_limit(30, 60):
+    # Rate limit: max 10 encounters per IP per minute (prevents encounter spam)
+    if _rate_limit(10, 60):
         return jsonify({'error': 'Muitos encontros em pouco tempo. Aguarde um momento.'}), 429
     data = request.json
     route_id = data.get('route_id')
