@@ -19,6 +19,9 @@ import abilities as ab
 # ============================================================
 # APP SETUP
 # ============================================================
+import time as _time
+from collections import defaultdict
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'pokemon5e-rpg-secret-key-2024-galar')
 app.config['REMEMBER_COOKIE_DURATION'] = 2592000  # 30 dias
@@ -28,6 +31,20 @@ login_manager.login_view = 'login'
 
 # Initialize database
 db.init_db()
+
+# ============================================================
+# RATE LIMITING (simple in-memory, resets on restart)
+# ============================================================
+_rate_store: dict = defaultdict(list)  # ip -> [timestamps]
+
+def _rate_limit(max_calls: int, window_seconds: int) -> bool:
+    """Return True (blocked) if IP exceeds max_calls in window_seconds."""
+    ip = request.remote_addr or 'unknown'
+    now = _time.time()
+    calls = [t for t in _rate_store[ip] if now - t < window_seconds]
+    calls.append(now)
+    _rate_store[ip] = calls
+    return len(calls) > max_calls
 
 # ============================================================
 # DATA LOADING (static data from JSON files)
@@ -281,15 +298,36 @@ def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
     resists    = [t.lower() for t in (defender_poke.get('resistances') or [])]
     immunities = [t.lower() for t in (defender_poke.get('immunities') or [])]
     eff = 1.0
-    if move_type_en in immunities:  eff = 0.0
-    elif move_type_en in vulns:     eff *= 2
-    if move_type_en in resists:     eff *= 0.5
+    if move_type_en in immunities:
+        eff = 0.0
+    else:
+        if move_type_en in vulns:    eff *= 2
+        if move_type_en in resists:  eff *= 0.5
     damage = max(0, int(damage * eff))
     if damage < 1 and eff > 0: damage = 1
 
     return {'hit': True, 'damage': damage,
             'message': f'{total} vs AC {enemy_ac}{"  Crítico!" if is_crit else ""}',
             'move_type_en': move_type_en}
+
+# ============================================================
+# XP TABLE (trainer levels 1-20)
+# ============================================================
+XP_TABLE = [0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500,
+            5500, 6600, 7800, 9100, 10500, 12000, 13600, 15300, 17100, 19000]
+
+def _apply_xp(trainer: dict, xp_amount: int) -> dict:
+    """Add xp_amount to trainer, recalculate level. Returns info dict."""
+    trainer['xp'] = trainer.get('xp', 0) + xp_amount
+    current_xp = trainer['xp']
+    new_level = 1
+    for i, threshold in enumerate(XP_TABLE):
+        if current_xp >= threshold:
+            new_level = i + 1
+    old_level = trainer.get('level', 1)
+    trainer['level'] = new_level
+    trainer['xp_to_next'] = XP_TABLE[min(new_level, len(XP_TABLE) - 1)] if new_level < len(XP_TABLE) else 99999
+    return {'new_level': new_level, 'old_level': old_level, 'leveled_up': new_level > old_level}
 
 # Load mega stones database
 MEGA_FILE = os.path.join(DATA_DIR, 'mega_stones.json')
@@ -379,9 +417,26 @@ def index():
         return redirect(url_for('player_dashboard'))
     return redirect(url_for('login'))
 
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Render and monitoring tools."""
+    try:
+        conn = db.get_conn()
+        conn.close()
+        db_ok = True
+    except Exception:
+        db_ok = False
+    status = 'ok' if db_ok else 'degraded'
+    return jsonify({'status': status, 'db': db_ok}), 200 if db_ok else 503
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        # Rate limit: max 10 login attempts per IP per minute
+        if _rate_limit(10, 60):
+            flash('Muitas tentativas de login. Aguarde um momento.', 'error')
+            return render_template('login.html')
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         users = get_users()
@@ -799,18 +854,11 @@ def complete_quest(quest_id):
 
             # XP
             if xp_reward > 0:
-                trainer['xp'] = trainer.get('xp', 0) + xp_reward
-                new_level = 1
-                for i, threshold in enumerate(XP_TABLE):
-                    if trainer['xp'] >= threshold:
-                        new_level = i + 1
-                old_level = trainer.get('level', 1)
-                trainer['level'] = new_level
-                trainer['xp_to_next'] = XP_TABLE[min(new_level, len(XP_TABLE)-1)] if new_level < len(XP_TABLE) else 99999
+                lv_info = _apply_xp(trainer, xp_reward)
                 socketio.emit('xp_update', {
                     'player_id': player_id, 'xp': trainer['xp'],
                     'level': trainer['level'], 'xp_to_next': trainer['xp_to_next'],
-                    'leveled_up': new_level > old_level
+                    'leveled_up': lv_info['leveled_up']
                 }, room=player_id)
 
             # Money
@@ -924,6 +972,10 @@ def toggle_objective(quest_id, obj_idx):
     for quest in game_state['quests']:
         if quest['id'] != quest_id:
             continue
+        # Only master or players assigned to this quest can toggle objectives
+        assigned = quest.get('assigned_to', [])
+        if current_user.role != 'master' and assigned and current_user.id not in assigned:
+            return jsonify({'error': 'Forbidden'}), 403
         objectives = quest.get('objectives', [])
         if obj_idx < 0 or obj_idx >= len(objectives):
             return jsonify({'error': 'Invalid objective index'}), 400
@@ -960,34 +1012,50 @@ def save_quest_notes(quest_id):
     return jsonify({'error': 'Quest not found'}), 404
 
 
+def _player_in_master_table(player_id, users, master_tid):
+    """Return True if player_id belongs to the master's table."""
+    u = users.get(player_id, {})
+    return u.get('table_id') == master_tid
+
+
 @app.route('/master/players/<player_id>')
 @login_required
 def master_view_player(player_id):
-    """Master full view of a player's data."""
-    if current_user.role != 'master':
-        return jsonify({'error': 'Unauthorized'}), 403
-    users = get_users()
-    if player_id in users:
-        return jsonify(users[player_id])
-    return jsonify({'error': 'Player not found'}), 404
-
-@app.route('/master/players/<player_id>/edit', methods=['POST'])
-@login_required
-def master_edit_player(player_id):
-    """Master can edit ANY field of any player's trainer data. No restrictions."""
+    """Master full view of a player's data (no password hash)."""
     if current_user.role != 'master':
         return jsonify({'error': 'Unauthorized'}), 403
     users = get_users()
     if player_id not in users:
         return jsonify({'error': 'Player not found'}), 404
-    
-    data = request.json
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    u = users[player_id]
+    # Never expose password hashes to the client
+    return jsonify({
+        'username': u['username'],
+        'role': u['role'],
+        'table_id': u.get('table_id'),
+        'trainer_data': u.get('trainer_data', {})
+    })
+
+@app.route('/master/players/<player_id>/edit', methods=['POST'])
+@login_required
+def master_edit_player(player_id):
+    """Master can edit ANY field of a player's trainer data (table-scoped)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    users = get_users()
+    if player_id not in users:
+        return jsonify({'error': 'Player not found'}), 404
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+
+    data = request.json or {}
     trainer = users[player_id].get('trainer_data', {})
-    
-    # Master can edit everything - no field restrictions
+
     for key, value in data.items():
         trainer[key] = value
-    
+
     users[player_id]['trainer_data'] = trainer
     save_users(users)
     return jsonify({'success': True, 'trainer_data': trainer})
@@ -995,7 +1063,7 @@ def master_edit_player(player_id):
 @app.route('/master/players/<player_id>/reset-password', methods=['POST'])
 @login_required
 def master_reset_password(player_id):
-    """Master resets a player's password."""
+    """Master resets a player's password (table-scoped)."""
     if current_user.role != 'master':
         return jsonify({'error': 'Unauthorized'}), 403
     new_password = (request.json or {}).get('password', '').strip()
@@ -1004,6 +1072,8 @@ def master_reset_password(player_id):
     users = get_users()
     if player_id not in users:
         return jsonify({'error': 'Player não encontrado'}), 404
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
     users[player_id]['password_hash'] = generate_password_hash(new_password)
     save_users(users)
     return jsonify({'success': True, 'username': users[player_id]['username']})
@@ -1011,17 +1081,152 @@ def master_reset_password(player_id):
 @app.route('/master/players/<player_id>/team', methods=['POST'])
 @login_required
 def master_edit_team(player_id):
-    """Master can edit a player's Pokemon team directly."""
+    """Master can edit a player's Pokemon team directly (table-scoped)."""
     if current_user.role != 'master':
         return jsonify({'error': 'Unauthorized'}), 403
     users = get_users()
     if player_id not in users:
         return jsonify({'error': 'Player not found'}), 404
-    
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
     data = request.json
     users[player_id]['trainer_data']['team'] = data.get('team', [])
     save_users(users)
     return jsonify({'success': True})
+
+# ============================================================
+# MASTER — BATTLE OVERSIGHT & CONTROLS
+# ============================================================
+
+@app.route('/master/battles/active', methods=['GET'])
+@login_required
+def master_active_battles():
+    """Return all active wild encounters + PVP battles for this table."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    tid = _tid()
+    game_state = get_game_state()
+    encounters = game_state.get('active_encounters', {})
+
+    # Active PVP battles that involve players from this table
+    users = get_users()
+    table_player_ids = {uid for uid, u in users.items()
+                        if u.get('table_id') == tid and u['role'] == 'player'}
+
+    pvp_summary = []
+    for bid, battle in ACTIVE_PVP.items():
+        p1_id = battle.get('player1', {}).get('id', '')
+        p2_id = battle.get('player2', {}).get('id', '')
+        if p1_id in table_player_ids or p2_id in table_player_ids:
+            pvp_summary.append({
+                'battle_id': bid,
+                'mode': battle.get('mode'),
+                'phase': battle.get('phase'),
+                'round': battle.get('round'),
+                'winner': battle.get('winner'),
+                'player1': p1_id,
+                'player2': p2_id,
+                'p1_hp': (battle['player1']['team'][battle['player1']['active_idx']].get('currentHp')
+                          if battle['player1'].get('active_idx') is not None
+                          and battle['player1'].get('team') else None),
+                'p2_hp': (battle['player2']['team'][battle['player2']['active_idx']].get('currentHp')
+                          if battle['player2'].get('active_idx') is not None
+                          and battle['player2'].get('team') else None),
+            })
+
+    return jsonify({
+        'wild_encounters': encounters,
+        'pvp_battles': pvp_summary
+    })
+
+
+@app.route('/master/battles/encounter/<player_id>/force-end', methods=['POST'])
+@login_required
+def master_force_end_encounter(player_id):
+    """Master force-ends a wild encounter for a player."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    users = get_users()
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    data = request.json or {}
+    result = data.get('result', 'fled')
+    game_state = get_game_state()
+    if player_id in game_state.get('active_encounters', {}):
+        del game_state['active_encounters'][player_id]
+        save_game_state(game_state)
+    socketio.emit('encounter_ended', {'player_id': player_id, 'result': result, 'forced_by_master': True},
+                  room=player_id)
+    socketio.emit('encounter_ended', {'player_id': player_id, 'result': result, 'forced_by_master': True},
+                  room=f'master_{_tid()}')
+    return jsonify({'ok': True})
+
+
+@app.route('/master/battles/encounter/<player_id>/set-hp', methods=['POST'])
+@login_required
+def master_set_encounter_hp(player_id):
+    """Master adjusts HP of player or wild pokemon in active encounter."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    users = get_users()
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    data = request.json or {}
+    side = data.get('side', 'wild')   # 'wild' or 'player'
+    new_hp = int(data.get('hp', 0))
+    game_state = get_game_state()
+    encounter = game_state.get('active_encounters', {}).get(player_id)
+    if not encounter:
+        return jsonify({'error': 'Encontro não encontrado'}), 404
+    if side == 'wild':
+        encounter['battle_state']['wild_hp_current'] = new_hp
+        encounter['pokemon']['hp'] = new_hp
+    else:
+        encounter['battle_state']['player_hp_current'] = new_hp
+    game_state['active_encounters'][player_id] = encounter
+    save_game_state(game_state)
+    socketio.emit('battle_update', {
+        'player_id': player_id,
+        'action_by': 'master',
+        'action_type': 'hp_edit',
+        'battle_state': encounter['battle_state'],
+        'message': f'Mestre ajustou HP ({side}): {new_hp}'
+    }, room=player_id)
+    socketio.emit('battle_update', {
+        'player_id': player_id,
+        'action_by': 'master',
+        'action_type': 'hp_edit',
+        'battle_state': encounter['battle_state'],
+        'message': f'HP ajustado ({side}): {new_hp}'
+    }, room=f'master_{_tid()}')
+    return jsonify({'ok': True, 'battle_state': encounter['battle_state']})
+
+
+@app.route('/master/battles/pvp/<battle_id>/force-end', methods=['POST'])
+@login_required
+def master_force_end_pvp(battle_id):
+    """Master force-ends a PVP battle, declaring a winner or a draw."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    battle = ACTIVE_PVP.get(battle_id)
+    if not battle:
+        return jsonify({'error': 'Batalha não encontrada'}), 404
+    data = request.json or {}
+    winner_key = data.get('winner')   # 'player1', 'player2', or None for draw
+    battle['phase'] = 'finished'
+    battle['winner'] = winner_key
+    p1_id = battle['player1']['id']
+    p2_id = battle['player2']['id']
+    socketio.emit('pvp_battle_state',
+                  pvp.get_battle_state_for_player(battle, 'player1'), room=p1_id)
+    socketio.emit('pvp_battle_state',
+                  pvp.get_battle_state_for_player(battle, 'player2'), room=p2_id)
+    if winner_key:
+        handle_pvp_victory(battle)
+    else:
+        ACTIVE_PVP.pop(battle_id, None)
+    return jsonify({'ok': True, 'winner': winner_key})
+
 
 # ============================================================
 # NPC MANAGEMENT
@@ -1300,20 +1505,10 @@ def give_xp():
     users = get_users()
     if player_id in users:
         trainer = users[player_id].get('trainer_data', {})
-        trainer['xp'] = trainer.get('xp', 0) + xp_amount
-        # Level up check - XP table based on Pokemon 5e
-        xp_table = [0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500,
-                    5500, 6600, 7800, 9100, 10500, 12000, 13600, 15300, 17100, 19000]
-        current_xp = trainer['xp']
-        new_level = 1
-        for i, threshold in enumerate(xp_table):
-            if current_xp >= threshold:
-                new_level = i + 1
-        
-        old_level = trainer.get('level', 1)
-        trainer['level'] = new_level
-        trainer['xp_to_next'] = xp_table[min(new_level, len(xp_table)-1)] if new_level < len(xp_table) else 99999
-        
+        lv_info = _apply_xp(trainer, xp_amount)
+        new_level = lv_info['new_level']
+        old_level = lv_info['old_level']
+
         # Auto-level Pokemon (trainer level - 2, min 1) and check evolution
         evolutions = []
         for i, pokemon in enumerate(trainer.get('team', [])):
@@ -1592,6 +1787,9 @@ def api_encounter():
     - Dungeon: ±15 levels, skews harder. Rare/evolved Pokemon. Shiny 3%.
     - Night: +10 to +30 above player. Extremely dangerous. Shiny 5%.
     """
+    # Rate limit: max 30 encounters per IP per minute (prevents encounter spam)
+    if _rate_limit(30, 60):
+        return jsonify({'error': 'Muitos encontros em pouco tempo. Aguarde um momento.'}), 429
     data = request.json
     route_id = data.get('route_id')
     hunt_mode = data.get('hunt_mode', 'normal')
@@ -2190,14 +2388,36 @@ def upload_avatar():
     file = request.files['avatar']
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
-    # Validate file type
+    # Validate extension
     allowed_ext = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in allowed_ext:
-        return jsonify({'error': 'Invalid file type'}), 400
-    # Save with user-specific name
+        return jsonify({'error': 'Tipo de arquivo inválido. Use PNG, JPG, GIF ou WebP.'}), 400
+    # Validate magic bytes (first 12 bytes) to prevent content-type spoofing
+    header = file.read(12)
+    file.seek(0)
+    magic_map = {
+        b'\x89PNG': '.png',
+        b'\xff\xd8\xff': '.jpg',
+        b'GIF8': '.gif',
+        b'RIFF': '.webp',
+    }
+    detected = None
+    for magic, detected_ext in magic_map.items():
+        if header[:len(magic)] == magic:
+            detected = detected_ext
+            break
+    # JPEG also accepted as .jpeg
+    if detected == '.jpg' and ext == '.jpeg':
+        detected = '.jpeg'
+    if detected is None and ext not in ('.jpg', '.jpeg'):
+        return jsonify({'error': 'Conteúdo do arquivo não corresponde à extensão.'}), 400
+
+    # Use absolute path so it works regardless of CWD
+    avatar_dir = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'avatars')
+    os.makedirs(avatar_dir, exist_ok=True)
     filename = f"{current_user.id}{ext}"
-    filepath = os.path.join('static', 'uploads', 'avatars', filename)
+    filepath = os.path.join(avatar_dir, filename)
     file.save(filepath)
     # Update trainer data with avatar path
     users = get_users()
@@ -2654,28 +2874,17 @@ def register_pokedex():
             
             # Award 10 XP per new Pokemon registered
             xp_reward = 10
-            trainer['xp'] = trainer.get('xp', 0) + xp_reward
-            
-            # Level up check
-            xp_table = [0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500,
-                        5500, 6600, 7800, 9100, 10500, 12000, 13600, 15300, 17100, 19000]
-            new_level = 1
-            for i, threshold in enumerate(xp_table):
-                if trainer['xp'] >= threshold:
-                    new_level = i + 1
-            old_level = trainer.get('level', 1)
-            trainer['level'] = new_level
-            trainer['xp_to_next'] = xp_table[min(new_level, len(xp_table)-1)] if new_level < len(xp_table) else 99999
-            
+            lv_info = _apply_xp(trainer, xp_reward)
+
             users[current_user.id]['trainer_data'] = trainer
             save_users(users)
-            
+
             socketio.emit('xp_update', {
                 'player_id': current_user.id,
                 'xp': trainer['xp'],
                 'level': trainer['level'],
                 'xp_to_next': trainer['xp_to_next'],
-                'leveled_up': new_level > old_level
+                'leveled_up': lv_info['leveled_up']
             }, room=current_user.id)
             
             return jsonify({'success': True, 'xp_gained': xp_reward, 'total_seen': len(pokedex_seen)})
@@ -2854,8 +3063,12 @@ def handle_initiative(data):
 def handle_battle_action(data):
     """Handle a battle action (attack, status move, etc.)."""
     if current_user.is_authenticated:
-        player_id = str(data.get('player_id', current_user.id))
         action_by = data.get('action_by')  # 'player' or 'master' (for wild pokemon)
+        # Security: non-masters can only act for themselves
+        if current_user.role != 'master':
+            player_id = str(current_user.id)
+        else:
+            player_id = str(data.get('player_id', current_user.id))
         action_type = data.get('action_type')  # 'attack', 'status', 'item'
         move_name = data.get('move_name', '')
         move_type = data.get('move_type', '')   # e.g. 'fire', 'ground'
@@ -2882,6 +3095,17 @@ def handle_battle_action(data):
                 return
 
         action_log = None
+        server_calc = None  # populated when server recalculates attack
+
+        # Server-side damage calculation for player attacks — prevents client from
+        # reporting arbitrary damage values against wild Pokémon.
+        if action_type == 'attack' and action_by == 'player' and move_name:
+            attack_roll = data.get('attack_roll')
+            server_calc = _calc_player_attack(encounter, move_name, attack_roll)
+            damage = server_calc.get('damage', 0)
+            move_type = server_calc.get('move_type_en', move_type)
+            if not server_calc.get('hit', True):
+                damage = 0
 
         # Apply pre-turn status damage first (doesn't count as an action)
         PERMADEATH_FLOOR = -30
@@ -2889,7 +3113,7 @@ def handle_battle_action(data):
             battle_state['wild_hp_current'] = max(PERMADEATH_FLOOR, battle_state['wild_hp_current'] - wild_status_damage)
         if player_status_damage > 0:
             battle_state['player_hp_current'] = max(PERMADEATH_FLOOR, battle_state['player_hp_current'] - player_status_damage)
-        
+
         # Check defender ability before applying damage
         ability_result = None
         if damage > 0 and move_type and action_type == 'attack':
@@ -2975,6 +3199,7 @@ def handle_battle_action(data):
             'battle_state': battle_state,
             'ability_trigger': ability_result if (ability_result and ability_result.get('triggered')) else None,
             'action_log': action_log,
+            'server_calc': server_calc,  # full server-side calc details for client log
         }
         
         # Notify both sides
