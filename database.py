@@ -8,7 +8,12 @@ import json
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://neondb_owner:npg_SNzbFnCQ8v1L@ep-sweet-hall-afeg85fw.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require')
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL environment variable not set. "
+        "Set it to your PostgreSQL connection string before starting the server."
+    )
 
 def get_conn():
     return psycopg2.connect(DATABASE_URL)
