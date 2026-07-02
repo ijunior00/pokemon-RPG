@@ -55,15 +55,22 @@
             <button class="btn btn-primary btn-lg" onclick="searchWildPokemon()">
                 🔍 Procurar Pokémon Selvagem
             </button>
+            <p id="hunts-info" style="margin-top:0.5rem;font-size:0.9rem;">
+                📅 <span id="game-date">—</span> &nbsp;·&nbsp;
+                🎯 Caçadas hoje: <strong><span id="hunts-used">0</span>/<span id="hunts-limit">6</span></strong>
+            </p>
+            <div id="hunt-fail-msg" class="hidden" style="margin-top:0.5rem;padding:0.6rem 0.8rem;border-radius:8px;background:rgba(229,57,53,0.15);border:1px solid rgba(229,57,53,0.4);font-size:0.9rem;"></div>
         </div>
 
         <!-- Encounter Result -->
         <div id="encounter-result" class="encounter-result hidden">
             <div class="wild-pokemon-card">
                 <div class="wild-pokemon-header">
-                    <h3>Pokémon Selvagem Apareceu!</h3>
+                    <h3 id="encounter-title">Pokémon Selvagem Apareceu!</h3>
                     <span id="shiny-badge" class="shiny-badge hidden">✨ SHINY!</span>
+                    <span id="ambush-badge" class="hidden" style="background:#e53935;color:#fff;padding:0.2rem 0.6rem;border-radius:10px;font-size:0.8rem;font-weight:bold;">⚠️ EMBOSCADA!</span>
                 </div>
+                <p id="survival-check-info" style="font-size:0.85rem;opacity:0.85;margin:0.2rem 0;"></p>
                 <div class="wild-pokemon-info">
                     <div class="pokemon-sprite">
                         <img id="wild-pokemon-sprite" src="" alt="">
@@ -762,6 +769,10 @@
 
     <!-- TAB: QUESTS -->
     <div class="tab-content" id="tab-quests">
+        <h2>📅 Eventos <span id="player-events-date" style="font-size:0.85rem;opacity:0.7;"></span></h2>
+        <div id="player-events-list" style="margin-bottom:1.5rem;">
+            <p class="empty-state">Nenhum evento anunciado.</p>
+        </div>
         <h2>Minhas Quests</h2>
         <div class="quests-list" id="player-quests">
             {% for quest in quests %}

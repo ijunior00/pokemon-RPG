@@ -33,13 +33,22 @@ N_BATTLES = int(sys.argv[1]) if len(sys.argv) > 1 else 200
 
 ERRORS = []
 TABLE_ID = 'default'
+MASTER_HTTP = None   # test client do mestre (avança o dia quando as caçadas acabam)
 
 STATS = {
     'battles': 0, 'rounds': 0, 'player_wins': 0, 'wild_wins': 0, 'captures': 0,
     'status_applied_on_hit': 0, 'status_moves_used': 0, 'status_moves_applied': 0,
     'evolutions': 0, 'pvp_battles': 0, 'pvp_npc_wins': 0, 'level_ups': 0,
-    'wild_status_skips': 0,
+    'wild_status_skips': 0, 'hunt_fails': 0, 'ambushes': 0, 'days_advanced': 0,
 }
+
+
+def advance_day(days=1):
+    """Mestre avança o calendário (reseta caçadas, processa NPCs, eventos)."""
+    r = MASTER_HTTP.post('/master/calendar/advance', json={'days': days})
+    check(r.status_code == 200, f'calendar/advance falhou: {r.status_code}')
+    STATS['days_advanced'] += days
+    return r.get_json()
 
 
 def check(cond, msg):
@@ -88,6 +97,7 @@ def give_starter(uid, species, level):
     }]
     trainer['bag'] = [{'name': 'Pokébola', 'qty': 999}]
     trainer['level'] = max(1, level // 5)
+    trainer['wis'] = 14   # ajuda o teste de Sobrevivência na simulação
     users[uid]['trainer_data'] = trainer
     db.save_users(users)
 
@@ -106,8 +116,30 @@ def wild_battle(http, sio, uid, username, battle_no):
         appmod._rate_store.clear()
         resp = http.post('/api/encounter', json={
             'route_id': 'route1', 'hunt_mode': 'normal', 'player_level': player_level})
+    if resp.status_code == 403:
+        # Sem caçadas hoje → mestre avança o dia e tenta de novo
+        body = resp.get_json()
+        check(body.get('hunts_used', 0) >= 6, '403 sem o contador de caçadas esgotado')
+        advance_day(1)
+        resp = http.post('/api/encounter', json={
+            'route_id': 'route1', 'hunt_mode': 'normal', 'player_level': player_level})
     check(resp.status_code == 200, f'encounter falhou: {resp.status_code}')
     enc = resp.get_json()
+
+    # invariante do gate: contador dentro do limite
+    state = db.get_game_state(TABLE_ID)
+    hentry = (state.get('hunts') or {}).get(uid, {})
+    limit = 6 + int(hentry.get('bonus', 0))
+    check(hentry.get('used', 0) <= limit, 'contador de caçadas acima do limite')
+    check('survival_check' in enc, 'resposta sem survival_check')
+
+    if enc.get('found') is False:
+        # Falhou no teste de Sobrevivência — gastou a tentativa, sem batalha
+        STATS['hunt_fails'] += 1
+        return
+    if enc.get('ambush'):
+        STATS['ambushes'] += 1
+
     wild = enc['pokemon']
 
     sio.emit('start_encounter', {
@@ -322,8 +354,9 @@ def main():
     tables = db.get_tables_for_master(master_uid)
     invite = tables[0]['invite_code']
 
-    global TABLE_ID
+    global TABLE_ID, MASTER_HTTP
     TABLE_ID = tables[0]['id']
+    MASTER_HTTP = master_http
 
     register_and_login(p1_http, 'jogador1', 'player', invite)
     register_and_login(p2_http, 'jogador2', 'player', invite)
@@ -331,6 +364,21 @@ def main():
 
     give_starter(p1_uid, 'Charmander', 12)
     give_starter(p2_uid, 'Squirtle', 15)
+
+    # ---- Setup do calendário: NPC com progressão + evento futuro ----
+    r = master_http.post('/master/npcs/generate', json={
+        'npc_class': 'Trainer', 'level': 10, 'team_size': 2,
+        'progression_enabled': True, 'growth_rate': 'fast'})
+    check(r.status_code == 200, f'NPC de progressão: {r.status_code}')
+    prog_npc_id = r.get_json()['id']
+    prog_npc_levels = [p['level'] for p in r.get_json()['team']]
+
+    r = master_http.post('/master/calendar/events', json={
+        'title': 'Torneio da Simulação', 'city': 'Hammerlocke',
+        'day': 4, 'month': 1, 'year': 1, 'notify_days_before': 2,
+        'description': 'Evento de teste'})
+    check(r.status_code == 200, f'criar evento: {r.status_code}')
+    event_id = r.get_json()['id']
 
     master_sio = socketio.test_client(app, flask_test_client=master_http)
     p1_sio = socketio.test_client(app, flask_test_client=p1_http)
@@ -387,6 +435,71 @@ def main():
     print('\n🤖 Batalhas PvP contra NPCs (IA autônoma)...')
     for _ in range(5):
         pvp_npc_battle(master_http, master_sio, p1_sio, p1_uid)
+
+    # ---- Fase 4b: calendário, caçadas e progressão de NPCs ----
+    print('\n📅 Testando calendário, caçadas e progressão de NPCs...')
+    state = db.get_game_state(TABLE_ID)
+    cal_before = state.get('calendar') or {'day': 1, 'month': 1, 'year': 1}
+
+    # rollover de mês: avança 30 dias de uma vez
+    res = advance_day(30)
+    cal_after = res['calendar']
+    abs_before = (cal_before['year']-1)*360 + (cal_before['month']-1)*30 + cal_before['day']
+    abs_after = (cal_after['year']-1)*360 + (cal_after['month']-1)*30 + cal_after['day']
+    check(abs_after - abs_before == 30, f'avanço de 30 dias inconsistente: {cal_before} → {cal_after}')
+    check(1 <= cal_after['day'] <= 30 and 1 <= cal_after['month'] <= 12, 'data fora dos limites')
+
+    # caçadas zeradas após o advance
+    state = db.get_game_state(TABLE_ID)
+    check(state.get('hunts') == {}, 'hunts não foram zeradas no advance')
+
+    # evento já deve ter passado (dia 4 do mês 1)
+    r = p1_http.get('/api/calendar')
+    evs = {e['id']: e for e in r.get_json()['events']}
+    check(event_id in evs, 'evento sumiu do calendário')
+    check(evs[event_id]['days_until'] <= 0, 'evento deveria estar no passado após 30+ dias')
+
+    # NPC com progressão: diário cresceu e níveis subiram (fast, ~30 dias)
+    npc = next((n for n in db.get_npcs(TABLE_ID) if n['id'] == prog_npc_id), None)
+    check(npc is not None, 'NPC de progressão sumiu')
+    if npc:
+        diary_days = STATS['days_advanced']
+        check(len(npc.get('diary', [])) >= min(30, diary_days) * 0.9,
+              f'diário do NPC muito curto: {len(npc.get("diary", []))} entradas p/ {diary_days} dias')
+        for i, p in enumerate(npc.get('team', [])):
+            check(p['level'] >= prog_npc_levels[i] if i < len(prog_npc_levels) else True,
+                  'nível do pokémon do NPC regrediu')
+            check(p['level'] <= 100, 'nível do NPC passou de 100')
+            check(p.get('stats', {}).get('ATK') is not None, 'stats do NPC não re-escalados')
+        grew = any(p['level'] > prog_npc_levels[i]
+                   for i, p in enumerate(npc.get('team', [])) if i < len(prog_npc_levels))
+        check(grew, 'NPC fast não progrediu nenhum nível em ~30 dias (esperado ~+30)')
+        print(f'  NPC treinou: níveis {prog_npc_levels} → {[p["level"] for p in npc.get("team", [])]}'
+              f' | diário: {len(npc.get("diary", []))} entradas')
+
+    # /master/hunts: grant aumenta o limite; reset zera o uso
+    r = master_http.post('/master/hunts', json={'player_id': p1_uid, 'action': 'grant', 'amount': 2})
+    check(r.status_code == 200 and r.get_json()['limit'] == 8, 'grant não elevou o limite p/ 8')
+    r = p1_http.post('/api/encounter', json={'route_id': 'route1', 'hunt_mode': 'normal'})
+    check(r.status_code == 200, 'caçada após grant falhou')
+    r = master_http.post('/master/hunts', json={'player_id': p1_uid, 'action': 'reset'})
+    check(r.status_code == 200 and r.get_json()['used'] == 0, 'reset não zerou o contador')
+
+    # /api/hunts/status coerente
+    r = p1_http.get('/api/hunts/status')
+    st = r.get_json()
+    check(r.status_code == 200 and st['used'] == 0 and st['limit'] >= 6, 'hunts/status incoerente')
+
+    # anti-spam: esgota as caçadas e confirma 403
+    blocked = False
+    for _ in range(st['limit'] + 2):
+        appmod._rate_store.clear()
+        r = p1_http.post('/api/encounter', json={'route_id': 'route1', 'hunt_mode': 'normal'})
+        if r.status_code == 403:
+            blocked = True
+            break
+    check(blocked, 'limite de caçadas não bloqueou após esgotar as tentativas')
+    advance_day(1)  # limpa para as fases seguintes
 
     # ---- Fase 5: moves de status em amostra ampla ----
     print('\n✨ Testando amostra de moves de status...')

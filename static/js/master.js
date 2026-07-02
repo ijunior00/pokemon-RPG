@@ -1102,7 +1102,9 @@ async function saveNpc() {
         specialty:  document.getElementById('npc-specialty')?.value.trim() || '',
         money:      parseInt(document.getElementById('npc-money')?.value) || 0,
         team:       npcTeamTemp,
-        notes:      document.getElementById('npc-notes').value.trim()
+        notes:      document.getElementById('npc-notes').value.trim(),
+        growth_rate: document.getElementById('npc-growth-rate')?.value || 'normal',
+        progression_enabled: document.getElementById('npc-progression')?.checked || false
     };
     if (!npc.name) { alert('Nome obrigatório!'); return; }
 
@@ -1135,6 +1137,10 @@ function editNpc(npc) {
     document.getElementById('npc-specialty').value = npc.specialty || '';
     document.getElementById('npc-money').value    = npc.money || 0;
     document.getElementById('npc-notes').value    = npc.notes || '';
+    const grSel = document.getElementById('npc-growth-rate');
+    if (grSel) grSel.value = npc.growth_rate || 'normal';
+    const progChk = document.getElementById('npc-progression');
+    if (progChk) progChk.checked = !!npc.progression_enabled;
     npcTeamTemp = (npc.team || []).map(p => ({...p}));
     renderNpcTeamPreview();
     document.getElementById('npc-form-title').textContent = `✏️ Editando: ${npc.name}`;
@@ -1151,6 +1157,10 @@ function cancelNpcEdit() {
     document.getElementById('npc-specialty').value = '';
     document.getElementById('npc-money').value    = 500;
     document.getElementById('npc-notes').value    = '';
+    const grSel2 = document.getElementById('npc-growth-rate');
+    if (grSel2) grSel2.value = 'normal';
+    const progChk2 = document.getElementById('npc-progression');
+    if (progChk2) progChk2.checked = false;
     npcTeamTemp = [];
     renderNpcTeamPreview();
     document.getElementById('npc-form-title').textContent = '✏️ Criar NPC Manual';
@@ -1182,6 +1192,7 @@ async function loadNpcs() {
 
     const roleColors = { gym_leader:'#ff9800', elite4:'#9c27b0', champion:'#ffd700', rival:'#f44336', villain:'#607d8b', trainer:'#4caf50' };
 
+    const growthIcons = { slow: '🐢', normal: '🚶', fast: '🐇' };
     list.innerHTML = npcs.map(n => {
         const roleLabel = NPC_ROLE_LABELS[n.role] || '';
         const roleBadge = n.role
@@ -1191,21 +1202,29 @@ async function loadNpcs() {
         ).join('');
         const specialtyBadge = n.specialty
             ? `<span style="font-size:0.8rem;color:var(--muted);margin-left:0.5rem;">• ${n.specialty}</span>` : '';
+        const progBadge = n.progression_enabled
+            ? `<span title="Progride sozinho" style="font-size:0.75rem;padding:0.1rem 0.5rem;border-radius:10px;background:#2e7d32;color:#fff;">${growthIcons[n.growth_rate]||'🚶'} treina</span>` : '';
+        const diary = (n.diary || []).slice(-15).reverse();
+        const diaryHtml = diary.length
+            ? diary.map(d => `<div style="padding:0.15rem 0;"><strong>${d.day_key}</strong>: ${d.message}</div>`).join('')
+            : '<em>Sem registros ainda.</em>';
         return `
         <div class="npc-card">
             <div class="npc-header" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
                 <h4 style="margin:0">${n.name}</h4>
                 <span class="level-badge">Nv.${n.level}</span>
-                ${roleBadge}
+                ${roleBadge} ${progBadge}
                 <span style="color:var(--text-muted);font-size:0.85rem">${n.npc_class||''}${specialtyBadge}</span>
                 <div style="margin-left:auto;display:flex;gap:0.4rem;">
                     <button class="btn btn-sm btn-secondary" onclick="editNpc(${JSON.stringify(n).replace(/"/g,'&quot;')})">✏️ Editar</button>
+                    <button class="btn btn-sm btn-secondary" onclick="this.closest('.npc-card').querySelector('.npc-diary').classList.toggle('hidden')">📖 Diário</button>
                     <button class="btn btn-sm btn-danger" onclick="deleteNpc('${n.id}')">🗑️</button>
                 </div>
             </div>
             <div class="npc-team" style="margin-top:0.4rem;">${teamHtml || '<em style="color:var(--muted);font-size:0.8rem">Sem time</em>'}</div>
             ${n.notes ? `<p class="npc-notes" style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem;">${n.notes}</p>` : ''}
             ${n.money ? `<p style="font-size:0.8rem;color:var(--muted);">₽${n.money}</p>` : ''}
+            <div class="npc-diary hidden" style="margin-top:0.4rem;padding:0.5rem;background:var(--darker,rgba(0,0,0,0.2));border-radius:6px;font-size:0.8rem;max-height:160px;overflow-y:auto;">${diaryHtml}</div>
         </div>`;
     }).join('');
 }
@@ -2177,3 +2196,169 @@ async function kickPlayer(playerId, playerName) {
         showNotification(`❌ ${data.error || 'Erro'}`, 'error');
     }
 }
+
+// ============================================
+// CALENDÁRIO DO JOGO (mestre)
+// ============================================
+function _calDateLabel(cal) {
+    return `Dia ${cal.day}, Mês ${cal.month}, Ano ${cal.year}`;
+}
+
+async function loadCalendar() {
+    try {
+        const resp = await fetch('/api/calendar');
+        const data = await resp.json();
+        renderCalendar(data);
+    } catch(e) {}
+}
+
+function renderCalendar(data) {
+    const dateEl = document.getElementById('cal-date');
+    if (dateEl && data.calendar) dateEl.textContent = _calDateLabel(data.calendar);
+    const list = document.getElementById('calendar-events-list');
+    if (!list) return;
+    const events = data.events || [];
+    if (!events.length) {
+        list.innerHTML = '<p class="empty-state">Nenhum evento criado.</p>';
+        return;
+    }
+    list.innerHTML = events.map(renderCalendarEventCard).join('');
+}
+
+function renderCalendarEventCard(evt) {
+    const du = evt.days_until;
+    let badge, style = '';
+    if (du === 0) badge = '<span style="background:#e53935;color:#fff;padding:0.1rem 0.5rem;border-radius:10px;font-size:0.75rem;">🔴 HOJE!</span>';
+    else if (du > 0) badge = `<span style="background:#1976d2;color:#fff;padding:0.1rem 0.5rem;border-radius:10px;font-size:0.75rem;">⏳ faltam ${du} dia(s)</span>`;
+    else { badge = '<span style="background:#616161;color:#fff;padding:0.1rem 0.5rem;border-radius:10px;font-size:0.75rem;">✔ ocorrido</span>'; style = 'opacity:0.55;'; }
+    return `
+    <div class="quest-card" id="evt-${evt.id}" style="${style}margin-bottom:0.5rem;">
+        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+            <strong>📅 ${evt.title}</strong> ${badge}
+            <span style="color:var(--muted);font-size:0.85rem;">${evt.city ? '📍 ' + evt.city + ' · ' : ''}Dia ${evt.day}/Mês ${evt.month}/Ano ${evt.year}</span>
+            <div style="margin-left:auto;display:flex;gap:0.4rem;">
+                <button class="btn btn-sm btn-secondary" onclick='editCalendarEvent(${JSON.stringify(evt).replace(/'/g, "&#39;")})'>✏️</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteCalendarEvent('${evt.id}')">🗑️</button>
+            </div>
+        </div>
+        ${evt.description ? `<p style="font-size:0.85rem;margin:0.3rem 0 0;">${evt.description}</p>` : ''}
+    </div>`;
+}
+
+async function advanceCalendar(days) {
+    const resp = await fetch('/master/calendar/advance', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ days })
+    });
+    const data = await resp.json();
+    if (data.error) { alert(data.error); return; }
+    const log = document.getElementById('cal-advance-log');
+    if (log) {
+        let html = `<p>☀️ Avançou ${days} dia(s) → <strong>${_calDateLabel(data.calendar)}</strong>. Caçadas resetadas.</p>`;
+        (data.npc_log || []).forEach(e => { html += `<p>🧑‍🤝‍🧑 <strong>${e.name}</strong> [${e.day_key || ''}]: ${e.message}</p>`; });
+        (data.events_triggered || []).forEach(e => { html += `<p>🔴 Evento HOJE: <strong>${e.title}</strong> ${e.city ? 'em ' + e.city : ''}</p>`; });
+        log.innerHTML = html + log.innerHTML;
+    }
+    loadCalendar();
+    loadNpcs();
+}
+
+function advanceCalendarN() {
+    const n = parseInt(document.getElementById('cal-advance-days')?.value) || 1;
+    advanceCalendar(Math.max(1, Math.min(30, n)));
+}
+
+async function setCalendarDate() {
+    const payload = {
+        day:   parseInt(document.getElementById('cal-set-day')?.value) || 1,
+        month: parseInt(document.getElementById('cal-set-month')?.value) || 1,
+        year:  parseInt(document.getElementById('cal-set-year')?.value) || 1
+    };
+    const resp = await fetch('/master/calendar/set', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (data.error) { alert(data.error); return; }
+    loadCalendar();
+}
+
+async function createCalendarEvent() {
+    const editId = document.getElementById('evt-edit-id')?.value || '';
+    const payload = {
+        title: document.getElementById('evt-title').value.trim(),
+        city:  document.getElementById('evt-city').value.trim(),
+        description: document.getElementById('evt-desc').value.trim(),
+        day:   parseInt(document.getElementById('evt-day').value) || 1,
+        month: parseInt(document.getElementById('evt-month').value) || 1,
+        year:  parseInt(document.getElementById('evt-year').value) || 1,
+        notify_days_before: parseInt(document.getElementById('evt-notify').value) || 3
+    };
+    if (!payload.title) { alert('Título obrigatório!'); return; }
+    const url = editId ? `/master/calendar/events/${editId}` : '/master/calendar/events';
+    const resp = await fetch(url, {
+        method: editId ? 'PUT' : 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (data.error) { alert(data.error); return; }
+    clearEventForm();
+    loadCalendar();
+}
+
+function editCalendarEvent(evt) {
+    document.getElementById('evt-edit-id').value = evt.id;
+    document.getElementById('evt-title').value = evt.title || '';
+    document.getElementById('evt-city').value = evt.city || '';
+    document.getElementById('evt-desc').value = evt.description || '';
+    document.getElementById('evt-day').value = evt.day || 1;
+    document.getElementById('evt-month').value = evt.month || 1;
+    document.getElementById('evt-year').value = evt.year || 1;
+    document.getElementById('evt-notify').value = evt.notify_days_before ?? 3;
+    document.getElementById('evt-save-btn').textContent = '💾 Salvar Evento';
+    document.getElementById('evt-cancel-btn')?.classList.remove('hidden');
+    document.getElementById('evt-title').scrollIntoView({ behavior: 'smooth' });
+}
+
+function clearEventForm() {
+    document.getElementById('evt-edit-id').value = '';
+    ['evt-title','evt-city','evt-desc'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('evt-day').value = 1;
+    document.getElementById('evt-month').value = 1;
+    document.getElementById('evt-year').value = 1;
+    document.getElementById('evt-notify').value = 3;
+    document.getElementById('evt-save-btn').textContent = '📅 Criar Evento';
+    document.getElementById('evt-cancel-btn')?.classList.add('hidden');
+}
+
+async function deleteCalendarEvent(id) {
+    if (!confirm('Deletar este evento?')) return;
+    await fetch(`/master/calendar/events/${id}`, { method: 'DELETE' });
+    document.getElementById(`evt-${id}`)?.remove();
+}
+
+async function masterHunts(action) {
+    const playerId = document.getElementById('hunt-player')?.value;
+    if (!playerId) { alert('Selecione um jogador'); return; }
+    const resp = await fetch('/master/hunts', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ player_id: playerId, action, amount: 1 })
+    });
+    const data = await resp.json();
+    const out = document.getElementById('hunt-master-result');
+    if (out) out.textContent = data.error ? `❌ ${data.error}`
+        : `✅ ${action === 'grant' ? 'Caçada extra concedida' : 'Contador resetado'} — agora ${data.used}/${data.limit}.`;
+}
+
+socket.on('calendar_update', (data) => renderCalendar(data));
+socket.on('npc_diary_update', (data) => {
+    const log = document.getElementById('cal-advance-log');
+    if (log && data.npc_log) {
+        data.npc_log.forEach(e => log.insertAdjacentHTML('afterbegin',
+            `<p>🧑‍🤝‍🧑 <strong>${e.name}</strong>: ${e.message}</p>`));
+    }
+    loadNpcs();
+});
+
+document.addEventListener('DOMContentLoaded', loadCalendar);
