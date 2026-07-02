@@ -197,10 +197,13 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
         roll2   = _roll_dice(scaled_dice)
         damage  = roll1 + roll2 + mod
 
-    # STAB
+    # STAB (Blaze/Overgrow/Torrent/Swarm dobram com HP ≤ 25%)
     poke_types = [t.lower() for t in (player_poke.get('types') or [])]
-    if move_type_raw in poke_types:
+    if move_type_raw in poke_types or move_type_en in poke_types:
         stab = int(player_poke.get('stab') or _stab_for_level(level))
+        bs = encounter.get('battle_state') or {}
+        stab *= ab.stab_multiplier(player_poke.get('ability'), move_type_en,
+                                   bs.get('player_hp_current'), bs.get('player_hp_max'))
         damage += stab
     else:
         stab = 0
@@ -290,10 +293,13 @@ def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
     if is_crit:
         damage = roll1 + _roll_dice(scaled_dice) + mod
 
-    # STAB
+    # STAB (Blaze/Overgrow/Torrent/Swarm dobram com HP ≤ 25%)
     poke_types = [t.lower() for t in (attacker_poke.get('types') or [])]
-    if move_type_raw in poke_types:
-        damage += int(attacker_poke.get('stab') or _stab_for_level(level))
+    if move_type_raw in poke_types or move_type_en in poke_types:
+        stab = int(attacker_poke.get('stab') or _stab_for_level(level))
+        stab *= ab.stab_multiplier(attacker_poke.get('ability'), move_type_en,
+                                   attacker_poke.get('currentHp'), attacker_poke.get('maxHp'))
+        damage += stab
 
     # Type effectiveness
     vulns      = [t.lower() for t in (defender_poke.get('vulnerabilities') or [])]
@@ -1815,6 +1821,15 @@ def api_pokemon_learnset(number):
     all_moves = list(dict.fromkeys(
         starting + [m for ms in level_moves.values() for m in ms] + tm + egg))
 
+    # Habilidades da espécie (para os dropdowns da ficha)
+    abilities = [
+        {'name': a.get('name'), 'description': a.get('description', '')}
+        for a in (pokemon.get('abilities') or []) if a.get('name')
+    ]
+    hidden = pokemon.get('hiddenAbility') or None
+    if hidden and not hidden.get('name'):
+        hidden = None
+
     return jsonify({
         'number': number,
         'name': pokemon.get('name'),
@@ -1822,7 +1837,10 @@ def api_pokemon_learnset(number):
         'level': level_moves,
         'tm': tm,
         'egg': egg,
-        'all': all_moves
+        'all': all_moves,
+        'abilities': abilities,
+        'hidden_ability': hidden,
+        'senses': pokemon.get('senses', '')
     })
 
 
@@ -3271,6 +3289,36 @@ def handle_battle_action(data):
         elif action_by == 'master' and damage > 0:
             battle_state['player_hp_current'] = max(PERMADEATH_FLOOR, battle_state['player_hp_current'] - damage)
         
+        # Habilidades de contato (Static, Rough Skin, Flame Body...) —
+        # o defensor reage a golpes físicos que causaram dano.
+        contact_trigger = None
+        if damage > 0 and action_type == 'attack' and move_name:
+            move_cat = (MOVES_BY_NAME.get(move_name.lower()) or {}).get('category', 'physical')
+            if move_cat == 'physical':
+                if action_by == 'player':
+                    # selvagem defendeu → atacante (jogador) sofre a reação
+                    wild_poke = encounter.get('pokemon', {})
+                    wild_lv = int(wild_poke.get('level') or encounter.get('level') or 5)
+                    res = ab.check_contact_ability(wild_poke.get('ability'), _prof_for_level(wild_lv))
+                    if res:
+                        contact_trigger = res
+                        if res['damage']:
+                            battle_state['player_hp_current'] = max(
+                                PERMADEATH_FLOOR, battle_state['player_hp_current'] - res['damage'])
+                        if res['status'] and not battle_state.get('player_status'):
+                            battle_state['player_status'] = {'condition': res['status'], 'turns_active': 0}
+                else:
+                    # pokémon do jogador defendeu → selvagem sofre a reação
+                    p_poke = encounter.get('player_pokemon') or {}
+                    res = ab.check_contact_ability(p_poke.get('ability'), p_poke.get('proficiency') or 2)
+                    if res:
+                        contact_trigger = res
+                        if res['damage']:
+                            battle_state['wild_hp_current'] = max(
+                                PERMADEATH_FLOOR, battle_state['wild_hp_current'] - res['damage'])
+                        if res['status'] and not battle_state.get('wild_status'):
+                            battle_state['wild_status'] = {'condition': res['status'], 'turns_active': 0}
+
         # Apply healing
         if action_by == 'player' and heal > 0:
             battle_state['player_hp_current'] = min(battle_state['player_hp_max'], battle_state['player_hp_current'] + heal)
@@ -3308,6 +3356,7 @@ def handle_battle_action(data):
             'message': message,
             'battle_state': battle_state,
             'ability_trigger': ability_result if (ability_result and ability_result.get('triggered')) else None,
+            'contact_trigger': contact_trigger,
             'action_log': action_log,
             'server_calc': server_calc,  # full server-side calc details for client log
         }
@@ -3777,6 +3826,16 @@ def handle_pvp_attack(data):
 
         # Apply damage
         result = pvp.apply_damage(battle, player_key, damage, move_name, message)
+
+        # Habilidade de contato do defensor (Static, Rough Skin...)
+        if damage > 0 and (MOVES_BY_NAME.get(move_name.lower()) or {}).get('category', 'physical') == 'physical':
+            cres = ab.check_contact_ability(def_poke.get('ability'), def_poke.get('proficiency') or 2)
+            if cres:
+                if cres['damage']:
+                    att_poke['currentHp'] = max(-999, att_poke.get('currentHp', 0) - cres['damage'])
+                if cres['status'] and not att_poke.get('status'):
+                    att_poke['status'] = {'condition': cres['status'], 'turns_active': 0}
+                battle['log'].append({'type': 'ability', 'message': cres['message']})
 
         # Apply status effect to defender if move has one
         status_applied = False
@@ -4260,6 +4319,16 @@ def handle_npc_turn(battle, npc_key):
                                       'status': {'condition': skey}})
 
     result = pvp.apply_damage(battle, npc_key, damage, move, calc['message'])
+
+    # Habilidade de contato do defensor reage ao golpe físico do NPC
+    if damage > 0 and (MOVES_BY_NAME.get(move.lower()) or {}).get('category', 'physical') == 'physical':
+        cres = ab.check_contact_ability(def_poke.get('ability'), def_poke.get('proficiency') or 2)
+        if cres:
+            if cres['damage']:
+                npc_poke['currentHp'] = max(-999, npc_poke.get('currentHp', 0) - cres['damage'])
+            if cres['status'] and not npc_poke.get('status'):
+                npc_poke['status'] = {'condition': cres['status'], 'turns_active': 0}
+            battle['log'].append({'type': 'ability', 'message': cres['message']})
 
     _broadcast_pvp_state(battle, 'npc_attack')
 
