@@ -4,6 +4,7 @@ Sistema de gerenciamento de mesa para Pokemon 5e com tempo real.
 """
 import os
 import json
+import math
 import random
 import secrets
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
@@ -124,7 +125,8 @@ def _get_scaled_dice(base_damage, level, higher_levels=''):
     elif level >= 20: mult = 1.5
     elif level >= 10: mult = 1.25
     else: mult = 1.0
-    new_count = max(count, int(count * mult + 0.5))
+    # ceil para casar com o cliente (getScaledDice usa Math.ceil)
+    new_count = max(count, math.ceil(count * mult))
     return f'{new_count}d{sides}'
 
 _TYPE_MAP_PT = {
@@ -1397,32 +1399,38 @@ def generate_npc():
     for poke in chosen_pokemon:
         # Calculate pokemon level (around NPC level ±2)
         poke_level = max(poke.get('minLevel', 1), level + random.randint(-2, 1))
-        
-        # Build moveset
+
+        # Build moveset (levelMoves keys são escala de treinador → ×5)
         move_pool = list(poke.get('startingMoves', []))
         if poke.get('levelMoves'):
             for lv, moves in poke['levelMoves'].items():
-                if int(lv) <= poke_level:
+                if int(lv) * 5 <= poke_level:
                     move_pool.extend(moves)
-        move_pool = [m for m in move_pool if len(m) > 2 and not m.startswith('©') and '©' not in m and 'unofficial' not in m.lower() and 'wizards' not in m.lower() and 'nintendo' not in m.lower() and 'portions' not in m.lower() and len(m) < 30]
+        move_pool = [m for m in move_pool if len(m) > 2 and '©' not in m and 'unofficial' not in m.lower() and 'wizards' not in m.lower() and 'nintendo' not in m.lower() and 'portions' not in m.lower() and len(m) < 30]
         move_pool = list(dict.fromkeys(move_pool))
+        move_pool = [m for m in move_pool if m.lower() in MOVES_BY_NAME or m in MOVES_DB]
         moves = move_pool[-4:] if len(move_pool) > 4 else (move_pool if move_pool else ['Tackle'])
-        
+
+        # Stats escalados pelo nível (igual aos encontros selvagens)
+        scaled = scaling.calculate_pokemon_stats(poke, poke_level)
         team.append({
             'name': poke['name'],
             'number': poke['number'],
             'level': poke_level,
             'types': poke.get('types', []),
-            'hp': poke.get('hp', 20),
-            'maxHp': poke.get('hp', 20),
-            'currentHp': poke.get('hp', 20),
-            'ac': poke.get('ac', 13),
-            'stats': poke.get('stats', {}),
+            'hp': scaled['hp'],
+            'maxHp': scaled['maxHp'],
+            'currentHp': scaled['hp'],
+            'ac': scaled['ac'],
+            'stats': scaled['stats'],
+            'proficiency': scaled['proficiency'],
+            'stab': scaled['stab'],
             'moves': moves,
             'speed': poke.get('speed', '30ft'),
             'ability': poke.get('ability', {}).get('name', '') if poke.get('ability') else '',
             'vulnerabilities': poke.get('vulnerabilities', []),
-            'resistances': poke.get('resistances', [])
+            'resistances': poke.get('resistances', []),
+            'immunities': poke.get('immunities', [])
         })
     
     # Create NPC
@@ -1488,6 +1496,9 @@ def check_and_evolve_pokemon(pokemon, trainer_level=None):
         'ability': evolved_base.get('ability', {}).get('name', '') if evolved_base.get('ability') else pokemon.get('ability', ''),
         'vulnerabilities': evolved_base.get('vulnerabilities', []),
         'resistances': evolved_base.get('resistances', []),
+        'immunities': evolved_base.get('immunities', []),
+        'phys_ac': scaled.get('phys_ac'),
+        'spec_ac': scaled.get('spec_ac'),
         'evolutionInfo': evolved_base.get('evolutionInfo', ''),
         'evolutionStage': evolved_base.get('evolutionStage', ''),
         # Preserve player-specific fields
@@ -1496,6 +1507,10 @@ def check_and_evolve_pokemon(pokemon, trainer_level=None):
         'moves': pokemon.get('moves', []),
         'heldItem': pokemon.get('heldItem', ''),
         'notes': pokemon.get('notes', ''),
+        'xp': pokemon.get('xp', 0),
+        'totalXp': pokemon.get('totalXp', 0),
+        'battle_wins': pokemon.get('battle_wins', 0),
+        'statPointsAvailable': pokemon.get('statPointsAvailable', 0),
     }
     return evolved, evolved_base['name']
 
@@ -1609,17 +1624,10 @@ def give_pokemon_xp():
 
     pokemon = team[pokemon_idx]
     old_level = pokemon.get('level', 1)
+    # Mesma tabela de XP usada pelo cliente (totalXp acumulado)
     pokemon['xp'] = pokemon.get('xp', 0) + xp_amount
-
-    # Simple Pokémon XP table: each level requires level*10 XP
-    new_level = old_level
-    while True:
-        xp_needed = new_level * 10
-        if pokemon['xp'] >= xp_needed:
-            pokemon['xp'] -= xp_needed
-            new_level += 1
-        else:
-            break
+    pokemon['totalXp'] = pokemon.get('totalXp', 0) + xp_amount
+    new_level = max(old_level, scaling.level_from_xp(pokemon['totalXp']))
     pokemon['level'] = new_level
 
     leveled_up = new_level > old_level
@@ -1737,6 +1745,86 @@ def api_pokemon_detail(number):
     if pokemon:
         return jsonify(pokemon)
     return jsonify({'error': 'Pokemon not found'}), 404
+
+# TM número → move (lista Gen 7/USUM, usada pelo Pokémon 5e)
+TM_MOVES = {
+    1: 'Work Up', 2: 'Dragon Claw', 3: 'Psyshock', 4: 'Calm Mind', 5: 'Roar',
+    6: 'Toxic', 7: 'Hail', 8: 'Bulk Up', 9: 'Venoshock', 10: 'Hidden Power',
+    11: 'Sunny Day', 12: 'Taunt', 13: 'Ice Beam', 14: 'Blizzard', 15: 'Hyper Beam',
+    16: 'Light Screen', 17: 'Protect', 18: 'Rain Dance', 19: 'Roost', 20: 'Safeguard',
+    21: 'Frustration', 22: 'Solar Beam', 23: 'Smack Down', 24: 'Thunderbolt', 25: 'Thunder',
+    26: 'Earthquake', 27: 'Return', 28: 'Leech Life', 29: 'Psychic', 30: 'Shadow Ball',
+    31: 'Brick Break', 32: 'Double Team', 33: 'Reflect', 34: 'Sludge Wave', 35: 'Flamethrower',
+    36: 'Sludge Bomb', 37: 'Sandstorm', 38: 'Fire Blast', 39: 'Rock Tomb', 40: 'Aerial Ace',
+    41: 'Torment', 42: 'Facade', 43: 'Flame Charge', 44: 'Rest', 45: 'Attract',
+    46: 'Thief', 47: 'Low Sweep', 48: 'Round', 49: 'Echoed Voice', 50: 'Overheat',
+    51: 'Steel Wing', 52: 'Focus Blast', 53: 'Energy Ball', 54: 'False Swipe', 55: 'Scald',
+    56: 'Fling', 57: 'Charge Beam', 58: 'Sky Drop', 59: 'Brutal Swing', 60: 'Quash',
+    61: 'Will-O-Wisp', 62: 'Acrobatics', 63: 'Embargo', 64: 'Explosion', 65: 'Shadow Claw',
+    66: 'Payback', 67: 'Smart Strike', 68: 'Giga Impact', 69: 'Rock Polish', 70: 'Aurora Veil',
+    71: 'Stone Edge', 72: 'Volt Switch', 73: 'Thunder Wave', 74: 'Gyro Ball', 75: 'Swords Dance',
+    76: 'Fly', 77: 'Psych Up', 78: 'Bulldoze', 79: 'Frost Breath', 80: 'Rock Slide',
+    81: 'X-Scissor', 82: 'Dragon Tail', 83: 'Infestation', 84: 'Poison Jab', 85: 'Dream Eater',
+    86: 'Grass Knot', 87: 'Swagger', 88: 'Sleep Talk', 89: 'U-turn', 90: 'Substitute',
+    91: 'Flash Cannon', 92: 'Trick Room', 93: 'Wild Charge', 94: 'Surf', 95: 'Snarl',
+    96: 'Nature Power', 97: 'Dark Pulse', 98: 'Waterfall', 99: 'Dazzling Gleam', 100: 'Confide',
+}
+
+
+def _clean_move_list(moves):
+    """Filtra entradas inválidas e mantém só moves que existem no banco."""
+    out = []
+    for m in moves or []:
+        if not m or not isinstance(m, str) or len(m) <= 2 or len(m) >= 30:
+            continue
+        low = m.lower()
+        if '©' in m or m.isdigit() or any(j in low for j in ('unofficial', 'wizards', 'nintendo', 'portions')):
+            continue
+        if low in MOVES_BY_NAME or m in MOVES_DB:
+            out.append(m)
+    return list(dict.fromkeys(out))
+
+
+@app.route('/api/pokemon/<int:number>/learnset')
+@login_required
+def api_pokemon_learnset(number):
+    """Learnset limpo da espécie para os dropdowns de seleção de moves.
+
+    levelMoves usa escala de nível de treinador (1-20) nos dados originais —
+    aqui é convertido para nível de Pokémon (×5).
+    """
+    pokemon = POKEMON_BY_NUMBER.get(number)
+    if not pokemon:
+        return jsonify({'error': 'Pokemon not found'}), 404
+
+    starting = _clean_move_list(pokemon.get('startingMoves'))
+    level_moves = {}
+    for lv, moves in (pokemon.get('levelMoves') or {}).items():
+        cleaned = _clean_move_list(moves)
+        if cleaned:
+            try:
+                level_moves[str(int(lv) * 5)] = cleaned
+            except (TypeError, ValueError):
+                continue
+    # tmMoves vem como números de TM → resolve para nomes
+    tm_names = [TM_MOVES.get(n) for n in (pokemon.get('tmMoves') or [])
+                if isinstance(n, int)]
+    tm = _clean_move_list([m for m in tm_names if m])
+    egg = _clean_move_list(pokemon.get('eggMoves'))
+
+    all_moves = list(dict.fromkeys(
+        starting + [m for ms in level_moves.values() for m in ms] + tm + egg))
+
+    return jsonify({
+        'number': number,
+        'name': pokemon.get('name'),
+        'starting': starting,
+        'level': level_moves,
+        'tm': tm,
+        'egg': egg,
+        'all': all_moves
+    })
+
 
 @app.route('/api/moves')
 @login_required
@@ -3113,6 +3201,21 @@ def handle_battle_action(data):
             move_type = server_calc.get('move_type_en', move_type)
             if not server_calc.get('hit', True):
                 damage = 0
+            # On-hit status (Ember→queimado, Thunderbolt→paralisado etc.)
+            # rolado no servidor para valer também em batalhas selvagens.
+            elif damage > 0 and not status_effect and not battle_state.get('wild_status'):
+                skey, inflicted = effects.check_status_on_hit(
+                    move_name, server_calc.get('attack_roll', 10), damage)
+                if inflicted:
+                    status_effect = {'condition': skey, 'turns_active': 0}
+                    cond = effects.STATUS_CONDITIONS.get(skey, {})
+                    server_calc['status_inflicted'] = skey
+                    server_calc['log'] = (server_calc.get('log', '') +
+                        f" {cond.get('icon','')} Selvagem ficou <strong>{cond.get('name', skey)}</strong>!")
+
+        if server_calc:
+            action_log = server_calc.get('log')
+            message = server_calc.get('message', message)
 
         # Apply pre-turn status damage first (doesn't count as an action)
         PERMADEATH_FLOOR = -30
@@ -3634,7 +3737,25 @@ def handle_pvp_attack(data):
         move_type = calc.get('move_type_en', move_type)
 
         # Process attacker's own status damage before acting
-        status_dmg, status_info = pvp.process_turn_status(battle, player_key)
+        status_dmg, status_info, can_act, status_msgs = pvp.process_turn_status(battle, player_key)
+        for m in status_msgs:
+            battle['log'].append({'type': 'info', 'message': m})
+        if status_dmg > 0:
+            battle['log'].append({'type': 'status_damage', 'player': player_key,
+                                  'damage': status_dmg, 'status': status_info})
+
+        att_active = battle[player_key]['team'][battle[player_key]['active_idx']]
+        if att_active.get('currentHp', 0) <= 0 or not can_act:
+            # Desmaiou pelo status ou não pode agir (sono/paralisia/congelado)
+            if att_active.get('currentHp', 0) <= 0:
+                battle['log'].append({'type': 'faint', 'player': player_key, 'permadeath': False})
+            pvp.advance_turn(battle)
+            _broadcast_pvp_state(battle, 'status_skip')
+            next_key = battle['turn']
+            if battle['phase'] == 'battle' and battle[next_key].get('is_npc'):
+                handle_npc_turn(battle, next_key)
+            return
+
         ability_trigger = None
 
         # Check defender ability
@@ -3664,14 +3785,13 @@ def handle_pvp_attack(data):
         
         # Auto-check move status effects if client didn't send one
         if not status_applied and damage > 0 and move_name and result not in ('battle_end',):
-            move_effect = effects.MOVE_STATUS_EFFECTS.get(move_name)
-            if move_effect and move_effect.get('on') == 'hit':
-                import random as rng
-                if rng.random() < move_effect.get('chance', 0):
-                    auto_status = {'condition': move_effect['status']}
-                    status_applied = pvp.apply_status(battle, defender_key, auto_status)
-                    if status_applied:
-                        status_effect = auto_status
+            skey, inflicted = effects.check_status_on_hit(
+                move_name, int(data.get('attack_roll') or 15), damage)
+            if inflicted:
+                auto_status = {'condition': skey}
+                status_applied = pvp.apply_status(battle, defender_key, auto_status)
+                if status_applied:
+                    status_effect = auto_status
 
         # Handle permanent death before sending state
         _handle_pvp_permadeath(battle)
@@ -3682,9 +3802,6 @@ def handle_pvp_attack(data):
         if status_applied:
             battle['log'].append({'type': 'status_applied', 'player': defender_key,
                                   'status': status_effect})
-        if status_dmg > 0:
-            battle['log'].append({'type': 'status_damage', 'player': player_key,
-                                  'damage': status_dmg, 'status': status_info})
 
         # Send updated state to both players
         p1_state = pvp.get_battle_state_for_player(battle, 'player1')
@@ -3967,13 +4084,148 @@ def _emit_pvp_to_master(battle, event='update'):
     }, room=f'master_{_tid()}')
 
 
+def _broadcast_pvp_state(battle, event='update'):
+    """Envia o estado atual da batalha PVP para os dois lados e para o mestre."""
+    for key in ('player1', 'player2'):
+        if not battle[key].get('is_npc'):
+            state = pvp.get_battle_state_for_player(battle, key)
+            socketio.emit('pvp_battle_state', state, room=battle[key]['id'])
+    _emit_pvp_to_master(battle, event)
+
+
+def _is_status_move(move_data):
+    """True se o move não causa dano direto (categoria status ou sem baseDamage)."""
+    return (move_data.get('category') == 'status') or not move_data.get('baseDamage')
+
+
+def _npc_pick_move(attacker_poke, defender_poke, defender_has_status=False):
+    """IA de escolha de move para NPCs e selvagens.
+
+    Pontua cada move conhecido e sorteia com pesos:
+    - Moves super efetivos e com STAB valem mais;
+    - Moves em que o alvo é imune quase nunca são usados;
+    - Moves de status entram quando o alvo ainda não tem condição;
+    - Cura ganha prioridade quando o HP está abaixo de 35%.
+    Returns (move_name, move_data, is_status).
+    """
+    moves = [m for m in (attacker_poke.get('moves') or []) if m] or ['Tackle']
+    def_vulns   = [t.lower() for t in (defender_poke.get('vulnerabilities') or [])]
+    def_resists = [t.lower() for t in (defender_poke.get('resistances') or [])]
+    def_immune  = [t.lower() for t in (defender_poke.get('immunities') or [])]
+    atk_types   = [t.lower() for t in (attacker_poke.get('types') or [])]
+
+    max_hp = attacker_poke.get('maxHp', 20) or 20
+    hp_ratio = max(0, attacker_poke.get('currentHp', max_hp)) / max_hp
+
+    scored = []
+    for name in moves:
+        md = MOVES_BY_NAME.get(name.lower()) or MOVES_DB.get(name) or {}
+        if not md:
+            continue
+        mtype_raw = (md.get('type') or '').lower()
+        mtype = _TYPE_MAP_PT.get(mtype_raw, mtype_raw)
+
+        if _is_status_move(md):
+            detected = effects.auto_detect_move_effect(md)
+            if not detected:
+                score = 2
+            elif detected['type'] == 'heal_self':
+                score = 60 if hp_ratio < 0.35 else 1
+            elif detected['type'] == 'inflict_status':
+                score = 0 if defender_has_status else 22
+            elif detected['type'] == 'debuff_target':
+                score = 8
+            elif detected['type'] == 'buff_self':
+                score = 8
+            else:
+                score = 3
+        else:
+            score = 20
+            if mtype in def_immune:
+                score = 1
+            elif mtype in def_vulns:
+                score = 45
+            elif mtype in def_resists:
+                score = 8
+            if mtype in atk_types:
+                score += 6  # STAB
+        scored.append((max(1, score), name, md))
+
+    if not scored:
+        return 'Tackle', MOVES_BY_NAME.get('tackle', {}), False
+
+    total = sum(s for s, _, _ in scored)
+    r = random.uniform(0, total)
+    acc = 0
+    for score, name, md in scored:
+        acc += score
+        if r <= acc:
+            return name, md, _is_status_move(md)
+    score, name, md = scored[-1]
+    return name, md, _is_status_move(md)
+
+
 def handle_npc_turn(battle, npc_key):
-    """Handle NPC's automatic turn."""
-    move = pvp.npc_choose_action(battle, npc_key)
+    """Handle NPC's automatic turn (status próprio, escolha de move, ação)."""
     defender_key = 'player2' if npc_key == 'player1' else 'player1'
 
-    npc_poke = battle[npc_key]['team'][battle[npc_key]['active_idx']]
-    def_poke = battle[defender_key]['team'][battle[defender_key]['active_idx']]
+    npc_side  = battle[npc_key]
+    npc_poke  = npc_side['team'][npc_side['active_idx']]
+    def_poke  = battle[defender_key]['team'][battle[defender_key]['active_idx']]
+
+    # Status do próprio NPC no início do turno (dano de veneno/queimadura,
+    # sono/congelado/paralisia podem impedir a ação)
+    status_dmg, status_info, can_act, status_msgs = pvp.process_turn_status(battle, npc_key)
+    if status_dmg > 0:
+        battle['log'].append({'type': 'status_damage', 'player': npc_key,
+                              'damage': status_dmg, 'status': status_info})
+    for m in status_msgs:
+        battle['log'].append({'type': 'info', 'message': m})
+
+    if npc_poke.get('currentHp', 0) <= 0:
+        # NPC desmaiou pelo próprio status
+        battle['log'].append({'type': 'faint', 'player': npc_key, 'permadeath': False})
+        npc_next = pvp.npc_choose_pokemon(battle, npc_key)
+        if npc_next is not None:
+            pvp.switch_pokemon(battle, npc_key, npc_next)
+        else:
+            battle['phase'] = 'finished'
+            battle['winner'] = defender_key
+        _broadcast_pvp_state(battle)
+        if battle['phase'] == 'finished':
+            handle_pvp_victory(battle)
+        return
+
+    if not can_act:
+        pvp.advance_turn(battle)
+        _broadcast_pvp_state(battle)
+        return
+
+    move, move_data, is_status = _npc_pick_move(npc_poke, def_poke,
+                                                defender_has_status=bool(def_poke.get('status')))
+
+    if is_status:
+        result = effects.process_status_move(
+            move_data,
+            dict(npc_poke.get('stats', {}), level=npc_poke.get('level', 1),
+                 proficiency=npc_poke.get('proficiency', _prof_for_level(npc_poke.get('level', 1))),
+                 maxHp=npc_poke.get('maxHp', 20)),
+            dict(def_poke.get('stats', {}), level=def_poke.get('level', 1)))
+        battle['log'].append({'type': 'status_move', 'attacker': npc_key,
+                              'move': move, 'message': result.get('message', '')})
+        if result.get('status_applied'):
+            applied = pvp.apply_status(battle, defender_key,
+                                       {'condition': result['status_applied']})
+            if applied:
+                battle['log'].append({'type': 'status_applied', 'player': defender_key,
+                                      'status': {'condition': result['status_applied']}})
+        if result.get('heal'):
+            npc_poke['currentHp'] = min(npc_poke.get('maxHp', 20),
+                                        npc_poke.get('currentHp', 0) + result['heal'])
+        pvp.advance_turn(battle)
+        _broadcast_pvp_state(battle)
+        return
+
     calc     = _calc_pvp_attack(npc_poke, def_poke, move)
     damage   = calc['damage']
     move_type = calc.get('move_type_en', '')
@@ -3999,18 +4251,21 @@ def handle_npc_turn(battle, npc_key):
                     'heal': ab_result['heal'], 'boost': ab_result['boost'],
                 }, room=defender_id)
 
+    # On-hit status do move do NPC (Ember→queimado etc.)
+    if damage > 0 and not def_poke.get('status'):
+        skey, inflicted = effects.check_status_on_hit(move, 15, damage)
+        if inflicted:
+            if pvp.apply_status(battle, defender_key, {'condition': skey}):
+                battle['log'].append({'type': 'status_applied', 'player': defender_key,
+                                      'status': {'condition': skey}})
+
     result = pvp.apply_damage(battle, npc_key, damage, move, calc['message'])
 
-    p1_state = pvp.get_battle_state_for_player(battle, 'player1')
-    p2_state = pvp.get_battle_state_for_player(battle, 'player2')
-    socketio.emit('pvp_battle_state', p1_state, room=battle['player1']['id'])
-    socketio.emit('pvp_battle_state', p2_state, room=battle['player2']['id'])
-    _emit_pvp_to_master(battle, 'npc_attack')
+    _broadcast_pvp_state(battle, 'npc_attack')
 
     if result == 'battle_end':
         handle_pvp_victory(battle)
     elif result == 'must_switch':
-        defender_key = 'player2' if npc_key == 'player1' else 'player1'
         if battle[defender_key].get('is_npc'):
             npc_next = pvp.npc_choose_pokemon(battle, defender_key)
             if npc_next is not None:

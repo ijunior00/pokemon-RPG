@@ -425,7 +425,6 @@ async function startBattle() {
     window._wildPreTurnStatusDamage   = 0;
     window.playerAccuracyMod         = 0;
     window.wildAccuracyMod           = 0;
-    window.enemyDodging              = false;
     window.playerDodging             = false;
     window._lastStatusInflicted      = null;
     window._wildStatusApplied        = null;
@@ -826,22 +825,7 @@ async function useMove(moveName) {
 
     const m = MOVES_CACHE[moveName] || {};
     const poke = window.currentBattleData?.playerPokemon;
-    const stats = poke?.stats || {};
-    const pokeLevel = poke?.level || 1;
-    
-    // NEW STAT SYSTEM: Physical (ATK vs DEF) or Special (SPA vs SPD)
-    const moveCategory = m.category || 'physical'; // 'physical', 'special', 'status'
-    let moveMod = 0;
-    
-    if (moveCategory === 'physical') {
-        moveMod = Math.floor(((stats.ATK || stats.STR || 10) - 10) / 2);
-    } else if (moveCategory === 'special') {
-        moveMod = Math.floor(((stats.SPA || stats.INT || 10) - 10) / 2);
-    }
-    
-    // Proficiency bonus based on Pokemon level (1-100 scale)
-    const profBonus = poke?.proficiency || getProficiencyForLevel(pokeLevel);
-    
+
     // If move has no baseDamage OR is known as a status move, process as status
     const PLAYER_STATUS_MOVES = ['harden', 'withdraw', 'iron defense', 'acid armor', 'barrier', 'cotton guard',
         'cosmic power', 'defend order', 'swords dance', 'bulk up', 'calm mind', 'dragon dance',
@@ -859,69 +843,14 @@ async function useMove(moveName) {
         'disable', 'torment', 'spite', 'wish', 'heal bell', 'aromatherapy',
         'venom drench', 'toxic spikes', 'spikes', 'stealth rock', 'sticky web'];
 
-    if (!m.baseDamage || PLAYER_STATUS_MOVES.includes(moveName.toLowerCase())) {
+    if (m.category === 'status' || !m.baseDamage || PLAYER_STATUS_MOVES.includes(moveName.toLowerCase())) {
         await processStatusMove(moveName, poke, window.currentBattleData?.enemy);
         return;
     }
 
-    // Roll d20 for attack
+    // Roll d20 for attack — the SERVER recalculates hit/damage with this roll
+    // and its result (action_log) is what gets shown in the battle log.
     const attackRoll = Math.floor(Math.random() * 20) + 1;
-    const isCrit = attackRoll === 20;
-    const isMiss = attackRoll === 1;
-    const totalAttack = attackRoll + moveMod + profBonus;
-    const categoryLabel = moveCategory === 'physical' ? '⚔️ Físico' : '✨ Especial';
-
-    // Get enemy AC (use appropriate AC based on move category)
-    const enemy = window.currentBattleData?.enemy || {};
-    const enemyAC = moveCategory === 'physical'
-        ? (enemy.phys_ac || enemy.ac || 13)
-        : (enemy.spec_ac || enemy.ac || 13);
-
-    let damage = 0;
-    let message = '';
-    let effectLabel = '';
-
-    if (isMiss) {
-        message = 'Nat 1 - Falha';
-        addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) + MOD(${moveMod}) + Prof(${profBonus}) = ${totalAttack} 💨 Falha!`);
-    } else if (totalAttack >= enemyAC || isCrit) {
-        // Calculate damage locally
-        const scaledDice = getScaledDice(m.baseDamage || '1d6', pokeLevel, m.higherLevels);
-        let diceRoll = rollDamageFromString(scaledDice, pokeLevel);
-        damage = diceRoll + moveMod;
-        if (isCrit) {
-            const critExtra = rollDamageFromString(scaledDice, pokeLevel);
-            damage = diceRoll + critExtra + moveMod;
-        }
-        // STAB
-        const pokeTypes = (poke?.types || []).map(t => t.toLowerCase());
-        const moveTypeLC = (m.type || '').toLowerCase();
-        const stab = poke?.stab || 0;
-        const stabBonus = pokeTypes.includes(moveTypeLC) ? stab : 0;
-        damage += stabBonus;
-        // Type effectiveness
-        const enemyVulns = (enemy.vulnerabilities || []).map(t => t.toLowerCase());
-        const enemyResists = (enemy.resistances || []).map(t => t.toLowerCase());
-        const enemyImmunes = (enemy.immunities || []).map(t => t.toLowerCase());
-        let effectiveness = 1;
-        if (enemyImmunes.includes(moveTypeLC)) effectiveness = 0;
-        else {
-            if (enemyVulns.includes(moveTypeLC)) effectiveness *= 2;
-            if (enemyResists.includes(moveTypeLC)) effectiveness *= 0.5;
-        }
-        damage = Math.floor(damage * effectiveness);
-        if (effectiveness === 0) { damage = 0; effectLabel = '⛔ IMUNE'; }
-        else if (effectiveness > 1) effectLabel = `⚡ Super Efetivo (x${effectiveness})`;
-        else if (effectiveness < 1) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
-        if (damage < 1 && effectiveness > 0) damage = 1;
-
-        message = `${totalAttack} vs AC ${enemyAC}${isCrit ? ' Crítico!' : ''}`;
-        addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) + MOD(${moveMod}) + Prof(${profBonus}) = ${totalAttack} vs AC ${enemyAC} ✅ → ${scaledDice}(${diceRoll}) + MOD(${moveMod})${stabBonus > 0 ? ` + STAB(${stabBonus})` : ''}${effectLabel ? ' ' + effectLabel : ''}${isCrit ? ' ×2 CRIT' : ''} = <strong>${damage} dano</strong>`);
-    } else {
-        message = `Errou (${totalAttack} vs AC ${enemyAC})`;
-        addBattleLog(`▶️ <strong>${moveName}</strong> [${categoryLabel}] → d20(${attackRoll}) + MOD(${moveMod}) + Prof(${profBonus}) = ${totalAttack} vs AC ${enemyAC} ❌ Errou!`);
-    }
-
     animateDice(attackRoll, 'd20');
 
     // Cancel turn timer - action was taken
@@ -931,8 +860,6 @@ async function useMove(moveName) {
     socket.emit('battle_action', {
         action_by: 'player', action_type: 'attack', move_name: moveName,
         attack_roll: attackRoll,
-        damage: damage,
-        message: message,
         player_status_damage: window._playerPreTurnStatusDamage || 0
     });
 }
@@ -1151,9 +1078,6 @@ function throwPokeball() {
         }
     }
 }
-
-function showDamageConfirm(moveName, isCrit) { /* removed - now auto */ }
-function confirmDamage(moveName, isCrit) { /* removed - now auto */ }
 
 function addBattleLog(msg) {
     const log = document.getElementById('battle-log-full');
@@ -1449,6 +1373,107 @@ document.addEventListener('DOMContentLoaded', () => {
 // ============================================
 // TEAM MANAGEMENT
 // ============================================
+// ============================================
+// MOVE DROPDOWNS (learnset da espécie, estilo pokemondb)
+// ============================================
+let _learnsetCache = {};   // number -> learnset
+
+async function _fetchLearnset(speciesName) {
+    if (!speciesName) return null;
+    try {
+        const resp = await fetch(`/api/pokemon?search=${encodeURIComponent(speciesName.toLowerCase())}`);
+        const results = await resp.json();
+        if (!results.length) return null;
+        const number = results[0].number;
+        if (_learnsetCache[number]) return _learnsetCache[number];
+        const lresp = await fetch(`/api/pokemon/${number}/learnset`);
+        const learnset = await lresp.json();
+        if (learnset.error) return null;
+        _learnsetCache[number] = learnset;
+        return learnset;
+    } catch(e) { return null; }
+}
+
+function _buildMoveOptions(learnset, pokeLevel, selected) {
+    // Monta o HTML de <option>/<optgroup> de um select de move
+    const mkOpts = (moves, disableAbove) => moves.map(m => {
+        const disabled = disableAbove !== undefined && disableAbove;
+        return `<option value="${m}" ${selected === m ? 'selected' : ''} ${disabled ? 'disabled' : ''}>${m}</option>`;
+    }).join('');
+
+    let html = `<option value="">— Nenhum —</option>`;
+    if (learnset.starting?.length) {
+        html += `<optgroup label="⭐ Iniciais">${mkOpts(learnset.starting)}</optgroup>`;
+    }
+    const levels = Object.keys(learnset.level || {}).map(Number).sort((a, b) => a - b);
+    for (const lv of levels) {
+        const above = lv > pokeLevel;
+        html += `<optgroup label="📈 Nível ${lv}${above ? ' (acima do nível!)' : ''}">` +
+                mkOpts(learnset.level[lv], above) + `</optgroup>`;
+    }
+    if (learnset.tm?.length) {
+        html += `<optgroup label="💿 TM">${mkOpts(learnset.tm)}</optgroup>`;
+    }
+    if (learnset.egg?.length) {
+        html += `<optgroup label="🥚 Ovo">${mkOpts(learnset.egg)}</optgroup>`;
+    }
+    return html;
+}
+
+async function loadMoveDropdowns(speciesName, pokeLevel, selectedMoves) {
+    const hint = document.getElementById('poke-moves-hint');
+    const selects = [1, 2, 3, 4].map(i => document.getElementById(`poke-move-${i}`));
+    if (selects.some(s => !s)) return;
+
+    const learnset = await _fetchLearnset(speciesName);
+    if (!learnset || !learnset.all?.length) {
+        // Espécie desconhecida: mantém os moves atuais como opções livres
+        selects.forEach((sel, i) => {
+            const cur = (selectedMoves || [])[i] || '';
+            sel.innerHTML = `<option value="">— Nenhum —</option>` +
+                (cur ? `<option value="${cur}" selected>${cur}</option>` : '');
+        });
+        if (hint) hint.textContent = 'Espécie não encontrada no banco — moves atuais mantidos.';
+        return;
+    }
+
+    selects.forEach((sel, i) => {
+        const cur = (selectedMoves || [])[i] || '';
+        let html = _buildMoveOptions(learnset, pokeLevel || 1, cur);
+        // Move atual fora do learnset (ex.: move herdado/customizado): mantém como opção
+        if (cur && !learnset.all.includes(cur)) {
+            html += `<optgroup label="✍️ Atual"><option value="${cur}" selected>${cur}</option></optgroup>`;
+        }
+        sel.innerHTML = html;
+    });
+    if (hint) hint.textContent = `${learnset.all.length} moves disponíveis para ${learnset.name}.`;
+}
+
+function getSelectedMoves() {
+    const moves = [1, 2, 3, 4]
+        .map(i => document.getElementById(`poke-move-${i}`)?.value || '')
+        .filter(m => m);
+    return [...new Set(moves)];
+}
+
+function clearMoveDropdowns() {
+    [1, 2, 3, 4].forEach(i => {
+        const sel = document.getElementById(`poke-move-${i}`);
+        if (sel) sel.innerHTML = `<option value="">— Move ${i} —</option>`;
+    });
+    const hint = document.getElementById('poke-moves-hint');
+    if (hint) hint.textContent = 'Selecione a espécie para carregar os moves disponíveis (iniciais, por nível, TM e ovo).';
+}
+
+// Recarrega opções quando o nível muda (desbloqueia/bloqueia moves por nível)
+document.addEventListener('DOMContentLoaded', () => {
+    const lvInput = document.getElementById('poke-level');
+    if (lvInput) lvInput.addEventListener('change', () => {
+        const species = document.getElementById('poke-species')?.value;
+        if (species) loadMoveDropdowns(species, parseInt(lvInput.value) || 1, getSelectedMoves());
+    });
+});
+
 function addPokemon(slot) {
     document.getElementById('poke-slot').value = slot;
     clearPokemonForm();
@@ -1482,7 +1507,7 @@ function editPokemon(slot) {
         document.getElementById('poke-wis').value = s.SPE || s.WIS || 10;
         document.getElementById('poke-cha').value = s.HP  || s.CHA || 10;
     }
-    document.getElementById('poke-moves').value = (pokemon.moves || []).join(', ');
+    loadMoveDropdowns(pokemon.name, pokemon.level || 1, pokemon.moves || []);
     document.getElementById('poke-ability').value = pokemon.ability || '';
     document.getElementById('poke-hidden-ability').value = pokemon.hiddenAbility || '';
     document.getElementById('poke-held-item').value = pokemon.heldItem || '';
@@ -1526,7 +1551,7 @@ function clearPokemonForm() {
     ['poke-current-hp','poke-max-hp'].forEach(id => document.getElementById(id).value = 0);
     ['poke-ac'].forEach(id => document.getElementById(id).value = 10);
     ['poke-str','poke-dex','poke-con','poke-int','poke-wis','poke-cha'].forEach(id => document.getElementById(id).value = 10);
-    document.getElementById('poke-moves').value = '';
+    clearMoveDropdowns();
     document.getElementById('poke-nature').value = '';
 }
 
@@ -1554,7 +1579,7 @@ async function savePokemon() {
             SPE: parseInt(document.getElementById('poke-wis').value),
             HP:  parseInt(document.getElementById('poke-cha').value)
         },
-        moves: document.getElementById('poke-moves').value.split(',').map(m => m.trim()).filter(m => m),
+        moves: getSelectedMoves(),
         ability: document.getElementById('poke-ability').value,
         hiddenAbility: document.getElementById('poke-hidden-ability').value,
         heldItem: document.getElementById('poke-held-item').value,
@@ -2075,7 +2100,8 @@ function selectSpecies(pokemon) {
     set('poke-ac', pokemon.ac || 10);
     set('poke-hit-dice', pokemon.hitDice || '');
     set('poke-speed', pokemon.speed || '');
-    if (pokemon.startingMoves) set('poke-moves', pokemon.startingMoves.join(', '));
+    const curLevel = parseInt(document.getElementById('poke-level')?.value) || 1;
+    loadMoveDropdowns(pokemon.name, curLevel, pokemon.startingMoves || []);
     if (pokemon.ability)       set('poke-ability', pokemon.ability.name || '');
     if (pokemon.hiddenAbility) set('poke-hidden-ability', pokemon.hiddenAbility.name || '');
     if (pokemon.vulnerabilities) set('poke-vulnerabilities', pokemon.vulnerabilities.join(', '));
@@ -3955,6 +3981,62 @@ async function wildPokemonAutoAttack() {
     }
 }
 
+// Tipos PT → EN (usado pela IA do selvagem)
+const _WILD_TYPE_PT_EN = {
+    'fogo':'fire', 'água':'water', 'grama':'grass', 'elétrico':'electric',
+    'gelo':'ice', 'lutador':'fighting', 'venenoso':'poison', 'terra':'ground',
+    'voador':'flying', 'psíquico':'psychic', 'inseto':'bug', 'pedra':'rock',
+    'fantasma':'ghost', 'dragão':'dragon', 'sombrio':'dark', 'aço':'steel',
+    'fada':'fairy', 'normal':'normal'
+};
+
+// Moves que a IA reconhece como cura
+const _WILD_HEAL_MOVES = new Set(['rest','recover','roost','synthesis','moonlight',
+    'morning sun','soft-boiled','milk drink','slack off','wish','heal order']);
+
+function wildChooseBestMove(wildMoves, enemy, playerPoke) {
+    // Pontua cada move e sorteia com pesos (mesma lógica da IA de NPC no servidor):
+    // super efetivo e STAB valem mais, imune quase nunca, status quando o alvo
+    // está "limpo", cura quando o HP do selvagem está abaixo de 35%.
+    const pVulns = (playerPoke?.vulnerabilities || []).map(t => t.toLowerCase());
+    const pResists = (playerPoke?.resistances || []).map(t => t.toLowerCase());
+    const pImmune = (playerPoke?.immunities || []).map(t => t.toLowerCase());
+    const wildTypes = (enemy?.types || []).map(t => t.toLowerCase());
+    const maxHp = enemy?.maxHp || enemy?.hp || 20;
+    const curHp = (enemy?.currentHp !== undefined) ? enemy.currentHp : maxHp;
+    const hpRatio = Math.max(0, curHp) / maxHp;
+    const targetHasStatus = !!window.playerPokemonStatus;
+
+    const scored = wildMoves.map(name => {
+        const md = MOVES_CACHE[name] || {};
+        const typeRaw = (md.type || '').toLowerCase();
+        const typeEn = _WILD_TYPE_PT_EN[typeRaw] || typeRaw;
+        const isStatus = md.category === 'status' || !md.baseDamage;
+        let score;
+        if (isStatus) {
+            const lower = name.toLowerCase();
+            if (_WILD_HEAL_MOVES.has(lower)) score = hpRatio < 0.35 ? 60 : 1;
+            else if (targetHasStatus) score = 2;
+            else score = 18;
+        } else {
+            score = 20;
+            if (pImmune.includes(typeEn)) score = 1;
+            else if (pVulns.includes(typeEn)) score = 45;
+            else if (pResists.includes(typeEn)) score = 8;
+            if (wildTypes.includes(typeEn) || wildTypes.includes(typeRaw)) score += 6; // STAB
+        }
+        return { name, score: Math.max(1, score) };
+    });
+
+    const total = scored.reduce((s, m) => s + m.score, 0);
+    let r = Math.random() * total;
+    for (const m of scored) {
+        r -= m.score;
+        if (r <= 0) return m.name;
+    }
+    return scored[scored.length - 1].name;
+}
+
 async function _executeWildTurn() {
     const enemy = window.currentBattleData.enemy;
     const playerPoke = window.currentBattleData.playerPokemon;
@@ -4031,21 +4113,23 @@ async function _executeWildTurn() {
     const junkWords = ['down', 'up', 'out', 'off', 'in', 'on', 'by', 'to', 'the', 'a', 'an', 'or', 'and', 'is', 'not', 'this', 'of', 'for'];
     wildMoves = wildMoves.filter(m => m && m.length > 2 && !junkWords.includes(m.toLowerCase()) && !m.includes('©') && !m.toLowerCase().includes('unofficial') && !m.toLowerCase().includes('wizards') && !m.toLowerCase().includes('nintendo') && !m.toLowerCase().includes('portions'));
     if (wildMoves.length === 0) wildMoves = ['Tackle'];
-    const moveName = wildMoves[Math.floor(Math.random() * wildMoves.length)];
-    
-    // Get move data from cache (load if needed)
-    if (!MOVES_CACHE[moveName]) {
+
+    // Load any missing move data before choosing (AI precisa de tipo/categoria)
+    const missing = wildMoves.filter(m => !MOVES_CACHE[m]);
+    if (missing.length > 0) {
         try {
             const resp = await fetch('/api/moves/batch', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ moves: [moveName] })
+                body: JSON.stringify({ moves: missing })
             });
             const data = await resp.json();
             Object.assign(MOVES_CACHE, data);
         } catch(e) {}
     }
-    
+
+    // IA: escolhe move ponderando efetividade, STAB, status e cura
+    const moveName = wildChooseBestMove(wildMoves, enemy, playerPoke);
     const moveData = MOVES_CACHE[moveName] || {};
     
     // If move not found in cache, skip it (bad data)
@@ -4227,24 +4311,6 @@ async function _executeWildTurn() {
     }
 }
 
-function checkWildStatusMove(moveName) {
-    // Pure status moves from wild pokemon applying to player
-    const effectsData = window.statusEffectsData?.move_effects || {};
-    const effect = effectsData[moveName];
-    if (effect && effect.on === 'save_fail') {
-        // Simple: 50% chance to apply (simplified save)
-        if (Math.random() < 0.5) {
-            const cond = window.statusEffectsData?.conditions?.[effect.status];
-            window.playerPokemonStatus = { condition: effect.status, turns_active: 0 };
-            if (cond) addBattleLog(`${cond.icon} Seu Pokémon ficou <strong>${cond.name}</strong>!`);
-            updateStatusDisplay();
-            return effect.status;
-        }
-        addBattleLog(`💪 Seu Pokémon resistiu ao efeito de ${moveName}!`);
-    }
-    return null;
-}
-
 function checkWildStatusOnHit(moveName, attackRoll, damage) {
     // Check if the wild's damaging move inflicts a status on hit
     const effectsData = window.statusEffectsData?.move_effects || {};
@@ -4365,7 +4431,6 @@ function checkPokemonLevelUp(poke) {
 }
 
 // When trainer receives XP from master (quests), distribute to Pokemon team
-const _origXpHandler = socket._callbacks?.['$xp_update'];
 socket.on('xp_update', async (data) => {
     // Distribute XP to pokemon team
     if (data.xp && playerTeam.length > 0) {
@@ -4530,26 +4595,17 @@ async function processStatusMove(moveName, attackerPoke, targetPoke) {
     clearTurnCountdown();
     _lockPlayerActions();
     
-    // Build attacker stats for the server
+    // Build attacker stats for the server (includes ATK/DEF/SPA/SPD/SPE
+    // from the new stat system — the server maps saves/DC from them)
     const attackerStats = {
+        ...(attackerPoke?.stats || {}),
         level: attackerPoke?.level || 1,
         proficiency: attackerPoke?.proficiency || getProficiencyForLevel(attackerPoke?.level || 1),
-        maxHp: attackerPoke?.maxHp || 20,
-        STR: attackerPoke?.stats?.STR || 10,
-        DEX: attackerPoke?.stats?.DEX || 10,
-        CON: attackerPoke?.stats?.CON || 10,
-        INT: attackerPoke?.stats?.INT || 10,
-        WIS: attackerPoke?.stats?.WIS || 10,
-        CHA: attackerPoke?.stats?.CHA || 10
+        maxHp: attackerPoke?.maxHp || 20
     };
     const targetStats = {
-        level: targetPoke?.level || currentEncounter?.level || 5,
-        STR: targetPoke?.stats?.STR || 10,
-        DEX: targetPoke?.stats?.DEX || 10,
-        CON: targetPoke?.stats?.CON || 10,
-        INT: targetPoke?.stats?.INT || 10,
-        WIS: targetPoke?.stats?.WIS || 10,
-        CHA: targetPoke?.stats?.CHA || 10
+        ...(targetPoke?.stats || {}),
+        level: targetPoke?.level || currentEncounter?.level || 5
     };
     
     try {
@@ -4652,24 +4708,14 @@ async function processWildStatusMove(moveName) {
     const wildLevel = currentEncounter?.level || 5;
     
     const attackerStats = {
+        ...(enemy?.stats || {}),
         level: wildLevel,
         proficiency: getProficiencyForLevel(wildLevel),
-        maxHp: enemy?.maxHp || enemy?.hp || 20,
-        STR: enemy?.stats?.STR || 10,
-        DEX: enemy?.stats?.DEX || 10,
-        CON: enemy?.stats?.CON || 10,
-        INT: enemy?.stats?.INT || 10,
-        WIS: enemy?.stats?.WIS || 10,
-        CHA: enemy?.stats?.CHA || 10
+        maxHp: enemy?.maxHp || enemy?.hp || 20
     };
     const targetStats = {
-        level: playerPoke?.level || 1,
-        STR: playerPoke?.stats?.STR || 10,
-        DEX: playerPoke?.stats?.DEX || 10,
-        CON: playerPoke?.stats?.CON || 10,
-        INT: playerPoke?.stats?.INT || 10,
-        WIS: playerPoke?.stats?.WIS || 10,
-        CHA: playerPoke?.stats?.CHA || 10
+        ...(playerPoke?.stats || {}),
+        level: playerPoke?.level || 1
     };
     
     try {
@@ -4890,7 +4936,6 @@ function distributeTrainerStat(statKey, label) {
 // DODGE SYSTEM
 // ============================================
 window.playerDodging = false;
-window.enemyDodging = false;
 
 function toggleDodge() {
     window.playerDodging = !window.playerDodging;
@@ -4907,22 +4952,6 @@ function toggleDodge() {
         addBattleLog('🛡️ Modo Defesa normal. AC usa DEF/SPD.');
     }
 }
-
-// Wild pokemon randomly decides to dodge (30% chance for high SPE pokemon)
-function wildDecideDodge() {
-    const enemy = window.currentBattleData?.enemy;
-    if (!enemy) return;
-    const spe = enemy.stats?.SPE || 10;
-    const def = enemy.stats?.DEF || 10;
-    // Dodge if SPE is significantly higher than DEF
-    if (spe > def + 3 && Math.random() < 0.35) {
-        window.enemyDodging = true;
-        addBattleLog('🏃 Pokémon selvagem está esquivando! (AC baseada em SPE, dano ×1.25 se acertar)');
-    } else {
-        window.enemyDodging = false;
-    }
-}
-
 
 // ============================================
 // STAT MIGRATION HELPER (convert old STR/DEX/CON/INT/WIS/CHA to ATK/DEF/SPA/SPD/SPE/HP)
