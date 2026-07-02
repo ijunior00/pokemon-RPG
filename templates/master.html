@@ -11,6 +11,7 @@
         <button class="tab" data-tab="npcs">🧑‍🤝‍🧑 NPCs</button>
         <button class="tab" data-tab="pokedex">📖 Pokédex</button>
         <button class="tab" data-tab="quests">📜 Quests</button>
+        <button class="tab" data-tab="calendar">📅 Calendário</button>
         <button class="tab" data-tab="xp">⭐ XP</button>
         <button class="tab" data-tab="pvp-master">🥊 PVP</button>
         <button class="tab" data-tab="tournament">🏆 Campeonato</button>
@@ -221,6 +222,19 @@
                     <label>Dinheiro (₽)</label>
                     <input type="number" id="npc-money" value="500" min="0">
                 </div>
+                <div class="form-group">
+                    <label>Ritmo de treino</label>
+                    <select id="npc-growth-rate">
+                        <option value="slow">🐢 Lento</option>
+                        <option value="normal" selected>🚶 Normal</option>
+                        <option value="fast">🐇 Rápido</option>
+                    </select>
+                </div>
+                <div class="form-group" style="display:flex;align-items:center;gap:0.4rem;">
+                    <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+                        <input type="checkbox" id="npc-progression"> 📈 Progride sozinho (por dia do calendário)
+                    </label>
+                </div>
             </div>
             <div class="form-group">
                 <label>Time (busque Pokémon e adicione)</label>
@@ -406,6 +420,69 @@
             {% endif %}
             {% endfor %}
         </div>
+    </div>
+
+    <!-- TAB: CALENDÁRIO -->
+    <div class="tab-content" id="tab-calendar">
+        <h2>📅 Calendário do Jogo</h2>
+
+        <div class="quest-card" style="margin-bottom:1rem;">
+            <h3 style="margin-top:0;">Data atual: <span id="cal-date">Dia 1, Mês 1, Ano 1</span></h3>
+            <div class="form-row" style="align-items:flex-end;">
+                <button class="btn btn-primary" onclick="advanceCalendar(1)">☀️ +1 dia</button>
+                <div class="form-group" style="max-width:110px;">
+                    <label>N dias</label>
+                    <input type="number" id="cal-advance-days" value="3" min="1" max="30">
+                </div>
+                <button class="btn btn-secondary" onclick="advanceCalendarN()">⏩ Avançar N dias</button>
+            </div>
+            <div class="form-row" style="align-items:flex-end;">
+                <div class="form-group" style="max-width:90px;"><label>Dia</label><input type="number" id="cal-set-day" value="1" min="1" max="30"></div>
+                <div class="form-group" style="max-width:90px;"><label>Mês</label><input type="number" id="cal-set-month" value="1" min="1" max="12"></div>
+                <div class="form-group" style="max-width:90px;"><label>Ano</label><input type="number" id="cal-set-year" value="1" min="1"></div>
+                <button class="btn btn-warning" onclick="setCalendarDate()">📌 Definir data</button>
+            </div>
+            <p style="opacity:0.7;font-size:0.85rem;">Ao virar o dia: caçadas resetam (6/dia), NPCs com progressão treinam, eventos próximos são anunciados.</p>
+            <div id="cal-advance-log" style="max-height:180px;overflow-y:auto;font-size:0.85rem;"></div>
+        </div>
+
+        <div class="quest-card" style="margin-bottom:1rem;">
+            <h3 style="margin-top:0;">🎯 Caçadas dos Jogadores</h3>
+            <div class="form-row" style="align-items:flex-end;">
+                <div class="form-group">
+                    <label>Jogador</label>
+                    <select id="hunt-player">
+                        {% for uid, player in players.items() %}
+                        <option value="{{ uid }}">{{ player.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button class="btn btn-success" onclick="masterHunts('grant')">+1 caçada extra</button>
+                <button class="btn btn-warning" onclick="masterHunts('reset')">↺ Resetar contador</button>
+            </div>
+            <p id="hunt-master-result" style="font-size:0.85rem;"></p>
+        </div>
+
+        <h3>Novo Evento</h3>
+        <div class="quest-form">
+            <input type="hidden" id="evt-edit-id" value="">
+            <div class="form-row">
+                <div class="form-group"><label>Título</label><input type="text" id="evt-title" placeholder="Ex: Torneio de Hammerlocke"></div>
+                <div class="form-group"><label>Cidade/Local</label><input type="text" id="evt-city" placeholder="Ex: Hammerlocke"></div>
+            </div>
+            <div class="form-row" style="align-items:flex-end;">
+                <div class="form-group" style="max-width:90px;"><label>Dia</label><input type="number" id="evt-day" value="1" min="1" max="30"></div>
+                <div class="form-group" style="max-width:90px;"><label>Mês</label><input type="number" id="evt-month" value="1" min="1" max="12"></div>
+                <div class="form-group" style="max-width:90px;"><label>Ano</label><input type="number" id="evt-year" value="1" min="1"></div>
+                <div class="form-group" style="max-width:130px;"><label>Avisar N dias antes</label><input type="number" id="evt-notify" value="3" min="0" max="30"></div>
+            </div>
+            <div class="form-group"><label>Descrição</label><textarea id="evt-desc" rows="2" placeholder="O que acontece nesse evento..."></textarea></div>
+            <button class="btn btn-primary" id="evt-save-btn" onclick="createCalendarEvent()">📅 Criar Evento</button>
+            <button class="btn btn-secondary hidden" id="evt-cancel-btn" onclick="clearEventForm()">Cancelar edição</button>
+        </div>
+
+        <h3>Eventos</h3>
+        <div id="calendar-events-list"></div>
     </div>
 
     <!-- TAB: XP -->

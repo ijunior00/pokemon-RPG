@@ -255,6 +255,18 @@ function filterRouteRegion(region, btn) {
     if (firstMatch) sel.value = firstMatch.value;
 }
 
+function updateHuntCounter(used, limit) {
+    const u = document.getElementById('hunts-used');
+    const l = document.getElementById('hunts-limit');
+    if (u !== null && used !== undefined) u.textContent = used;
+    if (l !== null && limit !== undefined) l.textContent = limit;
+}
+
+function _survivalCheckText(sc) {
+    if (!sc) return '';
+    return `🎲 Sobrevivência: d20(${sc.roll}) + SAB(${sc.wis_mod >= 0 ? '+' : ''}${sc.wis_mod}) + Prof(+${sc.prof}) = <strong>${sc.total}</strong> vs CD ${sc.dc}`;
+}
+
 async function searchWildPokemon() {
     const routeId = document.getElementById('current-route').value;
     const huntMode = document.getElementById('hunt-mode').value;
@@ -267,7 +279,28 @@ async function searchWildPokemon() {
         body: JSON.stringify({ route_id: routeId, hunt_mode: huntMode, player_level: highestPokeLv })
     });
     const encounter = await response.json();
-    if (encounter.error) { alert('Nenhum Pokémon encontrado!'); return; }
+
+    const failBox = document.getElementById('hunt-fail-msg');
+    if (failBox) failBox.classList.add('hidden');
+    updateHuntCounter(encounter.hunts_used, encounter.hunts_limit);
+
+    if (encounter.error) {
+        // 403 = sem caçadas hoje; 429 = rate limit; outros erros
+        alert(encounter.error === 'No pokemon available for this route'
+            ? 'Nenhum Pokémon encontrado nesta rota!' : encounter.error);
+        return;
+    }
+
+    // Falhou no teste de Sobrevivência: gastou a tentativa, não achou nada
+    if (encounter.found === false) {
+        hideElement('encounter-result');
+        if (failBox) {
+            failBox.innerHTML = `${_survivalCheckText(encounter.survival_check)} — ❌ <strong>Falhou!</strong> Você não encontrou nada nesta caçada.`;
+            failBox.classList.remove('hidden');
+        }
+        return;
+    }
+
     currentEncounter = encounter;
     await displayEncounter(encounter);
 }
@@ -300,6 +333,27 @@ async function displayEncounter(encounter) {
     const canControl = encounter.level <= maxControlLevel;
     
     showElement('encounter-result');
+
+    // Emboscada (nat 1 no teste): banner, sem botão de fugir
+    const ambushBadge = document.getElementById('ambush-badge');
+    const titleEl = document.getElementById('encounter-title');
+    const fleeBtn = document.querySelector('#encounter-result .encounter-actions button[onclick="fleeBattle()"]');
+    if (encounter.ambush) {
+        ambushBadge?.classList.remove('hidden');
+        if (titleEl) titleEl.textContent = '⚠️ Você foi EMBOSCADO!';
+        if (fleeBtn) fleeBtn.style.display = 'none';
+    } else {
+        ambushBadge?.classList.add('hidden');
+        if (titleEl) titleEl.textContent = 'Pokémon Selvagem Apareceu!';
+        if (fleeBtn) fleeBtn.style.display = '';
+    }
+    const scInfo = document.getElementById('survival-check-info');
+    if (scInfo) {
+        scInfo.innerHTML = encounter.survival_check
+            ? `${_survivalCheckText(encounter.survival_check)} — ${encounter.ambush ? '💀 <strong>Falha crítica: emboscada!</strong>' : '✅ Sucesso!'}`
+            : '';
+    }
+
     document.getElementById('wild-pokemon-name').textContent = `${pokemon.name} #${String(pokemon.number).padStart(3, '0')}`;
     document.getElementById('wild-pokemon-level').textContent = encounter.level;
     document.getElementById('wild-pokemon-hp').textContent = pokemon.hp;
@@ -430,6 +484,12 @@ async function startBattle() {
     window._wildStatusApplied        = null;
     clearTurnCountdown();
 
+    // Emboscada: o jogador não consegue trocar/fugir facilmente
+    if (currentEncounter?.ambush) {
+        window._playerTrapped = true;
+        window._playerTrappedBy = 'Emboscada';
+    }
+
     // Store current battle data (with currentHp tracked in state, not just DOM)
     enemy.currentHp = enemy.hp;
     window.currentBattleData = { enemy, playerPokemon, level: currentEncounter.level };
@@ -505,6 +565,9 @@ async function startBattle() {
 
     // Clear battle log
     document.getElementById('battle-log-full').innerHTML = `<p>⚔️ Batalha iniciada! ${playerPokemon.nickname || playerPokemon.name} vs ${enemy.name} selvagem!</p><p>⏳ Rolando iniciativa...</p>`;
+    if (currentEncounter?.ambush) {
+        addBattleLog('⚠️ <strong>EMBOSCADA!</strong> O selvagem te pegou desprevenido — não dá para trocar de Pokémon nem fugir facilmente!');
+    }
     
     // Auto-roll initiative (player can trigger it themselves)
     socket.emit('roll_initiative', {});
@@ -5933,4 +5996,82 @@ document.addEventListener('DOMContentLoaded', () => {
     if (migrated) {
         saveTeam();
     }
+});
+
+// ============================================
+// CALENDÁRIO DO JOGO + CAÇADAS DIÁRIAS (jogador)
+// ============================================
+function _playerCalDate(cal) {
+    return `Dia ${cal.day}, Mês ${cal.month}, Ano ${cal.year}`;
+}
+
+async function loadHuntStatus() {
+    try {
+        const resp = await fetch('/api/hunts/status');
+        const data = await resp.json();
+        updateHuntCounter(data.used, data.limit);
+        const dateEl = document.getElementById('game-date');
+        if (dateEl && data.calendar) dateEl.textContent = _playerCalDate(data.calendar);
+    } catch(e) {}
+}
+
+function renderPlayerEvents(data) {
+    const dateEl = document.getElementById('game-date');
+    if (dateEl && data.calendar) dateEl.textContent = _playerCalDate(data.calendar);
+    const dateBadge = document.getElementById('player-events-date');
+    if (dateBadge && data.calendar) dateBadge.textContent = `(hoje: ${_playerCalDate(data.calendar)})`;
+    const list = document.getElementById('player-events-list');
+    if (!list) return;
+    const events = data.events || [];
+    if (!events.length) {
+        list.innerHTML = '<p class="empty-state">Nenhum evento anunciado.</p>';
+        return;
+    }
+    list.innerHTML = events.map(evt => {
+        const du = evt.days_until;
+        let badge, style = '';
+        if (du === 0) badge = '<span style="background:#e53935;color:#fff;padding:0.1rem 0.5rem;border-radius:10px;font-size:0.75rem;">🔴 HOJE!</span>';
+        else if (du > 0) badge = `<span style="background:#1976d2;color:#fff;padding:0.1rem 0.5rem;border-radius:10px;font-size:0.75rem;">⏳ faltam ${du} dia(s)</span>`;
+        else { badge = '<span style="background:#616161;color:#fff;padding:0.1rem 0.5rem;border-radius:10px;font-size:0.75rem;">✔ ocorrido/perdido</span>'; style = 'opacity:0.55;'; }
+        return `
+        <div class="quest-card" style="${style}margin-bottom:0.5rem;">
+            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <strong>📅 ${evt.title}</strong> ${badge}
+                <span style="opacity:0.7;font-size:0.85rem;">${evt.city ? '📍 ' + evt.city + ' · ' : ''}Dia ${evt.day}/Mês ${evt.month}/Ano ${evt.year}</span>
+            </div>
+            ${evt.description ? `<p style="font-size:0.85rem;margin:0.3rem 0 0;">${evt.description}</p>` : ''}
+        </div>`;
+    }).join('');
+}
+
+async function loadPlayerCalendar() {
+    try {
+        const resp = await fetch('/api/calendar');
+        renderPlayerEvents(await resp.json());
+    } catch(e) {}
+}
+
+socket.on('hunts_update', (data) => updateHuntCounter(data.used, data.limit));
+socket.on('calendar_update', (data) => {
+    renderPlayerEvents(data);
+    loadHuntStatus();
+    showNotification(`☀️ Um novo dia amanheceu! ${_playerCalDate(data.calendar)} — caçadas renovadas.`, 'info');
+});
+socket.on('calendar_event_soon', (data) => {
+    playNotificationSound();
+    showNotification(`📅 Evento em ${data.days_until} dia(s): ${data.event.title}${data.event.city ? ' em ' + data.event.city : ''}! Corra para chegar a tempo!`, 'warning');
+    loadPlayerCalendar();
+});
+socket.on('calendar_event_today', (data) => {
+    playNotificationSound();
+    showNotification(`🔴 É HOJE: ${data.event.title}${data.event.city ? ' em ' + data.event.city : ''}!`, 'warning');
+    loadPlayerCalendar();
+});
+socket.on('calendar_event_new', () => loadPlayerCalendar());
+socket.on('calendar_event_updated', () => loadPlayerCalendar());
+socket.on('calendar_event_deleted', () => loadPlayerCalendar());
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadHuntStatus();
+    loadPlayerCalendar();
 });

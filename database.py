@@ -208,7 +208,9 @@ def get_game_state(table_id='default'):
     conn.close()
     if row:
         return row['value']
-    return {'active_encounters': {}, 'quests': [], 'player_xp': {}}
+    return {'active_encounters': {}, 'quests': [], 'player_xp': {},
+            'calendar': {'day': 1, 'month': 1, 'year': 1},
+            'calendar_events': [], 'hunts': {}}
 
 def save_game_state(state, table_id='default'):
     key = f'main_{table_id}'

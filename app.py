@@ -337,6 +337,75 @@ def _apply_xp(trainer: dict, xp_amount: int) -> dict:
     trainer['xp_to_next'] = XP_TABLE[min(new_level, len(XP_TABLE) - 1)] if new_level < len(XP_TABLE) else 99999
     return {'new_level': new_level, 'old_level': old_level, 'leveled_up': new_level > old_level}
 
+# ============================================================
+# CALENDÁRIO DO JOGO + CAÇADAS DIÁRIAS
+# Meses de 30 dias, 12 meses. Só o mestre avança o dia.
+# ============================================================
+DEFAULT_CALENDAR = {'day': 1, 'month': 1, 'year': 1}
+MAX_HUNTS_PER_DAY = 6
+SURVIVAL_DC = {'normal': 10, 'dungeon': 13, 'night': 15}
+
+
+def _get_calendar(state):
+    """Calendário da mesa com default retrocompatível."""
+    cal = state.get('calendar') or {}
+    return {'day': int(cal.get('day', 1)), 'month': int(cal.get('month', 1)),
+            'year': int(cal.get('year', 1))}
+
+
+def _day_key(cal):
+    return f"Y{cal['year']}-M{cal['month']}-D{cal['day']}"
+
+
+def _cal_abs(day, month, year):
+    """Dia absoluto desde 1/1/ano1 (p/ calcular 'faltam N dias')."""
+    return (int(year) - 1) * 360 + (int(month) - 1) * 30 + (int(day) - 1)
+
+
+def _advance_one_day(cal):
+    cal['day'] += 1
+    if cal['day'] > 30:
+        cal['day'] = 1
+        cal['month'] += 1
+    if cal['month'] > 12:
+        cal['month'] = 1
+        cal['year'] += 1
+    return cal
+
+
+def _trainer_prof(level):
+    """Proficiência do TREINADOR (nível 1-20) — espelha o cliente."""
+    level = int(level or 1)
+    if level >= 17: return 6
+    if level >= 13: return 5
+    if level >= 9: return 4
+    if level >= 5: return 3
+    return 2
+
+
+def _hunt_entry(state, player_id):
+    """Entrada de caçadas do jogador com reset lazy na virada do dia."""
+    cal = _get_calendar(state)
+    dkey = _day_key(cal)
+    entry = (state.get('hunts') or {}).get(player_id)
+    if not entry or entry.get('day_key') != dkey:
+        entry = {'day_key': dkey, 'used': 0, 'bonus': 0}
+    return entry, dkey
+
+
+def _events_with_days_until(state):
+    cal = _get_calendar(state)
+    today = _cal_abs(cal['day'], cal['month'], cal['year'])
+    events = []
+    for evt in state.get('calendar_events') or []:
+        e = dict(evt)
+        e['days_until'] = _cal_abs(evt.get('day', 1), evt.get('month', 1),
+                                   evt.get('year', 1)) - today
+        events.append(e)
+    events.sort(key=lambda e: e['days_until'])
+    return events
+
+
 # Load mega stones database
 MEGA_FILE = os.path.join(DATA_DIR, 'mega_stones.json')
 MEGA_DB = load_json(MEGA_FILE)
@@ -970,6 +1039,259 @@ def delete_quest(quest_id):
     return jsonify({'success': True})
 
 
+# ============================================================
+# CALENDÁRIO — rotas
+# ============================================================
+@app.route('/api/calendar', methods=['GET'])
+@login_required
+def api_calendar():
+    """Data atual + eventos com dias restantes (qualquer usuário logado)."""
+    state = get_game_state()
+    return jsonify({'calendar': _get_calendar(state),
+                    'events': _events_with_days_until(state)})
+
+
+@app.route('/api/hunts/status', methods=['GET'])
+@login_required
+def api_hunts_status():
+    """Contador de caçadas do jogador (reset lazy, sem persistir)."""
+    state = get_game_state()
+    entry, dkey = _hunt_entry(state, str(current_user.id))
+    return jsonify({'used': entry['used'],
+                    'limit': MAX_HUNTS_PER_DAY + int(entry.get('bonus', 0)),
+                    'calendar': _get_calendar(state), 'day_key': dkey})
+
+
+@app.route('/master/hunts', methods=['POST'])
+@login_required
+def master_hunts():
+    """Mestre reseta ou concede caçadas extras a um jogador."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    player_id = str(data.get('player_id', ''))
+    action = data.get('action', 'reset')
+    if not player_id:
+        return jsonify({'error': 'player_id obrigatório'}), 400
+
+    state = get_game_state()
+    entry, dkey = _hunt_entry(state, player_id)
+    if action == 'grant':
+        entry['bonus'] = int(entry.get('bonus', 0)) + max(1, int(data.get('amount', 1)))
+    else:
+        entry['used'] = 0
+    hunts = state.get('hunts') or {}
+    hunts[player_id] = entry
+    state['hunts'] = hunts
+    save_game_state(state)
+
+    limit = MAX_HUNTS_PER_DAY + int(entry.get('bonus', 0))
+    socketio.emit('hunts_update', {'used': entry['used'], 'limit': limit},
+                  room=player_id)
+    return jsonify({'ok': True, 'used': entry['used'], 'limit': limit})
+
+
+def _process_npcs_for_day(dkey):
+    """Progressão autônoma dos NPCs num dia de jogo. Retorna log p/ o mestre."""
+    log = []
+    for npc in db.get_npcs():
+        if not npc.get('progression_enabled'):
+            continue
+        rate = npc.get('growth_rate', 'normal')
+        roll = random.randint(1, 20)
+        diary = npc.setdefault('diary', [])
+
+        if roll < 10:
+            diary.append({'day_key': dkey,
+                          'message': f'Treinou mas não avançou (d20={roll} vs CD 10).'})
+        else:
+            gained = 0
+            if rate == 'fast':
+                gained = 2
+            elif rate == 'slow':
+                npc['growth_points'] = npc.get('growth_points', 0) + 1
+                if npc['growth_points'] >= 2:
+                    npc['growth_points'] -= 2
+                    gained = 1
+            else:
+                gained = 1
+
+            evo_msgs = []
+            if gained:
+                for i, p in enumerate(npc.get('team', [])):
+                    if p.get('level', 1) >= 100:
+                        continue
+                    p['level'] = min(100, int(p.get('level', 1)) + gained)
+                    base = POKEMON_BY_NAME.get((p.get('name') or '').lower())
+                    if base:
+                        scaled = scaling.calculate_pokemon_stats(base, p['level'], p.get('nature'))
+                        p.update({'stats': scaled['stats'], 'maxHp': scaled['maxHp'],
+                                  'currentHp': scaled['maxHp'], 'hp': scaled['hp'],
+                                  'ac': scaled['ac'],
+                                  'proficiency': scaled['proficiency'], 'stab': scaled['stab'],
+                                  'phys_ac': scaled['phys_ac'], 'spec_ac': scaled['spec_ac']})
+                    evolved, evo_name = check_and_evolve_pokemon(
+                        p, trainer_level=max(1, -(-p['level'] // 5)))
+                    if evolved:
+                        evo_msgs.append(f"{p.get('name')} evoluiu para {evo_name}!")
+                        npc['team'][i] = evolved
+
+            if gained:
+                msg = f'Treino com sucesso (d20={roll}): time +{gained} nível(is).'
+            else:
+                msg = f'Treino com sucesso (d20={roll}); progresso lento acumulando.'
+            if evo_msgs:
+                msg += ' 🎉 ' + ' '.join(evo_msgs)
+            diary.append({'day_key': dkey, 'message': msg})
+
+        npc['diary'] = diary[-60:]
+        db.save_npc(npc)
+        log.append({'npc_id': npc['id'], 'name': npc.get('name', '?'),
+                    'message': npc['diary'][-1]['message']})
+    return log
+
+
+@app.route('/master/calendar/advance', methods=['POST'])
+@login_required
+def master_calendar_advance():
+    """Avança N dias: processa NPCs e eventos dia a dia, reseta caçadas."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    days = max(1, min(30, int((request.json or {}).get('days', 1))))
+
+    state = get_game_state()
+    cal = _get_calendar(state)
+    npc_log = []
+    for _ in range(days):
+        cal = _advance_one_day(cal)
+        npc_log.extend([dict(e, day_key=_day_key(cal)) for e in _process_npcs_for_day(_day_key(cal))])
+
+    state['calendar'] = cal
+    state['hunts'] = {}   # novo dia → contadores zerados
+    save_game_state(state)
+
+    events = _events_with_days_until(state)
+    events_triggered = []
+    tid = _tid()
+    for e in events:
+        if e['days_until'] == 0:
+            socketio.emit('calendar_event_today', {'event': e}, room=f'players_{tid}')
+            events_triggered.append(e)
+        elif 0 < e['days_until'] <= int(e.get('notify_days_before', 3)):
+            socketio.emit('calendar_event_soon',
+                          {'event': e, 'days_until': e['days_until']},
+                          room=f'players_{tid}')
+
+    payload = {'calendar': cal, 'events': events}
+    socketio.emit('calendar_update', payload, room=f'players_{tid}')
+    socketio.emit('calendar_update', payload, room=f'master_{tid}')
+    socketio.emit('hunts_update', {'used': 0, 'limit': MAX_HUNTS_PER_DAY},
+                  room=f'players_{tid}')
+    if npc_log:
+        socketio.emit('npc_diary_update', {'npc_log': npc_log}, room=f'master_{tid}')
+
+    return jsonify({'calendar': cal, 'npc_log': npc_log,
+                    'events_triggered': events_triggered})
+
+
+@app.route('/master/calendar/set', methods=['POST'])
+@login_required
+def master_calendar_set():
+    """Define a data diretamente (correção manual — não processa NPCs)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    try:
+        cal = {'day': int(data.get('day', 1)), 'month': int(data.get('month', 1)),
+               'year': int(data.get('year', 1))}
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Data inválida'}), 400
+    if not (1 <= cal['day'] <= 30 and 1 <= cal['month'] <= 12 and cal['year'] >= 1):
+        return jsonify({'error': 'Data inválida (dia 1-30, mês 1-12, ano ≥1)'}), 400
+
+    state = get_game_state()
+    state['calendar'] = cal
+    state['hunts'] = {}
+    save_game_state(state)
+
+    payload = {'calendar': cal, 'events': _events_with_days_until(state)}
+    tid = _tid()
+    socketio.emit('calendar_update', payload, room=f'players_{tid}')
+    socketio.emit('calendar_update', payload, room=f'master_{tid}')
+    return jsonify(payload)
+
+
+@app.route('/master/calendar/events', methods=['POST'])
+@login_required
+def create_calendar_event():
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    try:
+        evt = {
+            'id': secrets.token_hex(4),
+            'title': (data.get('title') or '').strip(),
+            'city': (data.get('city') or '').strip(),
+            'description': (data.get('description') or '').strip(),
+            'day': int(data.get('day', 1)),
+            'month': int(data.get('month', 1)),
+            'year': int(data.get('year', 1)),
+            'notify_days_before': max(0, int(data.get('notify_days_before', 3))),
+        }
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Dados inválidos'}), 400
+    if not evt['title']:
+        return jsonify({'error': 'Título obrigatório'}), 400
+    if not (1 <= evt['day'] <= 30 and 1 <= evt['month'] <= 12 and evt['year'] >= 1):
+        return jsonify({'error': 'Data inválida (dia 1-30, mês 1-12, ano ≥1)'}), 400
+
+    state = get_game_state()
+    events = state.get('calendar_events') or []
+    events.append(evt)
+    state['calendar_events'] = events
+    save_game_state(state)
+
+    socketio.emit('calendar_event_new', evt, room=f'players_{_tid()}')
+    return jsonify(evt)
+
+
+@app.route('/master/calendar/events/<event_id>', methods=['PUT'])
+@login_required
+def update_calendar_event(event_id):
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    state = get_game_state()
+    for evt in state.get('calendar_events') or []:
+        if evt['id'] == event_id:
+            for field in ('title', 'city', 'description'):
+                if field in data:
+                    evt[field] = (data.get(field) or '').strip()
+            for field in ('day', 'month', 'year', 'notify_days_before'):
+                if field in data:
+                    try:
+                        evt[field] = int(data[field])
+                    except (TypeError, ValueError):
+                        pass
+            save_game_state(state)
+            socketio.emit('calendar_event_updated', evt, room=f'players_{_tid()}')
+            return jsonify(evt)
+    return jsonify({'error': 'Evento não encontrado'}), 404
+
+
+@app.route('/master/calendar/events/<event_id>', methods=['DELETE'])
+@login_required
+def delete_calendar_event(event_id):
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    state = get_game_state()
+    events = state.get('calendar_events') or []
+    state['calendar_events'] = [e for e in events if e['id'] != event_id]
+    save_game_state(state)
+    socketio.emit('calendar_event_deleted', {'id': event_id}, room=f'players_{_tid()}')
+    return jsonify({'ok': True})
+
+
 @app.route('/api/game-state', methods=['GET'])
 @login_required
 def api_game_state():
@@ -1266,7 +1588,10 @@ def create_npc():
         'npc_class': data.get('npc_class', ''),
         'level': data.get('level', 10),
         'team': data.get('team', []),
-        'notes': data.get('notes', '')
+        'notes': data.get('notes', ''),
+        'growth_rate': data.get('growth_rate', 'normal'),
+        'progression_enabled': bool(data.get('progression_enabled', False)),
+        'diary': []
     }
     db.save_npc(npc)
     return jsonify(npc)
@@ -1281,7 +1606,9 @@ def update_npc(npc_id):
     npc  = next((n for n in npcs if n['id'] == npc_id), None)
     if not npc:
         return jsonify({'error': 'NPC not found'}), 404
-    for field in ['name', 'npc_class', 'level', 'role', 'specialty', 'money', 'team', 'notes']:
+    # 'diary' fica de fora de propósito: é gerenciado pelo servidor
+    for field in ['name', 'npc_class', 'level', 'role', 'specialty', 'money',
+                  'team', 'notes', 'growth_rate', 'progression_enabled']:
         if field in data:
             npc[field] = data[field]
     db.save_npc(npc)
@@ -1447,7 +1774,10 @@ def generate_npc():
         'level': level,
         'team': team,
         'notes': f'Gerado automaticamente. {team_size} Pokémon.',
-        'generated': True
+        'generated': True,
+        'growth_rate': data.get('growth_rate', 'normal'),
+        'progression_enabled': bool(data.get('progression_enabled', False)),
+        'diary': []
     }
     db.save_npc(npc)
     return jsonify(npc)
@@ -1908,8 +2238,45 @@ def api_encounter():
     hunt_mode = data.get('hunt_mode', 'normal')
     if data.get('is_dungeon') and hunt_mode == 'normal':
         hunt_mode = 'dungeon'
-    # player_level = highest Pokemon level in team (1-100 scale)
-    player_level = int(data.get('player_level', 5))
+    if hunt_mode not in SURVIVAL_DC:
+        hunt_mode = 'normal'
+
+    # ── Gate de caçadas diárias + teste de Sobrevivência (server-side) ──
+    pid = str(current_user.id)
+    state = get_game_state()
+    entry, dkey = _hunt_entry(state, pid)
+    hunts_limit = MAX_HUNTS_PER_DAY + int(entry.get('bonus', 0))
+    if entry['used'] >= hunts_limit:
+        return jsonify({
+            'error': f'Sem caçadas restantes hoje ({entry["used"]}/{hunts_limit}). '
+                     'Aguarde o mestre avançar o dia.',
+            'hunts_used': entry['used'], 'hunts_limit': hunts_limit
+        }), 403
+
+    trainer = get_users().get(pid, {}).get('trainer_data', {})
+    wis_mod = (int(trainer.get('wis', 10) or 10) - 10) // 2
+    prof = _trainer_prof(trainer.get('level', 1))
+    roll = random.randint(1, 20)
+    total = roll + wis_mod + prof
+    dc = SURVIVAL_DC[hunt_mode]
+    survival = {'roll': roll, 'wis_mod': wis_mod, 'prof': prof,
+                'total': total, 'dc': dc}
+
+    # Consome a tentativa em qualquer resultado e salva ANTES de gerar
+    entry['used'] += 1
+    hunts = state.get('hunts') or {}
+    hunts[pid] = entry
+    state['hunts'] = hunts
+    save_game_state(state)
+
+    is_ambush = (roll == 1)
+    if total < dc and not is_ambush:
+        return jsonify({'found': False, 'survival_check': survival,
+                        'hunts_used': entry['used'], 'hunts_limit': hunts_limit})
+
+    # player_level derivado do time real (não confia no cliente); fallback: body
+    team_levels = [int(p.get('level', 1) or 1) for p in trainer.get('team', [])]
+    player_level = max(team_levels) if team_levels else int(data.get('player_level', 5))
     
     route = ROUTES_DATA.get(route_id, {})
     route_types = route.get('types', ['Normal'])
@@ -2025,6 +2392,9 @@ def api_encounter():
     # Ensure minimum level based on pokemon's min (scaled)
     pokemon_min_lv = max(1, chosen.get('minLevel', 1) * 5)
     encounter_level = max(pokemon_min_lv, encounter_level)
+    # Emboscada (nat 1 no teste de Sobrevivência): encontro perigoso
+    if is_ambush:
+        encounter_level += random.randint(5, 10)
     encounter_level = min(100, encounter_level)
     
     # Shiny chance by mode
@@ -2077,9 +2447,14 @@ def api_encounter():
         'wild_moves': wild_moves,
         'is_shiny': is_shiny,
         'hunt_mode': hunt_mode,
-        'route_id': route_id
+        'route_id': route_id,
+        'found': True,
+        'ambush': is_ambush,
+        'survival_check': survival,
+        'hunts_used': entry['used'],
+        'hunts_limit': hunts_limit
     }
-    
+
     return jsonify(encounter)
 
 # ============================================================
