@@ -93,10 +93,16 @@ ALL_ABILITIES = (
 )
 
 
+def normalize_ability(ability) -> str:
+    """Aceita string ou dict {'name': ...} (formato do pokemon.json)."""
+    if isinstance(ability, dict):
+        ability = ability.get('name', '')
+    return (ability or '').strip().lower()
+
+
 def get_ability_key(pokemon: dict) -> str:
     """Return the ability name in lowercase from a pokemon dict."""
-    raw = pokemon.get('ability', '') or ''
-    return raw.strip().lower()
+    return normalize_ability(pokemon.get('ability'))
 
 
 def check_defender_ability(ability: str, move_type: str, damage: int, current_hp: int, max_hp: int) -> dict:
@@ -113,8 +119,8 @@ def check_defender_ability(ability: str, move_type: str, damage: int, current_hp
         'message': str,           # description for battle log
     }
     """
-    ability = ability.strip().lower()
-    move_type = move_type.strip().lower()
+    ability = normalize_ability(ability)
+    move_type = (move_type or '').strip().lower()
 
     result = {
         'modified_damage': damage,
@@ -172,7 +178,7 @@ def check_on_enter(ability: str, pokemon_name: str) -> dict | None:
     """
     Returns on-enter effect info for a Pokémon entering battle, or None.
     """
-    ability = ability.strip().lower()
+    ability = normalize_ability(ability)
     effect = ABILITY_ON_ENTER.get(ability)
     if not effect:
         return None
@@ -186,6 +192,6 @@ def check_on_enter(ability: str, pokemon_name: str) -> dict | None:
     }
 
 
-def get_passive(ability: str) -> str | None:
+def get_passive(ability) -> str | None:
     """Return passive key for an ability, or None."""
-    return ABILITY_PASSIVES.get(ability.strip().lower())
+    return ABILITY_PASSIVES.get(normalize_ability(ability))

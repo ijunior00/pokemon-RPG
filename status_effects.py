@@ -5,7 +5,7 @@ Defines conditions, their effects per turn, and which moves apply them.
 Based on Pokemon 5e rules + PokemonDB general mechanics.
 """
 import random
-import re
+from re import search as _re_search
 
 # ============================================================
 # STATUS CONDITIONS
@@ -130,7 +130,6 @@ MOVE_STATUS_EFFECTS = {
     'Flamethrower': {'status': 'queimado', 'chance': 0.10, 'on': 'hit'},
     'Fire Blast': {'status': 'queimado', 'chance': 0.10, 'on': 'hit'},
     'Fire Punch': {'status': 'queimado', 'chance': 0.10, 'on': 'hit'},
-    'Fire Fang': {'status': 'queimado', 'chance': 0.10, 'on': 'hit'},
     'Lava Plume': {'status': 'queimado', 'chance': 0.30, 'on': 'hit'},
     'Scald': {'status': 'queimado', 'chance': 0.30, 'on': 'hit'},
     'Blaze Kick': {'status': 'queimado', 'chance': 0.10, 'on': 'hit'},
@@ -146,7 +145,6 @@ MOVE_STATUS_EFFECTS = {
     'Thunder': {'status': 'paralisado', 'chance': 0.30, 'on': 'hit'},
     'Thunderbolt': {'status': 'paralisado', 'chance': 0.10, 'on': 'hit'},
     'Thunder Punch': {'status': 'paralisado', 'chance': 0.10, 'on': 'hit'},
-    'Thunder Fang': {'status': 'paralisado', 'chance': 0.10, 'on': 'hit'},
     'Spark': {'status': 'paralisado', 'chance': 0.30, 'on': 'hit'},
     'Body Slam': {'status': 'paralisado', 'chance': 0.30, 'on': 'hit'},
     'Lick': {'status': 'paralisado', 'chance': 0.30, 'on': 'hit'},
@@ -171,7 +169,6 @@ MOVE_STATUS_EFFECTS = {
     'Ice Beam': {'status': 'congelado', 'chance': 0.10, 'on': 'hit'},
     'Blizzard': {'status': 'congelado', 'chance': 0.10, 'on': 'hit'},
     'Ice Punch': {'status': 'congelado', 'chance': 0.10, 'on': 'hit'},
-    'Ice Fang': {'status': 'congelado', 'chance': 0.10, 'on': 'hit'},
     'Freeze-Dry': {'status': 'congelado', 'chance': 0.10, 'on': 'hit'},
     'Powder Snow': {'status': 'congelado', 'chance': 0.10, 'on': 'hit'},
     'Freeze Shock': {'status': 'paralisado', 'chance': 0.30, 'on': 'hit'},
@@ -231,9 +228,60 @@ MOVE_STATUS_EFFECTS = {
     'Sand Attack': {'status': 'debuff', 'stat': 'attack_roll', 'value': -3, 'on': 'save_fail', 'save': 'DEX'},
     'Flash': {'status': 'debuff', 'stat': 'attack_roll', 'value': -3, 'on': 'save_fail', 'save': 'CON'},
     'Kinesis': {'status': 'debuff', 'stat': 'attack_roll', 'value': -2, 'on': 'save_fail', 'save': 'WIS'},
-    'Swagger': {'status': 'confuso', 'chance': 1.0, 'on': 'save_fail', 'save': 'WIS'},
-    'Flatter': {'status': 'confuso', 'chance': 1.0, 'on': 'save_fail', 'save': 'WIS'},
 }
+
+
+# PT power abbreviations → stat keys (new system first, legacy fallback)
+_POWER_TO_STATS = {
+    'FOR': ('ATK', 'STR'),
+    'DES': ('SPE', 'DEX'),
+    'CON': ('DEF', 'CON'),
+    'INT': ('SPA', 'INT'),
+    'SAB': ('SPD', 'WIS'),
+    'CAR': ('SPA', 'CHA'),
+}
+
+# Saving throw stat → pokemon stat (new system first, legacy fallback)
+_SAVE_TO_STATS = {
+    'STR': ('ATK', 'STR'),
+    'DEX': ('SPE', 'DEX'),
+    'CON': ('DEF', 'CON'),
+    'INT': ('SPA', 'INT'),
+    'WIS': ('SPD', 'WIS'),
+    'CHA': ('SPD', 'CHA'),
+}
+
+
+def _stat_value(stats: dict, keys) -> int:
+    """Get first available stat value from a (new, legacy) key pair."""
+    for key in keys:
+        val = stats.get(key)
+        if isinstance(val, (int, float)) and val:
+            return int(val)
+    return 10
+
+
+def _best_attacker_mod(attacker_stats: dict, power: str) -> int:
+    """Best ability modifier among the stats listed in a move's power field."""
+    power = (power or '').upper()
+    best = 0
+    for abbrev, keys in _POWER_TO_STATS.items():
+        if abbrev in power:
+            best = max(best, (_stat_value(attacker_stats, keys) - 10) // 2)
+    if not best:
+        # No power field → use the better of ATK/SPA
+        best = max(
+            (_stat_value(attacker_stats, ('ATK', 'STR')) - 10) // 2,
+            (_stat_value(attacker_stats, ('SPA', 'INT')) - 10) // 2,
+            0
+        )
+    return best
+
+
+def _save_mod(target_stats: dict, save_stat: str) -> int:
+    """Target's saving throw modifier for a given save stat."""
+    keys = _SAVE_TO_STATS.get((save_stat or 'WIS').upper(), ('SPD', 'WIS'))
+    return (_stat_value(target_stats, keys) - 10) // 2
 
 
 def check_status_on_hit(move_name, attack_roll, damage_dealt):
@@ -253,7 +301,7 @@ def check_status_on_hit(move_name, attack_roll, damage_dealt):
     elif trigger == 'nat15plus' and attack_roll >= 15 and damage_dealt > 0:
         if random.random() < chance:
             return effect['status'], True
-    elif trigger == 'save_fail':
+    elif trigger in ('save_fail', 'next_turn'):
         # Treat as automatic on hit (server can roll saving throw if needed)
         if random.random() < chance:
             return effect['status'], True
@@ -502,6 +550,25 @@ def auto_detect_move_effect(move_data):
         'torment': {'type': 'debuff_target', 'stat': 'locked_move', 'value': -1, 'save': 'WIS', 'duration': 3},
         # Attract
         'attract': {'type': 'inflict_status', 'status': 'amedrontado', 'save': 'WIS'},
+        # Buffs de CA / ataque (5e homebrew)
+        'defense curl': {'type': 'buff_self', 'stat': 'AC', 'value': 4, 'duration': 1},
+        'focus energy': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 2, 'duration': 3},
+        'coil': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 1, 'duration': 3},
+        'meditate': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 1, 'duration': 3},
+        'sharpen': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 2, 'duration': 3},
+        'growth': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 2, 'duration': 3},
+        'sweet scent': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 3, 'duration': 2},
+        'laser focus': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 2, 'duration': 1},
+        'lock-on': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 4, 'duration': 1},
+        'mind reader': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 4, 'duration': 1},
+        # Debuffs conhecidos
+        'noble roar': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'WIS', 'duration': 2},
+        'captivate': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'CHA', 'duration': 2},
+        'eerie impulse': {'type': 'debuff_target', 'stat': 'SPA', 'value': -3, 'save': 'CON', 'duration': 3},
+        'memento': {'type': 'debuff_target', 'stat': 'ATK', 'value': -4, 'save': 'WIS', 'duration': 3},
+        'parting shot': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'WIS', 'duration': 2},
+        'curse': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'save': 'WIS', 'duration': 3},
+        'spite': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 2},
     }
     
     # Check by name first
@@ -524,8 +591,6 @@ def auto_detect_move_effect(move_data):
     
     # Poison
     if any(kw in desc for kw in ['envenenad', 'veneno', 'poison', 'toxic']):
-        if 'gravemente' in desc or 'badly' in desc:
-            return {'type': 'inflict_status', 'status': 'badly_poisoned', 'save': 'CON'}
         return {'type': 'inflict_status', 'status': 'badly_poisoned', 'save': 'CON'}
     
     # Burn
@@ -583,7 +648,24 @@ def auto_detect_move_effect(move_data):
     # Protect
     if any(kw in desc for kw in ['evitar automaticamente sofrer dano', 'proteg', 'invulnerável', 'protect', 'shields']):
         return {'type': 'protect', 'duration': 1}
-    
+
+    # Buff de CA descrito no texto ("ganhe +4 na sua CA", "aumentando sua CA em 1")
+    m_ca = _re_search(r'(?:\+(\d+)\s+(?:na|em)\s+(?:sua\s+)?ca|(?:sua\s+)?ca\s+em\s+(\d+))', desc)
+    if m_ca:
+        val = int(m_ca.group(1) or m_ca.group(2))
+        return {'type': 'buff_self', 'stat': 'AC', 'value': val, 'duration': 3}
+
+    # Bônus de ataque descrito no texto ("+1 em testes de ataque", "adicionar um d4
+    # a qualquer jogada de ataque", "vantagem em seus próximos ataques")
+    if _re_search(r'\+\d+\s+(?:em|nos?)\s+(?:seus\s+)?testes?\s+de\s+ataque', desc) or \
+       _re_search(r'(?:adicionar|adicione)\s+(?:um\s+)?1?d4\s+a\s+(?:qualquer|todas)', desc) or \
+       'vantagem em seus próximos' in desc or 'margem de acerto crítico' in desc:
+        return {'type': 'buff_self', 'stat': 'attack_roll', 'value': 2, 'duration': 3}
+
+    # Desvantagem no ataque do alvo
+    if 'desvantagem na rolagem de ataque' in desc or 'desvantagem em suas rolagens de ataque' in desc:
+        return {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -3, 'save': 'WIS', 'duration': 2}
+
     # If nothing detected
     return None
 
@@ -610,24 +692,18 @@ def process_status_move(move_data, attacker_stats, target_stats):
         }
     
     move_name = move_data.get('name', '???')
-    attacker_level = attacker_stats.get('level', 1)
-    
-    # Calculate Move DC: 8 + proficiency + relevant stat mod
+
+    # Calculate Move DC: 8 + proficiency + relevant stat mod.
+    # The 'power' field uses PT abbreviations (FOR/DES/CON/INT/SAB/CAR);
+    # pokemon stats use the new system (ATK/DEF/SPA/SPD/SPE/HP) with
+    # possible legacy keys (STR/DEX/CON/INT/WIS/CHA).
     prof = attacker_stats.get('proficiency', 2)
-    power = (move_data.get('power', 'SAB')).upper()
-    stat_mod = 0
-    for stat_key in ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA']:
-        if stat_key[:3] in power or stat_key in power:
-            mod = (attacker_stats.get(stat_key, 10) - 10) // 2
-            stat_mod = max(stat_mod, mod)
-    
-    move_dc = 8 + prof + stat_mod
-    
+    move_dc = 8 + prof + _best_attacker_mod(attacker_stats, move_data.get('power', ''))
+
     if effect['type'] == 'inflict_status':
         # Target makes a saving throw
         save_stat = effect.get('save', 'WIS')
-        save_val = target_stats.get(save_stat, 10)
-        save_mod = (save_val - 10) // 2
+        save_mod = _save_mod(target_stats, save_stat)
         save_roll = random.randint(1, 20)
         save_total = save_roll + save_mod
         
@@ -651,8 +727,7 @@ def process_status_move(move_data, attacker_stats, target_stats):
     
     elif effect['type'] == 'debuff_target':
         save_stat = effect.get('save', 'WIS')
-        save_val = target_stats.get(save_stat, 10)
-        save_mod = (save_val - 10) // 2
+        save_mod = _save_mod(target_stats, save_stat)
         save_roll = random.randint(1, 20)
         save_total = save_roll + save_mod
         

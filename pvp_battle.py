@@ -10,6 +10,8 @@ Modes:
 import random
 import secrets
 
+import status_effects as effects
+
 
 def create_pvp_battle(mode, player1_id, player2_id, bets=None):
     """Create a new PVP battle state."""
@@ -79,9 +81,10 @@ def select_pokemon(battle, player_key, pokemon_idx):
 
 
 def roll_initiative(pokemon):
-    """Roll d20 + DEX modifier for initiative."""
-    dex = pokemon.get('stats', {}).get('DEX', 10) if isinstance(pokemon, dict) else 10
-    mod = (dex - 10) // 2
+    """Roll d20 + Speed modifier for initiative (SPE novo / DEX legado)."""
+    stats = pokemon.get('stats', {}) if isinstance(pokemon, dict) else {}
+    spe = stats.get('SPE') or stats.get('DEX') or 10
+    mod = (spe - 10) // 2
     roll = random.randint(1, 20)
     return roll + mod
 
@@ -241,28 +244,25 @@ def apply_status(battle, player_key, status_condition):
 
 
 def process_turn_status(battle, player_key):
-    """Process status damage at turn start for the active pokemon.
-    Returns (damage_dealt, status_dict_or_None)."""
+    """Process status effects at turn start for the active pokemon.
+    Uses the full status engine (poison/burn damage, sleep/freeze/paralysis
+    skip checks, duration expiry).
+    Returns (damage_dealt, status_dict_or_None, can_act, messages)."""
     player = battle[player_key]
     active = player['team'][player['active_idx']]
     status = active.get('status')
     if not status:
-        return 0, None
-
-    condition = status.get('condition', '')
-    turns = status.get('turns_active', 0) + 1
-    status['turns_active'] = turns
-    active['status'] = status
+        return 0, None, True, []
 
     max_hp = active.get('maxHp', 20)
-    damage = 0
+    can_act, damage, messages, removed = effects.process_turn_start(status, max_hp)
 
-    if condition in ('badly_poisoned', 'queimado'):
-        damage = max(1, int(max_hp * turns / 8))
+    if damage > 0:
         active['currentHp'] = max(0, active.get('currentHp', 0) - damage)
-    # paralysis / sleep — no HP damage, handled client-side for skip
+    if removed:
+        active.pop('status', None)
 
-    return damage, status
+    return damage, status, can_act, messages
 
 
 def clear_status(battle, player_key):
@@ -270,16 +270,6 @@ def clear_status(battle, player_key):
     player = battle[player_key]
     active = player['team'][player['active_idx']]
     active.pop('status', None)
-
-
-def npc_choose_action(battle, npc_key):
-    """NPC AI: choose a random move from active pokemon's moveset."""
-    player = battle[npc_key]
-    active = player['team'][player['active_idx']]
-    moves = active.get('moves', ['Tackle'])
-    if not moves:
-        moves = ['Tackle']
-    return random.choice(moves)
 
 
 def npc_choose_pokemon(battle, npc_key):

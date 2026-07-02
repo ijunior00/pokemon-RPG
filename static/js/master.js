@@ -1032,12 +1032,49 @@ async function addNpcPokemon() {
     if (!search) return;
     const resp = await fetch(`/api/pokemon?search=${encodeURIComponent(search)}`);
     const results = await resp.json();
-    if (results.length > 0) {
-        const p = results[0];
-        npcTeamTemp.push({ name: p.name, number: p.number, level, types: p.types, hp: p.hp, ac: p.ac, stats: p.stats });
-        renderNpcTeamPreview();
-        document.getElementById('npc-poke-search').value = '';
-    }
+    if (results.length === 0) return;
+    const p = results[0];
+
+    // Stats escalados pelo nível (mesma escala dos selvagens)
+    let scaled = null;
+    try {
+        const sresp = await fetch('/api/pokemon/stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ number: p.number, level })
+        });
+        scaled = await sresp.json();
+        if (scaled.error) scaled = null;
+    } catch(e) {}
+
+    // Moveset da espécie: iniciais + por nível até o nível do pokémon (últimos 4)
+    let moves = [...(p.startingMoves || [])];
+    try {
+        const lresp = await fetch(`/api/pokemon/${p.number}/learnset`);
+        const learnset = await lresp.json();
+        if (!learnset.error) {
+            moves = [...(learnset.starting || [])];
+            Object.keys(learnset.level || {}).map(Number).sort((a, b) => a - b).forEach(lv => {
+                if (lv <= level) moves.push(...learnset.level[lv]);
+            });
+            moves = [...new Set(moves)].slice(-4);
+        }
+    } catch(e) {}
+    if (moves.length === 0) moves = ['Tackle'];
+
+    npcTeamTemp.push({
+        name: p.name, number: p.number, level, types: p.types,
+        hp: scaled?.hp || p.hp, maxHp: scaled?.maxHp || p.hp, currentHp: scaled?.hp || p.hp,
+        ac: scaled?.ac || p.ac, stats: scaled?.stats || p.stats,
+        proficiency: scaled?.proficiency, stab: scaled?.stab,
+        moves, speed: p.speed,
+        ability: p.ability?.name || '',
+        vulnerabilities: p.vulnerabilities || [],
+        resistances: p.resistances || [],
+        immunities: p.immunities || []
+    });
+    renderNpcTeamPreview();
+    document.getElementById('npc-poke-search').value = '';
 }
 
 function renderNpcTeamPreview() {
