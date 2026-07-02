@@ -6,5 +6,15 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 1 --bind 0.0.0.0:$PORT app:app
     envVars:
+      # Banco PostgreSQL externo (Neon/Supabase — free tier durável).
+      # sync:false = o Render NÃO sobrescreve pelo Blueprint; você cola a
+      # connection string em Environment → DATABASE_URL e ela persiste.
+      # Era a causa do "Exited with status 1": sem DATABASE_URL o app
+      # aborta o boot (database.py exige a connection string do Postgres).
+      - key: DATABASE_URL
+        sync: false
+      # Chave de sessão gerada uma vez pelo Render (evita o segredo padrão).
+      - key: SECRET_KEY
+        generateValue: true
       - key: RENDER
         value: true

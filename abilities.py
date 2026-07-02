@@ -174,6 +174,59 @@ def check_defender_ability(ability: str, move_type: str, damage: int, current_hp
     return result
 
 
+# Habilidades que dobram o STAB quando o HP está em 25% ou menos
+# (texto 5e: "doubles its STAB bonus when it has 25% or less of its max health")
+STAB_BOOST_ABILITIES = {
+    'blaze': 'fire',
+    'overgrow': 'grass',
+    'torrent': 'water',
+    'swarm': 'bug',
+}
+
+
+def stab_multiplier(ability, move_type_en: str, current_hp, max_hp) -> int:
+    """2 se a habilidade dobra o STAB deste move com o HP atual, senão 1."""
+    key = normalize_ability(ability)
+    boosted_type = STAB_BOOST_ABILITIES.get(key)
+    if not boosted_type or boosted_type != (move_type_en or '').lower():
+        return 1
+    try:
+        if max_hp and current_hp is not None and current_hp <= max_hp * 0.25:
+            return 2
+    except TypeError:
+        pass
+    return 1
+
+
+def check_contact_ability(ability, defender_prof: int) -> dict | None:
+    """Reação do defensor a um ataque físico (contato).
+
+    Retorna {'damage': int, 'status': str|None, 'message': str} ou None.
+    O dano retornado é aplicado ao ATACANTE.
+    """
+    import random as _r
+    key = normalize_ability(ability)
+    prof = max(1, int(defender_prof or 2))
+
+    if key == 'static' and _r.random() < 0.25:
+        return {'damage': prof, 'status': None,
+                'message': f'⚡ Static: o atacante levou {prof} de dano elétrico!'}
+    if key == 'flame body' and _r.random() < 0.25:
+        return {'damage': 0, 'status': 'queimado',
+                'message': '🔥 Flame Body: o atacante foi queimado!'}
+    if key == 'poison point' and _r.random() < 0.25:
+        return {'damage': 0, 'status': 'badly_poisoned',
+                'message': '☠️ Poison Point: o atacante foi envenenado!'}
+    if key == 'effect spore' and _r.random() < 0.25:
+        status = _r.choice(['dormindo', 'paralisado', 'badly_poisoned'])
+        return {'damage': 0, 'status': status,
+                'message': '🍄 Effect Spore: esporos atingiram o atacante!'}
+    if key in ('rough skin', 'iron barbs'):
+        return {'damage': prof, 'status': None,
+                'message': f'🗡️ {ability if isinstance(ability, str) else key}: o atacante levou {prof} de dano!'}
+    return None
+
+
 def check_on_enter(ability: str, pokemon_name: str) -> dict | None:
     """
     Returns on-enter effect info for a Pokémon entering battle, or None.

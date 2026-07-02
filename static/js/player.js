@@ -589,6 +589,10 @@ socket.on('battle_update', (data) => {
     if (data.ability_trigger) {
         addBattleLog(`🛡️ <strong>Habilidade</strong>: ${data.ability_trigger.message}`);
     }
+    // Habilidade de contato (Static, Rough Skin...) do defensor
+    if (data.contact_trigger) {
+        addBattleLog(`🖐️ <strong>Contato</strong>: ${data.contact_trigger.message}`);
+    }
 
     // Sync status from server (source of truth)
     if (bs.wild_status && !window.wildPokemonStatus) {
@@ -1449,6 +1453,59 @@ async function loadMoveDropdowns(speciesName, pokeLevel, selectedMoves) {
     if (hint) hint.textContent = `${learnset.all.length} moves disponíveis para ${learnset.name}.`;
 }
 
+// ============================================
+// ABILITY DROPDOWNS (habilidades da espécie)
+// ============================================
+function _setAbilitySelect(selId, options, current, emptyLabel) {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    let html = `<option value="">${emptyLabel}</option>`;
+    let found = !current;
+    for (const a of options) {
+        if (!a?.name) continue;
+        const isSel = a.name === current;
+        if (isSel) found = true;
+        const desc = (a.description || '').replace(/"/g, '&quot;');
+        html += `<option value="${a.name}" data-desc="${desc}" ${isSel ? 'selected' : ''}>${a.name}</option>`;
+    }
+    // Valor atual fora da lista (customizado pelo mestre): mantém como opção
+    if (!found && current) html += `<option value="${current}" selected>✍️ ${current}</option>`;
+    sel.innerHTML = html;
+}
+
+function _updateAbilityHint() {
+    const hint = document.getElementById('poke-ability-hint');
+    if (!hint) return;
+    const parts = [];
+    for (const id of ['poke-ability', 'poke-hidden-ability']) {
+        const opt = document.getElementById(id)?.selectedOptions?.[0];
+        if (opt?.value && opt.dataset?.desc) parts.push(`<strong>${opt.value}:</strong> ${opt.dataset.desc}`);
+    }
+    hint.innerHTML = parts.join('<br>');
+}
+
+async function loadAbilityDropdowns(speciesName, currentAbility, currentHidden) {
+    const learnset = await _fetchLearnset(speciesName);
+    const abilities = learnset?.abilities || [];
+    const hidden = learnset?.hidden_ability ? [learnset.hidden_ability] : [];
+    _setAbilitySelect('poke-ability', abilities, currentAbility || '', '— Selecionar —');
+    _setAbilitySelect('poke-hidden-ability', hidden, currentHidden || '', '— Nenhuma —');
+    _updateAbilityHint();
+}
+
+function clearAbilityDropdowns() {
+    _setAbilitySelect('poke-ability', [], '', '— Selecionar —');
+    _setAbilitySelect('poke-hidden-ability', [], '', '— Nenhuma —');
+    const hint = document.getElementById('poke-ability-hint');
+    if (hint) hint.innerHTML = '';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    ['poke-ability', 'poke-hidden-ability'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', _updateAbilityHint);
+    });
+});
+
 function getSelectedMoves() {
     const moves = [1, 2, 3, 4]
         .map(i => document.getElementById(`poke-move-${i}`)?.value || '')
@@ -1508,8 +1565,7 @@ function editPokemon(slot) {
         document.getElementById('poke-cha').value = s.HP  || s.CHA || 10;
     }
     loadMoveDropdowns(pokemon.name, pokemon.level || 1, pokemon.moves || []);
-    document.getElementById('poke-ability').value = pokemon.ability || '';
-    document.getElementById('poke-hidden-ability').value = pokemon.hiddenAbility || '';
+    loadAbilityDropdowns(pokemon.name, pokemon.ability || '', pokemon.hiddenAbility || '');
     document.getElementById('poke-held-item').value = pokemon.heldItem || '';
     document.getElementById('poke-nature').value = pokemon.nature || '';
     document.getElementById('poke-vulnerabilities').value = (pokemon.vulnerabilities || []).join(', ');
@@ -1545,8 +1601,9 @@ function editPokemon(slot) {
 
 function clearPokemonForm() {
     ['poke-nickname','poke-species','poke-hit-dice','poke-speed','poke-saves',
-     'poke-ability','poke-hidden-ability','poke-held-item','poke-vulnerabilities',
+     'poke-held-item','poke-vulnerabilities',
      'poke-resistances','poke-notes'].forEach(id => document.getElementById(id).value = '');
+    clearAbilityDropdowns();
     ['poke-level'].forEach(id => document.getElementById(id).value = 1);
     ['poke-current-hp','poke-max-hp'].forEach(id => document.getElementById(id).value = 0);
     ['poke-ac'].forEach(id => document.getElementById(id).value = 10);
@@ -2102,8 +2159,7 @@ function selectSpecies(pokemon) {
     set('poke-speed', pokemon.speed || '');
     const curLevel = parseInt(document.getElementById('poke-level')?.value) || 1;
     loadMoveDropdowns(pokemon.name, curLevel, pokemon.startingMoves || []);
-    if (pokemon.ability)       set('poke-ability', pokemon.ability.name || '');
-    if (pokemon.hiddenAbility) set('poke-hidden-ability', pokemon.hiddenAbility.name || '');
+    loadAbilityDropdowns(pokemon.name, pokemon.ability?.name || '', pokemon.hiddenAbility?.name || '');
     if (pokemon.vulnerabilities) set('poke-vulnerabilities', pokemon.vulnerabilities.join(', '));
     if (pokemon.resistances)     set('poke-resistances', pokemon.resistances.join(', '));
     if (pokemon.savingThrows)    set('poke-saves', pokemon.savingThrows.join(', '));
@@ -4231,10 +4287,20 @@ async function _executeWildTurn() {
             damage = Math.floor(damage * 1.25);
         }
         
-        // STAB
+        // STAB (Blaze/Overgrow/Torrent/Swarm dobram com HP ≤ 25%)
         const wildTypes = (enemy?.types || []).map(t => t.toLowerCase());
         const moveType = (moveData.type || '').toLowerCase();
-        const stab = wildTypes.includes(moveType) ? getStabForLevel(wildLevel) : 0;
+        let stab = wildTypes.includes(moveType) ? getStabForLevel(wildLevel) : 0;
+        if (stab > 0) {
+            const abilityName = ((typeof enemy?.ability === 'object' ? enemy.ability?.name : enemy?.ability) || '').toLowerCase();
+            const boostMap = { blaze: 'fogo', overgrow: 'grama', torrent: 'água', swarm: 'inseto' };
+            const wMaxHp = enemy?.maxHp || enemy?.hp || 20;
+            const wCurHp = (enemy?.currentHp !== undefined) ? enemy.currentHp : wMaxHp;
+            if (boostMap[abilityName] === moveType && wCurHp <= wMaxHp * 0.25) {
+                stab *= 2;
+                addBattleLog(`🔥 <strong>${abilityName}</strong>: STAB dobrado (HP baixo)!`);
+            }
+        }
         damage += stab;
         
         // Type effectiveness vs player pokemon (move types in PT, vulnerabilities in EN)
