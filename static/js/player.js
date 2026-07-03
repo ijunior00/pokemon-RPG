@@ -255,11 +255,45 @@ function filterRouteRegion(region, btn) {
     if (firstMatch) sel.value = firstMatch.value;
 }
 
+// Descrições dos modos de caçada (usadas no select e no info box)
+const HUNT_MODE_DATA = {
+    normal:        { label: '🌿 Normal (-50% a +5 níveis)',        desc: '🌿 <strong>Normal:</strong> Pokémon variados, de metade do seu nível até +5. Shiny: 1%. CD Sobrevivência: 10.' },
+    dungeon:       { label: '🏰 Dungeon (-10 a +10 níveis)',       desc: '🏰 <strong>Dungeon:</strong> Pokémon raros e evoluídos, -10 a +10 níveis. Shiny: 3%. CD: 13. ⚠️ Perigoso!' },
+    dungeon_night: { label: '🏰🌙 Dungeon Perigosa (-5 a +15)',    desc: '🏰🌙 <strong>Dungeon Perigosa:</strong> a dungeon à noite — evoluídos fortes, -5 a +15 níveis. Shiny: 4%. CD: 15. ☠️ Muito perigoso!' },
+    night:         { label: '🌙 Noturno (-10 a +20 níveis)',       desc: '🌙 <strong>Noturno:</strong> o terror da noite! -10 a +20 níveis. Shiny: 5%. CD: 15. ☠️ Extremamente perigoso!' }
+};
+const HUNT_PERIOD_MODES = {
+    morning: ['normal', 'dungeon'],
+    night: ['dungeon_night', 'night']
+};
+
+function updateHuntModeSelect(used) {
+    // Caçadas 1-4 = manhã (normal/dungeon); 5ª+ = noite (dungeon perigosa/noturna)
+    const period = (used < 4) ? 'morning' : 'night';
+    const sel = document.getElementById('hunt-mode');
+    const periodEl = document.getElementById('hunt-period');
+    if (periodEl) {
+        periodEl.innerHTML = period === 'morning'
+            ? '🌅 <strong>Manhã</strong> (caçadas 1-4)'
+            : '🌙 <strong>Noite</strong> (caçadas 5-6)';
+    }
+    if (!sel) return;
+    const modes = HUNT_PERIOD_MODES[period];
+    const current = sel.value;
+    sel.innerHTML = modes.map(m =>
+        `<option value="${m}">${HUNT_MODE_DATA[m].label}</option>`).join('');
+    // preserva a escolha se ainda for válida; senão usa o 1º modo do período
+    sel.value = modes.includes(current) ? current : modes[0];
+    const info = document.getElementById('hunt-mode-info');
+    if (info) info.innerHTML = `<p>${HUNT_MODE_DATA[sel.value].desc}</p>`;
+}
+
 function updateHuntCounter(used, limit) {
     const u = document.getElementById('hunts-used');
     const l = document.getElementById('hunts-limit');
     if (u !== null && used !== undefined) u.textContent = used;
     if (l !== null && limit !== undefined) l.textContent = limit;
+    if (used !== undefined) updateHuntModeSelect(used);
 }
 
 function _survivalCheckText(sc) {
@@ -294,15 +328,19 @@ async function searchWildPokemon() {
     // Falhou no teste de Sobrevivência: gastou a tentativa, não achou nada
     if (encounter.found === false) {
         hideElement('encounter-result');
+        const sc = encounter.survival_check || {};
+        showNotification(`❌ Teste de Sobrevivência falhou! (${sc.total} vs CD ${sc.dc}) — gastou 1 caçada e não encontrou nada.`, 'error');
         if (failBox) {
-            failBox.innerHTML = `${_survivalCheckText(encounter.survival_check)} — ❌ <strong>Falhou!</strong> Você não encontrou nada nesta caçada.`;
+            failBox.innerHTML = `${_survivalCheckText(encounter.survival_check)} — ❌ <strong>Falhou!</strong> Você não encontrou nada nesta caçada. (${encounter.hunts_used}/${encounter.hunts_limit} usadas)`;
             failBox.classList.remove('hidden');
+            failBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
         return;
     }
 
     currentEncounter = encounter;
     await displayEncounter(encounter);
+    document.getElementById('encounter-result')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function displayEncounter(encounter) {
@@ -2360,17 +2398,13 @@ document.addEventListener('DOMContentLoaded', () => {
     ['str','dex','con','int','wis','cha'].forEach(attr => {
         document.getElementById(`trainer-${attr}`).addEventListener('input', updateModifiers);
     });
-    // Hunt mode info
+    // Hunt mode info (descrições compartilhadas em HUNT_MODE_DATA)
     const huntSelect = document.getElementById('hunt-mode');
     if (huntSelect) {
         huntSelect.addEventListener('change', () => {
             const info = document.getElementById('hunt-mode-info');
-            const descriptions = {
-                'normal': '🌿 <strong>Normal:</strong> Pokémon variados, de metade do seu nível até +5. Shiny: 1%.',
-                'dungeon': '🏰 <strong>Dungeon:</strong> Pokémon raros e evoluídos, -5 a +15 níveis. Shiny: 3%. ⚠️ Perigoso!',
-                'night': '🌙 <strong>Noturno:</strong> O terror da noite! Pokémon +10 a +30 níveis acima. Shiny: 5%. ☠️ Extremamente perigoso!'
-            };
-            info.innerHTML = `<p>${descriptions[huntSelect.value]}</p>`;
+            const data = HUNT_MODE_DATA[huntSelect.value];
+            if (info && data) info.innerHTML = `<p>${data.desc}</p>`;
         });
     }
 });
@@ -2900,19 +2934,21 @@ function renderPvpPlayers(players) {
     const container = document.getElementById('pvp-players-list');
     if (!container) return;
     if (players.length === 0) {
-        container.innerHTML = '<p class="empty-state">Nenhum jogador disponível.</p>';
+        container.innerHTML = '<p class="empty-state">Nenhum oponente disponível.</p>';
         return;
     }
     container.innerHTML = players.map(p => {
-        const isSelf = (p.name === TRAINER_DATA.name);
+        const isSelf = !p.is_npc && (p.name === TRAINER_DATA.name);
+        const npcBadge = p.is_npc
+            ? `<span style="background:#7b1fa2;color:#fff;padding:0.05rem 0.4rem;border-radius:8px;font-size:0.7rem;margin-left:0.3rem;">🤖 NPC${p.npc_class ? ' · ' + p.npc_class : ''}</span>` : '';
         return `
             <div class="pvp-player-card ${isSelf ? 'is-self' : ''}">
-                <span class="pvp-player-name">${p.name}</span>
+                <span class="pvp-player-name">${p.name}${npcBadge}</span>
                 <span class="pvp-player-level">Nv.${p.level} | ${p.team_size} Pokémon</span>
                 ${!isSelf ? `
                     <div style="display:flex;gap:0.3rem;margin-top:0.3rem;">
-                        <button class="btn btn-sm btn-danger" onclick="sendPvpChallenge('${p.id}', '${p.name}', 'official')">⚔️ Oficial</button>
-                        <button class="btn btn-sm btn-warning" onclick="sendPvpChallenge('${p.id}', '${p.name}', 'street')">🥊 Rua</button>
+                        <button class="btn btn-sm btn-danger" onclick="sendPvpChallenge('${p.id}', '${p.name.replace(/'/g, '')}', 'official')">⚔️ Oficial</button>
+                        <button class="btn btn-sm btn-warning" onclick="sendPvpChallenge('${p.id}', '${p.name.replace(/'/g, '')}', 'street')">🥊 Rua</button>
                     </div>
                 ` : '<span style="color:var(--success);font-size:0.75rem;">Você</span>'}
             </div>

@@ -43,9 +43,9 @@
                 <div class="form-group">
                     <label>Modo</label>
                     <select id="hunt-mode">
+                        <!-- opções trocadas pelo período (manhã/noite) via updateHuntModeSelect -->
                         <option value="normal">🌿 Normal (-50% a +5 níveis)</option>
                         <option value="dungeon">🏰 Dungeon (-10 a +10 níveis)</option>
-                        <option value="night">🌙 Noturno (-10 a +20 níveis)</option>
                     </select>
                 </div>
             </div>
@@ -58,6 +58,7 @@
             <p id="hunts-info" style="margin-top:0.5rem;font-size:0.9rem;">
                 📅 <span id="game-date">—</span> &nbsp;·&nbsp;
                 🎯 Caçadas hoje: <strong><span id="hunts-used">0</span>/<span id="hunts-limit">6</span></strong>
+                &nbsp;·&nbsp; <span id="hunt-period">🌅 <strong>Manhã</strong> (caçadas 1-4)</span>
             </p>
             <div id="hunt-fail-msg" class="hidden" style="margin-top:0.5rem;padding:0.6rem 0.8rem;border-radius:8px;background:rgba(229,57,53,0.15);border:1px solid rgba(229,57,53,0.4);font-size:0.9rem;"></div>
         </div>

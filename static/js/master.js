@@ -1078,9 +1078,49 @@ async function addNpcPokemon() {
 }
 
 function renderNpcTeamPreview() {
-    document.getElementById('npc-team-preview').innerHTML = npcTeamTemp.map((p, i) => 
-        `<span class="team-pokemon">${p.name} Nv.${p.level} <button class="btn btn-sm btn-danger" onclick="npcTeamTemp.splice(${i},1);renderNpcTeamPreview()">✕</button></span>`
+    // Time editável: nível inline (re-escala stats/moves) + remover
+    document.getElementById('npc-team-preview').innerHTML = npcTeamTemp.map((p, i) => `
+        <span class="team-pokemon" style="display:inline-flex;align-items:center;gap:0.3rem;margin:0.15rem;">
+            ${p.name}
+            Nv.<input type="number" value="${p.level}" min="1" max="100"
+                style="width:58px;padding:0.1rem 0.3rem;background:var(--darker,rgba(0,0,0,0.3));border:1px solid var(--border,#444);border-radius:4px;color:inherit;"
+                onchange="updateNpcPokeLevel(${i}, this.value)">
+            <button class="btn btn-sm btn-danger" onclick="npcTeamTemp.splice(${i},1);renderNpcTeamPreview()">✕</button>
+        </span>`
     ).join('');
+}
+
+async function updateNpcPokeLevel(idx, value) {
+    const p = npcTeamTemp[idx];
+    if (!p) return;
+    const level = Math.max(1, Math.min(100, parseInt(value) || 1));
+    p.level = level;
+    // Re-escala stats e moveset para o novo nível
+    try {
+        const sresp = await fetch('/api/pokemon/stats', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ number: p.number, name: p.name, level })
+        });
+        const scaled = await sresp.json();
+        if (!scaled.error) {
+            p.stats = scaled.stats; p.hp = scaled.hp; p.maxHp = scaled.maxHp;
+            p.currentHp = scaled.hp; p.ac = scaled.ac;
+            p.proficiency = scaled.proficiency; p.stab = scaled.stab;
+        }
+        if (p.number) {
+            const lresp = await fetch(`/api/pokemon/${p.number}/learnset`);
+            const learnset = await lresp.json();
+            if (!learnset.error) {
+                let moves = [...(learnset.starting || [])];
+                Object.keys(learnset.level || {}).map(Number).sort((a, b) => a - b).forEach(lv => {
+                    if (lv <= level) moves.push(...learnset.level[lv]);
+                });
+                moves = [...new Set(moves)].slice(-4);
+                if (moves.length) p.moves = moves;
+            }
+        }
+    } catch(e) {}
+    renderNpcTeamPreview();
 }
 
 const NPC_ROLE_LABELS = {
@@ -1126,6 +1166,14 @@ async function saveNpc() {
 
     cancelNpcEdit();
     loadNpcs();
+}
+
+function editNpcById(id) {
+    // Busca pelo id em vez de embutir o JSON no onclick — NPCs gerados têm
+    // times grandes/caracteres especiais que quebravam o atributo HTML.
+    const npc = (window.ALL_NPCS || []).find(n => n.id === id);
+    if (!npc) { alert('NPC não encontrado — recarregue a lista.'); return; }
+    editNpc(npc);
 }
 
 function editNpc(npc) {
@@ -1216,7 +1264,7 @@ async function loadNpcs() {
                 ${roleBadge} ${progBadge}
                 <span style="color:var(--text-muted);font-size:0.85rem">${n.npc_class||''}${specialtyBadge}</span>
                 <div style="margin-left:auto;display:flex;gap:0.4rem;">
-                    <button class="btn btn-sm btn-secondary" onclick="editNpc(${JSON.stringify(n).replace(/"/g,'&quot;')})">✏️ Editar</button>
+                    <button class="btn btn-sm btn-secondary" onclick="editNpcById('${n.id}')">✏️ Editar</button>
                     <button class="btn btn-sm btn-secondary" onclick="this.closest('.npc-card').querySelector('.npc-diary').classList.toggle('hidden')">📖 Diário</button>
                     <button class="btn btn-sm btn-danger" onclick="deleteNpc('${n.id}')">🗑️</button>
                 </div>

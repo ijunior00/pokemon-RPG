@@ -343,7 +343,14 @@ def _apply_xp(trainer: dict, xp_amount: int) -> dict:
 # ============================================================
 DEFAULT_CALENDAR = {'day': 1, 'month': 1, 'year': 1}
 MAX_HUNTS_PER_DAY = 6
-SURVIVAL_DC = {'normal': 10, 'dungeon': 13, 'night': 15}
+SURVIVAL_DC = {'normal': 10, 'dungeon': 13, 'dungeon_night': 15, 'night': 15}
+# Caçadas 1-4 são de manhã (normal/dungeon); 5ª em diante são de noite
+# (dungeon perigosa/noturna)
+MORNING_HUNTS = 4
+PERIOD_MODES = {
+    'morning': ('normal', 'dungeon'),
+    'night': ('dungeon_night', 'night'),
+}
 
 
 def _get_calendar(state):
@@ -2253,6 +2260,18 @@ def api_encounter():
             'hunts_used': entry['used'], 'hunts_limit': hunts_limit
         }), 403
 
+    # Período pela ordem da caçada: 1ª-4ª = manhã, 5ª em diante = noite.
+    # O modo é forçado pelo servidor para os permitidos do período.
+    period = 'morning' if entry['used'] < MORNING_HUNTS else 'night'
+    allowed = PERIOD_MODES[period]
+    if hunt_mode not in allowed:
+        # coerção natural: dungeon vira dungeon perigosa à noite; o resto
+        # cai no modo padrão do período
+        if period == 'night' and hunt_mode == 'dungeon':
+            hunt_mode = 'dungeon_night'
+        else:
+            hunt_mode = allowed[0] if period == 'morning' else 'night'
+
     trainer = get_users().get(pid, {}).get('trainer_data', {})
     wis_mod = (int(trainer.get('wis', 10) or 10) - 10) // 2
     prof = _trainer_prof(trainer.get('level', 1))
@@ -2272,6 +2291,7 @@ def api_encounter():
     is_ambush = (roll == 1)
     if total < dc and not is_ambush:
         return jsonify({'found': False, 'survival_check': survival,
+                        'period': period, 'hunt_mode': hunt_mode,
                         'hunts_used': entry['used'], 'hunts_limit': hunts_limit})
 
     # player_level derivado do time real (não confia no cliente); fallback: body
@@ -2285,7 +2305,7 @@ def api_encounter():
     route_level_range = [raw_range[0] * 5, min(100, raw_range[1] * 5)]
     
     # Dungeon/night use dungeon types (stronger/rarer)
-    if hunt_mode in ('dungeon', 'night'):
+    if hunt_mode in ('dungeon', 'night', 'dungeon_night'):
         route_types = route.get('dungeon_types', route_types)
 
     # Gen 1-3 filter (up to #386)
@@ -2330,6 +2350,10 @@ def api_encounter():
         # Night: dangerous, -10 to +20 (mixes weak and strong)
         min_lv = max(1, player_level - 10)
         max_lv = min(100, player_level + 20)
+    elif hunt_mode == 'dungeon_night':
+        # Dungeon perigosa (noite): -5 a +15, favorece evoluídos
+        min_lv = max(1, player_level - 5)
+        max_lv = min(100, player_level + 15)
     elif hunt_mode == 'dungeon':
         # Dungeon: varied, -10 to +10 (mix of strong and weak)
         min_lv = max(1, player_level - 10)
@@ -2363,6 +2387,9 @@ def api_encounter():
         if hunt_mode == 'night':
             # Night: heavily favors evolved/high-SR
             weight = max(1, sr_val * 4 + stage_num * 3)
+        elif hunt_mode == 'dungeon_night':
+            # Dungeon perigosa: quase tão pesada quanto a noite
+            weight = max(1, sr_val * 3 + stage_num * 3)
         elif hunt_mode == 'dungeon':
             # Dungeon: favors evolved
             weight = max(1, sr_val * 2 + stage_num * 2)
@@ -2380,6 +2407,9 @@ def api_encounter():
     if hunt_mode == 'night':
         # Night: -10 to +20 (varied, skews dangerous)
         encounter_level = random.randint(max(1, player_level - 10), min(100, player_level + 20))
+    elif hunt_mode == 'dungeon_night':
+        # Dungeon perigosa: -5 a +15
+        encounter_level = random.randint(max(1, player_level - 5), min(100, player_level + 15))
     elif hunt_mode == 'dungeon':
         # Dungeon: -10 to +10 (varied mix)
         encounter_level = random.randint(max(1, player_level - 10), min(100, player_level + 10))
@@ -2398,7 +2428,7 @@ def api_encounter():
     encounter_level = min(100, encounter_level)
     
     # Shiny chance by mode
-    shiny_chances = {'normal': 0.01, 'dungeon': 0.03, 'night': 0.05}
+    shiny_chances = {'normal': 0.01, 'dungeon': 0.03, 'dungeon_night': 0.04, 'night': 0.05}
     is_shiny = random.random() < shiny_chances.get(hunt_mode, 0.01)
     
     # Generate moveset (picks last 4 available moves for the level)
@@ -2451,6 +2481,7 @@ def api_encounter():
         'found': True,
         'ambush': is_ambush,
         'survival_check': survival,
+        'period': period,
         'hunts_used': entry['used'],
         'hunts_limit': hunts_limit
     }
@@ -3912,9 +3943,9 @@ def handle_pvp_join(data):
     """Player enters the PVP arena."""
     if current_user.is_authenticated:
         join_room('pvp_arena')
-        users = get_users()
+        tid = _tid()
         players_list = []
-        for uid, u in users.items():
+        for uid, u in _db_raw.get_users_in_table(tid).items():
             if u['role'] == 'player':
                 trainer = u.get('trainer_data', {})
                 players_list.append({
@@ -3922,6 +3953,17 @@ def handle_pvp_join(data):
                     'name': trainer.get('name', u['username']),
                     'level': trainer.get('level', 1),
                     'team_size': len(trainer.get('team', []))
+                })
+        # NPCs da mesa com time também podem ser desafiados
+        for npc in db.get_npcs():
+            if npc.get('team'):
+                players_list.append({
+                    'id': npc['id'],
+                    'name': npc.get('name', 'NPC'),
+                    'level': npc.get('level', 1),
+                    'team_size': len(npc['team']),
+                    'is_npc': True,
+                    'npc_class': npc.get('npc_class', '')
                 })
         emit('pvp_arena_players', players_list)
         emit('pvp_player_joined', {
@@ -3995,7 +4037,42 @@ def handle_pvp_challenge(data):
         mode = data.get('mode', 'street')  # official, street
         bet_money = int(data.get('bet_money', 0))
         bet_items = data.get('bet_items', [])
-        
+
+        # Alvo é um NPC? Cria a batalha na hora (NPC sempre aceita)
+        npc = next((n for n in db.get_npcs() if n['id'] == target_id), None)
+        if npc:
+            if not npc.get('team'):
+                emit('pvp_error', {'message': 'Este NPC não tem time para batalhar.'})
+                return
+            users = get_users()
+            my_team = users.get(current_user.id, {}).get('trainer_data', {}).get('team', [])
+            if not my_team:
+                emit('pvp_error', {'message': 'Você precisa de pelo menos 1 Pokémon no time!'})
+                return
+
+            battle = pvp.create_pvp_battle(mode, current_user.id, npc['id'])
+            pvp.set_team(battle, 'player1', my_team)
+            pvp.set_team(battle, 'player2', npc.get('team', []))
+            battle['player2']['is_npc'] = True
+            ACTIVE_PVP[battle['id']] = battle
+
+            emit('pvp_battle_created', {
+                'battle_id': battle['id'],
+                'opponent_name': npc.get('name', 'NPC'),
+                'mode': mode,
+                'your_team': my_team,
+                'you_are': 'player1',
+                'phase': 'selection'
+            }, room=current_user.id)
+            _emit_pvp_to_master(battle, 'created')
+            emit('pvp_challenge_sent', {
+                'challenger': current_user.username,
+                'target_id': target_id,
+                'mode': mode,
+                'is_npc': True
+            }, room=f'master_{_tid()}')
+            return
+
         emit('pvp_challenge_received', {
             'challenger_id': current_user.id,
             'challenger_name': current_user.username,
