@@ -1007,8 +1007,8 @@ h1, h2 {
 
 /* HP boxes — Game Boy style */
 .poke-hpbox {
-    background: rgba(10,10,20,0.88);
-    border: 2.5px solid #ffde00;
+    background: var(--card-bg);
+    border: 2.5px solid var(--accent);
     border-radius: 6px;
     padding: 0.35rem 0.6rem;
     min-width: 180px;
@@ -1024,7 +1024,7 @@ h1, h2 {
     align-items: center;
     font-size: 0.78rem;
     font-weight: 800;
-    color: #fff;
+    color: var(--text);
     margin-bottom: 0.2rem;
     white-space: nowrap;
     overflow: hidden;
@@ -1049,12 +1049,12 @@ h1, h2 {
     color: var(--accent);
     flex-shrink: 0;
 }
-.hpbox-bar-container { flex: 1; height: 8px; background: #333; border-radius: 4px; overflow: hidden; }
+.hpbox-bar-container { flex: 1; height: 8px; background: var(--hp-track, #333); border-radius: 4px; overflow: hidden; }
 .hpbox-bar-container .hp-bar { height: 100%; transition: width 0.4s ease; }
 .hpbox-hp-num {
     display: block;
     font-size: 0.65rem;
-    color: #ccc;
+    color: var(--text-muted);
     margin-top: 0.2rem;
     font-family: var(--font-pixel);
 }
@@ -1098,7 +1098,7 @@ h1, h2 {
     font-family: var(--font-pixel);
     font-size: 0.82rem;
     font-weight: 800;
-    color: #ffde00;
+    color: var(--accent);
 }
 
 /* platforms under sprites */
@@ -1115,7 +1115,7 @@ h1, h2 {
 .poke-bottom-panel {
     position: relative;
     background: var(--dark);
-    border: 3px solid #1a1a2e;
+    border: 3px solid var(--card-border);
     border-top: none;
     border-radius: 0 0 var(--radius) var(--radius);
     min-height: 130px;

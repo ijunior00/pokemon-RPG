@@ -6000,7 +6000,7 @@ function _updateCountdownUI() {
     const fraction = _turnSeconds / TURN_LIMIT;
     const circumference = 2 * Math.PI * 18; // r=18 → ~113.1
     const offset = circumference * (1 - fraction);
-    const color = _turnSeconds <= 5 ? '#f44336' : _turnSeconds <= 10 ? '#ff9800' : '#ffde00';
+    const color = _turnSeconds <= 5 ? '#f05868' : _turnSeconds <= 10 ? '#d8a010' : '#f8b800';
 
     if (ring) { ring.style.strokeDashoffset = offset; ring.style.stroke = color; }
     if (numEl) { numEl.textContent = _turnSeconds; numEl.style.color = color; }

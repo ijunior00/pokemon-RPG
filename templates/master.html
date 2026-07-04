@@ -903,6 +903,12 @@
                 <p class="settings-desc">Escolha a paleta de cores baseada na região do jogo.</p>
                 <div class="theme-options" id="theme-options">
                     <label class="theme-option">
+                        <input type="radio" name="theme" value="gba" {% if site_settings.theme == 'gba' %}checked{% endif %}>
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #383880 55%, #f8f8e8 55%);">
+                            <span>🕹️ GBA Clássico</span>
+                        </div>
+                    </label>
+                    <label class="theme-option">
                         <input type="radio" name="theme" value="pokemon-red" {% if site_settings.theme == 'pokemon-red' %}checked{% endif %}>
                         <div class="theme-preview" style="background: linear-gradient(135deg, #c1121f, #e63946);">
                             <span>🔴 Kanto Red</span>
@@ -952,6 +958,12 @@
                 <h4>🖼️ Fundo do Site</h4>
                 <p class="settings-desc">Escolha o padrão de fundo.</p>
                 <div class="bg-options" id="bg-options">
+                    <label class="bg-option">
+                        <input type="radio" name="background" value="gba-grass" {% if site_settings.background == 'gba-grass' %}checked{% endif %}>
+                        <div class="bg-preview bg-preview-gba-grass">
+                            <span>🟩 Grama GBA</span>
+                        </div>
+                    </label>
                     <label class="bg-option">
                         <input type="radio" name="background" value="pokeball-pattern" {% if site_settings.background == 'pokeball-pattern' %}checked{% endif %}>
                         <div class="bg-preview bg-preview-pokeball">

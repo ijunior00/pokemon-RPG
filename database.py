@@ -259,8 +259,8 @@ def delete_npc(npc_id, table_id='default'):
 # SITE SETTINGS (theme, background, etc.)
 # ============================================================
 DEFAULT_SITE_SETTINGS = {
-    'theme': 'pokemon-red',
-    'background': 'pokeball-pattern',
+    'theme': 'gba',
+    'background': 'gba-grass',
     'custom_banner': '',
     'mesa_name': 'Pokémon 5e RPG'
 }
