@@ -265,8 +265,10 @@ def get_scaled_damage_dice(base_damage, level, higher_levels_text=''):
         multiplier = 1.25
     else:
         multiplier = 1.0
-    
-    new_count = max(count, math.ceil(count * multiplier))
+
+    # Bônus aditivo por faixa (encurta batalhas médias/altas; Nv<15 sem bônus)
+    bonus = 3 if level >= 70 else 2 if level >= 40 else 1 if level >= 15 else 0
+    new_count = max(count, math.ceil(count * multiplier)) + bonus
     return f"{new_count}d{sides}"
 
 

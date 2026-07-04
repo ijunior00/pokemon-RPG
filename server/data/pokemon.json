@@ -117,13 +117,9 @@
    "Charm",
    "Curse",
    "Endure",
-   "Giga",
-   "Drain",
    "Grass Whistle",
    "Grassy Terrain",
    "Ingrain",
-   "Leaf",
-   "Storm",
    "Light Screen",
    "Magical Leaf",
    "Nature Power",
@@ -200,9 +196,7 @@
   "startingMoves": [
    "Tackle",
    "Growl",
-   "Leech Seed",
-   "Vine",
-   "Whip"
+   "Leech Seed"
   ],
   "levelMoves": {
    "6": [
@@ -320,8 +314,6 @@
    "Tackle",
    "Growl",
    "Leech Seed",
-   "Vine",
-   "Whip",
    "Petal Dance",
    "Poison Powder",
    "Sleep Powder",
@@ -499,14 +491,10 @@
    "Air Cutter",
    "Ancient Power",
    "Beat Up",
-   "Belly",
-   "Drum",
    "Bite",
    "Counter",
    "Crunch",
    "Dragon Dance",
-   "Dragon",
-   "Rush",
    "Flare Blitz",
    "Focus Punch",
    "Metal Claw",
@@ -853,7 +841,6 @@
     "Iron Defense"
    ],
    "18": [
-    "Rain Dance",
     "Hydro Pump"
    ]
   },
@@ -984,7 +971,6 @@
    ],
    "18": [
     "Iron Defense",
-    "Rain Dance",
     "Hydro Pump"
    ]
   },
@@ -1070,7 +1056,6 @@
    ],
    "18": [
     "Iron Defense",
-    "Rain Dance",
     "Hydro Pump"
    ]
   },
@@ -1328,8 +1313,7 @@
    "18": [
     "Captivate",
     "Tailwind",
-    "Air Slash",
-    "Quiver"
+    "Air Slash"
    ]
   },
   "tmMoves": [
@@ -2102,8 +2086,6 @@
    "Bite",
    "Counter",
    "Final Gambit",
-   "Flame",
-   "Wheel",
    "Fury Swipes",
    "Last Resort",
    "Me First",
@@ -3043,8 +3025,7 @@
    "2": [
     "Poison Sting",
     "Rollout",
-    "Rapid Spin",
-    "Fury"
+    "Rapid Spin"
    ],
    "6": [
     "Magnitude",
@@ -3176,8 +3157,6 @@
   "startingMoves": [
    "Crush Claw",
    "Defense Curl",
-   "Poison",
-   "Sting",
    "Sand Attack",
    "Scratch",
    "Rollout",
@@ -5136,8 +5115,6 @@
    "Charm",
    "Flail",
    "Ingrain",
-   "Nature",
-   "Power",
    "Razor Leaf",
    "Secret Power",
    "Swords Dance",
@@ -5332,7 +5309,6 @@
   "startingMoves": [
    "Aromatherapy",
    "Mega Drain",
-   "Poison",
    "Powder",
    "Stun Spore"
   ],
@@ -5512,9 +5488,7 @@
    "Pursuit",
    "Rototiller",
    "Screech",
-   "Sweet Scent",
-   "Wide",
-   "Guard"
+   "Sweet Scent"
   ],
   "senses": "Darkvision 30ft, Tremorsense 30ft",
   "abilities": [
@@ -5590,7 +5564,6 @@
   "startingMoves": [
    "Absorb",
    "Cross Poison",
-   "Poison",
    "Powder",
    "Scratch",
    "Stun Spore"
@@ -5829,8 +5802,6 @@
    "Disable",
    "Foresight",
    "Gust",
-   "Quiver",
-   "Dance",
    "Silver Wind",
    "Supersonic",
    "Tackle",
@@ -5850,8 +5821,7 @@
    "18": [
     "Zen Headbutt",
     "Poison Fang",
-    "Psychic",
-    "Bug"
+    "Psychic"
    ]
   },
   "tmMoves": [
@@ -6210,8 +6180,7 @@
    "18": [
     "Nasty Plot",
     "Assurance",
-    "Captivate",
-    "Night"
+    "Captivate"
    ]
   },
   "tmMoves": [
@@ -6254,7 +6223,6 @@
    "Iron Tail",
    "Last Resort",
    "Odor Sleuth",
-   "Psych",
    "Punishment",
    "Snatch",
    "Spite",
@@ -6524,8 +6492,6 @@
    "Foresight",
    "Future Sight",
    "Hypnosis",
-   "Light",
-   "Screen",
    "Mud Bomb",
    "Psybeam",
    "Psychic",
@@ -6624,8 +6590,7 @@
    "18": [
     "Psych Up",
     "Amnesia",
-    "Hydro Pump",
-    "Wonder"
+    "Hydro Pump"
    ]
   },
   "tmMoves": [
@@ -6758,8 +6723,7 @@
    "18": [
     "Close Combat",
     "Screech",
-    "Outrage",
-    "Final"
+    "Outrage"
    ]
   },
   "tmMoves": [
@@ -7043,8 +7007,6 @@
    "Double Kick",
    "Double-Edge",
    "Fire Spin",
-   "Flare",
-   "Blitz",
    "Heat Wave",
    "Howl",
    "Iron Tail",
@@ -7236,8 +7198,7 @@
     "Bubble"
    ],
    "6": [
-    "Double Slap",
-    "Rain Dance"
+    "Double Slap"
    ],
    "10": [
     "Body Slam",
@@ -7366,8 +7327,7 @@
   ],
   "levelMoves": {
    "6": [
-    "Double Slap",
-    "Rain Dance"
+    "Double Slap"
    ],
    "10": [
     "Body Slam",
@@ -8050,7 +8010,6 @@
    "Fire Punch",
    "Heavy Slam",
    "Ice Punch",
-   "Knock",
    "Light Screen",
    "Meditate",
    "Power Trick",
@@ -8262,13 +8221,9 @@
    "Strength",
    "Wide Guard",
    "Foresight",
-   "Low",
-   "Sweep",
    "Seismic Toss",
    "Revenge",
    "Knock Off",
-   "Vital",
-   "Throw",
    "Wake-Up Slap"
   ],
   "levelMoves": {
@@ -8446,7 +8401,6 @@
    "Acid Spray",
    "Belch",
    "Bullet Seed",
-   "Clear",
    "Smog",
    "Encore",
    "Giga Drain",
@@ -8645,7 +8599,6 @@
   "startingMoves": [
    "Leaf Tornado",
    "Razor Leaf",
-   "Sleep",
    "Powder",
    "Spit Up",
    "Stockpile",
@@ -8904,7 +8857,6 @@
    "Constrict",
    "Poison Sting",
    "Reflect",
-   "Type",
    "Supersonic"
   ],
   "levelMoves": {
@@ -8925,8 +8877,7 @@
     "Brine",
     "Screech",
     "Hex",
-    "Sludge Wave",
-    "Hydro"
+    "Sludge Wave"
    ]
   },
   "tmMoves": [
@@ -9107,8 +9058,6 @@
    "Focus Punch",
    "Hammer Arm",
    "Mega Punch",
-   "Rock",
-   "Climb",
    "Rock Slide",
    "Wide Guard"
   ],
@@ -9189,8 +9138,6 @@
   "startingMoves": [
    "Defense Curl",
    "Mud Sport",
-   "Rock",
-   "Polish",
    "Tackle",
    "Rollout"
   ],
@@ -9322,8 +9269,6 @@
   "startingMoves": [
    "Defense Curl",
    "Mud Sport",
-   "Rock",
-   "Polish",
    "Tackle",
    "Steamroller",
    "Magnitude",
@@ -9726,7 +9671,6 @@
    ],
    "18": [
     "Psychic",
-    "Rain Dance",
     "Psych Up",
     "Heal Pulse"
    ]
@@ -9876,7 +9820,6 @@
    "18": [
     "Amnesia",
     "Psychic",
-    "Rain Dance",
     "Psych Up"
    ]
   },
@@ -10020,8 +9963,7 @@
    "18": [
     "Lock-On",
     "Magnet Rise",
-    "Gyro Ball",
-    "Zap"
+    "Gyro Ball"
    ]
   },
   "tmMoves": [
@@ -10129,9 +10071,7 @@
    "Tackle",
    "Thunder Shock",
    "Tri Attack",
-   "Thunder Wave",
-   "Electric",
-   "Terrain"
+   "Thunder Wave"
   ],
   "levelMoves": {
    "6": [
@@ -10151,8 +10091,7 @@
    "18": [
     "Discharge",
     "Lock-On",
-    "Magnet Rise",
-    "Gyro"
+    "Magnet Rise"
    ]
   },
   "tmMoves": [
@@ -10421,8 +10360,7 @@
    "14": [
     "Uproar",
     "Acupressure",
-    "Swords Dance",
-    "Jump"
+    "Swords Dance"
    ],
    "18": [
     "Drill Peck",
@@ -10538,8 +10476,6 @@
    "Peck",
    "Quick Attack",
    "Rage",
-   "Tri",
-   "Attack",
    "Fury Attack",
    "Pursuit",
    "Pluck"
@@ -10799,8 +10735,6 @@
    "Growl",
    "Headbutt",
    "Icy Wind",
-   "Sheer",
-   "Cold",
    "Signal Beam",
    "Encore",
    "Ice Shard"
@@ -10991,8 +10925,6 @@
    "Lick",
    "Mean Look",
    "Scary Face",
-   "Shadow",
-   "Punch",
    "Shadow Sneak",
    "Spit Up",
    "Stockpile",
@@ -11218,8 +11150,7 @@
    "18": [
     "Brine",
     "Iron Defense",
-    "Ice Beam",
-    "Shell"
+    "Ice Beam"
    ]
   },
   "tmMoves": [
@@ -11249,7 +11180,6 @@
    "Avalanche",
    "Barrier",
    "Bubble",
-   "Beam",
    "Icicle Spear",
    "Mud Shot",
    "Rapid Spin",
@@ -12276,7 +12206,6 @@
   ],
   "levelMoves": {
    "2": [
-    "Vice Grip",
     "Leer",
     "Harden"
    ],
@@ -12333,8 +12262,6 @@
    "Agility",
    "Ally Switch",
    "Amnesia",
-   "Ancient",
-   "Power",
    "Bide",
    "Chip Away",
    "Dig",
@@ -12413,7 +12340,6 @@
    "Bubble",
    "Leer",
    "Mud Sport",
-   "Vice Grip",
    "Wide Guard",
    "Harden"
   ],
@@ -12558,8 +12484,7 @@
    "18": [
     "Discharge",
     "Explosion",
-    "Gyro Ball",
-    "Mirror"
+    "Gyro Ball"
    ]
   },
   "tmMoves": [
@@ -12674,8 +12599,7 @@
    "18": [
     "Magnet Rise",
     "Discharge",
-    "Explosion",
-    "Gyro"
+    "Explosion"
    ]
   },
   "tmMoves": [
@@ -12920,8 +12844,6 @@
    "Barrage",
    "Confusion",
    "Hypnosis",
-   "Seed",
-   "Bomb",
    "Stomp"
   ],
   "levelMoves": {
@@ -13058,8 +12980,7 @@
    "18": [
     "Endeavor",
     "Double-Edge",
-    "Retaliate",
-    "Bone"
+    "Retaliate"
    ]
   },
   "tmMoves": [
@@ -13105,8 +13026,6 @@
    "Double Kick",
    "Endure",
    "Iron Head",
-   "Perish",
-   "Song",
    "Rock Slide",
    "Screech",
    "Skull Bash",
@@ -13330,8 +13249,7 @@
    "18": [
     "Wide Guard",
     "Blaze Kick",
-    "Endure",
-    "Mega"
+    "Endure"
    ]
   },
   "tmMoves": [
@@ -13442,8 +13360,7 @@
    "10": [
     "Feint",
     "Vacuum Wave",
-    "Fire Punch",
-    "Ice"
+    "Fire Punch"
    ],
    "14": [
     "Quick Guard",
@@ -13453,8 +13370,7 @@
    "18": [
     "Detect",
     "Focus Punch",
-    "Counter",
-    "Close"
+    "Counter"
    ]
   },
   "tmMoves": [
@@ -13970,14 +13886,12 @@
    "14": [
     "Rock Blast",
     "Drill Run",
-    "Take Down",
-    "Stone"
+    "Take Down"
    ],
    "18": [
     "Earthquake",
     "Megahorn",
-    "Horn Drill",
-    "Double-"
+    "Horn Drill"
    ]
   },
   "tmMoves": [
@@ -14126,14 +14040,12 @@
    "14": [
     "Rock Blast",
     "Drill Run",
-    "Take Down",
-    "Chip"
+    "Take Down"
    ],
    "18": [
     "Stone Edge",
     "Earthquake",
-    "Megahorn",
-    "Horn"
+    "Megahorn"
    ]
   },
   "tmMoves": [
@@ -14412,8 +14324,7 @@
     "Giga Drain",
     "Slam",
     "Tickle",
-    "Wring Out",
-    "Power"
+    "Wring Out"
    ]
   },
   "tmMoves": [
@@ -14734,9 +14645,7 @@
    "Outrage",
    "Razor Wind",
    "Signal Beam",
-   "Splash",
-   "Water",
-   "Pulse"
+   "Splash"
   ],
   "abilities": [
    {
@@ -14970,8 +14879,6 @@
    "Aqua Tail",
    "Body Slam",
    "Haze",
-   "Hydro",
-   "Pump",
    "Mud Shot",
    "Mud Sport",
    "Mud-Slap",
@@ -15046,8 +14953,6 @@
    "Peck",
    "Poison Jab",
    "Tail Whip",
-   "Water",
-   "Sport",
    "Supersonic",
    "Horn Attack",
    "Flail",
@@ -15186,8 +15091,7 @@
    "18": [
     "Power Gem",
     "Psychic",
-    "Light Screen",
-    "Cosmic"
+    "Light Screen"
    ]
   },
   "tmMoves": [
@@ -15582,8 +15486,7 @@
    "18": [
     "X-Scissor",
     "Night Slash",
-    "Double Hit",
-    "Air"
+    "Double Hit"
    ]
   },
   "tmMoves": [
@@ -15630,8 +15533,7 @@
    "Razor Wind",
    "Reversal",
    "Safeguard",
-   "Silver Wind",
-   "Steel"
+   "Silver Wind"
   ],
   "abilities": [
    {
@@ -15703,8 +15605,6 @@
    "Draining Kiss",
    "Pound",
    "Lick",
-   "Lovely",
-   "Kiss",
    "Powder Snow"
   ],
   "levelMoves": {
@@ -15723,8 +15623,7 @@
    "18": [
     "Avalanche",
     "Body Slam",
-    "Wring Out",
-    "Perish"
+    "Wring Out"
    ]
   },
   "tmMoves": [
@@ -15967,8 +15866,7 @@
     "Confuse Ray"
    ],
    "14": [
-    "Fire Punch",
-    "Sunny Day"
+    "Fire Punch"
    ],
    "18": [
     "Lava Plume",
@@ -16057,7 +15955,6 @@
   },
   "startingMoves": [
    "Focus Energy",
-   "Vice Grip",
    "Bind",
    "Seismic Toss",
    "Harden"
@@ -16532,7 +16429,6 @@
     "Body Slam"
    ],
    "10": [
-    "Rain Dance",
     "Perish Song"
    ],
    "14": [
@@ -16591,8 +16487,6 @@
    "Future Sight",
    "Horn Drill",
    "Refresh",
-   "Sleep",
-   "Talk",
    "Substitute",
    "Tickle",
    "Whirlpool"
@@ -17351,8 +17245,7 @@
    "18": [
     "Tickle",
     "Rock Blast",
-    "Shell Smash",
-    "Hydro"
+    "Shell Smash"
    ]
   },
   "tmMoves": [
@@ -17492,8 +17385,7 @@
    "18": [
     "Tickle",
     "Rock Blast",
-    "Shell Smash",
-    "Hydro"
+    "Shell Smash"
    ]
   },
   "tmMoves": [
@@ -17657,8 +17549,6 @@
   "eggMoves": [
    "Aurora Beam",
    "Bubble Beam",
-   "Confuse",
-   "Ray",
    "Dig",
    "Flail",
    "Foresight",
@@ -17892,8 +17782,7 @@
    "18": [
     "Take Down",
     "Sky Drop",
-    "Hyper Beam",
-    "Rock"
+    "Hyper Beam"
    ]
   },
   "tmMoves": [
@@ -18025,15 +17914,13 @@
     "Rest",
     "Snore",
     "Sleep Talk",
-    "Giga Impact",
-    "High"
+    "Giga Impact"
    ],
    "18": [
     "Rollout",
     "Block",
     "Belly Drum",
-    "Crunch",
-    "Heavy"
+    "Crunch"
    ]
   },
   "tmMoves": [
@@ -18276,9 +18163,7 @@
   "levelMoves": {
    "18": [
     "Discharge",
-    "Rain Dance",
-    "Light Screen",
-    "Drill"
+    "Light Screen"
    ]
   },
   "tmMoves": [
@@ -18397,8 +18282,7 @@
    "18": [
     "Burn Up",
     "Safeguard",
-    "Air Slash",
-    "Sunny Day"
+    "Air Slash"
    ]
   },
   "tmMoves": [
@@ -18565,8 +18449,7 @@
    "Iron Tail",
    "Light Screen",
    "Mist",
-   "Supersonic",
-   "Water"
+   "Supersonic"
   ],
   "abilities": [
    {
@@ -18771,8 +18654,7 @@
    "18": [
     "Aqua Tail",
     "Dragon Rush",
-    "Safeguard",
-    "Dragon"
+    "Safeguard"
    ]
   },
   "tmMoves": [
@@ -18894,8 +18776,6 @@
    "Swift",
    "Future Sight",
    "Psych Up",
-   "Miracle",
-   "Eye",
    "Psycho Cut",
    "Guard Swap",
    "Power Swap",
@@ -18905,8 +18785,6 @@
    "Aura Sphere",
    "Amnesia",
    "Mist",
-   "Me",
-   "First",
    "Psystrike",
    "Laser Focus"
   ],
@@ -19034,8 +18912,6 @@
    "Metronome",
    "Psychic",
    "Barrier",
-   "Ancient",
-   "Power",
    "Amnesia",
    "Me First",
    "Baton Pass",
@@ -19165,7 +19041,6 @@
   "eggMoves": [
    "Ancient Power",
    "Aromatherapy",
-   "Body",
    "Slam",
    "Counter",
    "Flail",
@@ -19175,8 +19050,6 @@
    "Ingrain",
    "Leaf Storm",
    "Leech Seed",
-   "Nature",
-   "Power",
    "Refresh",
    "Vine Whip",
    "Wring Out"
@@ -19536,8 +19409,6 @@
    "Covet",
    "Crush Claw",
    "Double Kick",
-   "Double-",
-   "Edge",
    "Extrasensory",
    "Flame Burst",
    "Flare Blitz",
@@ -19923,9 +19794,7 @@
    "Metal Claw",
    "Mud Sport",
    "Rock Slide",
-   "Thrash",
-   "Water",
-   "Sport"
+   "Thrash"
   ],
   "abilities": [
    {
@@ -20011,8 +19880,7 @@
    "18": [
     "Thrash",
     "Aqua Tail",
-    "Superpower",
-    "Hydro"
+    "Superpower"
    ]
   },
   "tmMoves": [
@@ -20113,8 +19981,6 @@
    "Leer",
    "Rage",
    "Scratch",
-   "Water",
-   "Gun",
    "Bite",
    "Scary Face",
    "Ice Fang",
@@ -20130,8 +19996,7 @@
    "18": [
     "Thrash",
     "Aqua Tail",
-    "Superpower",
-    "Hydro"
+    "Superpower"
    ]
   },
   "tmMoves": [
@@ -20296,13 +20161,9 @@
    "Captivate",
    "Charm",
    "Covet",
-   "Double-",
-   "Edge",
    "Focus Energy",
    "Iron Tail",
    "Last Resort",
-   "Natural",
-   "Gift",
    "Pursuit",
    "Reversal",
    "Slash",
@@ -20569,8 +20430,6 @@
    "Agility",
    "Defog",
    "Feint Attack",
-   "Feather",
-   "Dance",
    "Mirror Move",
    "Night Shade",
    "Sky Attack",
@@ -20650,8 +20509,6 @@
    "Foresight",
    "Growl",
    "Hypnosis",
-   "Sky",
-   "Attack",
    "Tackle",
    "Peck",
    "Confusion",
@@ -20674,8 +20531,7 @@
    "18": [
     "Roost",
     "Moonblast",
-    "Synchronoise",
-    "Dream"
+    "Synchronoise"
    ]
   },
   "tmMoves": [
@@ -20792,8 +20648,7 @@
    "6": [
     "Safeguard",
     "Mach Punch",
-    "Silver Wind",
-    "Comet"
+    "Silver Wind"
    ],
    "10": [
     "Baton Pass",
@@ -20921,8 +20776,6 @@
    "Supersonic",
    "Swift",
    "Tackle",
-   "Light",
-   "Screen",
    "Reflect",
    "Safeguard"
   ],
@@ -21104,7 +20957,6 @@
    "Baton Pass",
    "Disable",
    "Electroweb",
-   "Night",
    "Slash",
    "Poison Jab",
    "Psybeam",
@@ -21212,8 +21064,7 @@
    "18": [
     "Toxic Thread",
     "Psychic",
-    "Poison Jab",
-    "Cross"
+    "Poison Jab"
    ]
   },
   "tmMoves": [
@@ -21325,8 +21176,6 @@
    "Supersonic",
    "Wing Attack",
    "Confuse Ray",
-   "Air",
-   "Cutter",
    "Swift",
    "Poison Fang",
    "Mean Look"
@@ -21466,8 +21315,7 @@
    "18": [
     "Aqua Ring",
     "Hydro Pump",
-    "Charge",
-    "Ion"
+    "Charge"
    ]
   },
   "tmMoves": [
@@ -21752,8 +21600,6 @@
    "Endure",
    "Fake Out",
    "Flail",
-   "Lucky",
-   "Chant",
    "Present",
    "Reversal",
    "Thunder Punch",
@@ -22008,8 +21854,6 @@
    "Captivate",
    "Covet",
    "Feint Attack",
-   "Fake",
-   "Tears",
    "Gravity",
    "Heal Pulse",
    "Last Resort",
@@ -22409,8 +22253,7 @@
    "18": [
     "Future Sight",
     "Guard Swap",
-    "Power Swap",
-    "Me"
+    "Power Swap"
    ]
   },
   "tmMoves": [
@@ -23029,7 +22872,6 @@
    "Magical Leaf",
    "Mega Drain",
    "Stun Spore",
-   "Sunny Day",
    "Sweet Scent"
   ],
   "levelMoves": {
@@ -23157,8 +22999,7 @@
    ],
    "10": [
     "Play Rough",
-    "Aqua Ring",
-    "Rain Dance"
+    "Aqua Ring"
    ],
    "14": [
     "Double-Edge",
@@ -23270,8 +23111,6 @@
    "Tackle",
    "Tail Whip",
    "Water Gun",
-   "Water",
-   "Sport",
    "Bubble",
    "Defense Curl",
    "Rollout",
@@ -23287,7 +23126,6 @@
     "Aqua Ring"
    ],
    "14": [
-    "Rain Dance",
     "Double-Edge"
    ],
    "18": [
@@ -23645,8 +23483,7 @@
    "2": [
     "Tail Whip",
     "Tackle",
-    "Fairy Wind",
-    "Poison"
+    "Fairy Wind"
    ],
    "6": [
     "Stun Spore",
@@ -23661,8 +23498,7 @@
    "14": [
     "Mega Drain",
     "Cotton Spore",
-    "U-Turn",
-    "Worry"
+    "U-Turn"
    ],
    "18": [
     "Giga Drain",
@@ -23706,13 +23542,9 @@
    "Double-Edge",
    "Encore",
    "Endure",
-   "Grassy",
-   "Terrain",
    "Helping Hand",
    "Psych Up",
    "Reflect",
-   "Seed",
-   "Bomb",
    "Worry Seed"
   ],
   "abilities": [
@@ -23919,7 +23751,6 @@
    "Fairy Wind",
    "Poison Powder",
    "Stun Spore",
-   "Sleep",
    "Powder",
    "Bullet Seed",
    "Leech Seed",
@@ -23933,8 +23764,7 @@
    "18": [
     "Cotton Spore",
     "U-Turn",
-    "Worry Seed",
-    "Giga"
+    "Worry Seed"
    ]
   },
   "tmMoves": [
@@ -24197,8 +24027,7 @@
    ],
    "14": [
     "Solar Beam",
-    "Double-Edge",
-    "Sunny Day"
+    "Double-Edge"
    ],
    "18": [
     "Seed Bomb"
@@ -24234,15 +24063,12 @@
    "Curse",
    "Encore",
    "Endure",
-   "Grass",
-   "Whistle",
    "Grassy Terrain",
    "Helping Hand",
    "Ingrain",
    "Leech Seed",
    "Morning Sun",
-   "Nature Power",
-   "Sweet"
+   "Nature Power"
   ],
   "senses": "Tremorsense 20ft",
   "abilities": [
@@ -24317,9 +24143,7 @@
    "Pound",
    "Ingrain",
    "Grass Whistle",
-   "Mega Drain",
-   "Leech",
-   "Seed"
+   "Mega Drain"
   ],
   "levelMoves": {
    "6": [
@@ -24334,8 +24158,7 @@
    ],
    "14": [
     "Solar Beam",
-    "Double-Edge",
-    "Sunny Day"
+    "Double-Edge"
    ],
    "18": [
     "Leaf Storm",
@@ -24494,8 +24317,6 @@
    "Double-Edge",
    "Feint Attack",
    "Feint",
-   "Leech",
-   "Life",
    "Pursuit",
    "Reversal",
    "Secret Power",
@@ -24589,8 +24410,7 @@
     "Yawn"
    ],
    "14": [
-    "Earthquake",
-    "Rain Dance"
+    "Earthquake"
    ],
    "18": [
     "Haze",
@@ -24732,8 +24552,7 @@
     "Yawn"
    ],
    "14": [
-    "Earthquake",
-    "Rain Dance"
+    "Earthquake"
    ],
    "18": [
     "Haze",
@@ -25164,9 +24983,7 @@
    "Psycho Shift",
    "Screech",
    "Sky Attack",
-   "Whirlwind",
-   "Wing",
-   "Attack"
+   "Whirlwind"
   ],
   "senses": "Darkvision 30ft",
   "abilities": [
@@ -25453,8 +25270,6 @@
    "Shadow Sneak",
    "Skill Swap",
    "Spite",
-   "Sucker",
-   "Punch",
    "Wonder Room"
   ],
   "senses": "Darkvision 30ft",
@@ -25854,8 +25669,6 @@
    "Double-Edge",
    "Endure",
    "Flail",
-   "Pin",
-   "Missile",
    "Power Trick",
    "Reflect",
    "Revenge",
@@ -25954,8 +25767,7 @@
    "18": [
     "Gyro Ball",
     "Double-Edge",
-    "Magnet Rise",
-    "Zap"
+    "Magnet Rise"
    ]
   },
   "tmMoves": [
@@ -26284,8 +26096,6 @@
    "Agility",
    "Baton Pass",
    "Counter",
-   "Cross",
-   "Poison",
    "Double-Edge",
    "Feint",
    "Metal Claw",
@@ -26378,8 +26188,6 @@
    "Tackle",
    "Thunder Fang",
    "Curse",
-   "Rock",
-   "Throw",
    "Rock Tomb",
    "Rage",
    "Stealth Rock",
@@ -26808,8 +26616,6 @@
    "Poison Sting",
    "Spikes",
    "Tackle",
-   "Water",
-   "Gun",
    "Harden",
    "Minimize",
    "Bubble"
@@ -26832,8 +26638,7 @@
    "18": [
     "Aqua Tail",
     "Poison Jab",
-    "Destiny Bond",
-    "Hydro"
+    "Destiny Bond"
    ]
   },
   "tmMoves": [
@@ -26972,8 +26777,7 @@
    "18": [
     "Night Slash",
     "Double Hit",
-    "Iron Head",
-    "Swords"
+    "Iron Head"
    ]
   },
   "tmMoves": [
@@ -27100,8 +26904,7 @@
    "18": [
     "Bug Bite",
     "Guard Split",
-    "Power Split",
-    "Stone"
+    "Power Split"
    ]
   },
   "tmMoves": [
@@ -27219,9 +27022,7 @@
    "Leer",
    "Night Slash",
    "Tackle",
-   "Feint",
-   "Aerial",
-   "Ace"
+   "Feint"
   ],
   "levelMoves": {
    "6": [
@@ -27440,14 +27241,10 @@
    "Avalanche",
    "Bite",
    "Counter",
-   "Crush",
-   "Claw",
    "Double Hit",
    "Fake Out",
    "Feint",
    "Foresight",
-   "Ice",
-   "Punch",
    "Ice Shard",
    "Icicle Crash",
    "Punishment",
@@ -27587,13 +27384,9 @@
    "Cross Chop",
    "Crunch",
    "Double-Edge",
-   "Fake",
-   "Tears",
    "Metal Claw",
    "Night Slash",
    "Play Rough",
-   "Seismic",
-   "Toss",
    "Sleep Talk",
    "Take Down",
    "Yawn"
@@ -28122,19 +27915,14 @@
    "Ancient Power",
    "Avalanche",
    "Bite",
-   "Body",
    "Slam",
    "Curse",
    "Double-Edge",
    "Fissure",
    "Freeze-Dry",
-   "Icicle",
-   "Crash",
    "Icicle Spear",
    "Mud Shot",
    "Rock Slide",
-   "Stealth",
-   "Rock",
    "Take Down"
   ],
   "abilities": [
@@ -28348,8 +28136,7 @@
    "10": [
     "Lucky Chant",
     "Brine",
-    "Iron Defense",
-    "Rock"
+    "Iron Defense"
    ],
    "14": [
     "Endure",
@@ -28408,8 +28195,6 @@
    "Confuse Ray",
    "Curse",
    "Head Smash",
-   "Icicle",
-   "Spear",
    "Ingrain",
    "Mist",
    "Nature Power",
@@ -28795,13 +28580,9 @@
    "Freeze-Dry",
    "Future Sight",
    "Ice Ball",
-   "Ice",
-   "Punch",
    "Ice Shard",
    "Icy Wind",
    "Quick Attack",
-   "Rapid",
-   "Spin",
    "Spikes",
    "Splash"
   ],
@@ -29024,8 +28805,7 @@
    "18": [
     "Metal Sound",
     "Air Slash",
-    "Autotomize",
-    "Night"
+    "Autotomize"
    ]
   },
   "tmMoves": [
@@ -29071,8 +28851,6 @@
    "Guard Swap",
    "Pursuit",
    "Sky Attack",
-   "Stealth",
-   "Rock",
    "Whirlwind"
   ],
   "abilities": [
@@ -29323,8 +29101,7 @@
    "18": [
     "Foul Play",
     "Flamethrower",
-    "Crunch",
-    "Nasty"
+    "Crunch"
    ]
   },
   "tmMoves": [
@@ -29783,8 +29560,6 @@
   "startingMoves": [
    "Conversion",
    "Conversion 2",
-   "Defense",
-   "Curl",
    "Tackle",
    "Psybeam",
    "Agility",
@@ -30437,8 +30212,6 @@
    "Miracle Eye",
    "Nasty Plot",
    "Psych Up",
-   "Wake-",
-   "Up Slap",
    "Wish"
   ],
   "abilities": [
@@ -30566,8 +30339,6 @@
    "Fire Punch",
    "Focus Punch",
    "Hammer Arm",
-   "Ice",
-   "Punch",
    "Karate Chop",
    "Meditate",
    "Rolling Kick"
@@ -30655,7 +30426,6 @@
    ],
    "14": [
     "Lava Plume",
-    "Sunny Day",
     "Flamethrower"
    ],
    "18": [
@@ -31051,8 +30821,7 @@
   "levelMoves": {
    "18": [
     "Thunder Fang",
-    "Extrasensory",
-    "Rain Dance"
+    "Extrasensory"
    ]
   },
   "tmMoves": [
@@ -31159,8 +30928,6 @@
    "Leer",
    "Sacred Fire",
    "Roar",
-   "Fire",
-   "Spin",
    "Stomp",
    "Flamethrower",
    "Swagger"
@@ -31169,8 +30936,7 @@
    "18": [
     "Fire Fang",
     "Lava Plume",
-    "Extrasensory",
-    "Fire"
+    "Extrasensory"
    ]
   },
   "tmMoves": [
@@ -31273,7 +31039,6 @@
    "Leer",
    "Sheer Cold",
    "Bubble Beam",
-   "Rain Dance",
    "Gust",
    "Aurora Beam",
    "Mist",
@@ -31283,8 +31048,7 @@
    "18": [
     "Ice Fang",
     "Tailwind",
-    "Extrasensory",
-    "Hydro"
+    "Extrasensory"
    ]
   },
   "tmMoves": [
@@ -31676,8 +31440,7 @@
    "18": [
     "Earthquake",
     "Stone Edge",
-    "Hyper Beam",
-    "Giga"
+    "Hyper Beam"
    ]
   },
   "tmMoves": [
@@ -31797,9 +31560,6 @@
    "Gust",
    "Dragon Rush",
    "Extrasensory",
-   "Rain Dance",
-   "Hydro",
-   "Pump",
    "Aeroblast",
    "Punishment",
    "Ancient Power",
@@ -31807,8 +31567,6 @@
    "Recover",
    "Future Sight",
    "Natural Gift",
-   "Calm",
-   "Mind",
    "Sky Attack"
   ],
   "tmMoves": [
@@ -31931,10 +31689,7 @@
    "Weather Ball",
    "Whirlwind",
    "Gust",
-   "Brave",
-   "Bird",
    "Extrasensory",
-   "Sunny Day",
    "Fire Blast",
    "Sacred Fire",
    "Punishment",
@@ -32245,8 +32000,6 @@
    "Grassy Terrain",
    "Leaf Storm",
    "Leech Seed",
-   "Magical",
-   "Leaf",
    "Mud Sport",
    "Natural Gift",
    "Razor Wind",
@@ -33606,8 +33359,7 @@
    "2": [
     "Tail Whip",
     "Sand Attack",
-    "Headbutt",
-    "Baby-Doll"
+    "Headbutt"
    ],
    "6": [
     "Odor Sleuth",
@@ -34298,7 +34050,6 @@
    ],
    "10": [
     "Nature Power",
-    "Rain Dance",
     "Giga Drain"
    ],
    "14": [
@@ -34539,9 +34290,7 @@
   "startingMoves": [
    "Astonish",
    "Growl",
-   "Mega Drain",
-   "Nature",
-   "Power"
+   "Mega Drain"
   ],
   "tmMoves": [
    6,
@@ -34658,9 +34407,7 @@
     "Nature Power",
     "Synthesis"
    ],
-   "10": [
-    "Sunny Day"
-   ],
+   "10": [],
    "14": [
     "Explosion"
    ]
@@ -35097,8 +34844,6 @@
    "Boomburst",
    "Brave Bird",
    "Defog",
-   "Mirror",
-   "Move",
    "Pursuit",
    "Rage",
    "Refresh",
@@ -35349,13 +35094,11 @@
    "Aqua Ring",
    "Brine",
    "Gust",
-   "Knock",
    "Mist",
    "Roost",
    "Soak",
    "Twister",
-   "Water Sport",
-   "Wide"
+   "Water Sport"
   ],
   "abilities": [
    {
@@ -35850,8 +35593,6 @@
    "Healing Wish",
    "Misty Terrain",
    "Teleport",
-   "Disarming",
-   "Voice",
    "Wish",
    "Magical Leaf",
    "Heal Pulse",
@@ -35867,8 +35608,7 @@
    "18": [
     "Captivate",
     "Hypnosis",
-    "Dream Eater",
-    "Stored"
+    "Dream Eater"
    ]
   },
   "tmMoves": [
@@ -36283,8 +36023,6 @@
    "Bullet Seed",
    "Charm",
    "Drain Punch",
-   "Fake",
-   "Tears",
    "False Swipe",
    "Focus Punch",
    "Helping Hand",
@@ -37641,8 +37379,6 @@
    "Bullet Punch",
    "Chip Away",
    "Counter",
-   "Cross",
-   "Chop",
    "Detect",
    "Dynamic Punch",
    "Feint Attack",
@@ -37743,8 +37479,7 @@
    "18": [
     "Endure",
     "Close Combat",
-    "Reversal",
-    "Heavy"
+    "Reversal"
    ]
   },
   "tmMoves": [
@@ -37896,7 +37631,6 @@
    "Amnesia",
    "Aqua Jet",
    "Belly Drum",
-   "Body",
    "Slam",
    "Encore",
    "Fake Tears",
@@ -38378,8 +38112,6 @@
    "Leer",
    "Scratch",
    "Foresight",
-   "Night",
-   "Shade",
    "Astonish",
    "Fury Swipes"
   ],
@@ -38387,8 +38119,7 @@
    "6": [
     "Detect",
     "Shadow Sneak",
-    "Feint Attack",
-    "Fake"
+    "Feint Attack"
    ],
    "10": [
     "Punishment",
@@ -38450,8 +38181,6 @@
    "Feint",
    "Flatter",
    "Imprison",
-   "Mean",
-   "Look",
    "Metal Burst",
    "Moonlight",
    "Nasty Plot",
@@ -38543,7 +38272,6 @@
   ],
   "levelMoves": {
    "6": [
-    "Vice Grip",
     "Feint Attack"
    ],
    "10": [
@@ -38612,8 +38340,6 @@
    "Guard Swap",
    "Ice Fang",
    "Metal Burst",
-   "Misty",
-   "Terrain",
    "Poison Fang",
    "Psych Up",
    "Punishment",
@@ -39120,8 +38846,7 @@
    "6": [
     "Feint",
     "Force Palm",
-    "Hidden Power",
-    "Calm"
+    "Hidden Power"
    ],
    "10": [
     "Mind Reader",
@@ -39439,8 +39164,6 @@
    "Fire Fang",
    "Headbutt",
    "Ice Fang",
-   "Shock",
-   "Wave",
    "Swift",
    "Switcheroo",
    "Thunder Fang",
@@ -39632,9 +39355,7 @@
    "Spark",
    "Encore",
    "Bestow",
-   "Nuzzle",
-   "Play",
-   "Nice"
+   "Nuzzle"
   ],
   "levelMoves": {
    "6": [
@@ -39883,8 +39604,6 @@
    "Flash",
    "Tackle",
    "Double Team",
-   "Confuse",
-   "Ray",
    "Quick Attack"
   ],
   "levelMoves": {
@@ -40164,7 +39883,6 @@
    "Absorb",
    "Growth",
    "Poison Sting",
-   "Stun",
    "Spore",
    "Mega Drain"
   ],
@@ -40343,8 +40061,6 @@
    "Acid Armor",
    "Curse",
    "Destiny Bond",
-   "Dream",
-   "Eater",
    "Gunk Shot",
    "Mud-Slap",
    "Pain Split",
@@ -40421,9 +40137,7 @@
    "Yawn",
    "Amnesia",
    "Acid Spray",
-   "Encore",
-   "Venom",
-   "Drench"
+   "Encore"
   ],
   "levelMoves": {
    "10": [
@@ -40870,14 +40584,11 @@
    "Defense Curl",
    "Double-Edge",
    "Fissure",
-   "Sleep",
-   "Talk",
    "Snore",
    "Soak",
    "Swagger",
    "Thrash",
-   "Tickle",
-   "Zen"
+   "Tickle"
   ],
   "abilities": [
    {
@@ -40949,13 +40660,10 @@
    "Rollout",
    "Soak",
    "Splash",
-   "Water",
-   "Gun",
    "Whirlpool",
    "Astonish",
    "Water Pulse",
    "Mist",
-   "Noble",
    "Roar"
   ],
   "levelMoves": {
@@ -41132,8 +40840,6 @@
   "eggMoves": [
    "Ancient Power",
    "Body Slam",
-   "Defense",
-   "Curl",
    "Endure",
    "Growth",
    "Heat Wave",
@@ -41224,9 +40930,7 @@
    "Tackle",
    "Magnitude",
    "Flame Burst",
-   "Amnesia",
-   "Lava",
-   "Plume"
+   "Amnesia"
   ],
   "levelMoves": {
    "10": [
@@ -41417,8 +41121,6 @@
    "Fissure",
    "Flame Burst",
    "Skull Bash",
-   "Sleep",
-   "Talk",
    "Superpower",
    "Yawn"
   ],
@@ -41551,13 +41253,9 @@
    "Amnesia",
    "Endure",
    "Extrasensory",
-   "Future",
-   "Sight",
    "Lucky Chant",
    "Mirror Coat",
    "Simple Beam",
-   "Skill",
-   "Swap",
    "Substitute",
    "Trick",
    "Whirlwind",
@@ -41633,8 +41331,6 @@
    "Teeter Dance",
    "Psych Up",
    "Confuse Ray",
-   "Magic",
-   "Coat",
    "Belch"
   ],
   "levelMoves": {
@@ -41818,7 +41514,6 @@
    "Baton Pass",
    "Disable",
    "Encore",
-   "Fake",
    "Fake Tears",
    "Guard Split",
    "Icy Wind",
@@ -42154,8 +41849,6 @@
    "Dragon Dance",
    "Feint Attack",
    "Sand Attack",
-   "Sonic",
-   "Boom",
    "Mud-Slap",
    "Bulldoze",
    "Sand Tomb",
@@ -42339,18 +42032,12 @@
    "Belch",
    "Block",
    "Counter",
-   "Dynamic",
-   "Punch",
    "Fell Stinger",
    "Grass Whistle",
    "Low Kick",
-   "Magical",
-   "Leaf",
    "Nasty Plot",
    "Rototiller",
    "Seed Bomb",
-   "Smelling",
-   "Salts",
    "Switcheroo",
    "Teeter Dance",
    "Worry Seed"
@@ -42559,8 +42246,7 @@
    "2": [
     "Sing",
     "Fury Attack",
-    "Safeguard",
-    "Disarming"
+    "Safeguard"
    ],
    "6": [
     "Mist",
@@ -42699,8 +42385,6 @@
    "Sing",
    "Fury Attack",
    "Safeguard",
-   "Disarming",
-   "Voice",
    "Mist",
    "Round",
    "Natural Gift"
@@ -42712,8 +42396,7 @@
    ],
    "14": [
     "Dragon Dance",
-    "Cotton Guard",
-    "Dragon"
+    "Cotton Guard"
    ],
    "18": [
     "Perish Song",
@@ -42969,8 +42652,6 @@
    "Wrap",
    "Bite",
    "Lick",
-   "Poison",
-   "Tail",
    "Feint"
   ],
   "levelMoves": {
@@ -43230,8 +42911,6 @@
    "Confusion",
    "Flare Blitz",
    "Harden",
-   "Rock",
-   "Throw",
    "Tackle",
    "Fire Spin",
    "Rock Polish",
@@ -43368,8 +43047,7 @@
    "2": [
     "Mud Sport",
     "Water Sport",
-    "Water Gun",
-    "Mud"
+    "Water Gun"
    ],
    "6": [
     "Amnesia",
@@ -43421,8 +43099,6 @@
    "Dragon Dance",
    "Earth Power",
    "Flail",
-   "Hydro",
-   "Pump",
    "Mud Shot",
    "Muddy Water",
    "Spark",
@@ -43627,7 +43303,6 @@
   "levelMoves": {
    "2": [
     "Harden",
-    "Vice Grip",
     "Leer"
    ],
    "6": [
@@ -43776,9 +43451,7 @@
    "Bubble",
    "Harden",
    "Leer",
-   "Swift",
-   "Vice",
-   "Grip"
+   "Swift"
   ],
   "levelMoves": {
    "6": [
@@ -44049,8 +43722,6 @@
    "Teleport",
    "Mud-Slap",
    "Heal Block",
-   "Rock",
-   "Tomb",
    "Psybeam",
    "Ancient Power",
    "Cosmic Power"
@@ -44486,7 +44157,6 @@
    "Aqua Jet",
    "Cross Poison",
    "Curse",
-   "Knock",
    "Rapid Spin",
    "Rock Slide",
    "Sand Attack",
@@ -44558,13 +44228,9 @@
    "Harden",
    "Mud Sport",
    "Scratch",
-   "Water",
-   "Gun",
    "Fury Cutter",
    "Smack Down",
-   "Metal Claw",
-   "Ancient",
-   "Power"
+   "Metal Claw"
   ],
   "levelMoves": {
    "10": [
@@ -44716,8 +44382,6 @@
    "Brine",
    "Captivate",
    "Confuse Ray",
-   "Dragon",
-   "Pulse",
    "Dragon Breath",
    "Haze",
    "Hypnosis",
@@ -44800,8 +44464,6 @@
    "Wrap",
    "Disarming Voice",
    "Twister",
-   "Aqua",
-   "Ring",
    "Captivate"
   ],
   "levelMoves": {
@@ -44816,8 +44478,7 @@
     "Coil"
    ],
    "18": [
-    "Hydro Pump",
-    "Rain Dance"
+    "Hydro Pump"
    ]
   },
   "tmMoves": [
@@ -44919,9 +44580,7 @@
    ],
    "6": [
     "Headbutt",
-    "Hail",
-    "Rain Dance",
-    "Sunny Day"
+    "Hail"
    ],
    "10": [
     "Weather Ball"
@@ -44977,8 +44636,6 @@
    "Future Sight",
    "Guard Swap",
    "Hex",
-   "Lucky",
-   "Chant",
    "Ominous Wind",
    "Psych Up",
    "Reflect Type"
@@ -45113,13 +44770,10 @@
    "Camouflage",
    "Disable",
    "Dizzy Punch",
-   "Fake",
    "Foul Play",
    "Magic Coat",
    "Nasty Plot",
    "Recover",
-   "Skill",
-   "Swap",
    "Snatch",
    "Trick"
   ],
@@ -45259,12 +44913,9 @@
    "Foresight",
    "Gunk Shot",
    "Imprison",
-   "Ominous",
-   "Wind",
    "Payback",
    "Phantom Force",
-   "Pursuit",
-   "Shadow"
+   "Pursuit"
   ],
   "senses": "Darkvision 30ft",
   "abilities": [
@@ -45617,8 +45268,6 @@
    "Ice Punch",
    "Leer",
    "Night Shade",
-   "Shadow",
-   "Punch",
    "Thunder Punch",
    "Foresight",
    "Shadow Sneak",
@@ -45636,8 +45285,7 @@
    "18": [
     "Shadow Ball",
     "Mean Look",
-    "Payback",
-    "Future"
+    "Payback"
    ]
   },
   "tmMoves": [
@@ -46011,8 +45659,6 @@
    "Bite",
    "Double Team",
    "Slash",
-   "Swords",
-   "Dance",
    "Night Slash"
   ],
   "levelMoves": {
@@ -46082,14 +45728,10 @@
    "Assurance",
    "Baton Pass",
    "Curse",
-   "Double-",
-   "Edge",
    "Feint Attack",
    "Hex",
    "Magic Coat",
    "Me First",
-   "Mean",
-   "Look",
    "Megahorn",
    "Play Rough",
    "Punishment",
@@ -46288,13 +45930,10 @@
    "Bide",
    "Block",
    "Disable",
-   "Fake",
-   "Tears",
    "Hex",
    "Rollout",
    "Spikes",
-   "Switcheroo",
-   "Weather"
+   "Switcheroo"
   ],
   "abilities": [
    {
@@ -47271,8 +46910,6 @@
    "Mud-Slap",
    "Muddy Water",
    "Rock Slide",
-   "Skull",
-   "Bash",
    "Sleep Talk",
    "Snore",
    "Water Sport",
@@ -47525,8 +47162,6 @@
   "eggMoves": [
    "Defense Curl",
    "Dragon Dance",
-   "Dragon",
-   "Pulse",
    "Dragon Rage",
    "Dragon Rush",
    "Endure",
@@ -47726,13 +47361,9 @@
    "Protect",
    "Rage",
    "Thunder Fang",
-   "Dragon",
-   "Breath",
    "Headbutt",
    "Focus Energy",
-   "Crunch",
-   "Dragon",
-   "Claw"
+   "Crunch"
   ],
   "levelMoves": {
    "14": [
@@ -47932,8 +47563,7 @@
    "10": [
     "Pursuit",
     "Bullet Punch",
-    "Miracle Eye",
-    "Zen"
+    "Miracle Eye"
    ],
    "14": [
     "Scary Face",
@@ -48055,8 +47685,6 @@
   "startingMoves": [
    "Confusion",
    "Hammer Arm",
-   "Magnet",
-   "Rise",
    "Metal Claw",
    "Take Down",
    "Pursuit",
@@ -49054,8 +48682,6 @@
    "Air Slash",
    "Rest",
    "Extreme Speed",
-   "Dragon",
-   "Dance",
    "Fly"
   ],
   "levelMoves": {
@@ -49193,7 +48819,6 @@
    "Psychic",
    "Refresh",
    "Lucky Chant",
-   "Zen",
    "Headbutt",
    "Double-Edge"
   ],
@@ -49491,13 +49116,9 @@
    "Amnesia",
    "Body Slam",
    "Double-Edge",
-   "Earth",
-   "Power",
    "Grassy Terrain",
    "Growth",
    "Sand Tomb",
-   "Seed",
-   "Bomb",
    "Spit Up",
    "Stockpile",
    "Superpower",
@@ -49693,9 +49314,7 @@
    "Withdraw",
    "Wood Hammer",
    "Curse",
-   "Bite",
-   "Mega",
-   "Drain"
+   "Bite"
   ],
   "levelMoves": {
    "14": [
@@ -50087,8 +49706,6 @@
    "Close Combat",
    "Ember",
    "Leer",
-   "Mach",
-   "Punch",
    "Scratch",
    "Taunt",
    "Fury Swipes",
@@ -50651,8 +50268,6 @@
    "Astonish",
    "Detect",
    "Double-Edge",
-   "Feather",
-   "Dance",
    "Foresight",
    "Fury Attack",
    "Mirror Move",
@@ -50730,8 +50345,6 @@
    "Growl",
    "Quick Attack",
    "Tackle",
-   "Wing",
-   "Attack",
    "Double Team"
   ],
   "levelMoves": {
@@ -51015,8 +50628,7 @@
    "Rock Climb",
    "Rollout",
    "Skull Bash",
-   "Sleep Talk",
-   "Water"
+   "Sleep Talk"
   ],
   "abilities": [
    {
@@ -51463,7 +51075,6 @@
    "Helping Hand",
    "Howl",
    "Ice Fang",
-   "Night",
    "Slash",
    "Quick Attack",
    "Shock Wave",
@@ -51894,8 +51505,6 @@
   "startingMoves": [
    "Magical Leaf",
    "Mega Drain",
-   "Poison",
-   "Sting",
    "Sweet Scent",
    "Weather Ball",
    "Grassy Terrain",
@@ -52066,8 +51675,6 @@
    "Crunch",
    "Curse",
    "Double-Edge",
-   "Hammer",
-   "Arm",
    "Iron Head",
    "Iron Tail",
    "Leer",
@@ -52341,8 +51948,6 @@
    "Body Slam",
    "Counter",
    "Curse",
-   "Double-",
-   "Edge",
    "Fissure",
    "Focus Energy",
    "Guard Split",
@@ -52350,9 +51955,7 @@
    "Rock Blast",
    "Scary Face",
    "Screech",
-   "Stealth Rock",
-   "Wide",
-   "Guard"
+   "Stealth Rock"
   ],
   "abilities": [
    {
@@ -53132,8 +52735,6 @@
    "Bite",
    "Charge",
    "Covet",
-   "Defense",
-   "Curl",
    "Fake Tears",
    "Flail",
    "Flatter",
@@ -53270,8 +52871,6 @@
    "Fury Cutter",
    "Fury Swipes",
    "Headbutt",
-   "Me",
-   "First",
    "Mud-Slap",
    "Odor Sleuth",
    "Slash",
@@ -53471,8 +53070,7 @@
     "Helping Hand"
    ],
    "6": [
-    "Magical Leaf",
-    "Sunny Day"
+    "Magical Leaf"
    ],
    "10": [
     "Worry Seed",
@@ -53513,8 +53111,6 @@
   "eggMoves": [
    "Aromatherapy",
    "Defense Curl",
-   "Flower",
-   "Shield",
    "Grass Whistle",
    "Heal Pulse",
    "Healing Wish",
@@ -53522,8 +53118,6 @@
    "Nature Power",
    "Razor Leaf",
    "Rollout",
-   "Seed",
-   "Bomb",
    "Sweet Scent",
    "Tickle",
    "Weather Ball"
@@ -53595,8 +53189,7 @@
   ],
   "levelMoves": {
    "6": [
-    "Magical Leaf",
-    "Sunny Day"
+    "Magical Leaf"
    ],
    "10": [
     "Worry Seed"
@@ -53707,8 +53300,7 @@
     "Mud Bomb"
    ],
    "6": [
-    "Hidden Power",
-    "Rain Dance"
+    "Hidden Power"
    ],
    "10": [
     "Body Slam"
@@ -53758,8 +53350,6 @@
    "Spit Up",
    "Stockpile",
    "Swallow",
-   "Trump",
-   "Card",
    "Yawn"
   ],
   "abilities": [
@@ -53833,14 +53423,11 @@
    "Harden",
    "Mud-Slap",
    "Mud Sport",
-   "Water",
-   "Pulse",
    "Mud Bomb"
   ],
   "levelMoves": {
    "6": [
-    "Hidden Power",
-    "Rain Dance"
+    "Hidden Power"
    ],
    "10": [
     "Body Slam"
@@ -54146,8 +53733,6 @@
    "Body Slam",
    "Clear Smog",
    "Defog",
-   "Destiny",
-   "Bond",
    "Disable",
    "Haze",
    "Hypnosis",
@@ -54410,8 +53995,6 @@
    "Attract",
    "Circle Throw",
    "Copycat",
-   "Cosmic",
-   "Power",
    "Double Hit",
    "Encore",
    "Fake Out",
@@ -54498,8 +54081,6 @@
    "Return",
    "Splash",
    "Endure",
-   "Baby-",
-   "Doll Eyes",
    "Rototiller"
   ],
   "levelMoves": {
@@ -54519,8 +54100,7 @@
    "18": [
     "Entrainment",
     "Bounce",
-    "Healing Wish",
-    "High"
+    "Healing Wish"
    ]
   },
   "tmMoves": [
@@ -54627,8 +54207,6 @@
    "Power Gem",
    "Psywave",
    "Spite",
-   "Mystical",
-   "Fire",
    "Phantom Force"
   ],
   "tmMoves": [
@@ -54925,8 +54503,6 @@
    "Bite",
    "Fake Tears",
    "Flail",
-   "Last",
-   "Resort",
    "Quick Attack",
    "Sand Attack",
    "Snatch",
@@ -55171,8 +54747,6 @@
    "Cosmic Power",
    "Curse",
    "Disable",
-   "Dream",
-   "Eater",
    "Future Sight",
    "Hypnosis",
    "Recover",
@@ -55667,11 +55241,7 @@
    "Confusion",
    "Hypnosis",
    "Imprison",
-   "Rain Dance",
-   "Sunny Day",
-   "Tackle",
-   "Confuse",
-   "Ray"
+   "Tackle"
   ],
   "levelMoves": {
    "6": [
@@ -55867,9 +55437,7 @@
    "Headbutt",
    "Rollout",
    "Sand Tomb",
-   "Self-Destruct",
-   "Stealth",
-   "Rock"
+   "Self-Destruct"
   ],
   "senses": "Tremorsense 30ft",
   "abilities": [
@@ -56015,13 +55583,9 @@
    "Charm",
    "Confuse Ray",
    "Fake Out",
-   "Future",
-   "Sight",
    "Healing Wish",
    "Hypnosis",
    "Icy Wind",
-   "Magic",
-   "Room",
    "Mimic",
    "Nasty Plot",
    "Power Split",
@@ -56222,8 +55786,6 @@
    "Peck",
    "Taunt",
    "Growl",
-   "Mirror",
-   "Move",
    "Sing"
   ],
   "levelMoves": {
@@ -56282,8 +55844,6 @@
    "Nasty Plot",
    "Night Shade",
    "Sleep Talk",
-   "Steel",
-   "Wing",
    "Supersonic"
   ],
   "abilities": [
@@ -56356,8 +55916,6 @@
    "Confuse Ray",
    "Curse",
    "Pursuit",
-   "Shadow",
-   "Sneak",
    "Spite",
    "Feint Attack",
    "Hypnosis"
@@ -56421,8 +55979,6 @@
    "Imprison",
    "Nightmare",
    "Pain Split",
-   "Shadow",
-   "Sneak",
    "Smokescreen"
   ],
   "senses": "Darkvision 80ft, Truesight 20ft",
@@ -56888,8 +56444,7 @@
    "18": [
     "Belly Drum",
     "Natural Gift",
-    "Snatch",
-    "Last"
+    "Snatch"
    ]
   },
   "tmMoves": [
@@ -57155,15 +56710,12 @@
    "Metal Claw",
    "Quick Attack",
    "Counter",
-   "Feint",
-   "Laser",
-   "Focus"
+   "Feint"
   ],
   "levelMoves": {
    "6": [
     "Swords Dance",
-    "Metal Sound",
-    "Power-Up"
+    "Metal Sound"
    ],
    "10": [
     "Bone Rush",
@@ -57177,8 +56729,7 @@
    ],
    "18": [
     "Close Combat",
-    "Dragon Pulse",
-    "Extreme"
+    "Dragon Pulse"
    ]
   },
   "tmMoves": [
@@ -57704,8 +57255,7 @@
    "18": [
     "Scary Face",
     "Crunch",
-    "Cross Poison",
-    "Fell"
+    "Cross Poison"
    ]
   },
   "tmMoves": [
@@ -57895,7 +57445,6 @@
    "Cross Chop",
    "Drain Punch",
    "Dynamic Punch",
-   "Fake",
    "Feint",
    "Headbutt",
    "Me First",
@@ -58242,8 +57791,7 @@
   "levelMoves": {
    "2": [
     "Water Gun",
-    "Attract",
-    "Rain Dance"
+    "Attract"
    ],
    "6": [
     "Gust",
@@ -58302,8 +57850,6 @@
    "Psybeam",
    "Signal Beam",
    "Splash",
-   "Sweet",
-   "Kiss",
    "Tickle"
   ],
   "senses": "Darkvision 30ft",
@@ -58374,8 +57920,7 @@
    "Attract",
    "Gust",
    "Pound",
-   "Water Gun",
-   "Rain Dance"
+   "Water Gun"
   ],
   "levelMoves": {
    "6": [
@@ -58555,8 +58100,6 @@
    "Amnesia",
    "Haze",
    "Hydro Pump",
-   "Mirror",
-   "Coat",
    "Mud Sport",
    "Rock Slide",
    "Signal Beam",
@@ -58772,7 +58315,6 @@
    "Icy Wind",
    "Leer",
    "Powder",
-   "Snow",
    "Razor Leaf",
    "Grass Whistle",
    "Swagger",
@@ -59052,8 +58594,6 @@
    "Mirror Shot",
    "Metal Sound",
    "Electro Ball",
-   "Electric",
-   "Terrain",
    "Magnetic Flux"
   ],
   "levelMoves": {
@@ -59064,8 +58604,7 @@
    "18": [
     "Discharge",
     "Lock-On",
-    "Magnet Rise",
-    "Gyro"
+    "Magnet Rise"
    ]
   },
   "tmMoves": [
@@ -59308,8 +58847,6 @@
    "Poison Jab",
    "Scary Face",
    "Tail Whip",
-   "Smack",
-   "Down",
    "Stomp",
    "Bulldoze",
    "Chip Away",
@@ -59319,14 +58856,12 @@
    "14": [
     "Drill Run",
     "Take Down",
-    "Stone Edge",
-    "Chip"
+    "Stone Edge"
    ],
    "18": [
     "Earthquake",
     "Megahorn",
-    "Horn Drill",
-    "Rock"
+    "Horn Drill"
    ]
   },
   "tmMoves": [
@@ -59710,8 +59245,7 @@
   ],
   "levelMoves": {
    "14": [
-    "Lava Plume",
-    "Sunny Day"
+    "Lava Plume"
    ],
    "18": [
     "Flamethrower",
@@ -60088,7 +59622,6 @@
    ],
    "14": [
     "Synthesis",
-    "Sunny Day",
     "Last Resort"
    ],
    "18": [
@@ -60565,8 +60098,6 @@
   "startingMoves": [
    "Conversion",
    "Conversion 2",
-   "Magic",
-   "Coat",
    "Nasty Plot",
    "Tackle",
    "Trick Room",
@@ -60715,8 +60246,7 @@
    "18": [
     "False Swipe",
     "Protect",
-    "Close Combat",
-    "Stored"
+    "Close Combat"
    ]
   },
   "tmMoves": [
@@ -60846,8 +60376,6 @@
    "Block",
    "Gravity",
    "Iron Defense",
-   "Magnet",
-   "Bomb",
    "Magnet Rise",
    "Tackle",
    "Tri Attack",
@@ -60855,9 +60383,7 @@
    "Thunder Wave",
    "Rest",
    "Spark",
-   "Rock Slide",
-   "Magnetic",
-   "Flux"
+   "Rock Slide"
   ],
   "levelMoves": {
    "10": [
@@ -60985,8 +60511,6 @@
    "Ice Punch",
    "Leer",
    "Night Shade",
-   "Shadow",
-   "Punch",
    "Thunder Punch",
    "Foresight",
    "Shadow Sneak",
@@ -61002,8 +60526,7 @@
    "18": [
     "Shadow Ball",
     "Mean Look",
-    "Payback",
-    "Future"
+    "Payback"
    ]
   },
   "tmMoves": [
@@ -61721,8 +61244,6 @@
    "Ancient Power",
    "Slash",
    "Power Gem",
-   "Metal",
-   "Burst",
    "Dragon Claw",
    "Earth Power",
    "Aura Sphere",
@@ -61838,8 +61359,6 @@
   "startingMoves": [
    "Dragon Breath",
    "Scary Face",
-   "Water",
-   "Pulse",
    "Ancient Power",
    "Slash",
    "Power Gem",
@@ -61969,8 +61488,6 @@
   "startingMoves": [
    "Ancient Power",
    "Earth Power",
-   "Fire",
-   "Spin",
    "Heat Wave",
    "Iron Head",
    "Leer",
@@ -62077,18 +61594,12 @@
   "startingMoves": [
    "Confuse Ray",
    "Crush Grip",
-   "Dizzy",
-   "Punch",
    "Fire Punch",
    "Foresight",
    "Heavy Slam",
-   "Ice",
-   "Punch",
    "Knock Off",
    "Thunder Punch",
    "Revenge",
-   "Wide",
-   "Guard",
    "Zen Headbutt",
    "Payback",
    "Giga Impact"
@@ -62206,13 +61717,9 @@
   "startingMoves": [
    "Dragon Breath",
    "Scary Face",
-   "Ominous",
-   "Wind",
    "Ancient Power",
    "Slash",
    "Shadow Sneak",
-   "Destiny",
-   "Bond",
    "Dragon Claw",
    "Earth Power",
    "Aura Sphere",
@@ -62326,8 +61833,6 @@
   "startingMoves": [
    "Confusion",
    "Double Team",
-   "Lunar",
-   "Dance",
    "Moonlight",
    "Psycho Cut",
    "Psycho Shift",
@@ -62444,8 +61949,7 @@
    "18": [
     "Water Pulse",
     "Aqua Ring",
-    "Dive",
-    "Rain Dance"
+    "Dive"
    ]
   },
   "tmMoves": [
@@ -62547,8 +62051,7 @@
    "18": [
     "Water Pulse",
     "Aqua Ring",
-    "Dive",
-    "Rain Dance"
+    "Dive"
    ]
   },
   "tmMoves": [
@@ -64046,8 +63549,6 @@
    "Tackle",
    "Tail Whip",
    "Water Gun",
-   "Water",
-   "Sport",
    "Focus Energy"
   ],
   "levelMoves": {
@@ -64182,8 +63683,7 @@
    "18": [
     "Aqua Tail",
     "Retaliate",
-    "Swords Dance",
-    "Hydro"
+    "Swords Dance"
    ]
   },
   "tmMoves": [
@@ -64295,8 +63795,7 @@
    "10": [
     "After You",
     "Focus Energy",
-    "Work Up",
-    "Hyper"
+    "Work Up"
    ],
    "14": [
     "Nasty Plot",
@@ -64528,8 +64027,7 @@
    "2": [
     "Odor Sleuth",
     "Bite",
-    "Baby-Doll Eyes",
-    "Helping"
+    "Baby-Doll Eyes"
    ],
    "6": [
     "Take Down",
@@ -65057,8 +64555,7 @@
    "18": [
     "Snatch",
     "Nasty Plot",
-    "Sucker Punch",
-    "Play"
+    "Sucker Punch"
    ]
   },
   "tmMoves": [
@@ -65229,13 +64726,9 @@
    "Astonish",
    "Bullet Seed",
    "Covet",
-   "Disarming",
-   "Voice",
    "Grass Whistle",
    "Leaf Storm",
    "Low Kick",
-   "Magical",
-   "Leaf",
    "Nasty Plot",
    "Role Play",
    "Tickle"
@@ -66032,8 +65525,6 @@
   "startingMoves": [
    "Defense Curl",
    "Hypnosis",
-   "Lucky",
-   "Chant",
    "Psybeam",
    "Psychic Terrain"
   ],
@@ -66400,8 +65891,6 @@
    "Gust",
    "Leer",
    "Quick Attack",
-   "Air",
-   "Cutter",
    "Roost"
   ],
   "levelMoves": {
@@ -66566,8 +66055,6 @@
    "Double Kick",
    "Double-Edge",
    "Endure",
-   "Me",
-   "First",
    "Rage",
    "Sand Attack",
    "Screech",
@@ -67205,9 +66692,7 @@
    "Roost",
    "Stored Power",
    "Supersonic",
-   "Synchronoise",
-   "Venom",
-   "Drench"
+   "Synchronoise"
   ],
   "senses": "Blindsight 30ft, Darkvision 30ft",
   "abilities": [
@@ -67894,8 +67379,6 @@
    "Comet Punch",
    "Counter",
    "Detect",
-   "Drain",
-   "Punch",
    "Endure",
    "Force Palm",
    "Foresight",
@@ -68230,8 +67713,7 @@
    ],
    "10": [
     "Uproar",
-    "Muddy Water",
-    "Rain Dance"
+    "Muddy Water"
    ],
    "14": [
     "Flail",
@@ -68274,9 +67756,7 @@
    "Mud Sport",
    "Refresh",
    "Sleep Talk",
-   "Snore",
-   "Water",
-   "Pulse"
+   "Snore"
   ],
   "abilities": [
    {
@@ -68361,7 +67841,6 @@
     "Muddy Water"
    ],
    "14": [
-    "Rain Dance",
     "Flail"
    ],
    "18": [
@@ -68475,7 +67954,6 @@
   ],
   "levelMoves": {
    "14": [
-    "Rain Dance",
     "Flail"
    ],
    "18": [
@@ -69320,8 +68798,6 @@
   "startingMoves": [
    "Defense Curl",
    "Iron Defense",
-   "Poison",
-   "Sting",
    "Rollout",
    "Screech",
    "Pursuit"
@@ -69589,8 +69065,7 @@
    ],
    "14": [
     "Energy Ball",
-    "Cotton Guard",
-    "Sunny Day"
+    "Cotton Guard"
    ],
    "18": [
     "Endeavor",
@@ -69846,8 +69321,7 @@
    ],
    "14": [
     "Energy Ball",
-    "Entrainment",
-    "Sunny Day"
+    "Entrainment"
    ],
    "18": [
     "After You",
@@ -70913,8 +70387,7 @@
    ],
    "14": [
     "Petal Dance",
-    "Sucker Punch",
-    "Sunny Day"
+    "Sucker Punch"
    ],
    "18": [
     "Solar Beam",
@@ -71360,8 +70833,6 @@
    "Amnesia",
    "Counter",
    "Detect",
-   "Dragon",
-   "Dance",
    "Drain Punch",
    "Feint Attack",
    "Fake Out",
@@ -71369,7 +70840,6 @@
    "Ice Punch",
    "Quick Guard",
    "Thunder Punch",
-   "Zen",
    "Headbutt"
   ],
   "abilities": [
@@ -71654,8 +71124,6 @@
   "eggMoves": [
    "Ancient Power",
    "Future Sight",
-   "Psycho",
-   "Shift",
    "Roost",
    "Skill Swap",
    "Steel Wing",
@@ -72007,7 +71475,6 @@
    ],
    "18": [
     "Rock Slide",
-    "Rain Dance",
     "Hydro Pump"
    ]
   },
@@ -72142,7 +71609,6 @@
    ],
    "18": [
     "Rock Slide",
-    "Rain Dance",
     "Hydro Pump"
    ]
   },
@@ -72829,8 +72295,7 @@
    "Detect",
    "Extrasensory",
    "Memento",
-   "Snatch",
-   "Sucker"
+   "Snatch"
   ],
   "abilities": [
    {
@@ -72914,8 +72379,7 @@
    "18": [
     "Punishment",
     "Nasty Plot",
-    "Imprison",
-    "Night"
+    "Imprison"
    ]
   },
   "tmMoves": [
@@ -73265,8 +72729,7 @@
    "10": [
     "Feint Attack",
     "Psyshock",
-    "Flatter",
-    "Future"
+    "Flatter"
    ],
    "14": [
     "Heal Block",
@@ -73323,8 +72786,6 @@
    "Captivate",
    "Dark Pulse",
    "Heal Pulse",
-   "Mean",
-   "Look",
    "Miracle Eye",
    "Mirror Coat",
    "Uproar"
@@ -73408,8 +72869,7 @@
    "10": [
     "Feint Attack",
     "Psyshock",
-    "Flatter",
-    "Future"
+    "Flatter"
    ],
    "14": [
     "Heal Block",
@@ -74079,7 +73539,6 @@
     "Roost"
    ],
    "14": [
-    "Rain Dance",
     "Tailwind",
     "Brave Bird"
    ],
@@ -74117,8 +73576,6 @@
    "Brine",
    "Gust",
    "Lucky Chant",
-   "Me",
-   "First",
    "Mirror Move",
    "Mud Sport",
    "Steel Wing"
@@ -74211,7 +73668,6 @@
     "Roost"
    ],
    "14": [
-    "Rain Dance",
     "Tailwind"
    ],
    "18": [
@@ -74729,8 +74185,6 @@
    "Agility",
    "Baton Pass",
    "Fake Tears",
-   "Grass",
-   "Whistle",
    "Natural Gift",
    "Odor Sleuth",
    "Sleep Talk",
@@ -74815,9 +74269,7 @@
    "Megahorn",
    "Sand Attack",
    "Tackle",
-   "Double Kick",
-   "Leech",
-   "Seed"
+   "Double Kick"
   ],
   "levelMoves": {
    "6": [
@@ -75590,7 +75042,6 @@
     "Brine"
    ],
    "14": [
-    "Rain Dance",
     "Hex"
    ],
    "18": [
@@ -75719,8 +75170,6 @@
    "Absorb",
    "Bubble",
    "Night Shade",
-   "Water",
-   "Sport",
    "Bubble Beam",
    "Recover",
    "Water Pulse"
@@ -75731,7 +75180,6 @@
     "Brine"
    ],
    "14": [
-    "Rain Dance",
     "Hex"
    ],
    "18": [
@@ -76039,9 +75487,7 @@
    "Feint Attack",
    "Pin Missile",
    "Poison Sting",
-   "Pursuit",
-   "Rock",
-   "Climb"
+   "Pursuit"
   ],
   "abilities": [
    {
@@ -76292,8 +75738,6 @@
    "Acid Spray",
    "Bullet Seed",
    "Gravity",
-   "Leech",
-   "Seed",
    "Rock Climb",
    "Seed Bomb",
    "Spikes",
@@ -76369,8 +75813,6 @@
    "Curse",
    "Harden",
    "Power Whip",
-   "Rock",
-   "Climb",
    "Rollout",
    "Tackle"
   ],
@@ -76495,9 +75937,7 @@
    "description": "Other Pokémon's moves or abilities cannot lower this Pokémon stats."
   },
   "evolutionInfo": "Klink can evolve into Klang at level 8 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
-  "startingMoves": [
-   "Vice Grip"
-  ],
+  "startingMoves": [],
   "levelMoves": {
    "2": [
     "Charge",
@@ -76515,8 +75955,7 @@
    "14": [
     "Screech",
     "Discharge",
-    "Metal Sound",
-    "Shift"
+    "Metal Sound"
    ],
    "18": [
     "Lock-On",
@@ -76618,8 +76057,7 @@
   "evolutionInfo": "Klang can evolve into Klinklang at level 10 and above. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
   "startingMoves": [
    "Charge",
-   "Thunder Shock",
-   "Vice Grip"
+   "Thunder Shock"
   ],
   "levelMoves": {
    "6": [
@@ -76639,8 +76077,7 @@
    "18": [
     "Shift Gear",
     "Lock-On",
-    "Zap Cannon",
-    "Hyper"
+    "Zap Cannon"
    ]
   },
   "tmMoves": [
@@ -76739,7 +76176,6 @@
    "Charge",
    "Gear Grind",
    "Thunder Shock",
-   "Vice Grip",
    "Bind",
    "Charge Beam",
    "Autotomize",
@@ -76754,8 +76190,7 @@
    "18": [
     "Metal Sound",
     "Shift Gear",
-    "Lock-On",
-    "Zap"
+    "Lock-On"
    ]
   },
   "tmMoves": [
@@ -77018,9 +76453,7 @@
    "Discharge",
    "Gastro Acid",
    "Headbutt",
-   "Thrash",
-   "Zap",
-   "Cannon"
+   "Thrash"
   ],
   "tmMoves": [
    2,
@@ -77191,8 +76624,6 @@
    "Ally Switch",
    "Astonish",
    "Barrier",
-   "Cosmic",
-   "Power",
    "Disable",
    "Guard Swap",
    "Nasty Plot",
@@ -77702,8 +77133,6 @@
    "Confuse Ray",
    "Flame Burst",
    "Hex",
-   "Pain",
-   "Split",
    "Smog"
   ],
   "tmMoves": [
@@ -77833,8 +77262,7 @@
    "18": [
     "Swords Dance",
     "Guillotine",
-    "Outrage",
-    "Giga"
+    "Outrage"
    ]
   },
   "tmMoves": [
@@ -78255,13 +77683,9 @@
    "Assurance",
    "Avalanche",
    "Encore",
-   "Focus",
-   "Punch",
    "Ice Punch",
    "Night Slash",
    "Play Rough",
-   "Sleep",
-   "Talk",
    "Yawn"
   ],
   "abilities": [
@@ -78476,8 +77900,7 @@
    "18": [
     "Recover",
     "Freeze-Dry",
-    "Solar Beam",
-    "Night"
+    "Solar Beam"
    ]
   },
   "tmMoves": [
@@ -78716,8 +78139,7 @@
    "18": [
     "Bug Buzz",
     "Recover",
-    "Power Swap",
-    "Final"
+    "Power Swap"
    ]
   },
   "tmMoves": [
@@ -78819,8 +78241,6 @@
    "Mud-Slap",
    "Mud Sport",
    "Tackle",
-   "Water",
-   "Gun",
    "Bide",
    "Thunder Shock",
    "Mud Shot"
@@ -78881,13 +78301,9 @@
    "Astonish",
    "Curse",
    "Earth Power",
-   "Eerie",
-   "Impulse",
    "Me First",
    "Pain Split",
    "Reflect Type",
-   "Shock",
-   "Wave",
    "Sleep Talk",
    "Spark",
    "Spite",
@@ -79034,9 +78450,7 @@
    "Knock Off",
    "Low Kick",
    "Me First",
-   "Smelling Salts",
-   "Vital",
-   "Throw"
+   "Smelling Salts"
   ],
   "abilities": [
    {
@@ -79124,8 +78538,7 @@
    "18": [
     "Bounce",
     "High Jump Kick",
-    "Reversal",
-    "Aura"
+    "Reversal"
    ]
   },
   "tmMoves": [
@@ -79546,8 +78959,7 @@
    "18": [
     "Curse",
     "Earthquake",
-    "Hammer Arm",
-    "Focus"
+    "Hammer Arm"
    ]
   },
   "tmMoves": [
@@ -79734,8 +79146,7 @@
    "Pursuit",
    "Quick Guard",
    "Revenge",
-   "Stealth Rock",
-   "Sucker"
+   "Stealth Rock"
   ],
   "abilities": [
    {
@@ -79956,8 +79367,7 @@
    "18": [
     "Reversal",
     "Thrash",
-    "Swords Dance",
-    "Giga"
+    "Swords Dance"
    ]
   },
   "tmMoves": [
@@ -80219,8 +79629,7 @@
    "18": [
     "Crush Claw",
     "Sky Drop",
-    "Whirlwind",
-    "Brave"
+    "Whirlwind"
    ]
   },
   "tmMoves": [
@@ -80349,8 +79758,7 @@
    "18": [
     "Embargo",
     "Whirlwind",
-    "Brave Bird",
-    "Mirror"
+    "Brave Bird"
    ]
   },
   "tmMoves": [
@@ -80390,8 +79798,6 @@
    "Fake Tears",
    "Foul Play",
    "Knock Off",
-   "Mean",
-   "Look",
    "Roost",
    "Scary Face",
    "Steel Wing"
@@ -80489,8 +79895,7 @@
    "18": [
     "Embargo",
     "Whirlwind",
-    "Brave Bird",
-    "Mirror"
+    "Brave Bird"
    ]
   },
   "tmMoves": [
@@ -80664,8 +80069,6 @@
    "Night Slash",
    "Pursuit",
    "Sleep Talk",
-   "Sucker",
-   "Punch",
    "Tickle",
    "Wrap"
   ],
@@ -80741,8 +80144,6 @@
    "Bite",
    "Fury Cutter",
    "Sand Attack",
-   "Vice",
-   "Grip",
    "Agility",
    "Metal Claw"
   ],
@@ -80797,8 +80198,6 @@
    "Baton Pass",
    "Endure",
    "Feint Attack",
-   "Rock",
-   "Climb",
    "Screech",
    "Thunder Fang"
   ],
@@ -81132,8 +80531,6 @@
    "Bite",
    "Dragon Rage",
    "Focus Energy",
-   "Tri",
-   "Attack",
    "Headbutt",
    "Roar",
    "Crunch",
@@ -81392,8 +80789,6 @@
    "Absorb",
    "Amnesia",
    "Ember",
-   "Flame",
-   "Wheel",
    "Flare Blitz",
    "Gust",
    "Quiver Dance",
@@ -81876,14 +81271,12 @@
    "Air Cutter",
    "Extrasensory",
    "Agility",
-   "Air",
    "Slash"
   ],
   "levelMoves": {
    "18": [
     "Crunch",
     "Tailwind",
-    "Rain Dance",
     "Hurricane"
    ]
   },
@@ -82011,8 +81404,7 @@
     "Crunch",
     "Charge",
     "Nasty Plot",
-    "Thunder",
-    "Dark"
+    "Thunder"
    ]
   },
   "tmMoves": [
@@ -82248,19 +81640,13 @@
    "Imprison",
    "Ancient Power",
    "Thunderbolt",
-   "Dragon",
-   "Breath",
    "Slash",
    "Zen Headbutt",
    "Fusion Bolt",
-   "Dragon",
-   "Claw",
    "Crunch",
    "Thunder",
    "Outrage",
-   "Hyper Voice",
-   "Bolt",
-   "Strike"
+   "Hyper Voice"
   ],
   "levelMoves": {
    "18": [
@@ -82382,8 +81768,6 @@
    "Block",
    "Imprison",
    "Mud Shot",
-   "Rock",
-   "Tomb",
    "Punishment",
    "Bulldoze",
    "Rock Throw",
@@ -82744,8 +82128,7 @@
    "18": [
     "U-Turn",
     "Wake-Up Slap",
-    "Psychic",
-    "Hyper"
+    "Psychic"
    ]
   },
   "tmMoves": [
@@ -82878,8 +82261,7 @@
    "18": [
     "Tri Attack",
     "X-Scissor",
-    "Bug Buzz",
-    "Simple"
+    "Bug Buzz"
    ]
   },
   "tmMoves": [
@@ -83415,7 +82797,6 @@
     "Psychic"
    ],
    "18": [
-    "Sunny Day",
     "Magic Room",
     "Fire Blast"
    ]
@@ -83546,9 +82927,7 @@
    ],
    "18": [
     "Psychic",
-    "Sunny Day",
-    "Magic Room",
-    "Fire"
+    "Magic Room"
    ]
   },
   "tmMoves": [
@@ -83663,9 +83042,7 @@
    "Flame Charge",
    "Psybeam",
    "Fire Spin",
-   "Lucky Chant",
-   "Light",
-   "Screen"
+   "Lucky Chant"
   ],
   "levelMoves": {
    "14": [
@@ -83674,10 +83051,8 @@
     "Will-O-Wisp"
    ],
    "18": [
-    "Sunny Day",
     "Magic Room",
-    "Fire Blast",
-    "Future"
+    "Fire Blast"
    ]
   },
   "tmMoves": [
@@ -84042,7 +83417,6 @@
   "startingMoves": [
    "Water Shuriken",
    "Role Play",
-   "Mat",
    "Block",
    "Pound",
    "Growl",
@@ -84827,7 +84201,6 @@
   "eggMoves": [
    "Poison Powder",
    "Rage Powder",
-   "Stun",
    "Spore"
   ],
   "abilities": [
@@ -85492,9 +84865,7 @@
   "startingMoves": [
    "Tackle",
    "Vine Whip",
-   "Fairy Wind",
-   "Lucky",
-   "Chant"
+   "Fairy Wind"
   ],
   "levelMoves": {
    "6": [
@@ -85611,8 +84982,6 @@
    "Flower Shield",
    "Grass Knot",
    "Grassy Terrain",
-   "Lucky",
-   "Chant",
    "Magical Leaf"
   ],
   "levelMoves": {
@@ -85727,8 +85096,7 @@
    "2": [
     "Vine Whip",
     "Tail Whip",
-    "Leech Seed",
-    "Razor"
+    "Leech Seed"
    ],
    "6": [
     "Worry Seed",
@@ -85856,8 +85224,6 @@
    "Vine Whip",
    "Tail Whip",
    "Leech Seed",
-   "Razor",
-   "Leaf",
    "Worry Seed",
    "Synthesis",
    "Take Down"
@@ -86119,8 +85485,6 @@
    "Bullet Punch",
    "Leer",
    "Tackle",
-   "Arm",
-   "Thrust",
    "Work Up",
    "Karate Chop",
    "Comet Punch",
@@ -86140,8 +85504,7 @@
    "18": [
     "Sky Uppercut",
     "Low Sweep",
-    "Taunt",
-    "Hammer"
+    "Taunt"
    ]
   },
   "tmMoves": [
@@ -86256,8 +85619,6 @@
    "Growl",
    "Tackle",
    "Sand Attack",
-   "Baby-",
-   "Doll Eyes",
    "Headbutt"
   ],
   "levelMoves": {
@@ -86696,8 +86057,6 @@
   "eggMoves": [
    "Destiny Bond",
    "Metal Sound",
-   "Shadow",
-   "Sneak",
    "Wide Guard"
   ],
   "abilities": [
@@ -87128,8 +86487,6 @@
   "startingMoves": [
    "Aromatic Mist",
    "Fairy Wind",
-   "Heal",
-   "Pulse",
    "Sweet Scent",
    "Sweet Kiss",
    "Odor Sleuth",
@@ -87152,8 +86509,7 @@
    "18": [
     "Psychic",
     "Disarming Voice",
-    "Reflect",
-    "Psych"
+    "Reflect"
    ]
   },
   "tmMoves": [
@@ -87384,8 +86740,6 @@
    "Sweet Scent",
    "Tackle",
    "Fairy Wind",
-   "Play",
-   "Nice",
    "Fake Tears",
    "Round",
    "Cotton Spore",
@@ -87854,8 +87208,7 @@
   "eggMoves": [
    "Helping Hand",
    "Switcheroo",
-   "Tickle",
-   "Water"
+   "Tickle"
   ],
   "abilities": [
    {
@@ -88211,8 +87564,6 @@
    "Smokescreen",
    "Tackle",
    "Twister",
-   "Water",
-   "Gun",
    "Feint Attack",
    "Tail Whip",
    "Bubble",
@@ -88334,7 +87685,6 @@
   "levelMoves": {
    "2": [
     "Water Sport",
-    "Vice Grip",
     "Bubble"
    ],
    "6": [
@@ -88449,13 +87799,10 @@
   "startingMoves": [
    "Aura Sphere",
    "Dark Pulse",
-   "Dragon",
-   "Pulse",
    "Heal Pulse",
    "Splash",
    "Water Gun",
    "Water Sport",
-   "Vice Grip",
    "Bubble",
    "Flail",
    "Bubble Beam"
@@ -88984,8 +88331,7 @@
    "18": [
     "Earthquake",
     "Horn Drill",
-    "Head Smash",
-    "Giga"
+    "Head Smash"
    ]
   },
   "tmMoves": [
@@ -89368,8 +88714,6 @@
    "Tackle",
    "Tail Whip",
    "Sand Attack",
-   "Baby-",
-   "Doll Eyes",
    "Quick Attack"
   ],
   "levelMoves": {
@@ -89492,8 +88836,6 @@
    "Detect",
    "Hone Claws",
    "Tackle",
-   "Karate",
-   "Chop",
    "Wing Attack",
    "Roost",
    "Aerial Ace",
@@ -89897,8 +89239,7 @@
     "Bide"
    ],
    "6": [
-    "Dragon Breath",
-    "Rain Dance"
+    "Dragon Breath"
    ],
    "10": [
     "Flail",
@@ -90017,7 +89358,6 @@
   ],
   "levelMoves": {
    "10": [
-    "Rain Dance",
     "Flail"
    ],
    "14": [
@@ -90126,7 +89466,6 @@
    "Protect",
    "Bide",
    "Dragon Breath",
-   "Rain Dance",
    "Flail",
    "Body Slam"
   ],
@@ -90403,8 +89742,7 @@
    ],
    "18": [
     "Phantom Force",
-    "Wood Hammer",
-    "Horn"
+    "Wood Hammer"
    ]
   },
   "tmMoves": [
@@ -90444,8 +89782,7 @@
   "eggMoves": [
    "Bestow",
    "Grudge",
-   "Imprison",
-   "Venom"
+   "Imprison"
   ],
   "senses": "Darkvision 30ft",
   "abilities": [
@@ -90543,8 +89880,7 @@
    ],
    "18": [
     "Phantom Force",
-    "Wood Hammer",
-    "Horn"
+    "Wood Hammer"
    ]
   },
   "tmMoves": [
@@ -91345,8 +90681,6 @@
    "Bite",
    "Wing Attack",
    "Agility",
-   "Air",
-   "Cutter",
    "Roost",
    "Razor Wind"
   ],
@@ -91485,8 +90819,6 @@
    "Psych Up",
    "Misty Terrain",
    "Nature Power",
-   "Close",
-   "Combat",
    "Giga Impact",
    "Outrage"
   ],
@@ -91726,8 +91058,6 @@
    "Crunch",
    "Earthquake",
    "Camouflage",
-   "Dragon",
-   "Pulse",
    "Coil",
    "Outrage"
   ],
@@ -91946,8 +91276,6 @@
   "startingMoves": [
    "Ally Switch",
    "Confusion",
-   "Destiny",
-   "Bond",
    "Trick",
    "Astonish",
    "Magic Coat",
@@ -91959,13 +91287,9 @@
    "Phantom Force",
    "Zen Headbutt",
    "Trick Room",
-   "Wonder",
-   "Room",
    "Shadow Ball",
    "Nasty Plot",
-   "Psychic",
-   "Hyperspace",
-   "Hole"
+   "Psychic"
   ],
   "tmMoves": [
    3,
@@ -92157,8 +91481,6 @@
    "Counter",
    "Final Gambit",
    "Fury Swipes",
-   "Me",
-   "First",
    "Revenge",
    "Reversal",
    "Snatch",
@@ -92512,8 +91834,6 @@
    "U-Turn",
    "Astonish",
    "Razor Leaf",
-   "Ominous",
-   "Wind",
    "Foresight",
    "Pluck",
    "Synthesis"
@@ -92915,8 +92235,7 @@
    "18": [
     "Scary Face",
     "Flare Blitz",
-    "Outrage",
-    "Cross"
+    "Outrage"
    ]
   },
   "tmMoves": [
@@ -93172,8 +92491,7 @@
    "18": [
     "Moonblast",
     "Captivate",
-    "Hydro Pump",
-    "Misty"
+    "Hydro Pump"
    ]
   },
   "tmMoves": [
@@ -93290,8 +92608,7 @@
    "18": [
     "Moonblast",
     "Captivate",
-    "Hydro Pump",
-    "Misty"
+    "Hydro Pump"
    ]
   },
   "tmMoves": [
@@ -93990,7 +93307,6 @@
   },
   "evolutionInfo": "Grubbin can evolve into Charjabug at level 4 and above. When it evolves, its health increases by double its level, and it gains 12 points to add to its ability scores (max 20).",
   "startingMoves": [
-   "Vice Grip",
    "String Shot"
   ],
   "levelMoves": {
@@ -94099,7 +93415,6 @@
   "evolutionInfo": "Charjabug can evolve into Vikavolt at level 12 and above with the help of a Thunder Stone. When it evolves, its health increases by double its level, and it gains 9 points to add to its ability scores (max 20).",
   "startingMoves": [
    "Charge",
-   "Vice Grip",
    "String Shot"
   ],
   "levelMoves": {
@@ -94212,7 +93527,6 @@
    "Mud-Slap",
    "String Shot",
    "Thunderbolt",
-   "Vice Grip",
    "Bug Bite"
   ],
   "levelMoves": {
@@ -94348,8 +93662,7 @@
    ],
    "18": [
     "Iron Defense",
-    "Dynamic Punch",
-    "Close"
+    "Dynamic Punch"
    ]
   },
   "tmMoves": [
@@ -94388,9 +93701,7 @@
   "eggMoves": [
    "Amnesia",
    "Endeavor",
-   "Superpower",
-   "Wide",
-   "Guard"
+   "Superpower"
   ],
   "abilities": [
    {
@@ -94480,8 +93791,7 @@
    ],
    "18": [
     "Iron Defense",
-    "Dynamic Punch",
-    "Close"
+    "Dynamic Punch"
    ]
   },
   "tmMoves": [
@@ -95279,8 +94589,6 @@
    "Mist",
    "Muddy Water",
    "Water Pulse",
-   "Water",
-   "Sport",
    "Whirlpool"
   ],
   "abilities": [
@@ -95479,8 +94787,6 @@
    "Baneful Bunker",
    "Bite",
    "Peck",
-   "Poison",
-   "Sting",
    "Toxic Spikes",
    "Wide Guard",
    "Toxic"
@@ -95611,8 +94917,7 @@
    ],
    "10": [
     "High Horsepower",
-    "Iron Defense",
-    "Heavy"
+    "Iron Defense"
    ],
    "14": [
     "Counter",
@@ -95650,9 +94955,7 @@
   "eggMoves": [
    "Double-Edge",
    "Fissure",
-   "Roar",
-   "Smack",
-   "Down"
+   "Roar"
   ],
   "abilities": [
    {
@@ -96097,9 +95400,7 @@
     "Sweet Scent",
     "Solar Beam"
    ],
-   "18": [
-    "Sunny Day"
-   ]
+   "18": []
   },
   "tmMoves": [
    6,
@@ -96133,8 +95434,6 @@
    "Aromatherapy",
    "Defog",
    "Giga Drain",
-   "Leaf",
-   "Storm",
    "Weather Ball"
   ],
   "abilities": [
@@ -96204,7 +95503,6 @@
    "Fury Cutter",
    "Growth",
    "Leafage",
-   "Night",
    "Slash",
    "Petal Blizzard",
    "Razor Leaf",
@@ -96222,8 +95520,7 @@
    ],
    "18": [
     "Solar Blade",
-    "Solar Beam",
-    "Sunny Day"
+    "Solar Beam"
    ]
   },
   "tmMoves": [
@@ -96379,7 +95676,6 @@
    "Amnesia",
    "Growth",
    "Leech Seed",
-   "Poison",
    "Powder",
    "Stun Spore"
   ],
@@ -96737,8 +96033,7 @@
    ],
    "18": [
     "Flamethrower",
-    "Venom Drench",
-    "Dragon"
+    "Venom Drench"
    ]
   },
   "tmMoves": [
@@ -97149,8 +96444,6 @@
    "Acupressure",
    "Charm",
    "Feint",
-   "Grass",
-   "Whistle",
    "Play Rough",
    "Synthesis"
   ],
@@ -97224,8 +96517,6 @@
    "Flail",
    "Play Nice",
    "Rapid Spin",
-   "Razor",
-   "Leaf",
    "Splash"
   ],
   "levelMoves": {
@@ -97340,14 +96631,10 @@
    "Flail",
    "Play Nice",
    "Power Whip",
-   "Rapid",
-   "Spin",
    "Razor Leaf",
    "Splash",
    "Swagger",
    "Trop Kick",
-   "Sweet",
-   "Scent",
    "Magical Leaf",
    "Stomp"
   ],
@@ -97663,9 +96950,7 @@
   ],
   "eggMoves": [
    "Extrasensory",
-   "Psychic Terrain",
-   "Wonder",
-   "Room"
+   "Psychic Terrain"
   ],
   "abilities": [
    {
@@ -97869,8 +97154,7 @@
   "startingMoves": [
    "Defense Curl",
    "Sand Attack",
-   "Struggle",
-   "Bug"
+   "Struggle"
   ],
   "tmMoves": [
    6,
@@ -98163,8 +97447,6 @@
    "Amnesia",
    "Ancient Power",
    "Curse",
-   "Destiny",
-   "Bond",
    "Spit Up",
    "Swallow",
    "Stockpile"
@@ -98369,8 +97651,7 @@
    "10": [
     "Crush Claw",
     "Scary Face",
-    "X-Scissor",
-    "Take"
+    "X-Scissor"
    ],
    "14": [
     "Iron Head",
@@ -98380,8 +97661,7 @@
    "18": [
     "Razor Wind",
     "Tri Attack",
-    "Double-Edge",
-    "Heal"
+    "Double-Edge"
    ]
   },
   "tmMoves": [
@@ -98408,56 +97688,20 @@
    "Endure",
    "Spite",
    "Tickle",
-   "Venom",
-   "Drench",
-   "Type: Null #772",
-   "Type: Null #772",
-   "Type: Normal",
-   "Classification: Medium | SR 13",
-   "Minimum Level Found: 8",
-   "Egg Group: Undiscovered",
-   "Gender Rate: Genderless",
-   "Evolution Stage: 1/2 | 3 ASI",
-   "it went berserk",
-   "during an experiment",
-   "Armor Class: 16",
-   "Speed: 30ft. walking",
-   "STR",
-   "DEX",
-   "CON",
-   "INT",
-   "WIS",
-   "CHA",
-   "Proficient Skills: History",
-   "Saving Throws: Constitution",
-   "Vulnerabilities: Fighting",
-   "Resistances: None",
-   "Immunities: Ghost",
-   "Senses: Darkvision 50ft",
-   "Truesight 10ft",
-   "evolves",
-   "and",
-   "20).",
-   "Starting Moves: Tackle",
    "Rage",
    "Pursuit",
    "Imprison",
    "Aerial Ace",
-   "Level 10: Crush Claw",
    "Scary Face",
    "X-Scissor",
    "Take Down",
    "Metal Sound",
-   "Level 14: Iron Head",
    "Double Hit",
    "Air Slash",
    "Punishment",
-   "Level 18: Razor Wind",
    "Tri Attack",
    "Double-Edge",
-   "Heal",
-   "Block",
-   "TM: 01"
+   "Block"
   ],
   "abilities": [
    {
@@ -98522,8 +97766,6 @@
    "Imprison",
    "Iron Head",
    "Multi-Attack",
-   "Poison",
-   "Fang",
    "Scary Face",
    "Tackle",
    "Thunder Fang",
@@ -98967,9 +98209,7 @@
   "eggMoves": [
    "Fire Spin",
    "Head Smash",
-   "Revenge",
-   "Wide",
-   "Guard"
+   "Revenge"
   ],
   "abilities": [
    {
@@ -99532,8 +98772,6 @@
    "Dragon Rush",
    "Hurricane",
    "Mist",
-   "Play",
-   "Rough",
    "Razor Wind"
   ],
   "abilities": [
@@ -99608,8 +98846,6 @@
    "Absorb",
    "Astonish",
    "Growth",
-   "Rapid",
-   "Spin",
    "Switcheroo",
    "Mega Drain",
    "Wrap",
@@ -99874,8 +99110,6 @@
    "Bide",
    "Leer",
    "Protect",
-   "Sky",
-   "Uppercut",
    "Tackle"
   ],
   "levelMoves": {
@@ -99895,8 +99129,7 @@
    "18": [
     "Noble Roar",
     "Dragon Dance",
-    "Outrage",
-    "Close"
+    "Outrage"
    ]
   },
   "tmMoves": [
@@ -100029,8 +99262,7 @@
    "18": [
     "Noble Roar",
     "Dragon Dance",
-    "Outrage",
-    "Close"
+    "Outrage"
    ]
   },
   "tmMoves": [
@@ -100155,8 +99387,7 @@
    "Screech",
    "Charge",
    "Wild Charge",
-   "Mirror Move",
-   "Nature’s Madness"
+   "Mirror Move"
   ],
   "levelMoves": {
    "18": [
@@ -100285,13 +99516,9 @@
    "Confusion",
    "Psywave",
    "Psybeam",
-   "Sweet",
-   "Scent",
    "Skill Swap",
    "Psyshock",
-   "Tickle",
-   "Nature’s",
-   "Madness"
+   "Tickle"
   ],
   "levelMoves": {
    "18": [
@@ -100421,9 +99648,7 @@
    "Scary Face",
    "Leech Seed",
    "Horn Leech",
-   "Rototiller",
-   "Nature’s",
-   "Madness"
+   "Rototiller"
   ],
   "levelMoves": {
    "18": [
@@ -100558,9 +99783,7 @@
    "Soak",
    "Refresh",
    "Brine",
-   "Defog",
-   "Nature’s",
-   "Madness"
+   "Defog"
   ],
   "levelMoves": {
    "18": [
@@ -100801,8 +100024,6 @@
   "startingMoves": [
    "Cosmic Power",
    "Metal Claw",
-   "Sunsteel",
-   "Strike",
    "Teleport",
    "Wake-Up Slap",
    "Iron Head",
@@ -100816,8 +100037,7 @@
    "18": [
     "Metal Burst",
     "Solar Beam",
-    "Noble Roar",
-    "Flare"
+    "Noble Roar"
    ]
   },
   "tmMoves": [
@@ -100933,8 +100153,6 @@
    "Moongeist Beam",
    "Teleport",
    "Night Shade",
-   "Confuse",
-   "Ray",
    "Air Slash",
    "Shadow Ball",
    "Moonlight"
@@ -101192,8 +100410,7 @@
    "18": [
     "Counter",
     "Hammer Arm",
-    "Lunge",
-    "Dynamic"
+    "Lunge"
    ]
   },
   "tmMoves": [
@@ -101651,8 +100868,6 @@
    "Sacred Sword",
    "Vacuum Wave",
    "False Swipe",
-   "Razor",
-   "Leaf",
    "Synthesis",
    "Aerial Ace",
    "Laser Focus",
@@ -101766,16 +100981,13 @@
    "Steamroller",
    "Dragon Tail",
    "Iron Tail",
-   "Stomping",
-   "Tantrum",
    "Crunch"
   ],
   "levelMoves": {
    "18": [
     "Hammer Arm",
     "Thrash",
-    "Gastro Acid",
-    "Heavy"
+    "Gastro Acid"
    ]
   },
   "tmMoves": [
@@ -101888,8 +101100,6 @@
    "Psycho Cut",
    "Power Gem",
    "Autotomize",
-   "Photon",
-   "Geyser",
    "Stealth Rock",
    "Iron Defense",
    "Wring Out",
@@ -102015,8 +101225,6 @@
    "Sonic Boom",
    "Lucky Chant",
    "Aurora Beam",
-   "Mirror",
-   "Shot",
    "Mind Reader",
    "Flash Cannon"
   ],
@@ -102133,13 +101341,9 @@
    "Ice Punch",
    "Laser Focus",
    "Pursuit",
-   "Shadow",
-   "Sneak",
    "Thunder Punch",
    "Force Palm",
    "Feint",
-   "Rolling",
-   "Kick",
    "Copycat",
    "Shadow Punch",
    "Role Play",
@@ -102149,8 +101353,7 @@
   "levelMoves": {
    "18": [
     "Spectral Thief",
-    "Close Combat",
-    "Sucker"
+    "Close Combat"
    ]
   },
   "tmMoves": [
@@ -102478,8 +101681,6 @@
    "Protect",
    "Tackle",
    "Rock Slide",
-   "Stealth",
-   "Rock",
    "Bide",
    "Take Down",
    "Rock Throw",
@@ -102593,13 +101794,9 @@
    "Astonish",
    "Ember",
    "Magic Coat",
-   "Stored",
-   "Power",
    "Flame Burst",
    "Night Shade",
    "Light Screen",
-   "Calm",
-   "Mind",
    "Fire Blast",
    "Shadow Ball"
   ],

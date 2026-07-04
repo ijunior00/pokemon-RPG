@@ -26,6 +26,12 @@ from collections import defaultdict
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'pokemon5e-rpg-secret-key-2024-galar')
 app.config['REMEMBER_COOKIE_DURATION'] = 2592000  # 30 dias
+
+# Atrás do proxy do Render, request.remote_addr é o IP do proxy (igual p/ todos).
+# ProxyFix faz o Flask ler o IP real do cliente em X-Forwarded-For, para o
+# rate-limit por IP não penalizar jogadores que compartilham o proxy.
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 socketio = SocketIO(app, cors_allowed_origins="*")
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -107,6 +113,14 @@ def _roll_dice(dice_str):
     count, sides = int(m.group(1)), int(m.group(2))
     return sum(random.randint(1, sides) for _ in range(count))
 
+def _dice_bonus_for_level(level):
+    """Bônus ADITIVO de dados por faixa de nível — encurta batalhas médias/altas
+    sem tocar no início (Nv<15 sem bônus, evita swing precoce) nem em HP."""
+    if level >= 70: return 3
+    if level >= 40: return 2
+    if level >= 15: return 1
+    return 0
+
 def _get_scaled_dice(base_damage, level, higher_levels=''):
     if not base_damage: return '1d6'
     m = _re.match(r'(\d+)d(\d+)', str(base_damage))
@@ -125,8 +139,8 @@ def _get_scaled_dice(base_damage, level, higher_levels=''):
     elif level >= 20: mult = 1.5
     elif level >= 10: mult = 1.25
     else: mult = 1.0
-    # ceil para casar com o cliente (getScaledDice usa Math.ceil)
-    new_count = max(count, math.ceil(count * mult))
+    # ceil para casar com o cliente (getScaledDice usa Math.ceil) + bônus aditivo
+    new_count = max(count, math.ceil(count * mult)) + _dice_bonus_for_level(level)
     return f'{new_count}d{sides}'
 
 _TYPE_MAP_PT = {
@@ -3418,15 +3432,19 @@ def register_pokedex():
 # ============================================================
 # SOCKET.IO EVENTS
 # ============================================================
-# Global auto-mode flag (master controls)
-WILD_AUTO_MODE = True
+# Auto-mode agora é POR MESA (guardado no game_state), não global —
+# um mestre não afeta mais as batalhas das outras mesas.
+def _wild_auto_mode(state=None):
+    st = state if state is not None else get_game_state()
+    return st.get('wild_auto_mode', True)
 
 @socketio.on('set_auto_mode')
 def handle_set_auto_mode(data):
-    global WILD_AUTO_MODE
     if current_user.is_authenticated and current_user.role == 'master':
-        WILD_AUTO_MODE = data.get('enabled', True)
-        print(f"[AUTO MODE] {'ON' if WILD_AUTO_MODE else 'OFF'}")
+        state = get_game_state()
+        state['wild_auto_mode'] = bool(data.get('enabled', True))
+        save_game_state(state)
+        print(f"[AUTO MODE] mesa={_tid()} {'ON' if state['wild_auto_mode'] else 'OFF'}")
 
 @socketio.on('connect')
 def handle_connect():
@@ -3489,8 +3507,8 @@ def handle_encounter(data):
         # Notify master
         emit('encounter_started', encounter_data, room=f'master_{_tid()}')
 
-        # Auto-roll initiative if AUTO mode is ON
-        if WILD_AUTO_MODE:
+        # Auto-roll initiative if AUTO mode is ON (por mesa)
+        if _wild_auto_mode(game_state):
             _auto_roll_initiative(pid, game_state)
 
 @socketio.on('roll_initiative')

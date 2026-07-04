@@ -531,6 +531,9 @@ def auto_detect_move_effect(move_data):
         'rest': {'type': 'heal_self', 'amount': 'full'},
         'wish': {'type': 'heal_self', 'amount': 'half'},
         'heal order': {'type': 'heal_self', 'amount': 'half'},
+        'heal pulse': {'type': 'heal_self', 'amount': 'half'},
+        'ingrain': {'type': 'heal_self', 'amount': 'quarter'},
+        'swallow': {'type': 'heal_self', 'amount': 'half'},
         # Protect
         'protect': {'type': 'protect', 'duration': 1},
         'detect': {'type': 'protect', 'duration': 1},
