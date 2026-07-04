@@ -6,6 +6,22 @@ Based on Pokemon 5e rules + PokemonDB general mechanics.
 """
 import random
 from re import search as _re_search
+import json as _json
+import os as _os
+
+# ============================================================
+# EFEITOS CANÔNICOS POR MOVE (gerado por tools/build_canonical_moves.py
+# a partir dos CSVs do PokeAPI — mesma base do pokemondb/Bulbapedia —
+# com overlay do mapa curado KNOWN_EFFECTS/MOVE_STATUS_EFFECTS).
+# Chave: nome do move em minúsculas. Valores: {'effect': {...}, 'on_hit': {...}}.
+# ============================================================
+_MOVE_EFFECTS_FILE = _os.path.join(_os.path.dirname(__file__),
+                                   'server', 'data', 'move_effects.json')
+try:
+    with open(_MOVE_EFFECTS_FILE, encoding='utf-8') as _f:
+        MOVE_EFFECTS_DATA = _json.load(_f)
+except (FileNotFoundError, ValueError):
+    MOVE_EFFECTS_DATA = {}
 
 # ============================================================
 # STATUS CONDITIONS
@@ -288,10 +304,12 @@ def check_status_on_hit(move_name, attack_roll, damage_dealt):
     """Check if a move inflicts a status effect on hit.
     Returns (status_key, inflicted) or (None, False).
     """
-    effect = MOVE_STATUS_EFFECTS.get(move_name)
+    # Dados canônicos primeiro (chances reais dos jogos); mapa curado como fallback
+    entry = MOVE_EFFECTS_DATA.get((move_name or '').lower())
+    effect = (entry or {}).get('on_hit') or MOVE_STATUS_EFFECTS.get(move_name)
     if not effect:
         return None, False
-    
+
     trigger = effect.get('on', 'hit')
     chance = effect.get('chance', 0)
     
@@ -407,6 +425,84 @@ def get_stat_modifiers(pokemon_status):
     return condition.get('stat_modifier', {})
 
 
+# ============================================================
+# STAT STAGES — buffs/debuffs acumulados por batalha
+# ------------------------------------------------------------
+# Moves de status (Growl, Leer, Swords Dance...) empilham bônus/penalidades
+# PLANOS estilo D&D no dict do pokémon sob 'stat_stages'. Persistem pela
+# batalha e são consumidos pelo cálculo autoritativo do servidor:
+#   - ATK/SPA do atacante entram no DANO (via stat efetivo)
+#   - DEF/SPD do defensor entram na CA (via stat efetivo)
+#   - 'AC' entra direto na CA; 'attack_roll' entra direto no acerto
+# A condição ativa (queimado/paralisado) também soma pelo mesmo caminho.
+# ============================================================
+STAGE_KEYS = ('ATK', 'DEF', 'SPA', 'SPD', 'SPE', 'AC', 'attack_roll')
+STAGE_CLAMP = 6
+# condição legada usa DEX; o sistema novo usa SPE
+_COND_STAT_ALIAS = {'DEX': 'SPE', 'STR': 'ATK', 'INT': 'SPA', 'WIS': 'SPD'}
+
+
+def init_stat_stages():
+    return {k: 0 for k in STAGE_KEYS}
+
+
+def apply_stat_changes(pokemon, stat_changes, clamp=STAGE_CLAMP):
+    """Acumula {stat: value} em pokemon['stat_stages'], limitado a [-clamp, clamp].
+    Ignora chaves fora de STAGE_KEYS. Retorna o dict de stages atualizado."""
+    if not isinstance(pokemon, dict) or not stat_changes:
+        return (pokemon or {}).get('stat_stages') if isinstance(pokemon, dict) else {}
+    stages = pokemon.get('stat_stages')
+    if not stages:
+        stages = init_stat_stages()
+        pokemon['stat_stages'] = stages
+    for stat, val in stat_changes.items():
+        key = _COND_STAT_ALIAS.get(stat, stat)
+        if key in stages:
+            stages[key] = max(-clamp, min(clamp, stages[key] + int(val)))
+    return stages
+
+
+def _cond_stat_mod(pokemon, stat):
+    """Modificador de stat vindo da CONDIÇÃO ativa (queimado -ATK etc.)."""
+    mods = get_stat_modifiers(pokemon.get('status')) if isinstance(pokemon, dict) else {}
+    total = 0
+    for k, v in mods.items():
+        if _COND_STAT_ALIAS.get(k, k) == stat:
+            total += int(v)
+    return total
+
+
+def effective_stat(pokemon, stat):
+    """Stat efetivo = base + stage acumulado + modificador de condição ativa."""
+    if not isinstance(pokemon, dict):
+        return 10
+    base = int((pokemon.get('stats') or {}).get(stat, 10) or 10)
+    stage = int((pokemon.get('stat_stages') or {}).get(stat, 0))
+    return base + stage + _cond_stat_mod(pokemon, stat)
+
+
+def attack_roll_bonus(pokemon):
+    """Bônus/penalidade na ROLAGEM de acerto (stage 'attack_roll' + condição)."""
+    if not isinstance(pokemon, dict):
+        return 0
+    stage = int((pokemon.get('stat_stages') or {}).get('attack_roll', 0))
+    total = stage + get_attack_modifier(pokemon.get('status'))
+    return max(-STAGE_CLAMP, min(STAGE_CLAMP, total))
+
+
+def ac_bonus(pokemon):
+    """Bônus/penalidade direta na CA (stage 'AC')."""
+    if not isinstance(pokemon, dict):
+        return 0
+    return max(-STAGE_CLAMP, min(STAGE_CLAMP, int((pokemon.get('stat_stages') or {}).get('AC', 0))))
+
+
+def reset_stat_stages(pokemon):
+    """Zera as stages (troca de pokémon / fim de batalha)."""
+    if isinstance(pokemon, dict) and pokemon.get('stat_stages'):
+        pokemon['stat_stages'] = init_stat_stages()
+
+
 
 # ============================================================
 # AUTO-DETECT STATUS EFFECT FROM MOVE DESCRIPTION
@@ -426,8 +522,15 @@ def auto_detect_move_effect(move_data):
     desc = (move_data.get('description', '') or '').lower()
     name = (move_data.get('name', '') or '')
     name_lower = name.lower()
-    
-    # ========== KNOWN MOVES BY NAME (highest priority) ==========
+
+    # ========== DADOS CANÔNICOS (prioridade máxima) ==========
+    # move_effects.json já inclui o overlay curado, então cobre todos os
+    # 263 moves de status com o efeito real dos jogos.
+    _data_entry = MOVE_EFFECTS_DATA.get(name_lower)
+    if _data_entry and _data_entry.get('effect'):
+        return _data_entry['effect']
+
+    # ========== KNOWN MOVES BY NAME (mapa curado, fallback) ==========
     KNOWN_EFFECTS = {
         # Confusion
         'supersonic': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
@@ -738,7 +841,7 @@ def process_status_move(move_data, attacker_stats, target_stats):
             return {
                 'success': True,
                 'effect_type': 'debuff',
-                'message': f"{move_name}! CD {move_dc} vs d20({save_roll})+{save_mod}={save_total} → {effect['stat']} {effect['value']:+d} por {effect.get('duration',3)} turnos!",
+                'message': f"{move_name}! CD {move_dc} vs d20({save_roll})+{save_mod}={save_total} → {effect['stat']} {effect['value']:+d}!",
                 'status_applied': None,
                 'stat_changes': {effect['stat']: effect['value']}
             }
@@ -755,7 +858,7 @@ def process_status_move(move_data, attacker_stats, target_stats):
         return {
             'success': True,
             'effect_type': 'buff',
-            'message': f"{move_name}! {effect['stat']} +{effect['value']} por {effect.get('duration',3)} turnos!",
+            'message': f"{move_name}! {effect['stat']} {effect['value']:+d}!",
             'status_applied': None,
             'stat_changes': {effect['stat']: effect['value']}
         }

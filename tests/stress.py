@@ -48,6 +48,15 @@ def pvp_hp(p):
     hp = p.get('currentHp')
     return hp if isinstance(hp, (int, float)) else p.get('maxHp', 20)
 
+def dmg_move(poke):
+    """Primeiro move de DANO do pokémon (status agora dá 0 dano — precisa
+    de um golpe de dano para as batalhas de teste progredirem)."""
+    for mv in (poke.get('moves') or []):
+        md = appmod.MOVES_BY_NAME.get(mv.lower()) or appmod.MOVES_DB.get(mv) or {}
+        if md.get('category') in ('physical', 'special') and md.get('baseDamage'):
+            return mv
+    return (poke.get('moves') or ['Tackle'])[0]
+
 # ────────────────────────── setup ──────────────────────────
 def register(client, username, role, invite=None):
     data = {'username': username, 'password': 'senha123', 'role': role}
@@ -444,7 +453,7 @@ def main():
         check(S, 'troca fora do turno é recusada',
               battle[other_key]['active_idx'] == before and bool(errs),
               f"idx {before}→{battle[other_key]['active_idx']}, errs={len(errs)}")
-        for _ in range(200):
+        for _ in range(400):
             if battle['phase'] != 'battle':
                 break
             # troca forçada: qualquer lado com ativo desmaiado troca primeiro
@@ -466,7 +475,7 @@ def main():
             tsio = s1 if battle[tk]['id'] == u1 else s2
             poke = battle[tk]['team'][battle[tk]['active_idx']]
             tsio.emit('pvp_attack', {'battle_id': bid,
-                                     'move_name': (poke.get('moves') or ['Tackle'])[0],
+                                     'move_name': dmg_move(poke),
                                      'attack_roll': random.randint(1, 20)})
             recv(s1); recv(s2)
         check(S, 'batalha P2P termina com vencedor',
@@ -520,12 +529,172 @@ def main():
                 if battle['turn'] == 'player1':
                     poke = p1side['team'][p1side['active_idx']]
                     s1.emit('pvp_attack', {'battle_id': bid,
-                                           'move_name': (poke.get('moves') or ['Tackle'])[0],
+                                           'move_name': dmg_move(poke),
                                            'attack_roll': random.randint(1, 20)})
                     recv(s1)
                 else:
                     appmod.handle_npc_turn(battle, 'player2')
             check(S, 'batalha vs NPC termina', battle['phase'] == 'finished', f"fase={battle['phase']}")
+
+    # ══════════ 8b. MOVES DE STATUS + TROCA FORÇADA (bugs reportados) ══════════
+    section('8b. Status moves sem dano + troca forçada vs NPC')
+    S = 'Status/Troca vs NPC'
+
+    # Auditoria de dados canônicos
+    mv = appmod.MOVES_DB
+    check(S, 'nenhum status com baseDamage',
+          not [k for k, v in mv.items() if v.get('category') == 'status' and v.get('baseDamage')])
+    check(S, 'Nightmare virou status', mv.get('Nightmare', {}).get('category') == 'status')
+    check(S, 'Accelerock é physical com dado',
+          mv.get('Accelerock', {}).get('category') == 'physical' and mv.get('Accelerock', {}).get('baseDamage'))
+    dmg_moves = [k for k, v in mv.items() if v.get('category') in ('physical', 'special')]
+    import re as _re8b
+    no_dice = [k for k in dmg_moves if not _re8b.match(r'\d+d\d+', str(mv[k].get('baseDamage', '')))]
+    check(S, 'todo move de dano tem dado (exceto dano variável)', len(no_dice) <= 25, f'{len(no_dice)} sem dado')
+
+    # _calc_pvp_attack nunca dá dano a um move de status
+    poke_a = {'level': 20, 'stats': {'ATK': 16}, 'types': ['Normal']}
+    poke_d = {'level': 18, 'stats': {'DEF': 12}}
+    calc_growl = appmod._calc_pvp_attack(poke_a, poke_d, 'Growl')
+    check(S, 'Growl = 0 dano no calc', calc_growl['damage'] == 0 and calc_growl.get('is_status'))
+    calc_hit = appmod._calc_pvp_attack(dict(poke_a, level=30, stats={'ATK': 30}),
+                                       dict(poke_d, stats={'DEF': 8}), 'Tackle')
+    check(S, 'move de dano ainda dá dano', calc_hit['damage'] > 0)
+
+    # Duas curvas de modificador: acerto com teto, dano sem teto
+    check(S, 'mod_precisao com teto (+4) e piso (-2)',
+          appmod._mod_precisao(30) == 4 and appmod._mod_precisao(6) == -1 and appmod._mod_precisao(2) == -2)
+    check(S, 'mod_dano sem teto', appmod._mod_dano(30) == 10 and appmod._mod_dano(6) == -2)
+
+    # Batalha PvP vs NPC nova para os testes de status/troca
+    give_team(u1, [('Charmander', 20), ('Squirtle', 18)])
+    users = db.get_users()
+    users[u1]['trainer_data']['team'][0]['moves'] = ['Growl', 'Ember']
+    db.save_users(users)
+    r = m.post('/master/npcs/generate', json={'npc_class': 'Trainer', 'level': 14, 'team_size': 1})
+    npc2 = r.get_json()
+    s1.get_received(); msio.get_received()
+    s1.emit('pvp_challenge', {'target_id': npc2['id'], 'mode': 'street'})
+    c2 = recv(s1, 'pvp_battle_created')
+    if c2:
+        bid2 = c2[0]['args'][0]['battle_id']
+        s1.emit('pvp_select_pokemon', {'battle_id': bid2, 'pokemon_idx': 0}); s1.get_received()
+        b2 = appmod.ACTIVE_PVP.get(bid2)
+        if b2 and b2['phase'] == 'battle':
+            # força turno do jogador e Charmander (com Growl) ativo
+            b2['turn'] = 'player1'; b2['player1']['active_idx'] = 0
+            opp = b2['player2']['team'][b2['player2']['active_idx']]
+            opp['currentHp'] = opp.get('maxHp', 30)
+            hp_before = opp['currentHp']
+            s1.get_received()
+            s1.emit('pvp_attack', {'battle_id': bid2, 'move_name': 'Growl'})
+            s1.get_received()
+            opp2 = b2['player2']['team'][b2['player2']['active_idx']]
+            check(S, 'Growl não causou dano ao NPC (bug reportado)',
+                  pvp_hp(opp2) >= hp_before, f'{hp_before}→{pvp_hp(opp2)}')
+            check(S, 'log registra status_move',
+                  any(l.get('type') == 'status_move' for l in b2.get('log', [])))
+
+            # troca forçada: ativo do jogador desmaiado quando chega o turno do NPC.
+            # Era aqui que o NPC retornava em silêncio (stall) e o cliente não
+            # recebia o aviso de troca (botão sumia). Deterministico: HP = 0.
+            b2['turn'] = 'player2'
+            b2['player1']['team'][b2['player1']['active_idx']]['currentHp'] = 0
+            s1.get_received()
+            appmod.handle_npc_turn(b2, 'player2')
+            got_switch = recv(s1, 'pvp_must_switch')
+            check(S, 'NPC não trava com defensor desmaiado; avisa troca (bug reportado)',
+                  bool(got_switch))
+            st = appmod.pvp.get_battle_state_for_player(b2, 'player1')
+            check(S, 'state.must_switch = True', st.get('must_switch') is True)
+            # troca forçada fora do turno funciona
+            alive_idx = next((i for i, q in enumerate(b2['player1']['team'])
+                              if i != b2['player1']['active_idx'] and pvp_hp(q) > 0), None)
+            if alive_idx is not None:
+                s1.emit('pvp_switch', {'battle_id': bid2, 'pokemon_idx': alive_idx}); s1.get_received()
+                check(S, 'troca forçada off-turn funciona', b2['player1']['active_idx'] == alive_idx)
+            # master force com defensor desmaiado re-emite must_switch (não trava)
+            b2['turn'] = 'player2'
+            b2['player1']['team'][b2['player1']['active_idx']]['currentHp'] = 0
+            s1.get_received()
+            msio.emit('master_force_npc_action', {'battle_id': bid2, 'player_key': 'player2'})
+            check(S, 'master force não trava (re-emite must_switch)',
+                  bool(recv(s1, 'pvp_must_switch')))
+
+    # Grupo: status move não causa dano
+    give_team(u1, [('Charmander', 20)]); give_team(u2, [('Squirtle', 20)])
+    users = db.get_users()
+    users[u1]['trainer_data']['team'][0]['moves'] = ['Growl', 'Ember']
+    db.save_users(users)
+    for c in (s1, s2, msio):
+        c.get_received()
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
+                                           'hunt_mode': 'normal', 'route_id': 'route1'})
+    gb2 = (r.get_json() or {}).get('battle')
+    if gb2 and gb2['id'] in appmod.ACTIVE_GROUP_BATTLES:
+        gbattle = appmod.ACTIVE_GROUP_BATTLES[gb2['id']]
+        # acha um aliado do u1 no turno e um selvagem vivo
+        wild = next((c for c in gbattle['combatants'].values() if c['side'] == 'wild'), None)
+        ally = next((c for c in gbattle['combatants'].values()
+                     if c['side'] == 'ally' and str(c['player_id']) == u1), None)
+        if wild and ally:
+            gbattle['turn_idx'] = gbattle['order'].index(ally['cid'])
+            wild_hp_before = wild['hp']
+            s1.emit('group_battle_action', {'battle_id': gb2['id'],
+                                            'move_name': 'Growl', 'target_cid': wild['cid']})
+            s1.get_received()
+            check(S, 'grupo: Growl não dana o selvagem', wild['hp'] >= wild_hp_before)
+
+    # Motor de efeitos data-driven cobre status canônicos e on-hit
+    check(S, 'auto_detect cobre status canônico (Sand Attack)',
+          appmod.effects.auto_detect_move_effect({'name': 'Sand Attack', 'description': ''}) is not None)
+    scald_hit = appmod.effects.MOVE_EFFECTS_DATA.get('scald', {}).get('on_hit', {})
+    check(S, 'Scald mapeia queimado on-hit (dados canônicos)',
+          scald_hit.get('status') == 'queimado')
+
+    # ── Stat stages entram nos cálculos (buffs/debuffs acumulados) ──
+    fx = appmod.effects
+    att = {'level': 20, 'stats': {'ATK': 16}, 'types': ['Normal'], 'proficiency': 3}
+    dfn = {'level': 18, 'stats': {'DEF': 14}, 'proficiency': 3}
+    import re as _restage
+    def _ac_of(msg):
+        mo = _restage.search(r'AC (\d+)', msg or '')
+        return int(mo.group(1)) if mo else None
+    ac0 = _ac_of(appmod._calc_pvp_attack(att, dict(dfn), 'Tackle', 10)['message'])
+    fx.apply_stat_changes(dfn, {'DEF': -2}); fx.apply_stat_changes(dfn, {'DEF': -2})
+    check(S, 'DEF-2 empilha (stage -4)', dfn['stat_stages']['DEF'] == -4)
+    ac1 = _ac_of(appmod._calc_pvp_attack(att, dfn, 'Tackle', 10)['message'])
+    check(S, 'DEF-down baixa a CA do inimigo (bug reportado)',
+          ac0 is not None and ac1 is not None and ac1 < ac0, f'{ac0}→{ac1}')
+    # clamp em -6
+    for _ in range(3):
+        fx.apply_stat_changes(dfn, {'DEF': -4})
+    check(S, 'stage limita em -6', dfn['stat_stages']['DEF'] == -6)
+    # ATK-up sobe o modificador de dano (determinístico via _mod_dano do stat efetivo)
+    ab_ = {'stats': {'ATK': 16}}
+    m0 = appmod._mod_dano(fx.effective_stat(ab_, 'ATK'))
+    fx.apply_stat_changes(ab_, {'ATK': 4})
+    m1 = appmod._mod_dano(fx.effective_stat(ab_, 'ATK'))
+    check(S, 'ATK+4 aumenta o modificador de dano', m1 > m0, f'mod {m0}→{m1}')
+    # attack_roll stage baixa o acerto (via _calc_player_attack total no message)
+    enc = {'player_pokemon': {'level': 20, 'stats': {'ATK': 16}, 'types': [], 'proficiency': 3,
+                              'stat_stages': {'attack_roll': -3, 'ATK': 0, 'DEF': 0, 'SPA': 0,
+                                              'SPD': 0, 'SPE': 0, 'AC': 0}},
+           'pokemon': {'level': 18, 'stats': {'DEF': 10}}, 'level': 18}
+    def _tot(msg):
+        mo = _restage.search(r'(\d+)\s+vs AC', msg or '')
+        return int(mo.group(1)) if mo else None
+    c_base = appmod._calc_player_attack({'player_pokemon': {'level': 20, 'stats': {'ATK': 16}, 'types': [], 'proficiency': 3},
+                                         'pokemon': {'level': 18, 'stats': {'DEF': 10}}, 'level': 18}, 'Tackle', 12)
+    c_deb = appmod._calc_player_attack(enc, 'Tackle', 12)
+    tb, td = _tot(c_base.get('message', '')), _tot(c_deb.get('message', ''))
+    check(S, 'attack_roll -3 baixa o total de acerto', tb is not None and td == tb - 3, f'{tb}→{td}')
+    # queimadura reduz o ATK efetivo (condição ativa)
+    burned = {'stats': {'ATK': 16}, 'status': {'condition': 'queimado'}}
+    check(S, 'queimadura reduz ATK efetivo (-2)', fx.effective_stat(burned, 'ATK') == 14)
+
+    # restaura o time do u1 para as seções seguintes (PC etc.)
+    give_team(u1, [('Charmander', 20), ('Squirtle', 18), ('Pidgey', 15)])
 
     # ══════════ 9. NPCs & PROGRESSÃO ══════════
     section('9. NPCs: CRUD e progressão diária')

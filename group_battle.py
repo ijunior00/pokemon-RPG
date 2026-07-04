@@ -171,6 +171,10 @@ def apply_damage(battle, attacker_cid, target_cid, damage, move_name='', message
         if target['hp'] <= 0:
             target['fainted'] = True
             fainted = True
+            # limpa buffs/debuffs acumulados ao desmaiar
+            p = target.get('pokemon')
+            if isinstance(p, dict):
+                p['stat_stages'] = {k: 0 for k in ('ATK', 'DEF', 'SPA', 'SPD', 'SPE', 'AC', 'attack_roll')}
 
     battle['log'].append({
         'type': 'attack', 'attacker': attacker_cid, 'attacker_name': attacker['name'],
@@ -210,6 +214,7 @@ def state_view(battle):
             'hp': c['hp'], 'maxHp': c['maxHp'], 'status': c['status'],
             'fainted': c['fainted'], 'init': c['init'],
             'moves': c['moves'], 'is_shiny': bool(p.get('is_shiny')),
+            'stat_stages': p.get('stat_stages'),
         })
     return {
         'id': battle['id'], 'mode': battle['mode'], 'phase': battle['phase'],
