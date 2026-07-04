@@ -173,16 +173,27 @@ function togglePlayerCompleted() {
 
 socket.on('master_action', (data) => {
     if (data.type === 'forced_encounter') {
-        const flags = [data.is_shiny ? '✨ SHINY' : '', data.is_mega ? '🔮 MEGA' : ''].filter(Boolean).join(' + ');
+        const flags = [data.is_shiny ? '✨ SHINY' : '', data.is_mega ? '🔮 MEGA' : '',
+                       data.ambush ? '💀 EMBOSCADA' : ''].filter(Boolean).join(' + ');
         currentEncounter = {
             pokemon:  data.pokemon,
             level:    data.level,
             is_shiny: data.is_shiny || false,
             is_mega:  data.is_mega  || false,
-            wild_moves: data.pokemon?.startingMoves?.slice(-4) || []
+            ambush:   data.ambush   || false,
+            route_id: data.route_id || null,
+            hunt_mode: data.hunt_mode || 'normal',
+            wild_moves: (data.wild_moves && data.wild_moves.length)
+                        ? data.wild_moves
+                        : (data.pokemon?.startingMoves?.slice(-4) || [])
         };
+        // limpa o aviso "aguarde o mestre" — a caçada foi liberada
+        const failBox = document.getElementById('hunt-fail-msg');
+        if (failBox) failBox.classList.add('hidden');
         displayEncounter(currentEncounter);
-        alert(`⚠️ O Mestre enviou um Pokémon Selvagem!${flags ? ' ' + flags : ''}`);
+        document.getElementById('encounter-result')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const verb = data.random_hunt ? 'liberou uma Caçada Aleatória' : 'enviou um Pokémon Selvagem';
+        alert(`⚔️ O Mestre ${verb}!${flags ? ' ' + flags : ''}`);
     }
 });
 
@@ -243,9 +254,12 @@ function animateDice(result, label) {
 // ENCOUNTER SYSTEM
 // ============================================
 function filterRouteRegion(region, btn) {
-    document.querySelectorAll('.region-tab').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    // A escolha de rota agora é do Mestre (Caçada Aleatória). Mantido como
+    // no-op seguro caso alguma UI legada ainda chame.
     const sel = document.getElementById('current-route');
+    if (!sel) return;
+    document.querySelectorAll('.region-tab').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
     let firstMatch = null;
     for (const opt of sel.options) {
         const show = opt.dataset.region === region;
@@ -253,48 +267,6 @@ function filterRouteRegion(region, btn) {
         if (show && !firstMatch) firstMatch = opt;
     }
     if (firstMatch) sel.value = firstMatch.value;
-}
-
-// Descrições dos modos de caçada (usadas no select e no info box)
-const HUNT_MODE_DATA = {
-    normal:        { label: '🌿 Normal (-50% a +5 níveis)',        desc: '🌿 <strong>Normal:</strong> Pokémon variados, de metade do seu nível até +5. Shiny: 1%.' },
-    dungeon:       { label: '🏰 Dungeon (-10 a +10 níveis)',       desc: '🏰 <strong>Dungeon:</strong> Pokémon raros e evoluídos, -10 a +10 níveis. Shiny: 3%. ⚠️ Perigoso!' },
-    dungeon_night: { label: '🏰🌙 Dungeon Perigosa (-5 a +15)',    desc: '🏰🌙 <strong>Dungeon Perigosa:</strong> a dungeon à noite — evoluídos fortes, -5 a +15 níveis. Shiny: 4%. ☠️ Muito perigoso!' },
-    night:         { label: '🌙 Noturno (-10 a +20 níveis)',       desc: '🌙 <strong>Noturno:</strong> o terror da noite! -10 a +20 níveis. Shiny: 5%. ☠️ Extremamente perigoso!' }
-};
-const HUNT_PERIOD_MODES = {
-    morning: ['normal', 'dungeon'],
-    night: ['dungeon_night', 'night']
-};
-
-// CD de Sobrevivência pela FADIGA — sobe a cada 2 caçadas (deve casar com o servidor)
-function _fatigueDC(used) {
-    if (used < 2) return 6;
-    if (used < 4) return 8;
-    return 12;
-}
-
-function updateHuntModeSelect(used) {
-    // Caçadas 1-4 = manhã (normal/dungeon); 5ª+ = noite (dungeon perigosa/noturna)
-    const period = (used < 4) ? 'morning' : 'night';
-    const dc = _fatigueDC(used);
-    const periodEl = document.getElementById('hunt-period');
-    if (periodEl) {
-        const base = period === 'morning'
-            ? '🌅 <strong>Manhã</strong> (caçadas 1-4)'
-            : '🌙 <strong>Noite</strong> (caçadas 5-6)';
-        periodEl.innerHTML = `${base} · 🎯 CD atual: <strong>${dc}</strong> <span style="opacity:0.7;font-size:0.85em;">(sobe conforme você se cansa)</span>`;
-    }
-    const sel = document.getElementById('hunt-mode');
-    if (!sel) return;
-    const modes = HUNT_PERIOD_MODES[period];
-    const current = sel.value;
-    sel.innerHTML = modes.map(m =>
-        `<option value="${m}">${HUNT_MODE_DATA[m].label}</option>`).join('');
-    // preserva a escolha se ainda for válida; senão usa o 1º modo do período
-    sel.value = modes.includes(current) ? current : modes[0];
-    const info = document.getElementById('hunt-mode-info');
-    if (info) info.innerHTML = `<p>${HUNT_MODE_DATA[sel.value].desc}</p>`;
 }
 
 async function useEnergyDrink() {
@@ -320,17 +292,12 @@ function updateHuntCounter(used, limit) {
     const l = document.getElementById('hunts-limit');
     if (u !== null && used !== undefined) u.textContent = used;
     if (l !== null && limit !== undefined) l.textContent = limit;
-    if (used !== undefined) updateHuntModeSelect(used);
-}
-
-function _survivalCheckText(sc) {
-    if (!sc) return '';
-    return `🎲 Sobrevivência: d20(${sc.roll}) + SAB(${sc.wis_mod >= 0 ? '+' : ''}${sc.wis_mod}) + Prof(+${sc.prof}) = <strong>${sc.total}</strong> vs CD ${sc.dc}`;
 }
 
 // ============================================
-// ANIMAÇÃO DE D20 DA CAÇADA (teste de Sobrevivência)
-// Overlay auto-contido; mostra o dado rolando e o resultado bem visível.
+// ANIMAÇÃO DE D20 DA CAÇADA (teste MANUAL de caçada)
+// Overlay auto-contido; mostra o dado rolando e o total bem visível.
+// O mestre decide se libera a caçada a partir do total.
 // ============================================
 function _ensureHuntRollOverlay() {
     let ov = document.getElementById('hunt-roll-overlay');
@@ -340,17 +307,17 @@ function _ensureHuntRollOverlay() {
     ov.style.cssText = 'position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.72);';
     ov.innerHTML = `
       <div id="hunt-roll-card" style="background:var(--card-bg,#1b2233);border:2px solid var(--accent,#ffcb05);border-radius:16px;padding:1.5rem 2rem;text-align:center;max-width:92vw;width:360px;box-shadow:0 12px 40px rgba(0,0,0,0.6);">
-        <div style="font-size:0.9rem;opacity:0.85;margin-bottom:0.4rem;">🎯 Teste de Sobrevivência</div>
+        <div style="font-size:0.9rem;opacity:0.85;margin-bottom:0.4rem;">🎲 Teste de Caçada</div>
         <div id="hunt-d20" style="font-size:5rem;font-weight:900;line-height:1;transition:transform 0.1s;color:var(--accent,#ffcb05);text-shadow:0 2px 8px rgba(0,0,0,0.5);">🎲</div>
         <div id="hunt-roll-breakdown" style="margin-top:0.8rem;font-size:0.95rem;min-height:1.4em;"></div>
-        <div id="hunt-roll-verdict" style="margin-top:0.6rem;font-size:1.25rem;font-weight:800;min-height:1.4em;"></div>
+        <div id="hunt-roll-verdict" style="margin-top:0.6rem;font-size:1.1rem;font-weight:800;min-height:1.4em;"></div>
       </div>`;
     document.body.appendChild(ov);
     return ov;
 }
 
-function showHuntRoll(sc, ambush) {
-    // Retorna Promise que resolve quando a animação termina.
+function showHuntRoll(res) {
+    // res: {roll, wis_mod, prof, total, manual}. Retorna Promise ao terminar.
     return new Promise((resolve) => {
         const ov = _ensureHuntRollOverlay();
         const d20 = ov.querySelector('#hunt-d20');
@@ -360,83 +327,83 @@ function showHuntRoll(sc, ambush) {
         ov.style.display = 'flex';
         try { playSound && playSound('dice'); } catch(e) {}
 
-        // fase 1: rolando (números aleatórios)
+        const settle = () => {
+            const roll = res.roll;
+            d20.textContent = roll;
+            d20.style.transform = 'rotate(0deg) scale(1)';
+            const nat = roll === 20 ? ' <span style="color:#ffd54f;">(NAT 20!)</span>'
+                      : roll === 1 ? ' <span style="color:#e53935;">(NAT 1!)</span>' : '';
+            d20.style.color = 'var(--accent,#ffcb05)';
+            bd.innerHTML = `d20(<strong>${roll}</strong>)${nat} + SAB(${res.wis_mod >= 0 ? '+' : ''}${res.wis_mod}) + Prof(+${res.prof}) = <strong style="font-size:1.15em;">${res.total}</strong>`;
+            vd.innerHTML = `📨 Enviado ao Mestre — <span style="color:#66bb6a;">aguarde a liberação da caçada.</span>`;
+            try { playSound && playSound('levelup'); } catch(e) {}
+            setTimeout(() => { ov.style.display = 'none'; resolve(); }, 1600);
+        };
+
+        if (res.manual) {
+            // dado físico: sem animação de sorteio, só assenta no valor
+            settle();
+            return;
+        }
+        // dado virtual: fase 1 rolando, fase 2 assenta
         let ticks = 0;
         const spin = setInterval(() => {
             d20.textContent = Math.floor(Math.random() * 20) + 1;
             d20.style.transform = `rotate(${Math.random() * 40 - 20}deg) scale(${1 + Math.random() * 0.15})`;
-            ticks++;
-            if (ticks > 12) {
-                clearInterval(spin);
-                // fase 2: assenta no valor real
-                const roll = sc ? sc.roll : (Math.floor(Math.random() * 20) + 1);
-                d20.textContent = roll;
-                d20.style.transform = 'rotate(0deg) scale(1)';
-                const nat = roll === 20 ? ' <span style="color:#ffd54f;">(NAT 20!)</span>'
-                          : roll === 1 ? ' <span style="color:#e53935;">(NAT 1!)</span>' : '';
-                if (sc) {
-                    bd.innerHTML = `d20(<strong>${roll}</strong>)${nat} + SAB(${sc.wis_mod >= 0 ? '+' : ''}${sc.wis_mod}) + Prof(+${sc.prof}) = <strong>${sc.total}</strong> &nbsp;vs&nbsp; CD <strong>${sc.dc}</strong>`;
-                }
-                const success = ambush || (sc && sc.total >= sc.dc);
-                if (ambush) {
-                    d20.style.color = '#e53935';
-                    vd.innerHTML = '💀 <span style="color:#e53935;">EMBOSCADA!</span>';
-                } else if (success) {
-                    d20.style.color = '#66bb6a';
-                    vd.innerHTML = '✅ <span style="color:#66bb6a;">Sucesso! Um Pokémon apareceu!</span>';
-                } else {
-                    d20.style.color = '#e53935';
-                    vd.innerHTML = '❌ <span style="color:#e53935;">Falhou — nada encontrado.</span>';
-                }
-                try { playSound && playSound(success ? 'levelup' : 'status'); } catch(e) {}
-                // fecha após uma pausa para o jogador ler
-                setTimeout(() => { ov.style.display = 'none'; resolve(); }, 1400);
-            }
+            if (++ticks > 12) { clearInterval(spin); settle(); }
         }, 70);
     });
 }
 
-async function searchWildPokemon() {
-    const routeId = document.getElementById('current-route').value;
-    const huntMode = document.getElementById('hunt-mode').value;
-    // Use the highest Pokemon level in team (1-100 scale), not trainer level
-    const team = playerTeam || [];
-    const highestPokeLv = team.length > 0 ? Math.max(...team.map(p => p.level || 1)) : 5;
-    const response = await fetch('/api/encounter', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ route_id: routeId, hunt_mode: huntMode, player_level: highestPokeLv })
-    });
-    const encounter = await response.json();
+async function rollHuntTest() {
+    const manualEl = document.getElementById('hunt-manual-roll');
+    const manualVal = manualEl && manualEl.value !== '' ? parseInt(manualEl.value) : null;
+    const body = {};
+    if (manualVal !== null && !isNaN(manualVal)) body.manual_roll = manualVal;
 
-    const failBox = document.getElementById('hunt-fail-msg');
-    if (failBox) failBox.classList.add('hidden');
-    updateHuntCounter(encounter.hunts_used, encounter.hunts_limit);
-
-    if (encounter.error) {
-        // 403 = sem caçadas hoje; 429 = rate limit; outros erros
-        alert(encounter.error === 'No pokemon available for this route'
-            ? 'Nenhum Pokémon encontrado nesta rota!' : encounter.error);
+    let res;
+    try {
+        const response = await fetch('/api/hunt/roll', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        res = await response.json();
+    } catch(e) {
+        alert('Erro de conexão ao rolar o teste.');
         return;
     }
 
-    // Mostra a animação do d20 com o teste de Sobrevivência (sucesso/falha/emboscada)
-    await showHuntRoll(encounter.survival_check, encounter.ambush);
+    const failBox = document.getElementById('hunt-fail-msg');
+    if (failBox) failBox.classList.add('hidden');
 
-    // Falhou no teste de Sobrevivência: gastou a tentativa, não achou nada
-    if (encounter.found === false) {
-        hideElement('encounter-result');
+    if (res.error) {
+        // 403 = muito cansado; 429 = rate limit
+        if (res.used !== undefined) updateHuntCounter(res.used, res.limit);
         if (failBox) {
-            failBox.innerHTML = `${_survivalCheckText(encounter.survival_check)} — ❌ <strong>Falhou!</strong> Você não encontrou nada nesta caçada. (${encounter.hunts_used}/${encounter.hunts_limit} usadas)`;
+            failBox.style.background = 'rgba(229,57,53,0.15)';
+            failBox.style.borderColor = 'rgba(229,57,53,0.4)';
+            failBox.innerHTML = `😴 ${res.error}`;
             failBox.classList.remove('hidden');
             failBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+            alert(res.error);
         }
         return;
     }
 
-    currentEncounter = encounter;
-    await displayEncounter(encounter);
-    document.getElementById('encounter-result')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    updateHuntCounter(res.used, res.limit);
+    if (manualEl) manualEl.value = '';
+    await showHuntRoll(res);
+
+    // Mostra o resultado persistente + instrução de aguardar o mestre
+    if (failBox) {
+        failBox.style.background = 'rgba(102,187,106,0.12)';
+        failBox.style.borderColor = 'rgba(102,187,106,0.4)';
+        failBox.innerHTML = `🎲 Teste: d20(<strong>${res.roll}</strong>) + SAB(${res.wis_mod >= 0 ? '+' : ''}${res.wis_mod}) + Prof(+${res.prof}) = <strong>${res.total}</strong> ` +
+            `— 📨 enviado ao Mestre. Aguarde ele liberar a caçada. (${res.used}/${res.limit} usadas hoje)`;
+        failBox.classList.remove('hidden');
+    }
 }
 
 async function displayEncounter(encounter) {
@@ -483,9 +450,10 @@ async function displayEncounter(encounter) {
     }
     const scInfo = document.getElementById('survival-check-info');
     if (scInfo) {
-        scInfo.innerHTML = encounter.survival_check
-            ? `${_survivalCheckText(encounter.survival_check)} — ${encounter.ambush ? '💀 <strong>Falha crítica: emboscada!</strong>' : '✅ Sucesso!'}`
-            : '';
+        scInfo.innerHTML = encounter.ambush
+            ? '💀 <strong>Emboscada!</strong> Encontro perigoso — sem fuga fácil.'
+            : (encounter.random_hunt || encounter.hunt_mode
+                ? '🎲 Caçada liberada pelo Mestre.' : '');
     }
 
     document.getElementById('wild-pokemon-name').textContent = `${pokemon.name} #${String(pokemon.number).padStart(3, '0')}`;
@@ -2496,15 +2464,6 @@ document.addEventListener('DOMContentLoaded', () => {
     ['str','dex','con','int','wis','cha'].forEach(attr => {
         document.getElementById(`trainer-${attr}`).addEventListener('input', updateModifiers);
     });
-    // Hunt mode info (descrições compartilhadas em HUNT_MODE_DATA)
-    const huntSelect = document.getElementById('hunt-mode');
-    if (huntSelect) {
-        huntSelect.addEventListener('change', () => {
-            const info = document.getElementById('hunt-mode-info');
-            const data = HUNT_MODE_DATA[huntSelect.value];
-            if (info && data) info.innerHTML = `<p>${data.desc}</p>`;
-        });
-    }
 });
 
 // ============================================

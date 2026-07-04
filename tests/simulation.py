@@ -109,34 +109,36 @@ def wild_battle(http, sio, uid, username, battle_no):
     poke = team[0]
     player_level = poke['level']
 
-    resp = http.post('/api/encounter', json={
-        'route_id': 'route1', 'hunt_mode': random.choice(['normal', 'normal', 'dungeon']),
-        'player_level': player_level})
-    if resp.status_code == 429:
+    # ── Teste de caçada MANUAL: o jogador rola o d20 (gasta 1 tentativa) ──
+    roll = http.post('/api/hunt/roll', json={})
+    if roll.status_code == 429:
         appmod._rate_store.clear()
-        resp = http.post('/api/encounter', json={
-            'route_id': 'route1', 'hunt_mode': 'normal', 'player_level': player_level})
-    if resp.status_code == 403:
+        roll = http.post('/api/hunt/roll', json={})
+    if roll.status_code == 403:
         # Sem caçadas hoje → mestre avança o dia e tenta de novo
-        body = resp.get_json()
-        check(body.get('hunts_used', 0) >= 6, '403 sem o contador de caçadas esgotado')
+        body = roll.get_json()
+        check(body.get('used', 0) >= 6, '403 sem o contador de caçadas esgotado')
         advance_day(1)
-        resp = http.post('/api/encounter', json={
-            'route_id': 'route1', 'hunt_mode': 'normal', 'player_level': player_level})
-    check(resp.status_code == 200, f'encounter falhou: {resp.status_code}')
-    enc = resp.get_json()
+        roll = http.post('/api/hunt/roll', json={})
+    check(roll.status_code == 200, f'hunt/roll falhou: {roll.status_code}')
+    rj = roll.get_json()
+    check(1 <= rj.get('roll', 0) <= 20, 'd20 fora do intervalo')
+    check(rj.get('total') == rj['roll'] + rj['wis_mod'] + rj['prof'], 'total do teste inconsistente')
 
     # invariante do gate: contador dentro do limite
     state = db.get_game_state(TABLE_ID)
     hentry = (state.get('hunts') or {}).get(uid, {})
     limit = 6 + int(hentry.get('bonus', 0))
     check(hentry.get('used', 0) <= limit, 'contador de caçadas acima do limite')
-    check('survival_check' in enc, 'resposta sem survival_check')
 
-    if enc.get('found') is False:
-        # Falhou no teste de Sobrevivência — gastou a tentativa, sem batalha
-        STATS['hunt_fails'] += 1
-        return
+    # ── O mestre libera a caçada aleatória para este jogador ──
+    hunt_mode = random.choice(['normal', 'normal', 'dungeon'])
+    rel = MASTER_HTTP.post('/master/hunt/random', json={
+        'player_id': uid, 'hunt_mode': hunt_mode, 'route_id': 'route1'})
+    check(rel.status_code == 200, f'master/hunt/random falhou: {rel.status_code}')
+    enc = rel.get_json().get('encounter', {})
+    check(enc.get('found') is True, 'encontro liberado sem found=True')
+    check(1 <= enc.get('level', 0) <= 100, 'nível do encontro fora de 1-100')
     if enc.get('ambush'):
         STATS['ambushes'] += 1
 
@@ -480,8 +482,8 @@ def main():
     # /master/hunts: grant aumenta o limite; reset zera o uso
     r = master_http.post('/master/hunts', json={'player_id': p1_uid, 'action': 'grant', 'amount': 2})
     check(r.status_code == 200 and r.get_json()['limit'] == 8, 'grant não elevou o limite p/ 8')
-    r = p1_http.post('/api/encounter', json={'route_id': 'route1', 'hunt_mode': 'normal'})
-    check(r.status_code == 200, 'caçada após grant falhou')
+    r = p1_http.post('/api/hunt/roll', json={})
+    check(r.status_code == 200, 'rolagem de caçada após grant falhou')
     r = master_http.post('/master/hunts', json={'player_id': p1_uid, 'action': 'reset'})
     check(r.status_code == 200 and r.get_json()['used'] == 0, 'reset não zerou o contador')
 
@@ -490,15 +492,31 @@ def main():
     st = r.get_json()
     check(r.status_code == 200 and st['used'] == 0 and st['limit'] >= 6, 'hunts/status incoerente')
 
-    # anti-spam: esgota as caçadas e confirma 403
+    # teste MANUAL: a rolagem envia o total ao mestre (sem gerar encontro sozinho)
+    appmod._rate_store.clear()
+    r = p1_http.post('/api/hunt/roll', json={'manual_roll': 17})
+    rj = r.get_json()
+    check(r.status_code == 200 and rj['roll'] == 17 and rj['manual'] is True,
+          'rolagem manual (dado físico) não respeitou o valor informado')
+    check('found' not in rj and 'pokemon' not in rj, 'hunt/roll não deveria gerar encontro')
+
+    # o mestre libera uma caçada aleatória → encontro chega pronto
+    r = master_http.post('/master/hunt/random', json={
+        'player_id': p1_uid, 'hunt_mode': 'dungeon_night', 'route_id': 'route1'})
+    rj = r.get_json()
+    check(r.status_code == 200 and rj.get('encounter', {}).get('found') is True,
+          'master/hunt/random não gerou encontro')
+    check(rj['encounter']['hunt_mode'] == 'dungeon_night', 'hunt_mode não respeitado na caçada aleatória')
+
+    # anti-fadiga: esgota as caçadas e confirma 403 na rolagem
     blocked = False
-    for _ in range(st['limit'] + 2):
+    for _ in range(st['limit'] + 4):
         appmod._rate_store.clear()
-        r = p1_http.post('/api/encounter', json={'route_id': 'route1', 'hunt_mode': 'normal'})
+        r = p1_http.post('/api/hunt/roll', json={})
         if r.status_code == 403:
             blocked = True
             break
-    check(blocked, 'limite de caçadas não bloqueou após esgotar as tentativas')
+    check(blocked, 'limite de caçadas não bloqueou a rolagem após esgotar as tentativas')
     advance_day(1)  # limpa para as fases seguintes
 
     # ---- Fase 5: moves de status em amostra ampla ----

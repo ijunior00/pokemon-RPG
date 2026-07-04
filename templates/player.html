@@ -25,36 +25,18 @@
         <h2>Caça Pokémon</h2>
         
         <div class="encounter-controls">
-            <div class="region-tabs">
-                <button class="region-tab active" onclick="filterRouteRegion('kanto', this)">🗺️ Kanto</button>
-                <button class="region-tab" onclick="filterRouteRegion('johto', this)">🌿 Johto</button>
-                <button class="region-tab" onclick="filterRouteRegion('hoenn', this)">🌊 Hoenn</button>
-                <button class="region-tab" onclick="filterRouteRegion('galar', this)">⚔️ Galar</button>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Rota Atual</label>
-                    <select id="current-route">
-                        {% for route_id, route in routes.items() %}
-                        <option value="{{ route_id }}" data-region="{{ route.region_id }}">{{ route.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Modo</label>
-                    <select id="hunt-mode">
-                        <!-- opções trocadas pelo período (manhã/noite) via updateHuntModeSelect -->
-                        <option value="normal">🌿 Normal (-50% a +5 níveis)</option>
-                        <option value="dungeon">🏰 Dungeon (-10 a +10 níveis)</option>
-                    </select>
-                </div>
-            </div>
             <div class="hunt-mode-info" id="hunt-mode-info">
-                <p>🌿 <strong>Normal:</strong> Pokémon variados, de metade do seu nível até +5.</p>
+                <p>🎲 <strong>Teste de Caçada:</strong> role o d20 (virtual ou físico) e some seu bônus de Sabedoria + proficiência. Mostre o resultado ao Mestre — se ele aprovar, libera uma caçada para você.</p>
+            </div>
+            <div class="form-row" style="align-items:flex-end;">
+                <div class="form-group" style="max-width:200px;">
+                    <label>Dado real? (opcional)</label>
+                    <input type="number" id="hunt-manual-roll" min="1" max="20" placeholder="Rolei um d20 físico: valor">
+                </div>
             </div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-                <button class="btn btn-primary btn-lg" onclick="searchWildPokemon()">
-                    🔍 Procurar Pokémon Selvagem
+                <button class="btn btn-primary btn-lg" onclick="rollHuntTest()">
+                    🎲 Rolar Teste de Caçada
                 </button>
                 <button class="btn btn-secondary hidden" id="btn-energy-drink" onclick="useEnergyDrink()" title="Consome 1 Energy Drink e ganha +1 caçada">
                     🥤 Energy Drink (+1 caçada)
@@ -63,7 +45,7 @@
             <p id="hunts-info" style="margin-top:0.5rem;font-size:0.9rem;">
                 📅 <span id="game-date">—</span> &nbsp;·&nbsp;
                 🎯 Caçadas hoje: <strong><span id="hunts-used">0</span>/<span id="hunts-limit">6</span></strong>
-                &nbsp;·&nbsp; <span id="hunt-period">🌅 <strong>Manhã</strong> (caçadas 1-4)</span>
+                &nbsp;·&nbsp; <span id="hunt-period">Role o teste e aguarde o Mestre liberar a caçada.</span>
             </p>
             <div id="hunt-fail-msg" class="hidden" style="margin-top:0.5rem;padding:0.6rem 0.8rem;border-radius:8px;background:rgba(229,57,53,0.15);border:1px solid rgba(229,57,53,0.4);font-size:0.9rem;"></div>
         </div>
