@@ -1,0 +1,1682 @@
+{
+ "acid": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "badly_poisoned"
+  }
+ },
+ "acid armor": {
+  "effect": {
+   "duration": 3,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 3
+  }
+ },
+ "acid spray": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "badly_poisoned"
+  }
+ },
+ "agility": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPE",
+   "type": "buff_self",
+   "value": 4
+  }
+ },
+ "air slash": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "amnesia": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPD",
+   "type": "buff_self",
+   "value": 3
+  }
+ },
+ "aromatic mist": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPD",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "astonish": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "attract": {
+  "effect": {
+   "save": "WIS",
+   "status": "amedrontado",
+   "type": "inflict_status"
+  }
+ },
+ "autotomize": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPE",
+   "type": "buff_self",
+   "value": 4
+  }
+ },
+ "baby-doll eyes": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "baneful bunker": {
+  "effect": {
+   "duration": 1,
+   "type": "protect"
+  }
+ },
+ "barrier": {
+  "effect": {
+   "duration": 3,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 3
+  }
+ },
+ "beak blast": {
+  "on_hit": {
+   "chance": 1.0,
+   "on": "contact",
+   "status": "queimado"
+  }
+ },
+ "belly drum": {
+  "effect": {
+   "duration": 5,
+   "stat": "ATK",
+   "type": "buff_self",
+   "value": 6
+  }
+ },
+ "bite": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "blaze kick": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "blizzard": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "congelado"
+  }
+ },
+ "blue flare": {
+  "on_hit": {
+   "chance": 0.2,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "body slam": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "bolt strike": {
+  "on_hit": {
+   "chance": 0.2,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "bone club": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "atordoado"
+  }
+ },
+ "bounce": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "bulk up": {
+  "effect": {
+   "duration": 3,
+   "stat": "ATK",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "calm mind": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPA",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "captivate": {
+  "effect": {
+   "duration": 2,
+   "save": "CHA",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "charge": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPD",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "charm": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -3
+  }
+ },
+ "chatter": {
+  "on_hit": {
+   "chance": 1.0,
+   "on": "hit",
+   "status": "confuso"
+  }
+ },
+ "coil": {
+  "effect": {
+   "duration": 3,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 1
+  }
+ },
+ "confide": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "SPA",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "confuse ray": {
+  "effect": {
+   "save": "WIS",
+   "status": "confuso",
+   "type": "inflict_status"
+  }
+ },
+ "confusion": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "confuso"
+  }
+ },
+ "cosmic power": {
+  "effect": {
+   "duration": 3,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "cotton guard": {
+  "effect": {
+   "duration": 3,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 4
+  }
+ },
+ "cotton spore": {
+  "effect": {
+   "duration": 3,
+   "save": "DEX",
+   "stat": "SPE",
+   "type": "debuff_target",
+   "value": -4
+  }
+ },
+ "cross poison": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "badly_poisoned"
+  }
+ },
+ "curse": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "SPE",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "dark pulse": {
+  "on_hit": {
+   "chance": 0.2,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "dark void": {
+  "effect": {
+   "save": "WIS",
+   "status": "dormindo",
+   "type": "inflict_status"
+  }
+ },
+ "defend order": {
+  "effect": {
+   "duration": 3,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "defense curl": {
+  "effect": {
+   "duration": 1,
+   "stat": "AC",
+   "type": "buff_self",
+   "value": 4
+  }
+ },
+ "defog": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "AC",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "detect": {
+  "effect": {
+   "duration": 1,
+   "type": "protect"
+  }
+ },
+ "disable": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "locked_move",
+   "type": "debuff_target",
+   "value": -1
+  }
+ },
+ "discharge": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "dizzy punch": {
+  "on_hit": {
+   "chance": 0.2,
+   "on": "hit",
+   "status": "confuso"
+  }
+ },
+ "double iron bash": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "atordoado"
+  }
+ },
+ "double team": {
+  "effect": {
+   "duration": 3,
+   "stat": "AC",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "dragon breath": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "dragon dance": {
+  "effect": {
+   "duration": 3,
+   "stat": "ATK",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "dragon rush": {
+  "on_hit": {
+   "chance": 0.2,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "dynamic punch": {
+  "on_hit": {
+   "chance": 1.0,
+   "on": "hit",
+   "status": "confuso"
+  }
+ },
+ "eerie impulse": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "SPA",
+   "type": "debuff_target",
+   "value": -3
+  }
+ },
+ "electroweb": {
+  "effect": {
+   "duration": 3,
+   "save": "DEX",
+   "stat": "SPE",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "ember": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "encore": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "locked_move",
+   "type": "debuff_target",
+   "value": -1
+  }
+ },
+ "endure": {
+  "effect": {
+   "duration": 1,
+   "type": "protect"
+  }
+ },
+ "extrasensory": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "fake out": {
+  "effect": {
+   "save": "CON",
+   "status": "atordoado",
+   "type": "inflict_status"
+  },
+  "on_hit": {
+   "chance": 1.0,
+   "on": "hit",
+   "status": "atordoado"
+  }
+ },
+ "fake tears": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "SPD",
+   "type": "debuff_target",
+   "value": -3
+  }
+ },
+ "feather dance": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -3
+  }
+ },
+ "fire blast": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "fire fang": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "fire punch": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "flame wheel": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "flamethrower": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "flare blitz": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "flash": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -3
+  }
+ },
+ "flatter": {
+  "effect": {
+   "save": "WIS",
+   "status": "confuso",
+   "type": "inflict_status"
+  }
+ },
+ "floral healing": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "flower shield": {
+  "effect": {
+   "duration": 3,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "focus energy": {
+  "effect": {
+   "duration": 3,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "force palm": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "freeze shock": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "freeze-dry": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "congelado"
+  }
+ },
+ "gear up": {
+  "effect": {
+   "duration": 3,
+   "stat": "ATK",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "geomancy": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPA",
+   "type": "buff_self",
+   "value": 4
+  }
+ },
+ "glare": {
+  "effect": {
+   "save": "CON",
+   "status": "paralisado",
+   "type": "inflict_status"
+  }
+ },
+ "grass whistle": {
+  "effect": {
+   "save": "WIS",
+   "status": "dormindo",
+   "type": "inflict_status"
+  }
+ },
+ "growl": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "growth": {
+  "effect": {
+   "duration": 3,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "gunk shot": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "badly_poisoned"
+  }
+ },
+ "hail": {
+  "effect": {
+   "duration": 5,
+   "type": "weather",
+   "weather": "hail"
+  }
+ },
+ "harden": {
+  "effect": {
+   "duration": 3,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "headbutt": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "heal order": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "heal pulse": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "heart stamp": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "heat wave": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "hone claws": {
+  "effect": {
+   "duration": 3,
+   "stat": "ATK",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "howl": {
+  "effect": {
+   "duration": 3,
+   "stat": "ATK",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "hurricane": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "confuso"
+  }
+ },
+ "hyper fang": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "hypnosis": {
+  "effect": {
+   "save": "WIS",
+   "status": "dormindo",
+   "type": "inflict_status"
+  }
+ },
+ "ice beam": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "congelado"
+  }
+ },
+ "ice burn": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "ice fang": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "ice punch": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "congelado"
+  }
+ },
+ "icicle crash": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "inferno": {
+  "on_hit": {
+   "chance": 1.0,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "ingrain": {
+  "effect": {
+   "amount": "quarter",
+   "type": "heal_self"
+  }
+ },
+ "iron defense": {
+  "effect": {
+   "duration": 3,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 3
+  }
+ },
+ "iron head": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "kinesis": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "king's shield": {
+  "effect": {
+   "duration": 1,
+   "type": "protect"
+  }
+ },
+ "laser focus": {
+  "effect": {
+   "duration": 1,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "lava plume": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "leer": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "DEF",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "lick": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "light screen": {
+  "effect": {
+   "duration": 5,
+   "stat": "SPD",
+   "type": "buff_self",
+   "value": 3
+  }
+ },
+ "lock-on": {
+  "effect": {
+   "duration": 1,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 4
+  }
+ },
+ "lovely kiss": {
+  "effect": {
+   "save": "WIS",
+   "status": "dormindo",
+   "type": "inflict_status"
+  }
+ },
+ "magnetic flux": {
+  "effect": {
+   "duration": 3,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "meditate": {
+  "effect": {
+   "duration": 3,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 1
+  }
+ },
+ "memento": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -4
+  }
+ },
+ "metal sound": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "SPD",
+   "type": "debuff_target",
+   "value": -3
+  }
+ },
+ "milk drink": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "mind reader": {
+  "effect": {
+   "duration": 1,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 4
+  }
+ },
+ "minimize": {
+  "effect": {
+   "duration": 3,
+   "stat": "AC",
+   "type": "buff_self",
+   "value": 3
+  }
+ },
+ "moonlight": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "morning sun": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "mud bomb": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "badly_poisoned"
+  }
+ },
+ "mud-slap": {
+  "effect": {
+   "duration": 3,
+   "save": "DEX",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "muddy water": {
+  "effect": {
+   "duration": 2,
+   "save": "DEX",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -1
+  }
+ },
+ "nasty plot": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPA",
+   "type": "buff_self",
+   "value": 4
+  }
+ },
+ "needle arm": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "noble roar": {
+  "effect": {
+   "duration": 2,
+   "save": "WIS",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "nuzzle": {
+  "effect": {
+   "save": "CON",
+   "status": "paralisado",
+   "type": "inflict_status"
+  },
+  "on_hit": {
+   "chance": 1.0,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "octazooka": {
+  "effect": {
+   "duration": 3,
+   "save": "DEX",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "parting shot": {
+  "effect": {
+   "duration": 2,
+   "save": "WIS",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "play nice": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "poison fang": {
+  "on_hit": {
+   "chance": 0.5,
+   "on": "hit",
+   "status": "badly_poisoned"
+  }
+ },
+ "poison gas": {
+  "effect": {
+   "save": "CON",
+   "status": "badly_poisoned",
+   "type": "inflict_status"
+  }
+ },
+ "poison jab": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "badly_poisoned"
+  }
+ },
+ "poison powder": {
+  "effect": {
+   "save": "CON",
+   "status": "badly_poisoned",
+   "type": "inflict_status"
+  }
+ },
+ "poison sting": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "badly_poisoned"
+  }
+ },
+ "poison tail": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "badly_poisoned"
+  }
+ },
+ "powder snow": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "congelado"
+  }
+ },
+ "protect": {
+  "effect": {
+   "duration": 1,
+   "type": "protect"
+  }
+ },
+ "psybeam": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "confuso"
+  }
+ },
+ "purify": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "quiver dance": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPA",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "recover": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "reflect": {
+  "effect": {
+   "duration": 5,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 3
+  }
+ },
+ "relic song": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "dormindo"
+  }
+ },
+ "rest": {
+  "effect": {
+   "amount": "full",
+   "type": "heal_self"
+  }
+ },
+ "rock climb": {
+  "on_hit": {
+   "chance": 0.2,
+   "on": "hit",
+   "status": "confuso"
+  }
+ },
+ "rock polish": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPE",
+   "type": "buff_self",
+   "value": 4
+  }
+ },
+ "rock slide": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "rolling kick": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "roost": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "rototiller": {
+  "effect": {
+   "duration": 3,
+   "stat": "ATK",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "sacred fire": {
+  "on_hit": {
+   "chance": 0.5,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "sand attack": {
+  "effect": {
+   "duration": 3,
+   "save": "DEX",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -3
+  }
+ },
+ "sandstorm": {
+  "effect": {
+   "duration": 5,
+   "type": "weather",
+   "weather": "sandstorm"
+  }
+ },
+ "scald": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "scary face": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "SPE",
+   "type": "debuff_target",
+   "value": -3
+  }
+ },
+ "screech": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "DEF",
+   "type": "debuff_target",
+   "value": -3
+  }
+ },
+ "searing shot": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "sharpen": {
+  "effect": {
+   "duration": 3,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "shell smash": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPE",
+   "type": "buff_self",
+   "value": 3
+  }
+ },
+ "shift gear": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPE",
+   "type": "buff_self",
+   "value": 3
+  }
+ },
+ "shore up": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "signal beam": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "confuso"
+  }
+ },
+ "sing": {
+  "effect": {
+   "save": "WIS",
+   "status": "dormindo",
+   "type": "inflict_status"
+  }
+ },
+ "sky attack": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "slack off": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "sleep powder": {
+  "effect": {
+   "save": "CON",
+   "status": "dormindo",
+   "type": "inflict_status"
+  }
+ },
+ "sludge": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "badly_poisoned"
+  }
+ },
+ "sludge bomb": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "badly_poisoned"
+  }
+ },
+ "sludge wave": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "badly_poisoned"
+  }
+ },
+ "smog": {
+  "on_hit": {
+   "chance": 0.4,
+   "on": "hit",
+   "status": "badly_poisoned"
+  }
+ },
+ "smokescreen": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -3
+  }
+ },
+ "snore": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "soft-boiled": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "spark": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "spiky shield": {
+  "effect": {
+   "duration": 1,
+   "type": "protect"
+  }
+ },
+ "spite": {
+  "effect": {
+   "duration": 2,
+   "save": "WIS",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "spore": {
+  "effect": {
+   "save": "CON",
+   "status": "dormindo",
+   "type": "inflict_status"
+  }
+ },
+ "steam eruption": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "queimado"
+  }
+ },
+ "steamroller": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "atordoado"
+  }
+ },
+ "sticky web": {
+  "effect": {
+   "duration": 5,
+   "save": "DEX",
+   "stat": "SPE",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "stockpile": {
+  "effect": {
+   "duration": 3,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "stomp": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "strength sap": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "string shot": {
+  "effect": {
+   "duration": 3,
+   "save": "DEX",
+   "stat": "SPE",
+   "type": "debuff_target",
+   "value": -3
+  }
+ },
+ "stun spore": {
+  "effect": {
+   "save": "CON",
+   "status": "paralisado",
+   "type": "inflict_status"
+  }
+ },
+ "supersonic": {
+  "effect": {
+   "save": "WIS",
+   "status": "confuso",
+   "type": "inflict_status"
+  }
+ },
+ "swagger": {
+  "effect": {
+   "save": "WIS",
+   "status": "confuso",
+   "type": "inflict_status"
+  }
+ },
+ "swallow": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "sweet kiss": {
+  "effect": {
+   "save": "WIS",
+   "status": "confuso",
+   "type": "inflict_status"
+  }
+ },
+ "sweet scent": {
+  "effect": {
+   "duration": 2,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 3
+  }
+ },
+ "swords dance": {
+  "effect": {
+   "duration": 3,
+   "stat": "ATK",
+   "type": "buff_self",
+   "value": 4
+  }
+ },
+ "synthesis": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "tail glow": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPA",
+   "type": "buff_self",
+   "value": 4
+  }
+ },
+ "tail whip": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "DEF",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "taunt": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "no_status_moves",
+   "type": "debuff_target",
+   "value": -1
+  }
+ },
+ "tearful look": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "teeter dance": {
+  "effect": {
+   "save": "WIS",
+   "status": "confuso",
+   "type": "inflict_status"
+  }
+ },
+ "thunder": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "thunder fang": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "thunder punch": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "thunder shock": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "thunder wave": {
+  "effect": {
+   "save": "CON",
+   "status": "paralisado",
+   "type": "inflict_status"
+  }
+ },
+ "thunderbolt": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "tickle": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "torment": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "locked_move",
+   "type": "debuff_target",
+   "value": -1
+  }
+ },
+ "toxic": {
+  "effect": {
+   "save": "CON",
+   "status": "badly_poisoned",
+   "type": "inflict_status"
+  }
+ },
+ "toxic thread": {
+  "effect": {
+   "save": "CON",
+   "status": "badly_poisoned",
+   "type": "inflict_status"
+  }
+ },
+ "twineedle": {
+  "on_hit": {
+   "chance": 0.2,
+   "on": "hit",
+   "status": "badly_poisoned"
+  }
+ },
+ "twister": {
+  "on_hit": {
+   "chance": 0.2,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "venom drench": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "volt tackle": {
+  "on_hit": {
+   "chance": 0.1,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "water pulse": {
+  "on_hit": {
+   "chance": 0.2,
+   "on": "hit",
+   "status": "confuso"
+  }
+ },
+ "waterfall": {
+  "on_hit": {
+   "chance": 0.2,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "will-o-wisp": {
+  "effect": {
+   "save": "DEX",
+   "status": "queimado",
+   "type": "inflict_status"
+  }
+ },
+ "wish": {
+  "effect": {
+   "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "withdraw": {
+  "effect": {
+   "duration": 3,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "work up": {
+  "effect": {
+   "duration": 3,
+   "stat": "ATK",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "yawn": {
+  "effect": {
+   "save": "CON",
+   "status": "dormindo",
+   "type": "inflict_status"
+  }
+ },
+ "zap cannon": {
+  "on_hit": {
+   "chance": 1.0,
+   "on": "hit",
+   "status": "paralisado"
+  }
+ },
+ "zen headbutt": {
+  "on_hit": {
+   "chance": 0.2,
+   "on": "nat15plus",
+   "status": "atordoado"
+  }
+ },
+ "zing zap": {
+  "on_hit": {
+   "chance": 0.3,
+   "on": "hit",
+   "status": "atordoado"
+  }
+ }
+}

@@ -152,6 +152,30 @@ _TYPE_MAP_PT = {
     'fada':'fairy','normal':'normal'
 }
 
+# ============================================================
+# DUAS CURVAS DE MODIFICADOR (correção de balanceamento)
+# ------------------------------------------------------------
+# Antes: o mesmo mod = (stat-10)//2 era usado tanto pra ACERTAR
+# quanto pro DANO. Em Pokémon de stat alto (ex: Snorlax DEF 20),
+# isso deixava ataques de Pokémon de stat alto quase sempre
+# acertando contra Pokémon comuns, e quase nunca acertando
+# Pokémon de defesa também alta — dependendo de qual lado tinha
+# o extremo, o resultado virava "sempre acerta" ou "nunca acerta".
+#
+# Agora: mod_dano (sem teto) continua sendo usado pra DANO e CA.
+# mod_precisao (com teto) é usado SÓ na rolagem de acerto (d20).
+# Combinado com a regra "nat 1 sempre erra, nat 20 sempre acerta"
+# (já presente via is_nat1/is_crit), isso trava a chance de acerto
+# entre 5% e 95% em qualquer combinação de stats do banco atual
+# (6 a 30), sem precisar mudar nenhum stat salvo.
+# ============================================================
+def _mod_dano(stat):
+    return (stat - 10) // 2
+
+def _mod_precisao(stat, teto=4):
+    raw = (stat - 10) // 4
+    return max(-2, min(teto, raw))
+
 def _calc_player_attack(encounter, move_name, attack_roll=None):
     """Calculate player attack fully server-side. Returns result dict."""
     player_poke = encounter.get('player_pokemon') or {}
@@ -162,23 +186,34 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
     stats  = player_poke.get('stats') or {}
     category = move.get('category', 'physical')
 
+    # Move de status NUNCA rola ataque nem causa dano — é roteado pelo
+    # motor de efeitos (effects.process_status_move). Guarda defensiva.
+    if _is_status_move(move):
+        return {'hit': False, 'damage': 0, 'is_status': True,
+                'message': 'Move de status — sem dano',
+                'attack_roll': 0, 'move_type_en': '',
+                'log': ''}
+
     if category == 'physical':
         stat_val = int(stats.get('ATK') or stats.get('STR') or 10)
     elif category == 'special':
         stat_val = int(stats.get('SPA') or stats.get('INT') or 10)
     else:
         stat_val = 10
-    mod  = (stat_val - 10) // 2
+    mod          = _mod_dano(stat_val)       # usado no DANO (sem teto)
+    mod_precisao = _mod_precisao(stat_val)   # usado no ACERTO (com teto)
     prof = int(player_poke.get('proficiency') or _prof_for_level(level))
 
     wild_stats  = wild_poke.get('stats') or {}
     wild_level  = int(wild_poke.get('level') or encounter.get('level') or 5)
     wild_prof_h = _prof_for_level(wild_level) // 2
 
+    # CA usa mod_dano (sem teto) — a assimetria contra o mod_precisao (com
+    # teto) do atacante evita acerto automático/erro impossível nos extremos.
     if category == 'physical':
-        enemy_ac = 8 + (int(wild_stats.get('DEF', 10)) - 10) // 2 + wild_prof_h
+        enemy_ac = 8 + _mod_dano(int(wild_stats.get('DEF', 10))) + wild_prof_h
     else:
-        enemy_ac = 8 + (int(wild_stats.get('SPD', 10)) - 10) // 2 + wild_prof_h
+        enemy_ac = 8 + _mod_dano(int(wild_stats.get('SPD', 10))) + wild_prof_h
     enemy_ac = max(8, int(enemy_ac))
 
     if attack_roll is None:
@@ -186,7 +221,7 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
     attack_roll = int(attack_roll)
     is_crit  = attack_roll == 20
     is_nat1  = attack_roll == 1
-    total    = attack_roll + mod + prof
+    total    = attack_roll + mod_precisao + prof
 
     move_type_raw = (move.get('type') or '').lower()
     move_type_en  = _TYPE_MAP_PT.get(move_type_raw, move_type_raw)
@@ -203,7 +238,14 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
                 'attack_roll': attack_roll, 'move_type_en': move_type_en,
                 'log': f'❌ Errou! ({total} < AC {enemy_ac})'}
 
-    base_dmg    = move.get('baseDamage', '1d6')
+    # sem default '1d6': a auditoria canônica garante dados p/ moves de dano;
+    # os poucos de dano variável (Seismic Toss etc.) ficam p/ o mestre adjudicar
+    base_dmg = move.get('baseDamage')
+    if not base_dmg:
+        return {'hit': True, 'damage': 0,
+                'message': f'{total} vs AC {enemy_ac} — dano variável (mestre adjudica)',
+                'attack_roll': attack_roll, 'move_type_en': move_type_en,
+                'is_crit': is_crit, 'log': f'✅ Acertou! ({total} vs AC {enemy_ac}) — dano variável, mestre adjudica.'}
     higher_lvs  = move.get('higherLevels', '') or ''
     scaled_dice = _get_scaled_dice(base_dmg, level, higher_lvs)
     roll1   = _roll_dice(scaled_dice)
@@ -264,23 +306,30 @@ def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
     stats    = attacker_poke.get('stats') or {}
     category = move.get('category', 'physical')
 
+    # Guarda defensiva: status nunca rola ataque nem causa dano
+    if _is_status_move(move):
+        return {'hit': False, 'damage': 0, 'is_status': True,
+                'message': 'Move de status — sem dano', 'move_type_en': ''}
+
     if category == 'physical':
         stat_val = int(stats.get('ATK') or stats.get('STR') or 10)
     elif category == 'special':
         stat_val = int(stats.get('SPA') or stats.get('INT') or 10)
     else:
         stat_val = 10
-    mod  = (stat_val - 10) // 2
+    mod          = _mod_dano(stat_val)       # usado no DANO (sem teto)
+    mod_precisao = _mod_precisao(stat_val)   # usado no ACERTO (com teto)
     prof = int(attacker_poke.get('proficiency') or _prof_for_level(level))
 
     def_stats   = defender_poke.get('stats') or {}
     def_level   = int(defender_poke.get('level') or 1)
     def_prof_h  = _prof_for_level(def_level) // 2
 
+    # CA usa mod_dano (sem teto) — mesma assimetria de _calc_player_attack
     if category == 'physical':
-        enemy_ac = 8 + (int(def_stats.get('DEF', 10)) - 10) // 2 + def_prof_h
+        enemy_ac = 8 + _mod_dano(int(def_stats.get('DEF', 10))) + def_prof_h
     else:
-        enemy_ac = 8 + (int(def_stats.get('SPD', 10)) - 10) // 2 + def_prof_h
+        enemy_ac = 8 + _mod_dano(int(def_stats.get('SPD', 10))) + def_prof_h
     enemy_ac = max(8, int(enemy_ac))
 
     if attack_roll is None:
@@ -288,7 +337,7 @@ def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
     attack_roll = int(attack_roll)
     is_crit = attack_roll == 20
     is_nat1 = attack_roll == 1
-    total   = attack_roll + mod + prof
+    total   = attack_roll + mod_precisao + prof
 
     move_type_raw = (move.get('type') or '').lower()
     move_type_en  = _TYPE_MAP_PT.get(move_type_raw, move_type_raw)
@@ -300,7 +349,12 @@ def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
     if not hit:
         return {'hit': False, 'damage': 0, 'message': f'Errou ({total} vs AC {enemy_ac})', 'move_type_en': move_type_en}
 
-    base_dmg    = move.get('baseDamage', '1d6')
+    # sem default '1d6': a auditoria canônica garante dados p/ moves de dano
+    base_dmg = move.get('baseDamage')
+    if not base_dmg:
+        return {'hit': True, 'damage': 0,
+                'message': f'{total} vs AC {enemy_ac} — dano variável (mestre adjudica)',
+                'move_type_en': move_type_en}
     higher_lvs  = move.get('higherLevels', '') or ''
     scaled_dice = _get_scaled_dice(base_dmg, level, higher_lvs)
     roll1   = _roll_dice(scaled_dice)
@@ -2623,6 +2677,27 @@ def _group_broadcast(battle, event='group_battle_update'):
     socketio.emit(event, view, room=f"master_{battle['table_id']}")
 
 
+def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data):
+    """Move de STATUS na batalha em dupla — sem dano; aplica efeito e avança."""
+    actor = battle['combatants'][actor_cid]
+    target = battle['combatants'][target_cid]
+    result = effects.process_status_move(
+        move_data or {'name': move_name},
+        dict(actor['pokemon'].get('stats', {}), level=actor['pokemon'].get('level', 1),
+             proficiency=actor['pokemon'].get('proficiency',
+                                              _prof_for_level(actor['pokemon'].get('level', 1))),
+             maxHp=actor['maxHp']),
+        dict(target['pokemon'].get('stats', {}), level=target['pokemon'].get('level', 1)))
+    if result.get('status_applied'):
+        target['status'] = {'condition': result['status_applied'], 'turns_active': 0}
+    if result.get('heal'):
+        actor['hp'] = min(actor['maxHp'], actor['hp'] + result['heal'])
+        actor['pokemon']['currentHp'] = actor['hp']
+    battle['log'].append({'type': 'status_move', 'actor': actor_cid,
+                          'message': f"{actor['name']} usou {move_name} — {result.get('message','')}"})
+    gb.advance_turn(battle)
+
+
 def _group_run_wild_turns(battle):
     """Executa as jogadas automáticas dos selvagens enquanto for a vez deles."""
     guard = 0
@@ -2642,7 +2717,10 @@ def _group_run_wild_turns(battle):
         wild_poke['level'] = cur.get('level') or wild_poke.get('level', 1)
         tgt_poke = dict(target['pokemon'])
         tgt_poke['currentHp'] = target['hp']
-        move_name, _md, _is_status = _npc_pick_move(wild_poke, tgt_poke)
+        move_name, move_data, is_status = _npc_pick_move(wild_poke, tgt_poke)
+        if is_status:
+            _group_apply_status_move(battle, cur['cid'], target_cid, move_name, move_data)
+            continue
         calc = _calc_pvp_attack(wild_poke, tgt_poke, move_name)
         msg = f"{cur['name']} usou {move_name} em {target['name']} — {calc.get('message','')}"
         gb.apply_damage(battle, cur['cid'], target_cid, calc.get('damage', 0),
@@ -2736,14 +2814,19 @@ def handle_group_battle_action(data):
         target = battle['combatants'][target_cid]
 
     move_name = data.get('move_name') or (cur['moves'][0] if cur['moves'] else 'Tackle')
-    att_poke = dict(cur['pokemon'])
-    att_poke['currentHp'] = cur['hp']; att_poke['maxHp'] = cur['maxHp']
-    att_poke['moves'] = cur['moves']
-    tgt_poke = dict(target['pokemon']); tgt_poke['currentHp'] = target['hp']
-    calc = _calc_pvp_attack(att_poke, tgt_poke, move_name, data.get('attack_roll'))
-    msg = f"{cur['name']} usou {move_name} em {target['name']} — {calc.get('message','')}"
-    gb.apply_damage(battle, cur['cid'], target_cid, calc.get('damage', 0),
-                    move_name, msg, hit=calc.get('hit', True))
+    move_data = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name)
+    if _is_status_move(move_data):
+        # Move de status: sem dano, aplica efeito no alvo/atacante
+        _group_apply_status_move(battle, cur['cid'], target_cid, move_name, move_data)
+    else:
+        att_poke = dict(cur['pokemon'])
+        att_poke['currentHp'] = cur['hp']; att_poke['maxHp'] = cur['maxHp']
+        att_poke['moves'] = cur['moves']
+        tgt_poke = dict(target['pokemon']); tgt_poke['currentHp'] = target['hp']
+        calc = _calc_pvp_attack(att_poke, tgt_poke, move_name, data.get('attack_roll'))
+        msg = f"{cur['name']} usou {move_name} em {target['name']} — {calc.get('message','')}"
+        gb.apply_damage(battle, cur['cid'], target_cid, calc.get('damage', 0),
+                        move_name, msg, hit=calc.get('hit', True))
 
     # Turnos automáticos dos selvagens (se AUTO ligado)
     if _wild_auto_mode():
@@ -3921,7 +4004,28 @@ def handle_battle_action(data):
             server_calc = _calc_player_attack(encounter, move_name, attack_roll)
             damage = server_calc.get('damage', 0)
             move_type = server_calc.get('move_type_en', move_type)
-            if not server_calc.get('hit', True):
+            # Backstop: move de status nunca causa dano no selvagem. Processa
+            # o efeito pelo motor e aplica no selvagem (sem dano).
+            if server_calc.get('is_status'):
+                damage = 0
+                move_data = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name)
+                ppoke = encounter.get('player_pokemon') or {}
+                wpoke = encounter.get('pokemon') or {}
+                sres = effects.process_status_move(
+                    move_data or {'name': move_name},
+                    dict(ppoke.get('stats', {}), level=ppoke.get('level', 1),
+                         proficiency=ppoke.get('proficiency', _prof_for_level(ppoke.get('level', 1))),
+                         maxHp=ppoke.get('maxHp', 20)),
+                    dict(wpoke.get('stats', {}), level=wpoke.get('level', encounter.get('level', 5))))
+                action_log = sres.get('message', '')
+                message = sres.get('message', message)
+                if sres.get('status_applied') and not status_effect and not battle_state.get('wild_status'):
+                    status_effect = {'condition': sres['status_applied'], 'turns_active': 0}
+                if sres.get('heal'):
+                    battle_state['player_hp_current'] = min(
+                        battle_state['player_hp_max'],
+                        battle_state['player_hp_current'] + sres['heal'])
+            elif not server_calc.get('hit', True):
                 damage = 0
             # On-hit status (Ember→queimado, Thunderbolt→paralisado etc.)
             # rolado no servidor para valer também em batalhas selvagens.
@@ -4561,6 +4665,15 @@ def handle_pvp_attack(data):
                 handle_npc_turn(battle, next_key)
             return
 
+        # ── Move de STATUS: nunca causa dano — roteia pelo motor de efeitos ──
+        move_data = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name)
+        if _is_status_move(move_data):
+            _process_pvp_status_move(battle, player_key, move_name, move_data)
+            next_key = battle['turn']
+            if battle['phase'] == 'battle' and battle[next_key].get('is_npc'):
+                handle_npc_turn(battle, next_key)
+            return
+
         ability_trigger = None
 
         # Check defender ability
@@ -4989,6 +5102,40 @@ def _npc_pick_move(attacker_poke, defender_poke, defender_has_status=False):
     return name, md, _is_status_move(md)
 
 
+def _process_pvp_status_move(battle, attacker_key, move_name, move_data):
+    """Resolve um move de STATUS em batalha PvP (qualquer lado, humano ou NPC).
+
+    Processa pelo motor de efeitos (save vs CD do move), aplica condição/
+    debuff no defensor ou buff/cura no atacante, registra no log, avança o
+    turno e faz o broadcast. NUNCA causa dano."""
+    defender_key = 'player2' if attacker_key == 'player1' else 'player1'
+    att_side = battle[attacker_key]
+    att_poke = att_side['team'][att_side['active_idx']]
+    def_side = battle[defender_key]
+    def_poke = def_side['team'][def_side['active_idx']]
+
+    result = effects.process_status_move(
+        move_data or {'name': move_name},
+        dict(att_poke.get('stats', {}), level=att_poke.get('level', 1),
+             proficiency=att_poke.get('proficiency', _prof_for_level(att_poke.get('level', 1))),
+             maxHp=att_poke.get('maxHp', 20)),
+        dict(def_poke.get('stats', {}), level=def_poke.get('level', 1)))
+    battle['log'].append({'type': 'status_move', 'attacker': attacker_key,
+                          'move': move_name, 'message': result.get('message', '')})
+    if result.get('status_applied'):
+        applied = pvp.apply_status(battle, defender_key,
+                                   {'condition': result['status_applied']})
+        if applied:
+            battle['log'].append({'type': 'status_applied', 'player': defender_key,
+                                  'status': {'condition': result['status_applied']}})
+    if result.get('heal'):
+        att_poke['currentHp'] = min(att_poke.get('maxHp', 20),
+                                    max(0, att_poke.get('currentHp', 0)) + result['heal'])
+    pvp.advance_turn(battle)
+    _broadcast_pvp_state(battle)
+    return result
+
+
 def handle_npc_turn(battle, npc_key):
     """Handle NPC's automatic turn (status próprio, escolha de move, ação)."""
     defender_key = 'player2' if npc_key == 'player1' else 'player1'
@@ -5026,32 +5173,22 @@ def handle_npc_turn(battle, npc_key):
         return
 
     if pvp._poke_hp(def_poke) <= 0:
-        # Defensor humano desmaiado aguardando troca — NPC não ataca o corpo
+        # Defensor desmaiado aguardando troca — NPC não ataca o corpo.
+        # Re-notifica o humano (destrava o cliente e o Forçar Ação do mestre)
+        # em vez de retornar em silêncio (era a causa do stall).
+        if not battle[defender_key].get('is_npc'):
+            socketio.emit('pvp_must_switch', {
+                'battle_id': battle['id'],
+                'message': 'Seu Pokémon desmaiou! Escolha o próximo.'
+            }, room=battle[defender_key]['id'])
+        _broadcast_pvp_state(battle)
         return
 
     move, move_data, is_status = _npc_pick_move(npc_poke, def_poke,
                                                 defender_has_status=bool(def_poke.get('status')))
 
     if is_status:
-        result = effects.process_status_move(
-            move_data,
-            dict(npc_poke.get('stats', {}), level=npc_poke.get('level', 1),
-                 proficiency=npc_poke.get('proficiency', _prof_for_level(npc_poke.get('level', 1))),
-                 maxHp=npc_poke.get('maxHp', 20)),
-            dict(def_poke.get('stats', {}), level=def_poke.get('level', 1)))
-        battle['log'].append({'type': 'status_move', 'attacker': npc_key,
-                              'move': move, 'message': result.get('message', '')})
-        if result.get('status_applied'):
-            applied = pvp.apply_status(battle, defender_key,
-                                       {'condition': result['status_applied']})
-            if applied:
-                battle['log'].append({'type': 'status_applied', 'player': defender_key,
-                                      'status': {'condition': result['status_applied']}})
-        if result.get('heal'):
-            npc_poke['currentHp'] = min(npc_poke.get('maxHp', 20),
-                                        npc_poke.get('currentHp', 0) + result['heal'])
-        pvp.advance_turn(battle)
-        _broadcast_pvp_state(battle)
+        _process_pvp_status_move(battle, npc_key, move, move_data)
         return
 
     calc     = _calc_pvp_attack(npc_poke, def_poke, move)
@@ -5108,6 +5245,13 @@ def handle_npc_turn(battle, npc_key):
             npc_next = pvp.npc_choose_pokemon(battle, defender_key)
             if npc_next is not None:
                 pvp.switch_pokemon(battle, defender_key, npc_next)
+        else:
+            # Defensor HUMANO nocauteado pelo NPC: avisa que precisa trocar
+            # (a troca forçada é aceita fora do turno em handle_pvp_switch)
+            socketio.emit('pvp_must_switch', {
+                'battle_id': battle['id'],
+                'message': 'Seu Pokémon desmaiou! Escolha o próximo.'
+            }, room=battle[defender_key]['id'])
 
 
 def handle_pvp_victory(battle):

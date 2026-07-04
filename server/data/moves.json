@@ -11,7 +11,7 @@
   "higherLevels": "O dado de dano para esse Move muda para 2d4 no nível 5, 1d12 no nível 10 e 4d4 no nível 17.",
   "baseDamage": "1d4",
   "attackType": "melee",
-  "category": "physical"
+  "category": "special"
  },
  "Accelerock": {
   "name": "Accelerock",
@@ -24,7 +24,8 @@
   "description": "Você se choca contra um alvo em alta velocidade. Como uma ação bônus, você pode se mover imediatamente até 10 pés (3 metros) e realizar um ataque corpo a corpo contra uma criatura no alcance sem sofrer um ataque de oportunidade, causando 1d4 de dano de pedra em um acerto.",
   "higherLevels": "O dado de dano para esse Move muda para 1d6 no nível 5, 1d10 no nível 10 e 1d12 no nível 17.",
   "attackType": "melee",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "1d6"
  },
  "Acid": {
   "name": "Acid",
@@ -203,7 +204,7 @@
   "higherLevels": "O dado de dano para esse Move muda para 2d8 no nível 5, 4d6 no nível 10 e 6d6 no nível 17.",
   "baseDamage": "2d6",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Ancient Power": {
   "name": "Ancient Power",
@@ -217,7 +218,7 @@
   "higherLevels": "O dado de dano para esse Move muda para 2d8 no nível 5, 5d4 no nível 10 e 4d8 no nível 17.",
   "baseDamage": "1d10",
   "attackType": "melee",
-  "category": "physical"
+  "category": "special"
  },
  "Aqua Jet": {
   "name": "Aqua Jet",
@@ -230,7 +231,8 @@
   "description": "Você se lança em uma criatura com uma velocidade incrível. Escolha um alvo dentro de 10 pés (3 metros) de você. Uma explosão de água o impulsiona em direção a essa criatura, evitando todos os ataques de oportunidade. Faça um ataque corpo a corpo nessa criatura, causando 1d4 de dano de água em um acerto.",
   "higherLevels": "O dado de dano para esse Move muda para 1d6 no nível 5, 1d10 no nível 10 e 1d12 no nível 17.",
   "attackType": "melee",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "1d6"
  },
  "Aqua Ring": {
   "name": "Aqua Ring",
@@ -331,7 +333,7 @@
   "higherLevels": "O dado de dano para esse Move muda para 1d10 no nível 5, 2d8 no nível 10 e 5d4 no nível 17.",
   "baseDamage": "1d6",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Attack Order": {
   "name": "Attack Order",
@@ -345,7 +347,7 @@
   "higherLevels": "O dado de dano para esse Move muda para 2d10 no nível 5, 3d10 no nível 10 e 4d12 no nível 17.",
   "baseDamage": "2d8",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Attract": {
   "name": "Attract",
@@ -420,7 +422,7 @@
   "higherLevels": "O dado de dano para esse Move muda para 2d8 no nível 5, 5d4 no nível 10 e 4d8 no nível 17.",
   "baseDamage": "1d10",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Baby-Doll Eyes": {
   "name": "Baby-Doll Eyes",
@@ -457,7 +459,8 @@
   "description": "Faça um ataque à distância em uma criatura, rolando 1d4 em um acerto. Você ataca com uma sequência de golpes à distância igual ao número mostrado. Cada projétil causa 1d4 de dano normal.",
   "higherLevels": "Cada projétil que atingir causa 1d6 no nível 5, 2d4 no nível 10 e 2d6 no nível 17.",
   "attackType": "ranged",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "1d4"
  },
  "Barrier": {
   "name": "Barrier",
@@ -676,7 +679,7 @@
   "higherLevels": "O dado de dano para este Move muda para 3d10 no nível 5, 5d8 no nível 10 e 8d8 no nível 17.",
   "baseDamage": "5d4",
   "saveType": "RESISTÊNCIA",
-  "category": "special"
+  "category": "physical"
  },
  "Bone Club": {
   "name": "Bone Club",
@@ -717,7 +720,7 @@
   "higherLevels": "O dado de dano para este Move muda para 1d6 no nível 5, 2d4 no nível 10 e 3d4 no nível 17. 46",
   "baseDamage": "1d4",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Boomburst": {
   "name": "Boomburst",
@@ -801,7 +804,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 2d8 no nível 5, 5d4 no nível 10 e 4d8 no nível 17.",
   "baseDamage": "1d10",
   "saveType": "RESISTÊNCIA",
-  "category": "special"
+  "category": "physical"
  },
  "Bubble": {
   "name": "Bubble",
@@ -814,7 +817,8 @@
   "description": "Você dispara uma série de bolhas em movimento rápido em um alvo. Faça três ataques à distância, causando 1d4 de dano de água em cada acerto bem-sucedido.",
   "higherLevels": "Os dados de dano para este Move mudam para 1d8 no nível 5, 2d6 no nível 10 e 3d6 no nível 17.",
   "attackType": "ranged",
-  "category": "status"
+  "category": "special",
+  "baseDamage": "1d6"
  },
  "Bubble Beam": {
   "name": "Bubble Beam",
@@ -881,7 +885,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 2d8 no nível 5, 5d4 no nível 10 e 4d8 no nível 17.",
   "baseDamage": "1d10",
   "saveType": "DES",
-  "category": "special"
+  "category": "physical"
  },
  "Bullet Punch": {
   "name": "Bullet Punch",
@@ -894,7 +898,8 @@
   "description": "Você golpeia com um soco tão rápido quanto uma bala. Escolha um alvo dentro de 10 pés (3 metros) de você. Você avança rapidamente para acertar um soco na criatura, evitando todos os ataques de oportunidade. Faça um ataque corpo a corpo contra essa criatura, causando 1d4 de dano do tipo aço em um acerto.",
   "higherLevels": "Os dados de dano para este Move mudam para 1d6 no nível 5, 1d10 no nível 10 e 1d12 no nível 17.",
   "attackType": "melee",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "1d6"
  },
  "Bullet Seed": {
   "name": "Bullet Seed",
@@ -908,7 +913,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 2d4 no nível 5, 1d12 no nível 10 e 4d4 no nível 17.",
   "baseDamage": "1d4",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Burn Up": {
   "name": "Burn Up",
@@ -1426,10 +1431,8 @@
   "duration": "Instantânea",
   "range": "Pessoal (raio de 30 pés / 9 metros)",
   "description": "Você envia as mentes de suas criaturas para um mundo de escuridão, danificando-as antes de colocá-las para dormir. Todas as criaturas dentro de 9 metros de você devem fazer um teste de SAB contra seu valor de CD do Move, sofrendo 2d10 + MOVE de dano do tipo sombrio e adormecendo em caso de falha, ou metade desse dano sem adormecer em caso de sucesso.",
-  "higherLevels": "Os dados de dano para este Move mudam para 3d8 no nível 5, 4d10 no nível 10 e 7d8 no nível 17.",
-  "baseDamage": "2d10",
   "saveType": "SAB",
-  "category": "special"
+  "category": "status"
  },
  "Darkest Lariat": {
   "name": "Darkest Lariat",
@@ -1526,7 +1529,8 @@
   "range": "50 pés (15 metros)",
   "description": "Você agita uma tempestade massiva de diamantes afiados em um raio de 50 pés (15 metros), centrado em um ponto no alcance. Quando uma criatura entra na área pela primeira vez em seu turno, ou começa seu turno dentro da área, ela sofre 4d4 de dano do tipo pedra. Este Move dura por 3 rodadas. Ao ativar este Move, role um d4. Em um resultado de 3 ou 4, sua CA é aumentada em 2 enquanto este Move estiver ativo.",
   "higherLevels": "Os dados de dano para este Move mudam para 2d12 no nível 5, 4d8 no nível 10 e 8d6 no nível 17.",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "3d6"
  },
  "Dig": {
   "name": "Dig",
@@ -1867,7 +1871,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 2d6 no nível 5, 4d4 no nível 10 e 3d10 no nível 17.",
   "baseDamage": "1d8",
   "attackType": "melee",
-  "category": "physical"
+  "category": "special"
  },
  "Dream Eater": {
   "name": "Dream Eater",
@@ -1964,7 +1968,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 2d12 no nível 5, 4d8 no nível 10 e 8d6 no nível 17. 58",
   "baseDamage": "4d4",
   "saveType": "FOR",
-  "category": "special"
+  "category": "physical"
  },
  "Echoed Voice": {
   "name": "Echoed Voice",
@@ -2004,7 +2008,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 2d12 no nível 5, 4d8 no nível 10 e 8d6 no nível 17.",
   "baseDamage": "4d4",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Electric Terrain": {
   "name": "Electric Terrain",
@@ -2170,7 +2174,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 10d6 no nível 5, 12d8 no nível 10 e 12d12 no nível 17. 60",
   "baseDamage": "8d6",
   "saveType": "RESISTÊNCIA",
-  "category": "special"
+  "category": "physical"
  },
  "Extrasensory": {
   "name": "Extrasensory",
@@ -2197,7 +2201,8 @@
   "description": "Você se apressa para atacar com velocidade incrível. Como uma ação bônus, você pode se mover imediatamente até 10 pés (3 metros) e fazer um ataque corpo a corpo contra uma criatura dentro do alcance sem sofrer um ataque de oportunidade, causando 1d6 de dano normal em um acerto.",
   "higherLevels": "Os dados de dano para este Move mudam para 1d12 no nível 5, 2d8 no nível 10 e 4d6 no nível 17.",
   "attackType": "melee",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "2d6"
  },
  "Facade": {
   "name": "Facade",
@@ -2521,7 +2526,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 2d8 no nível 5, 5d4 no nível 10 e 4d8 no nível 17.",
   "baseDamage": "1d10",
   "saveType": "DES",
-  "category": "special"
+  "category": "physical"
  },
  "Flamethrower": {
   "name": "Flamethrower",
@@ -2624,9 +2629,7 @@
   "duration": "Instantânea",
   "range": "30 pés (9 metros)",
   "description": "Você estende uma energia de cura para recuperar os pontos de vida de uma criatura em alcance. O alvo ganha 2d8 + MOVE pontos de vida. Se o terreno for gramado, dobre seu modificador de MOVE.",
-  "higherLevels": "Os dados de cura para este Move mudam para 2d10 no nível 5, 3d10 no nível 10 e 4d12 no nível 17.",
-  "baseDamage": "2d8",
-  "category": "special"
+  "category": "status"
  },
  "Flower Shield": {
   "name": "Flower Shield",
@@ -2765,7 +2768,8 @@
   "description": "Você usa o próprio poder de uma criatura contra ela. Faça um teste de ataque corpo a corpo usando seu Poder do Move. Em caso de acerto, o alvo sofre uma quantidade de dano sombrio igual a 2d8 + o nível do alvo.",
   "higherLevels": "Os dados de dano para este Move mudam para 2d10 no nível 5, 3d10 no nível 10 e 4d12 no nível 17.",
   "attackType": "melee",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "2d8"
  },
  "Freeze Shock": {
   "name": "Freeze Shock",
@@ -2779,7 +2783,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 5d6 no nível 5, 4d12 no nível 10 e 8d8 no nível 17.",
   "baseDamage": "3d8",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Freeze-Dry": {
   "name": "Freeze-Dry",
@@ -2891,7 +2895,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 4d10 no nível 5, 6d10 no nível 10 e 8d12 no nível 17. 67..........",
   "baseDamage": "5d6",
   "saveType": "RESISTÊNCIA",
-  "category": "special"
+  "category": "physical"
  },
  "Fusion Flare": {
   "name": "Fusion Flare",
@@ -2945,7 +2949,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 2d6 no nível 5, 4d4 no nível 10 e 3d10 no nível 17.",
   "baseDamage": "1d8",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Gear Up": {
   "name": "Gear Up",
@@ -3166,7 +3170,7 @@
   "higherLevels": "O dado de dano para este Move muda para 3d8 no nível 5, 4d10 no nível 10, e 7d8 no nível 17.",
   "baseDamage": "1d10",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Gust": {
   "name": "Gust",
@@ -3659,7 +3663,8 @@
   "range": "60 pés (18 metros)",
   "description": "Usando seus muitos braços, você lança uma barragem de três bolas de energia furiosa em qualquer criatura(s) dentro do alcance. Cada bola automaticamente causa 1d6 de dano sombrio a qualquer criatura(s) que você escolher. Reações que anulam dano, como Protect ou Detect, não podem ser usadas. Após ativar este Move, quaisquer ataques contra você, até o início de seu próximo turno, são rolados com vantagem.",
   "higherLevels": "Você pode disparar 4 projéteis no nível 5, 5 no nível 10 e 6 no nível 17.",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "3d6"
  },
  "Hyperspace Hole": {
   "name": "Hyperspace Hole",
@@ -3673,7 +3678,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 4d6 no nível 10 e 6d6 no nível 17. 75..........",
   "baseDamage": "2d6",
   "attackType": "melee",
-  "category": "physical"
+  "category": "special"
  },
  "Hypnosis": {
   "name": "Hypnosis",
@@ -3782,7 +3787,8 @@
   "description": "Você congela rapidamente pedaços de gelo e os arremessa contra uma criatura. Como uma ação bônus, você dispara um fragmento de gelo em uma criatura dentro do alcance. Faça um teste de ataque à distância, causando 1d4 de dano de gelo no acerto.",
   "higherLevels": "O dado de dano para este Move muda para 1d6 no nível 5, 1d10 no nível 10 e 1d12 no nível 17. 76",
   "attackType": "ranged",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "1d6"
  },
  "Icicle Crash": {
   "name": "Icicle Crash",
@@ -3796,7 +3802,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 4d6 no nível 10 e 6d6 no nível 17.",
   "baseDamage": "2d6",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Icicle Spear": {
   "name": "Icicle Spear",
@@ -3810,7 +3816,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d4 no nível 5, 1d12 no nível 10 e 4d4 no nível 17.",
   "baseDamage": "1d4",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Icy Wind": {
   "name": "Icy Wind",
@@ -4044,7 +4050,7 @@
   "higherLevels": "O dado de dano para este Move muda para 4d10 no nível 5, 6d10 no nível 10 e 8d12 no nível 17.",
   "baseDamage": "5d6",
   "saveType": "DES",
-  "category": "special"
+  "category": "physical"
  },
  "Laser Focus": {
   "name": "Laser Focus",
@@ -4139,7 +4145,7 @@
   "higherLevels": "O dado de dano para este Move muda para 1d12 no nível 5, 2d8 no nível 10 e 4d6 no nível 17.",
   "baseDamage": "1d6",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Leech Life": {
   "name": "Leech Life",
@@ -4232,7 +4238,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 4d6 no nível 10 e 6d6 no nível 17.",
   "baseDamage": "2d6",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Lock-On": {
   "name": "Lock-On",
@@ -4346,7 +4352,8 @@
   "description": "Você se lança para frente para dar um soco com uma velocidade incrível. Escolha um alvo dentro de 10 pés (3 metros) de você. Você avança para golpear o alvo com um punho, evitando todos os ataques de oportunidade. Realize um ataque corpo a corpo na criatura, causando 1d4 de dano lutador em um acerto.",
   "higherLevels": "O dado de dano deste Move muda para 1d6 no nível 5, 1d10 no nível 10 e 1d12 no nível 17.",
   "attackType": "melee",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "1d6"
  },
  "Magic Coat": {
   "name": "Magic Coat",
@@ -4408,7 +4415,7 @@
   "description": "Você lança uma bola de aço que busca uma criatura dentro do alcance, nunca errando o alvo. Este Move sempre acerta, causando 1d6 + MOVE de dano de aço, a menos que durante a fase invulnerável de Moves como Fly, Dig, Bounce, Dive, etc.",
   "higherLevels": "O dado de dano deste Move muda para 1d10 no nível 5, 2d8 no nível 10 e 5d4 no nível 17.",
   "baseDamage": "1d6",
-  "category": "special"
+  "category": "physical"
  },
  "Magnet Rise": {
   "name": "Magnet Rise",
@@ -5028,9 +5035,7 @@
   "duration": "Instantânea",
   "range": "Pessoal (60 pés / 18 metros de raio)",
   "description": "Você cria um pesadelo horrível na mente de qualquer criatura dormindo em um círculo de 120 pés (36 metros) ao seu redor, infligindo automaticamente 3d6 + MOVE de dano fantasma. Este Move não acorda uma criatura dormindo.",
-  "higherLevels": "O dado de dano para este Move muda para 4d6 no nível 5, 5d6 no nível 10 e 6d6 no nível 17.",
-  "baseDamage": "3d6",
-  "category": "special"
+  "category": "status"
  },
  "Noble Roar": {
   "name": "Noble Roar",
@@ -5255,7 +5260,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d10 no nível 5, 3d10 no nível 10 e 4d12 no nível 17.",
   "baseDamage": "2d8",
   "saveType": "DES",
-  "category": "special"
+  "category": "physical"
  },
  "Petal Dance": {
   "name": "Petal Dance",
@@ -5311,7 +5316,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 2d4 no nível 5, 1d12 no nível 10 e 4d4 no nível 17. 91..........",
   "baseDamage": "1d4",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Plasma Fists": {
   "name": "Plasma Fists",
@@ -5603,7 +5608,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 5d4 no nível 10 e 4d8 no nível 17.",
   "baseDamage": "1d10",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Present": {
   "name": "Present",
@@ -5695,7 +5700,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 4d6 no nível 10 e 6d6 no nível 17.",
   "baseDamage": "2d6",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Psychic Terrain": {
   "name": "Psychic Terrain",
@@ -5734,7 +5739,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 2d12 no nível 10 e 6d6 no nível 17. 95..........",
   "baseDamage": "1d12",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Psycho Shift": {
   "name": "Psycho Shift",
@@ -5825,7 +5830,7 @@
   "higherLevels": "O dado de dano para este Move muda para 1d12 no nível 5, 2d8 no nível 10 e 4d6 no nível 17.",
   "baseDamage": "1d6",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Quash": {
   "name": "Quash",
@@ -5850,7 +5855,8 @@
   "description": "Você ataca rapidamente com um golpe desarmado contra uma criatura. Como uma ação bônus, você pode se mover imediatamente até 10 pés (3 metros) e fazer um ataque corpo a corpo contra uma criatura no alcance sem sofrer um ataque de oportunidade, causando 1d4 de dano normal em um acerto.",
   "higherLevels": "O dado de dano para este Move muda para 1d6 no nível 5, 1d8 no nível 10 e 1d10 no nível 17.",
   "attackType": "melee",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "1d6"
  },
  "Quick Guard": {
   "name": "Quick Guard",
@@ -5885,7 +5891,8 @@
   "range": "Pessoal",
   "description": "Você entra em um ataque de raiva, atacando com fúria implacável. Enquanto estiver enfurecido, você ganha +1 em todas as rolagens de dano (apenas uma vez por Move), tem resistência a dano normal e tem vantagem em todos os testes de Força. Sua fúria termina se você perder a concentração ou se seu turno terminar e você não tiver atacado um alvo hostil desde seu último turno, ou se não tiver sofrido nenhum dano desde então.",
   "higherLevels": "O dano para este Move muda para +2 no nível 5, +4 no nível 10 e +6 no nível 17.",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "1d4"
  },
  "Rage Powder": {
   "name": "Rage Powder",
@@ -5925,7 +5932,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d6 no nível 5, 4d4 no nível 10 e 3d10 no nível 17. 97..........",
   "baseDamage": "1d8",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Razor Shell": {
   "name": "Razor Shell",
@@ -6076,7 +6083,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d10 no nível 5, 3d10 no nível 10 e 4d12 no nível 17.",
   "baseDamage": "2d8",
   "attackType": "melee",
-  "category": "physical"
+  "category": "special"
  },
  "Revenge": {
   "name": "Revenge",
@@ -6089,7 +6096,8 @@
   "description": "Você invoca uma fúria interna para retaliar contra uma criatura que lhe causa dano. Como uma reação, quando você é atingido por um ataque corpo a corpo que causa dano, faça um ataque corpo a corpo contra seu atacante, com desvantagem. Em um acerto, cause a mesma quantidade de dano do tipo lutador de volta ao seu atacante (máximo de 5x seu nível atual).",
   "higherLevels": "O dado de dano para este Move muda para 1d6 no nível 5, 1d8 no nível 10 e 2d6 no nível 17.",
   "attackType": "melee",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "1d10"
  },
  "Reversal": {
   "name": "Reversal",
@@ -6143,7 +6151,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d4 no nível 5, 1d12 no nível 10 e 4d4 no nível 17.",
   "baseDamage": "1d4",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Rock Climb": {
   "name": "Rock Climb",
@@ -6182,7 +6190,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 2d12 no nível 10 e 6d6 no nível 17.",
   "baseDamage": "1d12",
   "saveType": "FOR",
-  "category": "special"
+  "category": "physical"
  },
  "Rock Smash": {
   "name": "Rock Smash",
@@ -6209,7 +6217,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d6 no nível 5, 4d4 no nível 10 e 3d10 no nível 17.",
   "baseDamage": "1d8",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Rock Tomb": {
   "name": "Rock Tomb",
@@ -6223,7 +6231,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 5d4 no nível 10 e 4d8 no nível 17. 100",
   "baseDamage": "1d10",
   "saveType": "FOR",
-  "category": "special"
+  "category": "physical"
  },
  "Rock Wrecker": {
   "name": "Rock Wrecker",
@@ -6237,7 +6245,7 @@
   "higherLevels": "O dado de dano para este Move muda para 6d6 no nível 5, 8d6 no nível 10 e 7d12 no nível 17.",
   "baseDamage": "3d10",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Role Play": {
   "name": "Role Play",
@@ -6327,7 +6335,7 @@
   "higherLevels": "O dado de dano para este Move muda para 4d10 no nível 5, 6d10 no nível 10 e 8d12 no nível 17. 101..........",
   "baseDamage": "5d6",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Sacred Sword": {
   "name": "Sacred Sword",
@@ -6378,7 +6386,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 5d4 no nível 10 e 4d8 no nível 17.",
   "baseDamage": "1d10",
   "saveType": "RESISTÊNCIA",
-  "category": "special"
+  "category": "physical"
  },
  "Sandstorm": {
   "name": "Sandstorm",
@@ -6483,7 +6491,7 @@
   "higherLevels": "O dado de dano para este Move muda para 6d6 no nível 5, 8d6 no nível 10 e 7d12 no nível 17.",
   "baseDamage": "3d10",
   "attackType": "melee",
-  "category": "physical"
+  "category": "special"
  },
  "Seed Bomb": {
   "name": "Seed Bomb",
@@ -6497,7 +6505,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 4d6 no nível 10 e 6d6 no nível 17.",
   "baseDamage": "2d6",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Seed Flare": {
   "name": "Seed Flare",
@@ -6538,7 +6546,7 @@
   "higherLevels": "O dado de dano para este Move muda para 4d10 no nível 5, 6d10 no nível 10 e 8d12 no nível 17.",
   "baseDamage": "5d6",
   "saveType": "DES",
-  "category": "special"
+  "category": "physical"
  },
  "Shadow Ball": {
   "name": "Shadow Ball",
@@ -6580,7 +6588,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 2d12 no nível 10 e 6d6 no nível 17.",
   "baseDamage": "1d12",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Shadow Force": {
   "name": "Shadow Force",
@@ -6620,7 +6628,8 @@
   "description": "Você estende sua sombra para atacar uma criatura por trás. Como ação bônus, você pode controlar sua sombra para fazer um rolagem de ataque corpo a corpo contra um alvo dentro do alcance, causando 1d4 de dano fantasma em um acerto.",
   "higherLevels": "O dado de dano para este Move muda para 1d6 no nível 5, 1d10 no nível 10 e 1d12 no nível 17.",
   "attackType": "melee",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "1d6"
  },
  "Sharpen": {
   "name": "Sharpen",
@@ -6702,9 +6711,7 @@
   "duration": "Instantânea",
   "range": "Pessoal",
   "description": "Você usa o poder da terra ao seu redor para ajudar a curar suas feridas, recuperando 2d8 + MOVE pontos de vida. Se usado durante uma tempestade de areia (Sandstorm), seu MOVE é dobrado.",
-  "higherLevels": "O dado de dano para este Move muda para 2d10 no nível 5, 3d10 no nível 10 e 4d12 no nível 17.",
-  "baseDamage": "2d8",
-  "category": "physical"
+  "category": "status"
  },
  "Signal Beam": {
   "name": "Signal Beam",
@@ -6835,7 +6842,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 4d6 no nível 10 e 6d6 no nível 17.",
   "baseDamage": "2d6",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Slack Off": {
   "name": "Slack Off",
@@ -6953,7 +6960,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d6 no nível 5, 4d4 no nível 10 e 3d10 no nível 17.",
   "baseDamage": "1d8",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Smart Strike": {
   "name": "Smart Strike",
@@ -6980,7 +6987,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d6 no nível 5, 2d12 no nível 10 e 3d10 no nível 17.",
   "baseDamage": "1d8",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Smog": {
   "name": "Smog",
@@ -7202,7 +7209,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 2d4 no nível 5, 1d12 no nível 10 e 4d4 no nível 17.",
   "baseDamage": "1d4",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Spikes": {
   "name": "Spikes",
@@ -7240,7 +7247,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 2d8 no nível 5, 4d6 no nível 10 e 6d6 no nível 17. 110",
   "baseDamage": "2d6",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Spit Up": {
   "name": "Spit Up",
@@ -7421,7 +7428,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d12 no nível 5, 4d8 no nível 10 e 8d6 no nível 17.",
   "baseDamage": "4d4",
   "saveType": "DES",
-  "category": "special"
+  "category": "physical"
  },
  "Stored Power": {
   "name": "Stored Power",
@@ -7474,9 +7481,7 @@
   "duration": "Instantânea",
   "range": "15 pés (4,5 metros)",
   "description": "Se uma criatura tentar usar um Move que aumente as estatísticas dela, você pode usar sua reação para anular o aumento e converter em energia de cura para si, recuperando 1d10 + MOVE pontos de vida. Isso inclui bônus no acerto crítico, aumentos de CA, velocidade, ataque, dano, etc.",
-  "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 5d4 no nível 10 e 4d8 no nível 17.",
-  "baseDamage": "1d10",
-  "category": "special"
+  "category": "status"
  },
  "String Shot": {
   "name": "String Shot",
@@ -7499,7 +7504,8 @@
   "range": "Corpo a corpo/60 pés (18 metros)",
   "description": "Este Move é conhecido por todos os Pokémon e pode ser usado a qualquer momento. Você ataca com um golpe desarmado ou usa uma arma improvisada de perto ou à distância para causar dano a uma criatura. Faça uma rolagem de ataque corpo a corpo ou à distância, causando dano igual a 2 + MOVE de dano sem tipo em um acerto. O dano deste Move não pode ser aumentado por outro Move, item ou habilidade.",
   "attackType": "melee",
-  "category": "status"
+  "category": "physical",
+  "baseDamage": "1d8"
  },
  "Struggle Bug": {
   "name": "Struggle Bug",
@@ -7513,7 +7519,7 @@
   "higherLevels": "O dado de dano para este Move muda para 1d10 no nível 5, 2d8 no nível 10 e 5d4 no nível 17.",
   "baseDamage": "1d6",
   "attackType": "melee",
-  "category": "physical"
+  "category": "special"
  },
  "Stun Spore": {
   "name": "Stun Spore",
@@ -7689,7 +7695,8 @@
   "range": "60 pés (18 metros)",
   "description": "Você dispara dois projéteis em qualquer criatura que escolher dentro do alcance. Eles não precisam mirar na mesma criatura. Cada acerto causa 1d4 de dano normal. Este Move também atinge criaturas durante as fases invulneráveis de Dig, Fly, Bounce, etc.",
   "higherLevels": "Você dispara 4 projéteis no nível 5, 5 projéteis no nível 10 e 6 projéteis no nível 17.",
-  "category": "status"
+  "category": "special",
+  "baseDamage": "1d10"
  },
  "Switcheroo": {
   "name": "Switcheroo",
@@ -7916,7 +7923,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d10 no nível 5, 3d10 no nível 10 e 4d12 no nível 17.",
   "baseDamage": "2d8",
   "saveType": "RESISTÊNCIA",
-  "category": "special"
+  "category": "physical"
  },
  "Thousand Waves": {
   "name": "Thousand Waves",
@@ -7930,7 +7937,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d10 no nível 5, 3d10 no nível 10 e 4d12 no nível 17.",
   "baseDamage": "2d8",
   "saveType": "RESISTÊNCIA",
-  "category": "special"
+  "category": "physical"
  },
  "Thrash": {
   "name": "Thrash",
@@ -8226,7 +8233,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d4 no nível 5, 1d12 no nível 10 e 4d4 no nível 17.",
   "baseDamage": "1d4",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Twister": {
   "name": "Twister",
@@ -8295,7 +8302,8 @@
   "description": "Você gira seus punhos com um ataque rápido que empurra uma explosão de vento rápida em uma criatura dentro do alcance. Faça um ataque à distância em uma criatura, causando 1d4 de dano lutador em um acerto.",
   "higherLevels": "O dado de dano para este Move muda para 1d6 no nível 5, 1d10 no nível 10 e 1d12 no nível 17.",
   "attackType": "ranged",
-  "category": "status"
+  "category": "special",
+  "baseDamage": "1d6"
  },
  "Venom Drench": {
   "name": "Venom Drench",
@@ -8377,7 +8385,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 2d12 no nível 10 e 6d6 no nível 17.",
   "baseDamage": "1d12",
   "attackType": "melee",
-  "category": "physical"
+  "category": "special"
  },
  "Volt Tackle": {
   "name": "Volt Tackle",
@@ -8500,7 +8508,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 4d6 no nível 10 e 6d6 no nível 17.",
   "baseDamage": "2d6",
   "saveType": "FOR",
-  "category": "special"
+  "category": "physical"
  },
  "Weather Ball": {
   "name": "Weather Ball",
@@ -8757,6 +8765,6 @@
   "higherLevels": "Os dados de dano para este Move mudam para 2d8 no nível 5, 4d6 no nível 10 e 6d6 no nível 17. 125.......... 11. Lista de Habilidades Passivas Adaptability Quando este Pokémon usa um Move do seu próprio tipo, ele pode rolar o dano duas vezes e escolher o maior. Aftermath Este Pokémon causa dano a um atacante igual à metade do dano recebido caso seja derrotado por um Move corpo a corpo. Air Lock Enquanto este Pokémon estiver em batalha, habilidades relacionadas ao clima não têm efeito sobre os Pokémon que as possuem. Air Slash Este Pokémon conhece Air Slash como um quinto Move. O Move é esquecido se ele tomar qualquer outra forma. Analytic Após este Pokémon errar um ataque, seu próximo ataque é feito com vantagem. Anger Point Após sofrer um acerto crítico, este Pokémon dobra os dados de dano para um único Move que ele ativar no próximo turno. Anticipation Quando este Pokémon entra na batalha, um oponente deve revelar se tem um Move ao qual o Pokémon é vulnerável. O Move não precisa ser revelado - apenas que existe tal Move. Arena Trap Criaturas em contato com o solo dentro de 50 pés (15 metros) deste Pokémon não podem fugir ou trocar, exceto por item, Move ou habilidade. Aroma Veil Qualquer aliado dentro de 15 pés (4,5 metros) deste Pokémon passa automaticamente em qualquer teste de SAB que precisem fazer. Aura Break Quando este Pokémon está em batalha, o aumento das habilidades Fairy Aura e Dark Aura é revertido. Qualquer tipo de Move ativado dentro de 100 pés (30 metros) causa metade do dano em vez de dobrar. Bad Dreams Se um oponente em batalha com este Pokémon adormecer, ele sofre uma quantidade de dano igual ao bônus de proficiência deste Pokémon no final de cada um de seus turnos. Battery Aliados que ativam Moves do tipo elétrico dentro de 20 pés (6 metros) deste Pokémon dobram seus dados de dano. Battle Armor Este Pokémon é imune a dano extra causado por um acerto crítico. Beast Boost Ao fazer um oponente desmaiar, este Pokémon aumenta os valores de habilidade de suas proficiências em testes de resistência em 2 até o final do combate. Isso é acumulável até um máximo de +10 para qualquer valor de habilidade. Berserk Quando este Pokémon cai abaixo de 25% de seus pontos de vida máximos, todos os seus ataques são feitos com desvantagem, mas causam o dobro de dano. Se um Move ativado exigir um teste de resistência, o(s) alvo(s) têm vantagem na rolagem. Big Pecks A CA deste Pokémon não pode ser reduzida pelos Moves do oponente. Blaze Este Pokémon duplica seu bônus de STAB quando tem 25% ou menos de seus pontos de vida máximos. Blizzard Este Pokémon conhece Blizzard como um quinto Move. O Move é esquecido se ele tomar qualquer outra forma. Bulletproof Este Pokémon é imune a dano causado por Moves com Bullet, Ball, ou Bomb em seu nome. Burrower Este Pokémon pode escavar no subsolo, viajando uma distância igual à sua velocidade de movimento antes de reaparecer. Cacophony Este Pokémon é imune a Moves baseados em som. Cheek Pouch Quando este Pokémon come qualquer tipo de berry, ele se cura por 10% adicionais de seus pontos de vida máximos (arredondados para o número inteiro mais próximo). Chlorophyll A velocidade deste Pokémon é dobrada em luz solar intensa. 126 Clear Body Os Moves ou habilidades de outros Pokémon não podem reduzir os atributos ou impor alterações negativas nas rolagens deste Pokémon. Cloud Nine Enquanto este Pokémon estiver em batalha, habilidades relacionadas ao clima não têm efeito sobre os Pokémon que as possuem. Color Change Quando atingido por um ataque danoso, o tipo deste Pokémon muda para o tipo que o atingiu. Ele assume as resistências, vulnerabilidades e imunidades do novo tipo. Comatose Este Pokémon está em um estado contínuo de sonolência. Ele é imune à condição de sono, mas é considerado afetado pelo sono para todos os Moves que requerem que um Pokémon esteja dormindo para usar ou ativar efeitos adicionais (Snore, Sleep Talk, Wake-Up Slap, Dream Eater, etc.). Competitive Este Pokémon adiciona seu bônus de proficiência às rolagens de dano enquanto envenenado, queimado, confuso ou paralisado. Compound Eyes Este Pokémon recebe um adicional de +1 nas rolagens de ataque. Contrary Moves que aumentam ou diminuem diretamente os atributos deste Pokémon têm o efeito oposto. Esta habilidade não tem efeito sobre Moves que \"trocam\" ou \"medeiam\" atributos com um alvo como Heart Swap, Guard Split, etc. Corrosion Os Moves deste Pokémon ignoram a imunidade ao veneno das criaturas concedida pelo tipo de Pokémon delas e podem infligir o status envenenado em criaturas do tipo venenoso e de aço. Se o tipo secundário do alvo o tornar vulnerável ou resistente ao dano, segue o tipo secundário para esse efeito. Cursed Body Quando atingido por um ataque corpo a corpo, este Pokémon pode rolar 1d4. Em um resultado de 4, o oponente que fez o ataque não pode usar o mesmo Move em seu próximo turno. Cute Charm Uma vez por descanso curto, você pode impor desvantagem em uma rolagem de ataque inimigo de sua escolha. Damp Este Pokémon não é afetado pelos Moves Self Destruct e Explosion. Dancer Se qualquer criatura à vista deste Pokémon ativar um Move com Dance em seu nome, este Pokémon pode imediatamente usar um de seus Moves como uma reação. Dark Aura Quando este Pokémon está em batalha, todos os Moves do tipo sombrio por aliados ou oponentes dentro de 100 pés (30 metros) causam o dobro de seu dano. Dazzling Criaturas dentro do campo de visão deste Pokémon não podem usar ações bônus para ativar Moves. Moves que normalmente teriam um Tempo de Execução de \"1 ação bônus\" têm, em vez disso, um Tempo de Execução de \"1 ação\". Defeatist Quando este Pokémon cai abaixo de 25% de seus pontos de vida máximos, todos os seus ataques são feitos com desvantagem. Defiant Enquanto este Pokémon estiver sofrendo um efeito de status negativo ou alteração de estatísticas imposta por um oponente, ele ganha +2 em todas as rolagens de ataque. Disguise Este Pokémon pode usar seu disfarce para evitar perder PV para o primeiro Move de danoso que o atingir em combate. Após o primeiro golpe, o disfarce é descoberto e o Pokémon sofre dano normalmente. É necessário um descanso curto para reparar o disfarce. Download Uma vez por descanso curto, este Pokémon pode escolher um tipo de dano diferente para um de seus ataques normais. Drizzle Quando este Pokémon entra em uma batalha ao ar livre, o clima muda imediatamente para chuva leve por 5 rodadas. No caso de outro Pokémon com uma habilidade climática semelhante, a vantagem vai para o Pokémon com o maior valor de DES. Drought Quando este Pokémon entra em uma batalha ao ar livre, o clima muda imediatamente para luz solar intensa por 5 rodadas. No caso de outro Pokémon com uma habilidade climática semelhante, a vantagem vai para o Pokémon com o maior valor de DES. Dry Skin No final de cada turno deste Pokémon, ele sofre uma quantidade de dano igual ao seu modificador de proficiência caso esteja em luz solar intensa, ou se cura pela mesma quantidade durante a chuva. 127.......... Early Bird Este Pokémon tem vantagem em rolagens para acordar do sono. Effect Spore Quando atingido por um ataque corpo a corpo, role um d4. Em um resultado de 4, cause uma quantidade de dano de grama igual ao seu modificador de proficiência ao seu atacante. Electric Surge Se o Move for conhecido, este Pokémon pode usar o Move Electric Terrain como uma ação bônus. Emergency Exit A qualquer momento em que este Pokémon receba dano quando estiver em 50% ou menos de seus pontos de vida máximos, seu treinador pode trocá-lo como uma Ação Livre. Fairy Aura Quando este Pokémon estiver em batalha, todos os Moves do tipo Fada dentro de 100 pés (30 metros) de você causam o dobro de seu dano. Filter Quando atingido por um tipo de Move ao qual este Pokémon é vulnerável, ele pode fazer uma rolagem de um d4. Em um resultado de 4, ele não sofre o dano adicional. Flame Body As chamas do corpo deste Pokémon emitem uma luz fraca em um raio de 15 pés (4,5 metros). Além disso, quando atingido por um ataque corpo a corpo, role um d10. Em um resultado de 10, o atacante é queimado. Flare Boost Este Pokémon adiciona proficiência às suas rolagens de dano enquanto estiver queimado. Flash Fire Este Pokémon não sofre dano de fogo ou ataques do tipo fogo. Em vez disso, imediatamente após receber um golpe de um Move do tipo fogo, ou em chamas abertas, dobre o bônus STAB no próximo Move do tipo fogo. Flower Gift Durante a luz solar intensa, os Pokémon aliados dentro de 30 pés (9 metros) deste Pokémon adicionam seu bônus de proficiência às rolagens de dano. Flower Veil Qualquer aliado do tipo grama dentro de 15 pés (4,5 metros) deste Pokémon é imune a novos efeitos de status. Fluffy Este Pokémon é vulnerável a Moves do tipo fogo, mas sofre metade do dano de qualquer ataque corpo a corpo (que não seja do tipo fogo). Forecast Este Pokémon muda de forma de acordo com o clima. Na chuva, torna-se do tipo água; na luz solar intensa, torna-se do tipo fogo; em condições frias e nevadas, torna-se do tipo gelo. Em todas as outras condições, é do tipo normal. Seu STAB, resistências, imunidades e vulnerabilidades mudam para coincidir com a forma que assume. Forewarn Quando este Pokémon entra em batalha, ele seleciona um alvo para revelar o Move que conhece com maior potência de dano. Em caso de empate, o alvo pode escolher qual Move revelar. Friend Guard Uma vez por descanso longo, quando um aliado dentro de 15 pés (4,5 metros) deste Pokémon é atingido por um ataque, ele pode escolher reduzir pela metade o dano causado. Frisk Ao entrar em uma batalha, o item segurado por um único oponente é revelado, caso tenha um. Full Metal Body Os Moves ou habilidades de outros Pokémon não podem diminuir as estatísticas deste Pokémon. Fur Coat Uma vez por descanso longo, este Pokémon pode reduzir pela metade o dano causado a ele por um único ataque. Gale Wings Este Pokémon adiciona +1 nas rolagens de acerto ao usar Moves do tipo voador. Galvanize Todos os Moves de ataque do tipo Normal usados por este Pokémon se tornam do tipo Elétrico. Além disso, para estes Moves, role o dado de dano duas vezes e escolha o valor. Gluttony Este Pokémon deve comer sua berry segurada quando cair abaixo de ½ de seus pontos de vida máximos. Gooey Quando este Pokémon é atingido por um ataque corpo a corpo, role um d4. Em um resultado de 3 ou 4, a velocidade do atacante é reduzida a 0 até o final do próximo turno dele. Grass Pelt Este Pokémon ganha +1 para sua CA enquanto estiver em terreno gramado. 128 Grassy Surge Se o Move for conhecido, este Pokémon pode usar o Move Grassy Surge como uma ação bônus. Guts Quando este Pokémon está queimado ou envenenado, ele não é afetado pelas desvantagens ou efeitos de dano reduzido. Ainda assim, sofre dano ao final de cada um de seus turnos. Harvest No final do turno deste Pokémon, se ele usou uma berry, role um d4. Em um resultado de 3 ou 4, ele recupera essa berry como um item segurado. Healer Como uma ação, este Pokémon pode tocar uma criatura para curar veneno, queimadura ou paralisia. Quando usa essa habilidade, role um d4. Em um resultado de 1 ou 2, o efeito de status é transferido para si mesmo. Healing Rain Durante a chuva, este Pokémon pode usar sua ação para curar pontos de vida iguais ao seu nível. Heatproof Este Pokémon recebe metade do dano que normalmente receberia de ataques de fogo e é imune à condição de queimado. Heavy Metal Este Pokémon é especialmente pesado. Uma vez por descanso longo, após ser alvo de um ataque, ele pode aumentar sua CA em 2 se isso fizer com que um ataque erre. Honey Gather No final de cada batalha, este Pokémon pode rolar um d20 + seu bônus de proficiência. Em um resultado de 20 ou mais, seu treinador adiciona uma Honey ao seu inventário. Huge Power Uma vez por descanso curto, este Pokémon pode dobrar os dados de dano para uma única rolagem de dano. O jogador deve anunciar que está usando essa habilidade antes da rolagem de ataque. Hustle Quando você obtém um acerto crítico, você pode imediatamente ganhar uma ação adicional em seu turno. Se esta ação for usada para fazer um ataque, você tem desvantagem na rolagem. Você só pode ter uma ação adicional por rodada. Hydration Este Pokémon não é afetado por condições negativas em água ou durante condições de chuva. Hydro Pump Este Pokémon conhece Hydro Pump como um quinto Move. O Move é esquecido se ele assumir qualquer outra forma. Hyper Cutter Os bônus de ataque ou dano deste Pokémon não podem ser reduzidos pelos Moves do oponente. Ice Body Enquanto estiver nevando ou granizando, este Pokémon se cura em uma quantidade de PV iguais ao seu modificador de proficiência no final de cada um de seus turnos. Illuminate Este Pokémon conhece o truque Luz (LDJ) e pode lançá-lo à vontade. (descrição da magia na aba Extras) Illusion Este Pokémon pode assumir a forma visual de qualquer Pokémon que ele possa ver. Ele pode fazer isso um número de vezes por descanso longo igual ao seu nível. Essa ilusão dura uma hora ou até o Pokémon ser atingido por um Move que cause dano. Immunity Este Pokémon é imune a envenenamento. Imposter Este Pokémon pode usar Transform como uma ação bônus. Infiltrator Este Pokémon contorna Light Screen, Reflect, Substitute, Mist, Safeguard e Aurora Veil. Innards Out Quando este Pokémon é derrotado por um Move que causa dano, qualquer criatura dentro de 5 pés (1,5 metros) dele sofre uma quantidade de dano sem tipo igual à quantidade de PV perdidos. Inner Focus Este Pokémon é imune ao status Atordoado. Insomnia Este Pokémon é imune ao status Dormindo. Intimidate Uma vez por descanso curto, você pode impor desvantagem em uma rolagem de ataque inimiga de sua escolha. Iron Barbs Quando este Pokémon é atingido por um ataque corpo a corpo, ele pode rolar um d4. Em um resultado de 4, cause uma quantidade de dano de aço igual ao seu modificador de proficiência ao seu atacante. 129.......... Iron Fist Ao atacar com um Move baseado em soco (Mega Punch, Dynamic Punch, Ice/Fire/Thunder Punch, etc.), este Pokémon pode rolar o dano duas vezes e escolher o valor. Também estão incluídos os Moves: Double Iron Bash, Hammer Arm, Ice Hammer, Meteor Mash, Plasma Fists e Sky Uppercut. Justified Quando este Pokémon é atingido por um Move do tipo sombrio, ele ganha vantagem em seu próximo ataque. Keen Eye Este Pokémon ignora desvantagens relacionadas à visão. Klutz Este Pokémon não pode segurar um item. Leaf Guard Este Pokémon não sofre de quaisquer condições negativas em luz solar intensa. Leaf Storm Este Pokémon conhece Leaf Storm como um quinto Move. O Move é esquecido se ele assumir qualquer outra forma. Levitate Este Pokémon é imune a Moves de terra. Light Metal Este Pokémon é especialmente leve para sua espécie. Uma vez por descanso longo, ele pode impor desvantagem em uma rolagem de ataque contra ele. Lightning Rod Se este Pokémon ou um aliado dentro de 30 pés (9 metros) for alvo de um Move elétrico direto que causa dano, o Pokémon pode usar uma reação para redirecionar o alvo para si mesmo e sofrer metade do dano se o ataque acertar. Limber Este Pokémon é imune ao status Paralisado. Liquid Ooze Caso seja atingido por um Move de leech or absorb, o inimigo deve fazer um teste de CON CD 12 ou ficará envenenado. Liquid Voice Qualquer Move baseado em som ativado por este Pokémon é do tipo água. Long Reach Este Pokémon tem mais 5 pés (1,5 metros) de alcance com todos os ataques corpo a corpo e Ataques de Oportunidade. Magic Bounce Uma vez por descanso longo, ao sucumbir a um efeito de status negativo, este Pokémon pode refletir o efeito de volta ao atacante. Magic Guard Se este Pokémon for alvo de um Move que o force a fazer um teste de resistência para receber apenas metade do dano, ele não sofre nenhum dano em caso de sucesso no teste. Magician Se ainda não estiver segurando um item, este Pokémon rouba o item segurado de qualquer Pokémon atingido por um ataque corpo a corpo. Magma Armor Este Pokémon é imune ao status Congelado. Magnet Pull Oponentes de aço em batalha com este Pokémon não podem trocar ou fugir. Marvel Scale A CA deste Pokémon aumenta em 2 ao sofrer de uma condição negativa. Mega Launcher Moves de Aura e Pulse feitos por este Pokémon causam dano/cura adicional igual ao bônus de proficiência deste Pokémon. Merciless Quando este Pokémon faz uma rolagem de ataque bem- sucedida contra um Pokémon envenenado, trate esse ataque como um acerto crítico. Minus Este Pokémon aumenta suas rolagens de ataque e dano em 2 se um aliado também tiver a habilidade Plus ou Minus. Misty Surge Se o Move for conhecido, este Pokémon pode usar o Move Misty Terrain como uma ação bônus. Mold Breaker Os Moves deste Pokémon ignoram quaisquer habilidades que reduzam seu efeito ou a capacidade de atingir um oponente (devido a coisas como Water Absorb, Snow Cloak, Thick Fat, Sturdy, etc.) Moody No final de cada descanso longo, este Pokémon rola na tabela de naturezas, substituindo sua natureza pelo resultado até o próximo descanso longo. 130 Motor Drive Ao ser atingido por um Move elétrico, se não for imune, a velocidade deste Pokémon aumenta em 10 pés (3 metros) até o final do combate (até um máximo de 50 pés / 15 metros adicionais). Moxie Ao fazer um oponente desmaiar, este Pokémon pode imediatamente realizar outra ação. Multiscale Se este Pokémon estiver com a saúde completa, o primeiro dano causado a ele é reduzido pela metade. Multitype O tipo e forma deste Pokémon mudam para coincidir com o tipo da Arceus Plate que este Pokémon segura. A Placa não pode ser afetada por nenhuma habilidade ou Move que remova itens. Mummy Quando este Pokémon é atingido por um ataque corpo a corpo, a habilidade passiva de seu atacante muda para Mummy pelo resto do encontro. Natural Cure Este Pokémon é curado de condições negativas ao retornar para sua Pokébola. Neuroforce Quando este Pokémon causa dano a uma criatura com um Move super efetivo, ele pode rolar os dados de dano duas vezes e usar o resultado mais alto. No Guard Qualquer ataque feito por ou contra este Pokémon tem vantagem. Normalize Todo Move ativado por este Pokémon é do tipo Normal. Oblivious Este Pokémon é imune a Moves que tentam encantar ou provocá-lo. Overcoat Este Pokémon não recebe dano de Moves relacionados ao clima ou fenômenos como Hail, Weather Ball, etc. Overgrow Este Pokémon dobra seu bônus STAB quando tem 25% ou menos de seus pontos de vida máximos. Overheat Este Pokémon conhece o Move Overheat como um quinto Move. O Move é esquecido se ele assumir outra forma. Own Tempo Este Pokémon é imune ao status Confuso. Paper Thin Este Pokémon sempre tem um máximo de 1 PV. (Apenas Shedinja. Não pode ser passado ou trocado) Pickpocket Quando atingido por um ataque corpo a corpo, este Pokémon pode usar uma reação para tentar roubar o item segurado da criatura com um teste de Prestidigitação contestado pela Percepção Passiva do alvo. Após a primeira tentativa, todas as outras tentativas contra o mesmo oponente são realizadas com desvantagem. Pickup Se um oponente usar um item consumível em batalha, este Pokémon ganha uma cópia dele se não estiver segurando um item atualmente. Pixilate Todos os Moves de ataque do tipo Normal usados por este Pokémon se tornam do tipo Fada. Além disso, para estes Moves, role o dado de dano duas vezes e escolha o valor. Plus Este Pokémon aumenta suas rolagens de ataque e dano em 2 se um aliado também tiver a habilidade Plus ou Minus. Poison Heal Este Pokémon não sofre os efeitos de desvantagem da condição envenenado. Além disso, este Pokémon recupera metade de todo o dano venenoso que receberia, incluindo o dano no final de cada um de seus turnos. Poison Point Quando este Pokémon é atingido por um ataque corpo a corpo, role um d4. Em um resultado de 4, o atacante recebe uma quantidade de dano por veneno igual ao modificador de proficiência deste Pokémon. Poison Touch Em ataques corpo a corpo feitos por este Pokémon, role um d10 em um acerto. Em um resultado de 10, o alvo é envenenado. Power of Alchemy Quando entra na batalha após um aliado desmaiar, este Pokémon copia a habilidade passiva não oculta do aliado desmaiado até ser retirado da batalha. 131.......... Prankster Uma vez por descanso curto, este Pokémon pode se mover para o topo da ordem de iniciativa em uma rodada, mas deve usar um Move que afete status em seu turno. Pressure Qualquer Move que mira diretamente este Pokémon (Moves que não sejam de área de efeito) reduz seu PP em dois quando ativado. Prism Armor Quando este Pokémon sofre dano em sua lista de vulnerabilidades, role os dados de dano duas vezes e use o resultado mais baixo para o cálculo do dano. Protean O tipo deste Pokémon muda para o tipo do Move que ele usa, logo antes do uso do Move. Ele assume as resistências, vulnerabilidades e imunidades do novo tipo. Psychic Surge Se o Move for conhecido, este Pokémon pode usar o Move Psychic Terrain como uma ação bônus. Pure Power Uma vez por descanso curto, este Pokémon pode dobrar os dados de dano para uma única rolagem de dano. O jogador deve anunciar que está usando esta habilidade antes da rolagem de ataque. Queenly Majesty Criaturas dentro do campo de visão deste Pokémon não podem usar ações bônus para ativar Moves. Moves que normalmente teriam um Tempo de Execução de \"1 ação bônus\" têm um Tempo de Execução de \"1 ação\". Quick Feet Quando sofrendo de uma condição negativa, a velocidade deste Pokémon aumenta em 15 pés (4,5 metros). Rain Dish Em condições de chuva, este Pokémon se cura em uma quantidade de PV igual ao seu bônus de proficiência no final de cada um de seus turnos. Rattled Quando este Pokémon é atingido por um Move de dano do tipo Sombrio, Inseto ou Fantasma, ele faz seu próximo ataque com vantagem. Receiver Quando entra na batalha após um aliado desmaiar, este Pokémon copia a habilidade passiva não oculta do aliado desmaiado até ser retirado da batalha. Reckless Ao atacar com Moves que causam dano de recuo, este Pokémon dobra seu bônus de STAB. Refrigerate Todos os Moves de ataque do tipo Normal usados por este Pokémon se tornam do tipo Gelo. Além disso, para estes Moves, role o dado de dano duas vezes e escolha o valor. Regenerator Uma vez por descanso longo, este Pokémon recupera pontos de vida iguais ao seu nível quando retorna à sua Pokébola. Rivalry Este Pokémon adiciona seu bônus de proficiência ao dano ao atacar um Pokémon do mesmo tipo. RKS System O tipo deste Pokémon é determinado pelo Memory Disc que ele segura. Se não estiver segurando um Memory Disc, o tipo deste Pokémon é Normal. Rock Head Este Pokémon não sofre dano de recuo. Rough Skin Quando este Pokémon é atingido por um ataque corpo a corpo, ele pode rolar um d4. Em um resultado de 4, causa uma quantidade de dano sem tipo igual ao seu modificador de proficiência ao seu atacante. Run Away Este Pokémon não pode ser alvo de um ataque de oportunidade. Sand Force Durante uma Tempestade de Areia, este Pokémon pode dobrar seu STAB ao atingir um oponente. Sand Rush Este Pokémon é imune ao dano da Tempestade de Areia, e sua velocidade é dobrada em terrenos desertos ou durante uma Tempestade de Areia. Sand Stream Quando este Pokémon entra em uma batalha ao ar livre, o clima muda imediatamente para uma Tempestade de Areia por 5 rodadas. No caso de outro Pokémon com uma habilidade climática semelhante, o desempate vai para o Pokémon com a pontuação de DES mais alta. Sand Veil Este Pokémon é imune ao dano da Tempestade de Areia. Além disso, sua CA aumenta em 2 em terrenos desertos, ou durante uma Tempestade de Areia. 132 Sap Sipper Este Pokémon não recebe dano de ataques do tipo Grama. Se atingido por um Move do tipo Grama, não recebe dano e, em vez disso, absorve a energia, concedendo vantagem em seu próximo ataque. Schooling A partir do nível 5, este Pokémon pode mudar para a School Form como uma ação livre quando começar seu turno acima de 25% de seus pontos de vida máximos. Na School Form, o Pokémon adiciona 5 à sua CA e aos seus atributos de Força, Destreza e Constituição (CON adicional não altera os PV deste Pokémon nesta forma). O Pokémon volta à Solo Form quando cai abaixo de 25% dos pontos de vida máximos e deve completar um descanso curto antes de ativar esta habilidade novamente. Scrappy Os Moves de tipo Normal e Lutador deste Pokémon atingem Pokémon de tipo Fantasma. Serene Grace A CD do Move para passar em um teste de resistência contra um dos Moves deste Pokémon é aumentado em 1. Shadow Shield Se este Pokémon estiver com PV completos, o primeiro dano causado a ele é reduzido pela metade. Shadow Tag Criaturas dentro de 50 pés (15 metros) deste Pokémon não podem fugir ou serem trocadas, exceto por item, Move ou habilidade. Shed Skin Se este Pokémon estiver afetado por uma condição negativa, ele pode rolar um d4 no final de cada um de seus turnos. Em um resultado de 4, ele é curado. Sheer Force Ao ativar um Move que tem chance de impor uma mudança de status ou infligir uma condição, esta criatura em vez disso dobra seu modificador de MOVE para o dano, sem chance de causar o efeito adicional. Shell Armor Este Pokémon é imune a danos extras causados por um Acerto Crítico. Shield Dust Uma vez por descanso longo, este Pokémon pode ignorar uma condição negativa resultante de um Move inimigo. Shields Down Este Pokémon é imune a efeitos de status não voláteis enquanto estiver na Forma Meteoro. Quando este Pokémon cai abaixo de 50% de seus pontos de vida máximos, sua casca externa quebra e ele muda para a Forma Núcleo. Na Forma Núcleo, ele adiciona 6 pontos à sua DES, mas reduz sua CA em 4. O Pokémon deve completar um descanso curto para se restaurar à Forma Meteoro. Simple Uma vez por descanso curto, você pode dobrar o modificador de MOVE deste Pokémon para um único ataque ou rolagem de dano. Skill Link Moves em combo que têm a capacidade de atingir mais de uma vez, após a mesma rolagem de ataque, é garantido acertar pelo menos mais duas vezes. (Fury Swipes, Double Slap, Water Shuriken, etc.). Slow Start A velocidade deste Pokémon é reduzida pela metade e seus ataques são feitos com desvantagem durante as duas primeiras rodadas de cada combate. Slush Rush Este Pokémon é imune ao dano de Hail, e sua velocidade é dobrada em condições árticas, ou durante uma tempestade de granizo. Sniper Em um acerto crítico feito por este Pokémon, triplique a rolagem de dados em vez de dobrá-la. Snow Cloak Este Pokémon é imune ao dano de Hail. Sua CA é aumentada em 2 em condições árticas, ou quando está nevando ou granizando. Snow Warning Quando este Pokémon entra em uma batalha externa, o clima muda imediatamente para granizo por 5 rodadas. No caso de outro Pokémon com uma habilidade climática semelhante, o desempate vai para o Pokémon com a pontuação de DES mais alta. Solar Power As rolagens de dano para este Pokémon recebem um adicional de +2 durante a luz solar intensa. Solid Rock Este Pokémon não sofre nenhum dano adicional de um acerto crítico. 133.......... Soul-Heart Ao ver um aliado desmaiar, este Pokémon aumenta os valores dos atributos de suas proficiências em testes de resistência em 2 até o final do combate. Isso é acumulável até um máximo de +10 para qualquer valor de atributo. Soundproof Este Pokémon é imune a Moves baseados em som. Speed Boost A velocidade deste Pokémon é aumentada em 5 pés (1,5 metros) ao final de cada turno em combate, até o máximo de 30 pés (9 metros). Stakeout Quando um oponente é trocado na batalha, este Pokémon dobra o dano causado se ele atingir o substituto no primeiro turno imediatamente após a troca. Stall Este Pokémon é sempre o último na ordem de iniciativa. Stamina Quando este Pokémon recebe dano por um Move, aumente sua CA em 2 por uma rodada após o dano. Esta habilidade não se acumula e permanecerá em efeito se o Pokémon for atacado com sucesso em múltiplos turnos seguidos. Stance Change Aegislash tem duas formas. Quando Aegislash usa King's Shield, ele muda para a Forma Escudo, trocando suas estatísticas de CA e DES. Quando ele usa um Move de dano, Aegislash imediatamente volta para a Forma Lâmina, retornando suas estatísticas ao normal. Static Quando este Pokémon é atingido por um ataque corpo a corpo, role um d4. Em um resultado de 4, o atacante sofre uma quantidade de dano elétrico igual ao bônus de proficiência deste Pokémon. Steadfast Uma vez por descanso longo, quando este Pokémon falha em um teste de resistência contra uma condição de status negativa, ele pode escolher passar em vez disso. Steelworker Este Pokémon adiciona seu bônus de proficiência ao dano causado por Moves do tipo Aço. Stench Quando este Pokémon é atingido por um ataque corpo a corpo, role um d10. Em um resultado de 10, o atacante fica atordoado. Sticky Hold Itens segurados não podem ser roubados ou removidos deste Pokémon. Stone Veil A CA deste Pokémon é aumentada em 2 em terrenos rochosos, ou durante uma tempestade de areia. Storm Drain Se este Pokémon ou um aliado dentro de 30 pés (9 metros) for alvo de um Move direto do tipo água que cause dano, o Pokémon pode usar uma reação para redirecionar o alvo para si mesmo e receber metade do dano dele se atingir. Strong Jaw Quando este Pokémon usa Bite, Crunch, Fire Fang, Hyper Fang, Ice Fang, Poison Fang, Psychic Fangs ou Thunder Fang, ele pode rolar os dados de dano duas vezes e escolher o resultado mais alto. Sturdy Quando receber dano igual à metade ou mais de seus pontos de vida atuais, role um d4. Em um resultado de 3 ou 4, reduza pela metade o dano recebido. Suction Cups Este Pokémon não pode ser forçado a sair da batalha por Moves de um oponente. Super Luck Este Pokémon aumenta sua margem de acerto crítico em 1 (de 20 para 19+, etc.). Surge Surfer Quando este Pokémon começa seu turno na área de efeito do Electric Terrain, sua velocidade é dobrada. Swarm Este Pokémon dobra seu bônus de STAB quando tem 25% ou menos de seus pontos de vida máximos. Sweet Veil Qualquer aliado dentro de 15 pés (4,5 metros) deste Pokémon (incluindo ele próprio) é imune à condição de sono. Swift Swim A velocidade deste Pokémon é dobrada em condições chuvosas. Symbiosis Este Pokémon pode trocar itens segurados com um aliado como uma ação livre, desde que estejam dentro de 15 pés (4,5 metros) um do outro. 134 Synchronize Se este Pokémon ficar queimado, paralisado ou envenenado, seu atacante receberá a condição negativa também (se não for imune). Tangled Feet Ataques contra este Pokémon têm desvantagem quando ele está confuso. Tangling Hair Quando este Pokémon é atingido por um ataque corpo a corpo, role 1d4. Em um resultado de 3 ou 4, a velocidade do atacante é reduzida a 0 até o final do próximo turno dele. Technician Para Moves de dano ativados por este Pokémon com 15 PP máximos ou mais, eles podem rolar o dano duas vezes e escolher o valor desejado. Telepathy Este Pokémon não pode receber dano pelos ataques de seus aliados. Teravolt Os Moves deste Pokémon ignoram completamente qualquer habilidade que prejudicaria ou impediria seu efeito no alvo ou a capacidade do usuário de atingir o alvo. Thick Fat Este Pokémon recebe apenas metade do dano de Moves de tipo Fogo e Gelo. Tinted Lens Os Moves deste Pokémon ignoram resistências. Torrent Este Pokémon dobra seu bônus de STAB quando tem 25% ou menos de seus pontos de vida máximos. Tough Claws Este Pokémon pode adicionar seu bônus de proficiência ao dano de todos os Moves de ataque corpo a corpo. Toxic Boost Quando este Pokémon é atingido por um ataque do tipo veneno, seu próximo ataque é rolado com vantagem. Trace Este Pokémon copia uma habilidade aleatória de um oponente ao entrar na batalha. A habilidade não pode ser Flower Gift, Forecast, Illusion, Imposter, Multitype, Trace, Wonder Guard ou Zen Mode. Transformer Este Pokémon tem uma forma normal padrão da qual todos os atributos são baseados, mas pode mudar de forma como uma ação bônus para mudar drasticamente suas habilidades. As formas que ele pode assumir são Ataque, Defesa e Velocidade.  Na forma de Ataque, adiciona +5 em suas rolagens de ataque, mas todos os ataques contra ele têm vantagem.  Na forma de Defesa, sua CA aumenta em 3, mas seus ataques são rolados com desvantagem. Se o Move ativado exigir um teste de resistência, os alvos têm vantagem.  Na forma de Velocidade, ele ganha uma ação adicional de ataque a cada turno, mas o ataque é feito com desvantagem. Se for um Move que requer um teste de resistência, os alvos têm vantagem. Triage Os Moves de cura ou drenagem deste Pokémon têm um tempo de execução de 1 ação bônus. Truant Este Pokémon não pode usar o mesmo Move em rodadas consecutivas. Turboblaze Os Moves deste Pokémon ignoram completamente qualquer habilidade que possa atrapalhar ou impedir seu efeito no alvo ou a capacidade do usuário de atingir o alvo. Unaware Quando este Pokémon ataca um oponente, ele ignora quaisquer aumentos de estatísticas que o oponente tenha recebido após o início da batalha. Isso inclui aumentos na CA ou em testes de resistência que o Pokémon tenha que fazer. Unburden Enquanto este Pokémon não estiver segurando um item, ele ganha 10 pés (3 metros) extras em sua velocidade. Unnerve Oponentes em combate com este Pokémon não podem comer berries seguradas. Victory Star Enquanto este Pokémon estiver em batalha, todos os Pokémon aliados adicionam um adicional +1 em suas rolagens de ataque. Vital Spirit Este Pokémon não pode ser colocado para dormir. Volt Absorb Este Pokémon não recebe danos de eletricidade ou ataques do tipo elétrico. Em vez disso, metade de qualquer dano elétrico causado é absorvido, restaurando os pontos de vida do Pokémon. 135.......... Water Absorb Este Pokémon não recebe danos de água ou ataques do tipo água. Em vez disso, metade de qualquer dano de água causado é absorvido, restaurando os pontos de vida do Pokémon. Water Bubble Este Pokémon é resistente a danos do tipo fogo e imune à condição de queimado. Water Compaction Após receber dano por um Move do tipo água, qualquer outro dano causado a este Pokémon até o início de seu próximo turno é reduzido pela metade. Water Veil Este Pokémon é imune ao status Queimado. Weak Armor Quando um ataque atinge este Pokémon, sua velocidade aumenta em 5 pés (1,5 metros), mas sua CA é temporariamente reduzida em 1 até o final da batalha (com uma redução máxima de -5). White Smoke Os Moves ou habilidades de outros Pokémon não podem diminuir as estatísticas deste Pokémon. Wimp Out Quando um Move de dano faz com que este Pokémon caia abaixo de 50% de seus pontos de vida máximos, ele DEVE desengajar e mover-se até sua velocidade em linha reta em direção ao seu treinador como uma ação livre. Se isso colocaria o Pokémon dentro do alcance de troca, ele deve fazê-lo como outra ação livre se outro Pokémon estiver disponível para substituí-lo. Wonder Guard Este Pokémon é imune a ataques de dano de tipos que não estão em sua lista de vulnerabilidades. (Apenas Shedinja. Não pode ser transferido ou trocado) Wonder Skin Este Pokémon tem vantagem em todos os testes de resistência contra queimadura, congelamento, envenenamento ou paralisia. Zen Mode Quando Darmanitan está abaixo de 50% de seus PV, ele entra no Modo Zen. No Modo Zen, Darmanitan se transforma na forma de uma estátua sólida. Seu tipo muda para Fogo/Psíquico, ele ganha +4 em sua CA, e seus atributos de Força e Sabedoria são trocados. 136 12. Blocos de Estatística dos Pokémon Pontos-Chave do Bloco de Estatísticas (A): O nível mínimo em que este Pokémon pode ser encontrado na natureza. (B): Este Pokémon só pode se reproduzir com outros dentro de um de seus Grupos de Ovos (com algumas exceções). (C): Representa a taxa de gênero encontrada na natureza e a taxa na qual um ovo que choca este Pokémon conterá uma versão masculina ou feminina da espécie. (D): O estágio atual dentre os estágios evolutivos possíveis para este Pokémon, e o número de pontos ASI ganhos nos níveis apropriados para todas as espécies desta linha evolutiva. (E): Não está vinculado à DES de forma alguma. Este é um número fixo com base na Armadura Natural que só pode ser aumentado por itens, Moves ou o talento \"Aumento de CA\". (F): Este Pokémon adiciona seu bônus de proficiência em testes feitos com estas habilidades. Habilidades adicionais ou especializações podem ser adicionadas a esta lista com aumentos na Lealdade. (G): Os ataques deste tipo feitos contra este Pokémon causam o dobro de dano (após todos os bônus). (H): Os ataques deste tipo feitos contra este Pokémon causam metade do dano (após todos os bônus). (I): Um Pokémon só pode conhecer uma de suas duas habilidades ocultas possíveis. Se um Pokémon evoluir e a forma evoluída não tiver a habilidade conhecida atualmente em seu bloco de estatísticas, ele deve escolher substituir a habilidade antiga por uma nova das opções da forma evoluída. (J): Esta habilidade só pode ser desbloqueada com o Talento \"Habilidade Oculta\". (K): Um Pokémon pode, a qualquer momento, conhecer até quatro desses Moves, ou aqueles que estão em níveis abaixo disso com base no nível atual. Se desejar, um Pokémon pode trocar seus Moves conhecidos a cada aumento de nível. Um Pokémon que evolui no mesmo nível em que um novo Move é aprendido (2, 6, 10, 14, 18) só pode aprender novos Moves que estejam no bloco de estatísticas de sua forma evoluída. (L): Moves que podem ser conhecidos por um Pokémon recém- nascido, dependendo dos Moves conhecidos de seus pais no momento da reprodução.",
   "baseDamage": "1d10",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  }
 }

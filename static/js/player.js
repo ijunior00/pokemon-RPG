@@ -3323,6 +3323,12 @@ function renderPvpBattle(state) {
     const myTeam = state.your_team || [];
     const myActive = myTeam[state.your_active_idx] || {};
     const opponent = state.opponent_active || {};
+    // Troca obrigatória: meu ativo desmaiou e tenho reserva viva.
+    // Vem do servidor (state.must_switch); fallback client-side por segurança.
+    const _hp = (p) => (p && typeof p.currentHp === 'number') ? p.currentHp : (p?.maxHp ?? 1);
+    const mustSwitch = (state.phase !== 'finished') && (state.must_switch ||
+        (_hp(myActive) <= 0 && myTeam.some((p, i) => i !== state.your_active_idx && _hp(p) > 0)));
+    const canAct = isMyTurn && !mustSwitch;
     const myHpPct = myActive.maxHp ? (myActive.currentHp / myActive.maxHp * 100) : 100;
     const oppHpPct = opponent.maxHp ? (opponent.currentHp / opponent.maxHp * 100) : 100;
     
@@ -3377,18 +3383,19 @@ function renderPvpBattle(state) {
         <!-- Turn Indicator + Countdown -->
         <div style="text-align:center;margin:0.75rem 0;">
             <span class="turn-indicator" style="font-size:1rem;padding:0.5rem 1.5rem;">
-                ${isMyTurn ? '🟢 SEU TURNO — Escolha uma ação!' : '🔴 Turno do Oponente — Aguarde...'}
-                ${isMyTurn ? '<span id="pvp-turn-timer" class="timer-green">20</span>' : ''}
+                ${mustSwitch ? '😵 Seu Pokémon desmaiou — escolha o próximo!'
+                    : (isMyTurn ? '🟢 SEU TURNO — Escolha uma ação!' : '🔴 Turno do Oponente — Aguarde...')}
+                ${canAct ? '<span id="pvp-turn-timer" class="timer-green">20</span>' : ''}
             </span>
             <span style="display:block;margin-top:0.3rem;font-size:0.8rem;color:var(--text-muted);">Round ${state.round || 1}</span>
         </div>
-        
-        <!-- Actions (only if my turn) -->
+
+        <!-- Actions (only if my turn and not forced-switch) -->
         <div style="text-align:center;margin:1rem 0;">
             <h4 style="color:var(--accent);margin-bottom:0.5rem;">Moves:</h4>
             <div class="battle-moves-list" style="justify-content:center;gap:0.5rem;">
                 ${moves.map(m => `
-                    <span class="move-btn selectable-move" style="${isMyTurn ? '' : 'opacity:0.4;pointer-events:none;'}"
+                    <span class="move-btn selectable-move" style="${canAct ? '' : 'opacity:0.4;pointer-events:none;'}"
                           onclick="pvpUseMove('${m.replace(/'/g, "\\'")}')">
                         ${m}
                     </span>
@@ -3415,18 +3422,20 @@ function renderPvpBattle(state) {
         
         <!-- Action buttons -->
         <div class="battle-end-actions" style="margin-top:1rem;">
-            ${isMyTurn ? `<button class="btn btn-secondary" onclick="pvpSwitchPokemon()">🔄 Trocar Pokémon</button>` : ''}
-            ${isMyTurn ? `<button class="btn btn-secondary" onclick="pvpPassTurn()">⏭️ Passar Turno</button>` : ''}
+            ${mustSwitch
+                ? `<button class="btn btn-primary btn-lg" style="animation:pulse-border 1.2s infinite;" onclick="pvpSwitchPokemon()">🔄 Trocar Pokémon (obrigatório)</button>`
+                : `${isMyTurn ? `<button class="btn btn-secondary" onclick="pvpSwitchPokemon()">🔄 Trocar Pokémon</button>` : ''}
+                   ${isMyTurn ? `<button class="btn btn-secondary" onclick="pvpPassTurn()">⏭️ Passar Turno</button>` : ''}`}
             <button class="btn btn-danger" onclick="pvpForfeit()">🏳️ Desistir</button>
         </div>
     `;
-    
+
     // Scroll log to bottom
     const log = document.getElementById('pvp-battle-log');
     if (log) log.scrollTop = log.scrollHeight;
 
-    // Manage countdown
-    if (isMyTurn) {
+    // Manage countdown — sem timer durante troca obrigatória
+    if (canAct) {
         startPvpTimer();
     } else {
         clearPvpTimer();
@@ -3445,15 +3454,21 @@ function renderPvpLogEntry(entry, youAre) {
         const who = entry.player === youAre ? '😵 Seu Pokémon' : '💀 Pokémon do oponente';
         return `<p><strong>${who} desmaiou!${entry.permadeath ? ' 💀 MORTE PERMANENTE!' : ''}</strong></p>`;
     }
+    if (entry.type === 'status_move') {
+        return `<p>🌀 ${entry.message || 'Move de status usado!'}</p>`;
+    }
     if (entry.type === 'status_applied') {
+        // servidor grava a condição em entry.status.condition (dict)
+        const cond = entry.status?.condition || entry.condition || '';
         const who = entry.player === youAre ? 'Seu Pokémon' : 'Pokémon do oponente';
-        return `<p>${getStatusIcon(entry.condition)} <strong>${who}</strong> foi afetado por <strong>${entry.condition}</strong>!</p>`;
+        return `<p>${getStatusIcon(cond)} <strong>${who}</strong> foi afetado por <strong>${cond}</strong>!</p>`;
     }
     if (entry.type === 'status_damage') {
+        const cond = entry.status?.condition || entry.condition || '';
         const who = entry.player === youAre ? 'Seu Pokémon' : 'Pokémon do oponente';
-        return `<p>${getStatusIcon(entry.condition)} <strong>${who}</strong> sofreu ${entry.damage} de dano por ${entry.condition}.</p>`;
+        return `<p>${getStatusIcon(cond)} <strong>${who}</strong> sofreu ${entry.damage} de dano por ${cond}.</p>`;
     }
-    if (entry.type === 'ability') {
+    if (entry.type === 'ability' || entry.type === 'info') {
         return `<p>✨ <em>${entry.message}</em></p>`;
     }
     return '';
@@ -3470,6 +3485,17 @@ async function pvpUseMove(moveName) {
     // Get move data from cache
     const m = MOVES_CACHE[moveName] || {};
     const moveType = (typeof m.type === 'string' ? m.type : String(m.type || '')).toLowerCase();
+
+    // Move de STATUS: sem cálculo de dano no cliente — o servidor processa o
+    // efeito (save vs CD). Envia só o nome; o servidor faz o resto.
+    if (m.category === 'status' || !m.baseDamage) {
+        clearPvpTimer();
+        socket.emit('pvp_attack', {
+            battle_id: window.pvpState.battleId,
+            move_name: moveName
+        });
+        return;
+    }
 
     // Calculate attack roll
     let moveMod = 0;

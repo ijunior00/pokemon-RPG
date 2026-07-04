@@ -6,6 +6,22 @@ Based on Pokemon 5e rules + PokemonDB general mechanics.
 """
 import random
 from re import search as _re_search
+import json as _json
+import os as _os
+
+# ============================================================
+# EFEITOS CANÔNICOS POR MOVE (gerado por tools/build_canonical_moves.py
+# a partir dos CSVs do PokeAPI — mesma base do pokemondb/Bulbapedia —
+# com overlay do mapa curado KNOWN_EFFECTS/MOVE_STATUS_EFFECTS).
+# Chave: nome do move em minúsculas. Valores: {'effect': {...}, 'on_hit': {...}}.
+# ============================================================
+_MOVE_EFFECTS_FILE = _os.path.join(_os.path.dirname(__file__),
+                                   'server', 'data', 'move_effects.json')
+try:
+    with open(_MOVE_EFFECTS_FILE, encoding='utf-8') as _f:
+        MOVE_EFFECTS_DATA = _json.load(_f)
+except (FileNotFoundError, ValueError):
+    MOVE_EFFECTS_DATA = {}
 
 # ============================================================
 # STATUS CONDITIONS
@@ -288,10 +304,12 @@ def check_status_on_hit(move_name, attack_roll, damage_dealt):
     """Check if a move inflicts a status effect on hit.
     Returns (status_key, inflicted) or (None, False).
     """
-    effect = MOVE_STATUS_EFFECTS.get(move_name)
+    # Dados canônicos primeiro (chances reais dos jogos); mapa curado como fallback
+    entry = MOVE_EFFECTS_DATA.get((move_name or '').lower())
+    effect = (entry or {}).get('on_hit') or MOVE_STATUS_EFFECTS.get(move_name)
     if not effect:
         return None, False
-    
+
     trigger = effect.get('on', 'hit')
     chance = effect.get('chance', 0)
     
@@ -426,8 +444,15 @@ def auto_detect_move_effect(move_data):
     desc = (move_data.get('description', '') or '').lower()
     name = (move_data.get('name', '') or '')
     name_lower = name.lower()
-    
-    # ========== KNOWN MOVES BY NAME (highest priority) ==========
+
+    # ========== DADOS CANÔNICOS (prioridade máxima) ==========
+    # move_effects.json já inclui o overlay curado, então cobre todos os
+    # 263 moves de status com o efeito real dos jogos.
+    _data_entry = MOVE_EFFECTS_DATA.get(name_lower)
+    if _data_entry and _data_entry.get('effect'):
+        return _data_entry['effect']
+
+    # ========== KNOWN MOVES BY NAME (mapa curado, fallback) ==========
     KNOWN_EFFECTS = {
         # Confusion
         'supersonic': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},

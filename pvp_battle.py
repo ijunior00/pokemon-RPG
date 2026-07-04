@@ -215,10 +215,20 @@ def get_battle_state_for_player(battle, player_key):
         'log': battle.get('log', [])[-20:]  # last 20 log entries
     }
     
-    # Include own active pokemon's status
+    # Include own active pokemon's status + flag de troca obrigatória
+    state['must_switch'] = False
     if player['active_idx'] is not None:
         own_active = player['team'][player['active_idx']]
         state['your_status'] = own_active.get('status')
+        # ativo desmaiado com reserva viva elegível → precisa trocar (fora do turno)
+        if _poke_hp(own_active) <= 0:
+            for i, p in enumerate(player['team']):
+                if i == player['active_idx'] or _poke_hp(p) <= 0:
+                    continue
+                if battle['mode'] in ('official', 'tournament') and i in player['used_pokemon']:
+                    continue
+                state['must_switch'] = True
+                break
 
     # Only reveal opponent's active pokemon if battle has started
     if battle['phase'] in ('battle', 'finished') and opponent['active_idx'] is not None:
