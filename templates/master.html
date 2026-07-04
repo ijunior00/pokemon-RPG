@@ -977,5 +977,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/master.js') }}"></script>
+<script src="{{ url_for('static', filename='js/master.js') }}?v={{ asset_version }}"></script>
 {% endblock %}

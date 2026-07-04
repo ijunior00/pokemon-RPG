@@ -52,9 +52,14 @@
             <div class="hunt-mode-info" id="hunt-mode-info">
                 <p>🌿 <strong>Normal:</strong> Pokémon variados, de metade do seu nível até +5.</p>
             </div>
-            <button class="btn btn-primary btn-lg" onclick="searchWildPokemon()">
-                🔍 Procurar Pokémon Selvagem
-            </button>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                <button class="btn btn-primary btn-lg" onclick="searchWildPokemon()">
+                    🔍 Procurar Pokémon Selvagem
+                </button>
+                <button class="btn btn-secondary hidden" id="btn-energy-drink" onclick="useEnergyDrink()" title="Consome 1 Energy Drink e ganha +1 caçada">
+                    🥤 Energy Drink (+1 caçada)
+                </button>
+            </div>
             <p id="hunts-info" style="margin-top:0.5rem;font-size:0.9rem;">
                 📅 <span id="game-date">—</span> &nbsp;·&nbsp;
                 🎯 Caçadas hoje: <strong><span id="hunts-used">0</span>/<span id="hunts-limit">6</span></strong>
@@ -1007,5 +1012,5 @@
     window.CURRENT_USER_ID = "{{ current_user.id }}";
     let MOVES_CACHE = {};
 </script>
-<script src="{{ url_for('static', filename='js/player.js') }}"></script>
+<script src="{{ url_for('static', filename='js/player.js') }}?v={{ asset_version }}"></script>
 {% endblock %}

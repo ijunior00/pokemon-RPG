@@ -358,6 +358,15 @@ def _apply_xp(trainer: dict, xp_amount: int) -> dict:
 DEFAULT_CALENDAR = {'day': 1, 'month': 1, 'year': 1}
 MAX_HUNTS_PER_DAY = 6
 SURVIVAL_DC = {'normal': 10, 'dungeon': 13, 'dungeon_night': 15, 'night': 15}
+
+def _survival_dc(hunts_used):
+    """CD do teste de Sobrevivência pela fadiga — sobe a cada 2 caçadas.
+    1ª-2ª caçada = 6, 3ª-4ª = 8, 5ª-6ª = 12."""
+    if hunts_used < 2:
+        return 6
+    if hunts_used < 4:
+        return 8
+    return 12
 # Caçadas 1-4 são de manhã (normal/dungeon); 5ª em diante são de noite
 # (dungeon perigosa/noturna)
 MORNING_HUNTS = 4
@@ -503,6 +512,30 @@ def load_user(user_id):
 @app.context_processor
 def inject_site_settings():
     return {'site_settings': db.get_site_settings()}
+
+# Versão dos assets = maior mtime dos JS/CSS. Muda a cada deploy → força o
+# navegador a baixar JS/CSS novos (cache-busting), evitando o bug de
+# "atualizei mas o site continua com o comportamento antigo".
+_STATIC_DIR = os.path.join(os.path.dirname(__file__), 'static')
+
+def _compute_asset_version():
+    latest = 0.0
+    for sub in ('js', 'css'):
+        d = os.path.join(_STATIC_DIR, sub)
+        if not os.path.isdir(d):
+            continue
+        for fn in os.listdir(d):
+            try:
+                latest = max(latest, os.path.getmtime(os.path.join(d, fn)))
+            except OSError:
+                pass
+    return str(int(latest))
+
+ASSET_VERSION = _compute_asset_version()
+
+@app.context_processor
+def inject_asset_version():
+    return {'asset_version': ASSET_VERSION}
 
 # ============================================================
 # ROUTES (AUTH)
@@ -1081,6 +1114,41 @@ def api_hunts_status():
     return jsonify({'used': entry['used'],
                     'limit': MAX_HUNTS_PER_DAY + int(entry.get('bonus', 0)),
                     'calendar': _get_calendar(state), 'day_key': dkey})
+
+
+@app.route('/player/use-energy-drink', methods=['POST'])
+@login_required
+def use_energy_drink():
+    """Consome um Energy Drink da bolsa e concede +1 caçada extra hoje."""
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    bag = trainer.get('bag', [])
+    item = next((b for b in bag if isinstance(b, dict)
+                 and (b.get('name', '') or '').lower() in ENERGY_DRINK_NAMES), None)
+    if not item or (item.get('qty') or 0) < 1:
+        return jsonify({'error': 'Você não tem Energy Drink na bolsa!'}), 400
+
+    # consome 1
+    item['qty'] -= 1
+    if item['qty'] <= 0:
+        trainer['bag'] = [b for b in bag if b is not item]
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+
+    # +1 caçada (bonus) no dia atual
+    pid = str(current_user.id)
+    state = get_game_state()
+    entry, dkey = _hunt_entry(state, pid)
+    entry['bonus'] = int(entry.get('bonus', 0)) + 1
+    hunts = state.get('hunts') or {}
+    hunts[pid] = entry
+    state['hunts'] = hunts
+    save_game_state(state)
+
+    limit = MAX_HUNTS_PER_DAY + entry['bonus']
+    socketio.emit('hunts_update', {'used': entry['used'], 'limit': limit}, room=pid)
+    return jsonify({'ok': True, 'used': entry['used'], 'limit': limit,
+                    'message': '🥤 Energy Drink! +1 caçada. Ânimo recuperado!'})
 
 
 @app.route('/master/hunts', methods=['POST'])
@@ -2270,8 +2338,8 @@ def api_encounter():
     hunts_limit = MAX_HUNTS_PER_DAY + int(entry.get('bonus', 0))
     if entry['used'] >= hunts_limit:
         return jsonify({
-            'error': f'Sem caçadas restantes hoje ({entry["used"]}/{hunts_limit}). '
-                     'Aguarde o mestre avançar o dia.',
+            'error': 'Você está muito cansado(a) para continuar caçando! '
+                     'Descanse até o mestre avançar o dia (ou tome um Energy Drink).',
             'hunts_used': entry['used'], 'hunts_limit': hunts_limit
         }), 403
 
@@ -2292,7 +2360,9 @@ def api_encounter():
     prof = _trainer_prof(trainer.get('level', 1))
     roll = random.randint(1, 20)
     total = roll + wis_mod + prof
-    dc = SURVIVAL_DC[hunt_mode]
+    # CD progressiva pela FADIGA (a cada 2 caçadas fica mais difícil):
+    # 1ª-2ª = 6, 3ª-4ª = 8, 5ª-6ª = 12.
+    dc = _survival_dc(entry['used'])
     survival = {'roll': roll, 'wis_mod': wis_mod, 'prof': prof,
                 'total': total, 'dc': dc}
 
@@ -3015,7 +3085,11 @@ SHOP_CATALOG = [
     {'id': 'rare-candy',  'name': 'Bala Rara',    'category': 'special', 'price': 2000, 'description': 'Aumenta 1 nível do Pokémon.'},
     {'id': 'repel',       'name': 'Repelente',    'category': 'special', 'price': 350,  'description': 'Evita encontros por 1 hora.'},
     {'id': 'super-repel', 'name': 'Super Repelente','category':'special','price': 500,  'description': 'Evita encontros por 2 horas.'},
+    {'id': 'energy-drink','name': 'Energy Drink', 'category': 'special', 'price': 750,  'description': 'Recupera o ânimo: +1 caçada extra no dia. Consumível.'},
 ]
+
+# Itens que dão +1 caçada quando consumidos (nome em minúsculas)
+ENERGY_DRINK_NAMES = {'energy drink'}
 
 @app.route('/api/shop')
 @login_required

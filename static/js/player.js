@@ -257,26 +257,35 @@ function filterRouteRegion(region, btn) {
 
 // Descrições dos modos de caçada (usadas no select e no info box)
 const HUNT_MODE_DATA = {
-    normal:        { label: '🌿 Normal (-50% a +5 níveis)',        desc: '🌿 <strong>Normal:</strong> Pokémon variados, de metade do seu nível até +5. Shiny: 1%. CD Sobrevivência: 10.' },
-    dungeon:       { label: '🏰 Dungeon (-10 a +10 níveis)',       desc: '🏰 <strong>Dungeon:</strong> Pokémon raros e evoluídos, -10 a +10 níveis. Shiny: 3%. CD: 13. ⚠️ Perigoso!' },
-    dungeon_night: { label: '🏰🌙 Dungeon Perigosa (-5 a +15)',    desc: '🏰🌙 <strong>Dungeon Perigosa:</strong> a dungeon à noite — evoluídos fortes, -5 a +15 níveis. Shiny: 4%. CD: 15. ☠️ Muito perigoso!' },
-    night:         { label: '🌙 Noturno (-10 a +20 níveis)',       desc: '🌙 <strong>Noturno:</strong> o terror da noite! -10 a +20 níveis. Shiny: 5%. CD: 15. ☠️ Extremamente perigoso!' }
+    normal:        { label: '🌿 Normal (-50% a +5 níveis)',        desc: '🌿 <strong>Normal:</strong> Pokémon variados, de metade do seu nível até +5. Shiny: 1%.' },
+    dungeon:       { label: '🏰 Dungeon (-10 a +10 níveis)',       desc: '🏰 <strong>Dungeon:</strong> Pokémon raros e evoluídos, -10 a +10 níveis. Shiny: 3%. ⚠️ Perigoso!' },
+    dungeon_night: { label: '🏰🌙 Dungeon Perigosa (-5 a +15)',    desc: '🏰🌙 <strong>Dungeon Perigosa:</strong> a dungeon à noite — evoluídos fortes, -5 a +15 níveis. Shiny: 4%. ☠️ Muito perigoso!' },
+    night:         { label: '🌙 Noturno (-10 a +20 níveis)',       desc: '🌙 <strong>Noturno:</strong> o terror da noite! -10 a +20 níveis. Shiny: 5%. ☠️ Extremamente perigoso!' }
 };
 const HUNT_PERIOD_MODES = {
     morning: ['normal', 'dungeon'],
     night: ['dungeon_night', 'night']
 };
 
+// CD de Sobrevivência pela FADIGA — sobe a cada 2 caçadas (deve casar com o servidor)
+function _fatigueDC(used) {
+    if (used < 2) return 6;
+    if (used < 4) return 8;
+    return 12;
+}
+
 function updateHuntModeSelect(used) {
     // Caçadas 1-4 = manhã (normal/dungeon); 5ª+ = noite (dungeon perigosa/noturna)
     const period = (used < 4) ? 'morning' : 'night';
-    const sel = document.getElementById('hunt-mode');
+    const dc = _fatigueDC(used);
     const periodEl = document.getElementById('hunt-period');
     if (periodEl) {
-        periodEl.innerHTML = period === 'morning'
+        const base = period === 'morning'
             ? '🌅 <strong>Manhã</strong> (caçadas 1-4)'
             : '🌙 <strong>Noite</strong> (caçadas 5-6)';
+        periodEl.innerHTML = `${base} · 🎯 CD atual: <strong>${dc}</strong> <span style="opacity:0.7;font-size:0.85em;">(sobe conforme você se cansa)</span>`;
     }
+    const sel = document.getElementById('hunt-mode');
     if (!sel) return;
     const modes = HUNT_PERIOD_MODES[period];
     const current = sel.value;
@@ -286,6 +295,24 @@ function updateHuntModeSelect(used) {
     sel.value = modes.includes(current) ? current : modes[0];
     const info = document.getElementById('hunt-mode-info');
     if (info) info.innerHTML = `<p>${HUNT_MODE_DATA[sel.value].desc}</p>`;
+}
+
+async function useEnergyDrink() {
+    try {
+        const r = await fetch('/player/use-energy-drink', { method: 'POST' });
+        const d = await r.json();
+        if (d.error) { showNotification(d.error, 'error'); return; }
+        updateHuntCounter(d.used, d.limit);
+        showNotification(d.message || '🥤 +1 caçada!', 'success');
+        // sincroniza a bolsa local (o servidor já consumiu 1)
+        const it = (window.bagItems || []).find(i => (i.name || '').toLowerCase() === 'energy drink');
+        if (it) {
+            it.qty = (it.qty || 1) - 1;
+            if (it.qty <= 0) window.bagItems = window.bagItems.filter(i => i !== it);
+        }
+        if (typeof renderBag === 'function') renderBag();
+        refreshEnergyDrinkBtn();
+    } catch(e) {}
 }
 
 function updateHuntCounter(used, limit) {
@@ -2741,6 +2768,16 @@ function initBag() {
         window.bagItems = [];
     }
     renderBag();
+    refreshEnergyDrinkBtn();
+}
+
+// Mostra o botão de Energy Drink só quando o jogador tem o item na bolsa
+function refreshEnergyDrinkBtn() {
+    const btn = document.getElementById('btn-energy-drink');
+    if (!btn) return;
+    const has = (window.bagItems || []).some(i =>
+        i && (i.name || '').toLowerCase() === 'energy drink' && (i.qty || 0) > 0);
+    btn.classList.toggle('hidden', !has);
 }
 
 function nameToFile(name) {
@@ -5803,6 +5840,11 @@ async function buyItem(itemId) {
         if (!TRAINER_DATA.bag) TRAINER_DATA.bag = [];
         TRAINER_DATA.bag.push({ name: item.name, qty, description: item.description });
     }
+    // mantém window.bagItems em sincronia (usado pela caçada/pokébola/energy drink)
+    const wexisting = (window.bagItems || []).find(b => b && (b.name || '').toLowerCase() === item.name.toLowerCase());
+    if (wexisting) wexisting.qty = (wexisting.qty || 1) + qty;
+    else { if (!window.bagItems) window.bagItems = []; window.bagItems.push({ name: item.name, qty, file: '' }); }
+    refreshEnergyDrinkBtn();
     renderShop();
     const chaMsg = data.cha_bonus ? ` (bônus CHA!)` : '';
     showNotification(`✅ ${qty}x ${item.name} comprado por ₽${(data.unit_price * qty).toLocaleString('pt-BR')}${chaMsg}`, 'success');
