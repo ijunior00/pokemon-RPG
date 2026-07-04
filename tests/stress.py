@@ -652,6 +652,47 @@ def main():
     check(S, 'Scald mapeia queimado on-hit (dados canônicos)',
           scald_hit.get('status') == 'queimado')
 
+    # ── Stat stages entram nos cálculos (buffs/debuffs acumulados) ──
+    fx = appmod.effects
+    att = {'level': 20, 'stats': {'ATK': 16}, 'types': ['Normal'], 'proficiency': 3}
+    dfn = {'level': 18, 'stats': {'DEF': 14}, 'proficiency': 3}
+    import re as _restage
+    def _ac_of(msg):
+        mo = _restage.search(r'AC (\d+)', msg or '')
+        return int(mo.group(1)) if mo else None
+    ac0 = _ac_of(appmod._calc_pvp_attack(att, dict(dfn), 'Tackle', 10)['message'])
+    fx.apply_stat_changes(dfn, {'DEF': -2}); fx.apply_stat_changes(dfn, {'DEF': -2})
+    check(S, 'DEF-2 empilha (stage -4)', dfn['stat_stages']['DEF'] == -4)
+    ac1 = _ac_of(appmod._calc_pvp_attack(att, dfn, 'Tackle', 10)['message'])
+    check(S, 'DEF-down baixa a CA do inimigo (bug reportado)',
+          ac0 is not None and ac1 is not None and ac1 < ac0, f'{ac0}→{ac1}')
+    # clamp em -6
+    for _ in range(3):
+        fx.apply_stat_changes(dfn, {'DEF': -4})
+    check(S, 'stage limita em -6', dfn['stat_stages']['DEF'] == -6)
+    # ATK-up sobe o modificador de dano (determinístico via _mod_dano do stat efetivo)
+    ab_ = {'stats': {'ATK': 16}}
+    m0 = appmod._mod_dano(fx.effective_stat(ab_, 'ATK'))
+    fx.apply_stat_changes(ab_, {'ATK': 4})
+    m1 = appmod._mod_dano(fx.effective_stat(ab_, 'ATK'))
+    check(S, 'ATK+4 aumenta o modificador de dano', m1 > m0, f'mod {m0}→{m1}')
+    # attack_roll stage baixa o acerto (via _calc_player_attack total no message)
+    enc = {'player_pokemon': {'level': 20, 'stats': {'ATK': 16}, 'types': [], 'proficiency': 3,
+                              'stat_stages': {'attack_roll': -3, 'ATK': 0, 'DEF': 0, 'SPA': 0,
+                                              'SPD': 0, 'SPE': 0, 'AC': 0}},
+           'pokemon': {'level': 18, 'stats': {'DEF': 10}}, 'level': 18}
+    def _tot(msg):
+        mo = _restage.search(r'(\d+)\s+vs AC', msg or '')
+        return int(mo.group(1)) if mo else None
+    c_base = appmod._calc_player_attack({'player_pokemon': {'level': 20, 'stats': {'ATK': 16}, 'types': [], 'proficiency': 3},
+                                         'pokemon': {'level': 18, 'stats': {'DEF': 10}}, 'level': 18}, 'Tackle', 12)
+    c_deb = appmod._calc_player_attack(enc, 'Tackle', 12)
+    tb, td = _tot(c_base.get('message', '')), _tot(c_deb.get('message', ''))
+    check(S, 'attack_roll -3 baixa o total de acerto', tb is not None and td == tb - 3, f'{tb}→{td}')
+    # queimadura reduz o ATK efetivo (condição ativa)
+    burned = {'stats': {'ATK': 16}, 'status': {'condition': 'queimado'}}
+    check(S, 'queimadura reduz ATK efetivo (-2)', fx.effective_stat(burned, 'ATK') == 14)
+
     # restaura o time do u1 para as seções seguintes (PC etc.)
     give_team(u1, [('Charmander', 20), ('Squirtle', 18), ('Pidgey', 15)])
 

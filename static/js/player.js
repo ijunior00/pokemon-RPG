@@ -232,7 +232,7 @@ function _gbCombatantHtml(c, isTurn) {
                 <div style="font-weight:700;font-size:0.85rem;">${isTurn ? '▶️ ' : ''}${c.name}${c.fainted ? ' 💀' : ''}</div>
                 <div style="font-size:0.72rem;opacity:0.8;">Nv.${c.level || '?'} · ${c.hp}/${c.maxHp} HP</div>
             </div>
-        </div>${_gbHpBar(c)}</div>`;
+        </div>${_gbHpBar(c)}<div>${renderStageBadges(c.stat_stages)}</div></div>`;
 }
 
 function renderGroupBattle(view) {
@@ -700,6 +700,7 @@ async function startBattle() {
     window._wildPreTurnStatusDamage   = 0;
     window.playerAccuracyMod         = 0;
     window.wildAccuracyMod           = 0;
+    window._postFaintShown           = false;
     window.playerDodging             = false;
     window._lastStatusInflicted      = null;
     window._wildStatusApplied        = null;
@@ -913,13 +914,17 @@ socket.on('battle_update', (data) => {
         setTimeout(() => wildPokemonAutoAttack(), 1200);
     }
 
+    // Badges de buff/debuff acumulados (fonte: servidor)
+    if (bs.wild_stat_stages !== undefined) window._wildStages = bs.wild_stat_stages;
+    if (bs.player_stat_stages !== undefined) window._playerStages = bs.player_stat_stages;
+    updateWildStageBadges(window._wildStages, window._playerStages);
+
     // Check faint
     if (bs.wild_hp_current <= 0) {
         clearTurnCountdown();
         battleSpriteFaint('battle-enemy-sprite');
         playSound('faint');
         addBattleLog(`<strong>💀 Pokémon Selvagem desmaiou!</strong>`);
-        addBattleLog(`🔴 Você pode <strong>Arremessar Pokébola</strong> para tentar capturar ou clicar <strong>Derrotei</strong> para encerrar.`);
         window.currentTurn = 'player';
         window.wildFainted = true;
         document.querySelectorAll('#battle-player-moves .selectable-move').forEach(btn => {
@@ -928,6 +933,10 @@ socket.on('battle_update', (data) => {
         });
         document.getElementById('btn-pass-turn')?.classList.add('hidden');
         document.getElementById('btn-switch-pokemon')?.classList.add('hidden');
+        if (!window._postFaintShown) {
+            window._postFaintShown = true;
+            showPostFaintPanel();
+        }
     }
     if (bs.player_hp_current <= 0 && bs.player_hp_current > -30 && !window._playerFaintLogged) {
         window._playerFaintLogged = true;
@@ -1415,6 +1424,8 @@ function endBattle(result) {
     }
 
     window.wildFainted = false;
+    window._postFaintShown = false;
+    document.getElementById('post-faint-panel')?.classList.add('hidden');
     window.wildPokemonStatus = null;
     window.playerPokemonStatus = null;
     window._wildIsActing = false;
@@ -2062,6 +2073,95 @@ function showBattlePanel(panel) {
     if (panel === 'moves') { if (moves) moves.classList.remove('hidden'); }
     if (panel === 'extra') { if (extra) extra.classList.remove('hidden'); }
     if (toggle) toggle.style.display = panel === 'extra' ? 'none' : '';
+}
+
+// ── Stat stage badges (buffs/debuffs acumulados) ──────────────
+// stages: {ATK,DEF,SPA,SPD,SPE,AC,attack_roll}. Pula zeros; verde +, vermelho -.
+function renderStageBadges(stages) {
+    if (!stages) return '';
+    const label = { ATK: 'ATK', DEF: 'DEF', SPA: 'SPA', SPD: 'SPD', SPE: 'SPE',
+                    AC: 'CA', attack_roll: 'Acerto' };
+    return Object.entries(stages)
+        .filter(([k, v]) => v && label[k])
+        .map(([k, v]) => {
+            const col = v > 0 ? '#4caf50' : '#e53935';
+            return `<span style="display:inline-block;font-size:0.6rem;font-weight:700;padding:1px 5px;margin:1px;border-radius:6px;color:#fff;background:${col};">${label[k]} ${v > 0 ? '+' : ''}${v}</span>`;
+        }).join('');
+}
+
+function updateWildStageBadges(wildStages, playerStages) {
+    let el = document.getElementById('wild-stage-badges');
+    if (!el) {
+        const box = document.querySelector('.enemy-hpbox') || document.getElementById('battle-enemy-hp-text-full')?.parentElement;
+        if (box) { el = document.createElement('div'); el.id = 'wild-stage-badges'; el.style.marginTop = '2px'; box.appendChild(el); }
+    }
+    if (el) el.innerHTML = renderStageBadges(wildStages);
+    let pel = document.getElementById('player-stage-badges');
+    if (!pel) {
+        const pbox = document.querySelector('.player-hpbox') || document.getElementById('battle-player-hp-text-full')?.parentElement;
+        if (pbox) { pel = document.createElement('div'); pel.id = 'player-stage-badges'; pel.style.marginTop = '2px'; pbox.appendChild(pel); }
+    }
+    if (pel) pel.innerHTML = renderStageBadges(playerStages);
+}
+
+// ── Painel pós-derrota: capturar (dropdown de bola) ou finalizar (só XP) ──
+function showPostFaintPanel() {
+    showBattlePanel('extra');   // revela os controles existentes (não fica atrás do ⚙️)
+    refreshPokeballSelect();
+    let panel = document.getElementById('post-faint-panel');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'post-faint-panel';
+        panel.style.cssText = 'margin:0.5rem;padding:0.6rem 0.8rem;border:2px solid var(--accent,#f8b800);border-radius:8px;background:var(--card-bg,#f8f8e8);text-align:center;';
+        const bottom = document.querySelector('.poke-bottom-panel');
+        if (bottom && bottom.parentElement) bottom.parentElement.insertBefore(panel, bottom);
+    }
+    panel.classList.remove('hidden');
+    panel.innerHTML = `
+        <div style="font-weight:800;margin-bottom:0.4rem;">🎯 Selvagem derrotado!</div>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;justify-content:center;">
+            <label style="font-size:0.85rem;">Pokébola:</label>
+            <select id="post-faint-ball" style="min-width:150px;"></select>
+            <button class="btn btn-primary btn-sm" onclick="throwPokeballFrom('post-faint-ball')">🎯 Capturar</button>
+            <button class="btn btn-secondary btn-sm" onclick="endBattle('defeated')">🏁 Finalizar batalha (só XP)</button>
+        </div>`;
+    // popula o dropdown do painel a partir da bolsa
+    const sel = document.getElementById('post-faint-ball');
+    if (sel) sel.innerHTML = pokeballOptionsHtml();
+}
+
+// Opções de bola com nome + bônus + quantidade da bolsa (desabilita qtd 0)
+function pokeballOptionsHtml() {
+    const balls = [
+        { key: 'pokeball', names: ['Pokébola'], label: 'Pokébola', bonus: '+0' },
+        { key: 'greatball', names: ['Super Bola', 'Great Ball'], label: 'Super Bola', bonus: '+2' },
+        { key: 'ultraball', names: ['Ultra Bola', 'Ultra Ball'], label: 'Ultra Bola', bonus: '+4' },
+        { key: 'netball', names: ['Net Bola', 'Net Ball'], label: 'Net Bola', bonus: '+3 Bug/Água' },
+        { key: 'healball', names: ['Cura Bola', 'Heal Ball'], label: 'Cura Bola', bonus: 'cura' },
+        { key: 'masterball', names: ['Master Ball'], label: 'Master Ball', bonus: 'garantida' },
+    ];
+    const bag = window.bagItems || [];
+    const qtyOf = (names) => {
+        const it = bag.find(b => names.some(n => (b.name || '').toLowerCase() === n.toLowerCase()));
+        return it ? (it.qty || 0) : 0;
+    };
+    return balls.map(b => {
+        const q = qtyOf(b.names);
+        return `<option value="${b.key}" ${q <= 0 ? 'disabled' : ''}>${b.label} (${b.bonus}) ×${q}</option>`;
+    }).join('');
+}
+
+function refreshPokeballSelect() {
+    const sel = document.getElementById('pokeball-select');
+    if (sel) { const v = sel.value; sel.innerHTML = pokeballOptionsHtml(); if (v) sel.value = v; }
+}
+
+// throwPokeball lê de #pokeball-select; permite disparar a partir de outro select
+function throwPokeballFrom(selectId) {
+    const src = document.getElementById(selectId);
+    const main = document.getElementById('pokeball-select');
+    if (src && main) main.value = src.value;
+    throwPokeball();
 }
 
 // ── Battle transition animation ───────────────────────────────
@@ -3348,6 +3448,7 @@ function renderPvpBattle(state) {
                         <div class="hp-bar enemy-hp ${hpBarClass(opponent.currentHp, opponent.maxHp)}" style="width:${oppHpPct}%"></div>
                     </div>
                     <span class="hp-text">${opponent.currentHp || '?'}/${opponent.maxHp || '?'} HP</span>
+                    <div style="text-align:center;">${renderStageBadges(opponent.stat_stages)}</div>
                     <div class="battle-stats-mini">
                         <span>AC: ${opponent.ac || '?'}</span>
                         <span>SPD: ${opponent.speed || '?'}</span>
@@ -3372,6 +3473,7 @@ function renderPvpBattle(state) {
                         <div class="hp-bar player-hp ${hpBarClass(myActive.currentHp, myActive.maxHp)}" style="width:${myHpPct}%"></div>
                     </div>
                     <span class="hp-text">${myActive.currentHp || 0}/${myActive.maxHp || 0} HP</span>
+                    <div style="text-align:center;">${renderStageBadges(state.your_stat_stages)}</div>
                     <div class="battle-stats-mini">
                         <span>AC: ${myActive.ac || 10}</span>
                         <span>SPD: ${myActive.speed || '30ft'}</span>
@@ -4564,11 +4666,18 @@ async function _executeWildTurn() {
         targetAC = 8 + Math.floor(((playerStats.SPD || 10) - 10) / 2) + Math.floor(getProficiencyForLevel(playerPoke?.level || 1) / 2);
         defLabel = '✨ SPD';
     }
+    // Stat stages do jogador afetam a CA contra o ataque do selvagem (casa com o servidor)
+    const pStages = window._playerStages || {};
+    targetAC += Math.floor(((moveCategory === 'physical' ? (pStages.DEF || 0) : (pStages.SPD || 0)))) + (pStages.AC || 0);
     targetAC = Math.max(8, Math.floor(targetAC));
-    
-    // Wild accuracy mod (from player's Smokescreen etc.)
-    const wildAccMod = window.wildAccuracyMod || 0;
-    
+
+    // Buff/debuff do selvagem: ATK/SPA no dano, attack_roll no acerto
+    const wStages = window._wildStages || {};
+    const wildAtkStage = moveCategory === 'physical' ? (wStages.ATK || 0) : (wStages.SPA || 0);
+    moveMod += Math.floor(wildAtkStage / 2);   // stage entra como bônus no modificador de dano
+    // Wild accuracy mod (Smokescreen etc.) + stage de acerto acumulado
+    const wildAccMod = (window.wildAccuracyMod || 0) + (wStages.attack_roll || 0);
+
     // Attack roll
     const attackRoll = Math.floor(Math.random() * 20) + 1;
     const isCrit = attackRoll === 20;

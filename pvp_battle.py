@@ -117,6 +117,10 @@ def switch_pokemon(battle, player_key, new_idx):
         player['used_pokemon'].append(new_idx)
 
     old_idx = player['active_idx']
+    # Pokémon que sai perde os buffs/debuffs acumulados; o que entra vem limpo
+    if old_idx is not None:
+        effects.reset_stat_stages(player['team'][old_idx])
+    effects.reset_stat_stages(new_poke)
     player['active_idx'] = new_idx
 
     # Street mode: switching costs a turn
@@ -217,9 +221,11 @@ def get_battle_state_for_player(battle, player_key):
     
     # Include own active pokemon's status + flag de troca obrigatória
     state['must_switch'] = False
+    state['your_stat_stages'] = None
     if player['active_idx'] is not None:
         own_active = player['team'][player['active_idx']]
         state['your_status'] = own_active.get('status')
+        state['your_stat_stages'] = own_active.get('stat_stages')
         # ativo desmaiado com reserva viva elegível → precisa trocar (fora do turno)
         if _poke_hp(own_active) <= 0:
             for i, p in enumerate(player['team']):
@@ -244,9 +250,10 @@ def get_battle_state_for_player(battle, player_key):
             'number': active.get('number', 0),
             'stats': active.get('stats', {}),
             'moves': active.get('moves', []),
-            'speed': active.get('speed', '30ft')
+            'speed': active.get('speed', '30ft'),
+            'stat_stages': active.get('stat_stages'),
         }
-    
+
     return state
 
 

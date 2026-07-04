@@ -194,34 +194,35 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
                 'attack_roll': 0, 'move_type_en': '',
                 'log': ''}
 
+    # stat efetivo = base + stat_stages acumulados + modificador de condição
     if category == 'physical':
-        stat_val = int(stats.get('ATK') or stats.get('STR') or 10)
+        stat_val = effects.effective_stat(player_poke, 'ATK')
     elif category == 'special':
-        stat_val = int(stats.get('SPA') or stats.get('INT') or 10)
+        stat_val = effects.effective_stat(player_poke, 'SPA')
     else:
         stat_val = 10
     mod          = _mod_dano(stat_val)       # usado no DANO (sem teto)
     mod_precisao = _mod_precisao(stat_val)   # usado no ACERTO (com teto)
     prof = int(player_poke.get('proficiency') or _prof_for_level(level))
 
-    wild_stats  = wild_poke.get('stats') or {}
     wild_level  = int(wild_poke.get('level') or encounter.get('level') or 5)
     wild_prof_h = _prof_for_level(wild_level) // 2
 
     # CA usa mod_dano (sem teto) — a assimetria contra o mod_precisao (com
     # teto) do atacante evita acerto automático/erro impossível nos extremos.
+    # DEF/SPD do defensor incluem stat_stages; 'AC' entra direto via ac_bonus.
     if category == 'physical':
-        enemy_ac = 8 + _mod_dano(int(wild_stats.get('DEF', 10))) + wild_prof_h
+        enemy_ac = 8 + _mod_dano(effects.effective_stat(wild_poke, 'DEF')) + wild_prof_h
     else:
-        enemy_ac = 8 + _mod_dano(int(wild_stats.get('SPD', 10))) + wild_prof_h
-    enemy_ac = max(8, int(enemy_ac))
+        enemy_ac = 8 + _mod_dano(effects.effective_stat(wild_poke, 'SPD')) + wild_prof_h
+    enemy_ac = max(8, int(enemy_ac) + effects.ac_bonus(wild_poke))
 
     if attack_roll is None:
         attack_roll = random.randint(1, 20)
     attack_roll = int(attack_roll)
     is_crit  = attack_roll == 20
     is_nat1  = attack_roll == 1
-    total    = attack_roll + mod_precisao + prof
+    total    = attack_roll + mod_precisao + prof + effects.attack_roll_bonus(player_poke)
 
     move_type_raw = (move.get('type') or '').lower()
     move_type_en  = _TYPE_MAP_PT.get(move_type_raw, move_type_raw)
@@ -311,33 +312,34 @@ def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
         return {'hit': False, 'damage': 0, 'is_status': True,
                 'message': 'Move de status — sem dano', 'move_type_en': ''}
 
+    # stat efetivo = base + stat_stages + modificador de condição ativa
     if category == 'physical':
-        stat_val = int(stats.get('ATK') or stats.get('STR') or 10)
+        stat_val = effects.effective_stat(attacker_poke, 'ATK')
     elif category == 'special':
-        stat_val = int(stats.get('SPA') or stats.get('INT') or 10)
+        stat_val = effects.effective_stat(attacker_poke, 'SPA')
     else:
         stat_val = 10
     mod          = _mod_dano(stat_val)       # usado no DANO (sem teto)
     mod_precisao = _mod_precisao(stat_val)   # usado no ACERTO (com teto)
     prof = int(attacker_poke.get('proficiency') or _prof_for_level(level))
 
-    def_stats   = defender_poke.get('stats') or {}
     def_level   = int(defender_poke.get('level') or 1)
     def_prof_h  = _prof_for_level(def_level) // 2
 
-    # CA usa mod_dano (sem teto) — mesma assimetria de _calc_player_attack
+    # CA usa mod_dano (sem teto) — mesma assimetria de _calc_player_attack.
+    # DEF/SPD incluem stat_stages; 'AC' entra direto via ac_bonus.
     if category == 'physical':
-        enemy_ac = 8 + _mod_dano(int(def_stats.get('DEF', 10))) + def_prof_h
+        enemy_ac = 8 + _mod_dano(effects.effective_stat(defender_poke, 'DEF')) + def_prof_h
     else:
-        enemy_ac = 8 + _mod_dano(int(def_stats.get('SPD', 10))) + def_prof_h
-    enemy_ac = max(8, int(enemy_ac))
+        enemy_ac = 8 + _mod_dano(effects.effective_stat(defender_poke, 'SPD')) + def_prof_h
+    enemy_ac = max(8, int(enemy_ac) + effects.ac_bonus(defender_poke))
 
     if attack_roll is None:
         attack_roll = random.randint(1, 20)
     attack_roll = int(attack_roll)
     is_crit = attack_roll == 20
     is_nat1 = attack_roll == 1
-    total   = attack_roll + mod_precisao + prof
+    total   = attack_roll + mod_precisao + prof + effects.attack_roll_bonus(attacker_poke)
 
     move_type_raw = (move.get('type') or '').lower()
     move_type_en  = _TYPE_MAP_PT.get(move_type_raw, move_type_raw)
@@ -2693,6 +2695,10 @@ def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data
     if result.get('heal'):
         actor['hp'] = min(actor['maxHp'], actor['hp'] + result['heal'])
         actor['pokemon']['currentHp'] = actor['hp']
+    # Stat stages no dict pokemon do combatente (o cálculo copia esse dict)
+    if result.get('stat_changes'):
+        tgt = target if result.get('effect_type') == 'debuff' else actor
+        effects.apply_stat_changes(tgt['pokemon'], result['stat_changes'])
     battle['log'].append({'type': 'status_move', 'actor': actor_cid,
                           'message': f"{actor['name']} usou {move_name} — {result.get('message','')}"})
     gb.advance_turn(battle)
@@ -4025,6 +4031,14 @@ def handle_battle_action(data):
                     battle_state['player_hp_current'] = min(
                         battle_state['player_hp_max'],
                         battle_state['player_hp_current'] + sres['heal'])
+                # Stat stages: debuff no selvagem, buff no próprio Pokémon.
+                # Aplicados nos dicts do encounter (persistem) e espelhados no
+                # battle_state para o broadcast e o ataque selvagem no cliente.
+                if sres.get('stat_changes'):
+                    tgt = wpoke if sres.get('effect_type') == 'debuff' else ppoke
+                    effects.apply_stat_changes(tgt, sres['stat_changes'])
+                    battle_state['wild_stat_stages'] = wpoke.get('stat_stages')
+                    battle_state['player_stat_stages'] = ppoke.get('stat_stages')
             elif not server_calc.get('hit', True):
                 damage = 0
             # On-hit status (Ember→queimado, Thunderbolt→paralisado etc.)
@@ -4089,6 +4103,11 @@ def handle_battle_action(data):
             if new_hp > 0:
                 battle_state['player_hp_current'] = new_hp
                 battle_state['player_hp_max'] = new_max_hp
+            # trocar de pokémon zera os buffs/debuffs acumulados do lado do jogador
+            ppoke_sw = encounter.get('player_pokemon')
+            if isinstance(ppoke_sw, dict):
+                effects.reset_stat_stages(ppoke_sw)
+            battle_state['player_stat_stages'] = None
 
         # Apply damage — allow negative down to -30 for permadeath detection
         PERMADEATH_FLOOR = -30
@@ -5131,6 +5150,10 @@ def _process_pvp_status_move(battle, attacker_key, move_name, move_data):
     if result.get('heal'):
         att_poke['currentHp'] = min(att_poke.get('maxHp', 20),
                                     max(0, att_poke.get('currentHp', 0)) + result['heal'])
+    # Stat stages: debuff no defensor, buff no atacante (persistem no dict do time)
+    if result.get('stat_changes'):
+        tgt = def_poke if result.get('effect_type') == 'debuff' else att_poke
+        effects.apply_stat_changes(tgt, result['stat_changes'])
     pvp.advance_turn(battle)
     _broadcast_pvp_state(battle)
     return result
