@@ -1006,8 +1006,10 @@ function getScaledDice(baseDamage, level, higherLevelsText) {
     else if (level >= 40) multiplier = 2.0;
     else if (level >= 20) multiplier = 1.5;
     else if (level >= 10) multiplier = 1.25;
-    
-    const newCount = Math.max(count, Math.ceil(count * multiplier));
+
+    // Bônus aditivo por faixa (deve casar com _dice_bonus_for_level no servidor)
+    const bonus = level >= 70 ? 3 : level >= 40 ? 2 : level >= 15 ? 1 : 0;
+    const newCount = Math.max(count, Math.ceil(count * multiplier)) + bonus;
     return `${newCount}d${sides}`;
 }
 
@@ -3361,14 +3363,16 @@ function pvpSwitchPokemon() {
     
     team.forEach((p, i) => {
         const isCurrent = i === state.your_active_idx;
-        const isFainted = (p.currentHp || 0) <= 0;
+        // fallback p/ maxHp: pokémon sem currentHp definido NÃO está desmaiado
+        const hp = (p.currentHp !== undefined && p.currentHp !== null) ? p.currentHp : (p.maxHp || 20);
+        const isFainted = hp <= 0;
         const isBlocked = (mode === 'official' || mode === 'tournament') && used.includes(i) && !isCurrent;
         const canSelect = !isCurrent && !isFainted && !isBlocked;
         
         html += `
             <div class="switch-option ${isCurrent ? 'current' : ''} ${isFainted ? 'fainted' : ''} ${isBlocked ? 'fainted' : ''}"
                  ${canSelect ? `onclick="pvpConfirmSwitch(${i})"` : ''} style="cursor:${canSelect ? 'pointer' : 'default'};">
-                <strong>${p.nickname || p.name}</strong> Nv.${p.level} — HP: ${p.currentHp || 0}/${p.maxHp || 0}
+                <strong>${p.nickname || p.name}</strong> Nv.${p.level} — HP: ${hp}/${p.maxHp || 20}
                 ${isCurrent ? '<em>(ativo)</em>' : ''}
                 ${isFainted ? '<em>(desmaiado)</em>' : ''}
                 ${isBlocked ? '<em>(bloqueado)</em>' : ''}

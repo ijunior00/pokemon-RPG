@@ -26,6 +26,12 @@ from collections import defaultdict
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'pokemon5e-rpg-secret-key-2024-galar')
 app.config['REMEMBER_COOKIE_DURATION'] = 2592000  # 30 dias
+
+# Atrás do proxy do Render, request.remote_addr é o IP do proxy (igual p/ todos).
+# ProxyFix faz o Flask ler o IP real do cliente em X-Forwarded-For, para o
+# rate-limit por IP não penalizar jogadores que compartilham o proxy.
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 socketio = SocketIO(app, cors_allowed_origins="*")
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -107,6 +113,14 @@ def _roll_dice(dice_str):
     count, sides = int(m.group(1)), int(m.group(2))
     return sum(random.randint(1, sides) for _ in range(count))
 
+def _dice_bonus_for_level(level):
+    """Bônus ADITIVO de dados por faixa de nível — encurta batalhas médias/altas
+    sem tocar no início (Nv<15 sem bônus, evita swing precoce) nem em HP."""
+    if level >= 70: return 3
+    if level >= 40: return 2
+    if level >= 15: return 1
+    return 0
+
 def _get_scaled_dice(base_damage, level, higher_levels=''):
     if not base_damage: return '1d6'
     m = _re.match(r'(\d+)d(\d+)', str(base_damage))
@@ -125,8 +139,8 @@ def _get_scaled_dice(base_damage, level, higher_levels=''):
     elif level >= 20: mult = 1.5
     elif level >= 10: mult = 1.25
     else: mult = 1.0
-    # ceil para casar com o cliente (getScaledDice usa Math.ceil)
-    new_count = max(count, math.ceil(count * mult))
+    # ceil para casar com o cliente (getScaledDice usa Math.ceil) + bônus aditivo
+    new_count = max(count, math.ceil(count * mult)) + _dice_bonus_for_level(level)
     return f'{new_count}d{sides}'
 
 _TYPE_MAP_PT = {
@@ -1897,7 +1911,8 @@ def give_xp():
                 old_number = pokemon.get('number', 0)
                 evolved_base_data = POKEMON_BY_NAME.get(evolved_name.lower(), {})
                 new_moves = [m for m in (evolved_base_data.get('startingMoves') or [])
-                             if m not in (pokemon.get('moves') or [])]
+                             if m not in (pokemon.get('moves') or [])
+                             and m.lower() in MOVES_BY_NAME]
                 trainer['team'][i] = evolved
                 evolutions.append({
                     'from': old_name, 'to': evolved_name, 'slot': i,
@@ -2690,7 +2705,8 @@ def use_evolution_stone():
 
     stone_evolved_base = POKEMON_BY_NAME.get(evolved['name'].lower(), {})
     stone_new_moves = [m for m in (stone_evolved_base.get('startingMoves') or [])
-                       if m not in (pokemon.get('moves') or [])]
+                       if m not in (pokemon.get('moves') or [])
+                       and m.lower() in MOVES_BY_NAME]
     return jsonify({
         'ok': True, 'evolved_into': evolved['name'], 'pokemon': evolved,
         'old_number': pokemon.get('number', 0), 'new_number': evolved.get('number', 0),
@@ -2765,7 +2781,8 @@ def friendship_evolve():
 
     friendship_evolved_base = POKEMON_BY_NAME.get(evolved['name'].lower(), {})
     friendship_new_moves = [m for m in (friendship_evolved_base.get('startingMoves') or [])
-                            if m not in (pokemon.get('moves') or [])]
+                            if m not in (pokemon.get('moves') or [])
+                            and m.lower() in MOVES_BY_NAME]
     return jsonify({
         'ok': True, 'evolved_into': evolved['name'], 'pokemon': evolved,
         'old_number': pokemon.get('number', 0), 'new_number': evolved.get('number', 0),
@@ -2821,7 +2838,8 @@ def level_evolve():
 
     evolved_base_data = POKEMON_BY_NAME.get(evolved_name.lower(), {})
     new_moves = [m for m in (evolved_base_data.get('startingMoves') or [])
-                 if m not in (pokemon.get('moves') or [])]
+                 if m not in (pokemon.get('moves') or [])
+                 and m.lower() in MOVES_BY_NAME]
 
     team[slot] = evolved
     trainer['team'] = team
@@ -3414,15 +3432,19 @@ def register_pokedex():
 # ============================================================
 # SOCKET.IO EVENTS
 # ============================================================
-# Global auto-mode flag (master controls)
-WILD_AUTO_MODE = True
+# Auto-mode agora é POR MESA (guardado no game_state), não global —
+# um mestre não afeta mais as batalhas das outras mesas.
+def _wild_auto_mode(state=None):
+    st = state if state is not None else get_game_state()
+    return st.get('wild_auto_mode', True)
 
 @socketio.on('set_auto_mode')
 def handle_set_auto_mode(data):
-    global WILD_AUTO_MODE
     if current_user.is_authenticated and current_user.role == 'master':
-        WILD_AUTO_MODE = data.get('enabled', True)
-        print(f"[AUTO MODE] {'ON' if WILD_AUTO_MODE else 'OFF'}")
+        state = get_game_state()
+        state['wild_auto_mode'] = bool(data.get('enabled', True))
+        save_game_state(state)
+        print(f"[AUTO MODE] mesa={_tid()} {'ON' if state['wild_auto_mode'] else 'OFF'}")
 
 @socketio.on('connect')
 def handle_connect():
@@ -3485,8 +3507,8 @@ def handle_encounter(data):
         # Notify master
         emit('encounter_started', encounter_data, room=f'master_{_tid()}')
 
-        # Auto-roll initiative if AUTO mode is ON
-        if WILD_AUTO_MODE:
+        # Auto-roll initiative if AUTO mode is ON (por mesa)
+        if _wild_auto_mode(game_state):
             _auto_roll_initiative(pid, game_state)
 
 @socketio.on('roll_initiative')
@@ -4232,6 +4254,12 @@ def handle_pvp_attack(data):
         defender = battle[defender_key]
         att_poke = attacker['team'][attacker['active_idx']]
         def_poke = defender['team'][defender['active_idx']]
+
+        # Defensor com ativo desmaiado está aguardando troca — atacar o
+        # "corpo" empurraria o HP até -30 (morte permanente indevida).
+        if pvp._poke_hp(def_poke) <= 0:
+            emit('pvp_error', {'message': 'Oponente está trocando de Pokémon — aguarde.'})
+            return
         calc = _calc_pvp_attack(att_poke, def_poke, move_name, data.get('attack_roll'))
         damage   = calc['damage']
         message  = calc['message']
@@ -4357,10 +4385,19 @@ def handle_pvp_switch(data):
         battle = ACTIVE_PVP.get(battle_id)
         if not battle:
             return
-        
+
         player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
+
+        # Troca voluntária só no seu turno; forçada (ativo desmaiado) sempre pode
+        side = battle[player_key]
+        active = side['team'][side['active_idx']] if side.get('active_idx') is not None else None
+        forced = active is not None and pvp._poke_hp(active) <= 0
+        if battle['turn'] != player_key and not forced:
+            emit('pvp_error', {'message': 'Não é seu turno para trocar!'})
+            return
+
         success, msg = pvp.switch_pokemon(battle, player_key, new_idx)
-        
+
         if not success:
             emit('pvp_error', {'message': msg})
             return
@@ -4710,6 +4747,10 @@ def handle_npc_turn(battle, npc_key):
     if not can_act:
         pvp.advance_turn(battle)
         _broadcast_pvp_state(battle)
+        return
+
+    if pvp._poke_hp(def_poke) <= 0:
+        # Defensor humano desmaiado aguardando troca — NPC não ataca o corpo
         return
 
     move, move_data, is_status = _npc_pick_move(npc_poke, def_poke,
