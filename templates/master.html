@@ -66,6 +66,112 @@
             </div>
             <div id="manual-pokemon-preview" class="pokemon-preview"></div>
         </div>
+
+        <h3>🎲 Caçada Aleatória</h3>
+        <p style="opacity:0.75;font-size:0.85rem;margin-top:-0.4rem;">
+            O jogador rola o d20 (Teste de Caçada) e o resultado aparece abaixo.
+            Se você aprovar, gere uma caçada aleatória para ele conforme o horário e o terreno.
+        </p>
+        <div class="encounter-manual">
+            <div class="form-row" style="align-items:flex-end;">
+                <div class="form-group">
+                    <label>Para Jogador</label>
+                    <select id="random-hunt-player">
+                        {% for uid, player in players.items() %}
+                        <option value="{{ uid }}">{{ player.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Horário</label>
+                    <select id="random-hunt-period">
+                        <option value="day">☀️ Dia</option>
+                        <option value="night">🌙 Noite</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Terreno</label>
+                    <select id="random-hunt-terrain">
+                        <option value="normal">🌿 Campo aberto</option>
+                        <option value="dungeon">🏰 Dungeon</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Rota</label>
+                    <select id="random-hunt-route">
+                        {% for route_id, route in routes.items() %}
+                        <option value="{{ route_id }}">{{ route.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button class="btn btn-success" onclick="sendRandomHunt()">🎯 Liberar Caçada</button>
+            </div>
+            <p id="random-hunt-result" style="font-size:0.85rem;margin:0.3rem 0;"></p>
+            <div style="margin-top:0.6rem;">
+                <strong style="font-size:0.9rem;">📨 Rolagens recebidas</strong>
+                <div id="hunt-rolls-inbox" style="margin-top:0.4rem;display:flex;flex-direction:column;gap:0.35rem;max-height:220px;overflow-y:auto;">
+                    <p class="empty-state" style="margin:0;font-size:0.85rem;">Aguardando os jogadores rolarem o Teste de Caçada...</p>
+                </div>
+            </div>
+        </div>
+
+        <h3>👥 Batalha em Dupla (caçada em grupo)</h3>
+        <p style="opacity:0.75;font-size:0.85rem;margin-top:-0.4rem;">
+            Dois jogadores caçam juntos: <strong>2v1</strong> (um selvagem forte) ou
+            <strong>2v2</strong> (dois selvagens). Turnos por iniciativa; no AUTO os selvagens agem sozinhos.
+        </p>
+        <div class="encounter-manual">
+            <div class="form-row" style="align-items:flex-end;">
+                <div class="form-group">
+                    <label>Jogador 1</label>
+                    <select id="group-player-1">
+                        {% for uid, player in players.items() %}
+                        <option value="{{ uid }}">{{ player.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Jogador 2</label>
+                    <select id="group-player-2">
+                        {% for uid, player in players.items() %}
+                        <option value="{{ uid }}">{{ player.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Formato</label>
+                    <select id="group-mode">
+                        <option value="1">⚔️ 2v1 (1 selvagem forte)</option>
+                        <option value="2">⚔️⚔️ 2v2 (2 selvagens)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Horário</label>
+                    <select id="group-period">
+                        <option value="day">☀️ Dia</option>
+                        <option value="night">🌙 Noite</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Terreno</label>
+                    <select id="group-terrain">
+                        <option value="normal">🌿 Campo aberto</option>
+                        <option value="dungeon">🏰 Dungeon</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Rota</label>
+                    <select id="group-route">
+                        {% for route_id, route in routes.items() %}
+                        <option value="{{ route_id }}">{{ route.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button class="btn btn-danger" onclick="startGroupHunt()">👥 Iniciar Batalha em Dupla</button>
+            </div>
+            <p id="group-hunt-result" style="font-size:0.85rem;margin:0.3rem 0;"></p>
+            <div id="group-battle-monitor" class="hidden" style="margin-top:0.6rem;padding:0.6rem;border:1px solid var(--border,#33405a);border-radius:10px;"></div>
+        </div>
     </div>
 
     <!-- TAB: PLAYERS (FULL VISION) -->
@@ -797,6 +903,12 @@
                 <p class="settings-desc">Escolha a paleta de cores baseada na região do jogo.</p>
                 <div class="theme-options" id="theme-options">
                     <label class="theme-option">
+                        <input type="radio" name="theme" value="gba" {% if site_settings.theme == 'gba' %}checked{% endif %}>
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #383880 55%, #f8f8e8 55%);">
+                            <span>🕹️ GBA Clássico</span>
+                        </div>
+                    </label>
+                    <label class="theme-option">
                         <input type="radio" name="theme" value="pokemon-red" {% if site_settings.theme == 'pokemon-red' %}checked{% endif %}>
                         <div class="theme-preview" style="background: linear-gradient(135deg, #c1121f, #e63946);">
                             <span>🔴 Kanto Red</span>
@@ -846,6 +958,12 @@
                 <h4>🖼️ Fundo do Site</h4>
                 <p class="settings-desc">Escolha o padrão de fundo.</p>
                 <div class="bg-options" id="bg-options">
+                    <label class="bg-option">
+                        <input type="radio" name="background" value="gba-grass" {% if site_settings.background == 'gba-grass' %}checked{% endif %}>
+                        <div class="bg-preview bg-preview-gba-grass">
+                            <span>🟩 Grama GBA</span>
+                        </div>
+                    </label>
                     <label class="bg-option">
                         <input type="radio" name="background" value="pokeball-pattern" {% if site_settings.background == 'pokeball-pattern' %}checked{% endif %}>
                         <div class="bg-preview bg-preview-pokeball">

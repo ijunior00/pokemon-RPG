@@ -91,9 +91,9 @@ function showNotification(message, type = 'info') {
         return el;
     })();
 
-    const colors = { success: '#4caf50', error: '#f44336', info: '#2196f3', warning: '#ff9800' };
+    // Visual GBA: caixa de diálogo creme com borda semântica (classes em gba.css)
     const toast = document.createElement('div');
-    toast.style.cssText = `background:${colors[type]||'#2196f3'};color:#fff;padding:0.75rem 1.25rem;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);font-size:0.9rem;max-width:320px;pointer-events:auto;animation:slideIn 0.3s ease;`;
+    toast.className = `gba-toast gba-toast-${['success','error','info','warning'].includes(type) ? type : 'info'}`;
     toast.textContent = message;
     container.appendChild(toast);
     setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.4s'; setTimeout(() => toast.remove(), 400); }, 3500);

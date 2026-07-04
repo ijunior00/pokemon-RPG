@@ -561,6 +561,139 @@ async function sendManualEncounter() {
 }
 
 // ============================================
+// CAÇADA ALEATÓRIA (teste MANUAL: jogador rola d20 → mestre libera)
+// ============================================
+// Combina horário (dia/noite) + terreno (normal/dungeon) nos 4 modos do backend.
+function _huntModeFromControls(period, terrain) {
+    if (period === 'night') return terrain === 'dungeon' ? 'dungeon_night' : 'night';
+    return terrain === 'dungeon' ? 'dungeon' : 'normal';
+}
+
+async function sendRandomHunt() {
+    const playerId = document.getElementById('random-hunt-player')?.value;
+    if (!playerId) { alert('Selecione um jogador'); return; }
+    const period  = document.getElementById('random-hunt-period')?.value  || 'day';
+    const terrain = document.getElementById('random-hunt-terrain')?.value || 'normal';
+    const routeId = document.getElementById('random-hunt-route')?.value   || null;
+    const huntMode = _huntModeFromControls(period, terrain);
+
+    const out = document.getElementById('random-hunt-result');
+    if (out) out.textContent = '⏳ Gerando caçada...';
+    try {
+        const resp = await fetch('/master/hunt/random', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_id: playerId, hunt_mode: huntMode, route_id: routeId })
+        });
+        const data = await resp.json();
+        if (data.error) { if (out) out.textContent = `❌ ${data.error}`; return; }
+        const enc = data.encounter || {};
+        const p = enc.pokemon || {};
+        if (out) out.innerHTML = `✅ Caçada liberada: <strong>${p.name || '?'}</strong> Nv.${enc.level || '?'} ` +
+            `${enc.is_shiny ? '✨ ' : ''}${enc.ambush ? '💀 emboscada ' : ''}(${huntMode}) — enviada ao jogador.`;
+    } catch(e) {
+        if (out) out.textContent = '❌ Erro de conexão.';
+    }
+}
+
+// Caixa de rolagens: mostra o d20 que cada jogador rolou no Teste de Caçada.
+function _renderHuntRoll(r) {
+    const inbox = document.getElementById('hunt-rolls-inbox');
+    if (!inbox) return;
+    const empty = inbox.querySelector('.empty-state');
+    if (empty) empty.remove();
+    const when = new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+    const nat = r.roll === 20 ? ' 🌟NAT20' : r.roll === 1 ? ' 💀NAT1' : '';
+    const src = r.manual ? '🎲 dado real' : '🖥️ virtual';
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:0.45rem 0.6rem;border-radius:8px;background:rgba(255,203,5,0.1);border:1px solid rgba(255,203,5,0.35);font-size:0.88rem;';
+    card.innerHTML = `<strong>${r.player_name || 'Jogador'}</strong> — d20(${r.roll})${nat} ` +
+        `+ SAB(${r.wis_mod >= 0 ? '+' : ''}${r.wis_mod}) + Prof(+${r.prof}) = <strong>${r.total}</strong> ` +
+        `<span style="opacity:0.7;">· ${src} · ${r.used}/${r.limit} · ${when}</span>` +
+        `<button class="btn btn-sm btn-success" style="margin-left:0.5rem;padding:0.1rem 0.5rem;" ` +
+        `onclick="_selectHuntPlayer('${r.player_id}')">Selecionar</button>`;
+    inbox.insertBefore(card, inbox.firstChild);
+    // seleciona automaticamente o jogador que acabou de rolar
+    _selectHuntPlayer(r.player_id);
+}
+
+function _selectHuntPlayer(pid) {
+    const sel = document.getElementById('random-hunt-player');
+    if (sel) sel.value = pid;
+}
+
+socket.on('hunt_roll', (data) => _renderHuntRoll(data));
+
+// ============================================
+// BATALHA EM DUPLA (caçada em grupo) — 2v1 / 2v2
+// ============================================
+async function startGroupHunt() {
+    const p1 = document.getElementById('group-player-1')?.value;
+    const p2 = document.getElementById('group-player-2')?.value;
+    if (!p1 || !p2) { alert('Selecione os dois jogadores'); return; }
+    if (p1 === p2) { alert('Escolha dois jogadores diferentes'); return; }
+    const wildCount = parseInt(document.getElementById('group-mode')?.value || '1');
+    const period  = document.getElementById('group-period')?.value  || 'day';
+    const terrain = document.getElementById('group-terrain')?.value || 'normal';
+    const routeId = document.getElementById('group-route')?.value   || null;
+    const huntMode = _huntModeFromControls(period, terrain);
+
+    const out = document.getElementById('group-hunt-result');
+    if (out) out.textContent = '⏳ Montando batalha...';
+    try {
+        const resp = await fetch('/master/group-hunt', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_ids: [p1, p2], hunt_mode: huntMode,
+                                   route_id: routeId, wild_count: wildCount })
+        });
+        const data = await resp.json();
+        if (data.error) { if (out) out.textContent = `❌ ${data.error}`; return; }
+        if (out) out.innerHTML = `✅ Batalha em dupla iniciada (${data.battle.mode}).`;
+        renderGroupMonitor(data.battle);
+    } catch(e) { if (out) out.textContent = '❌ Erro de conexão.'; }
+}
+
+function _hpBar(c) {
+    const pct = c.maxHp ? Math.max(0, Math.round(100 * c.hp / c.maxHp)) : 0;
+    const col = c.fainted ? '#666' : c.side === 'ally' ? '#4caf50' : '#e53935';
+    return `<div style="background:rgba(255,255,255,0.12);border-radius:6px;height:10px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${col};"></div></div>`;
+}
+
+function renderGroupMonitor(view) {
+    const mon = document.getElementById('group-battle-monitor');
+    if (!mon || !view) return;
+    mon.classList.remove('hidden');
+    const rows = view.combatants.map(c => {
+        const turn = c.cid === view.turn_cid ? '▶️ ' : '';
+        const dead = c.fainted ? ' 💀' : '';
+        const icon = c.side === 'ally' ? '🟢' : '🔴';
+        return `<div style="margin:0.25rem 0;font-size:0.85rem;">
+            ${turn}${icon} <strong>${c.name}</strong> Nv.${c.level || '?'}${dead}
+            <span style="opacity:0.7;">(${c.hp}/${c.maxHp})</span>
+            ${_hpBar(c)}</div>`;
+    }).join('');
+    const log = (view.log || []).slice(-6).map(l => `<div>• ${l.message || ''}</div>`).join('');
+    const auto = document.getElementById('wild-auto-mode')?.checked;
+    const curWild = view.combatants.find(c => c.cid === view.turn_cid && c.side === 'wild');
+    const wildBtn = (view.phase === 'active' && curWild && !auto)
+        ? `<button class="btn btn-sm btn-warning" onclick="advanceGroupWild('${view.id}')">▶️ Jogar selvagem</button>` : '';
+    let head = `Rodada ${view.round} · ${view.mode}`;
+    if (view.phase === 'finished')
+        head = view.winner === 'ally' ? '🎉 A dupla venceu!' : '💀 Os selvagens venceram!';
+    mon.innerHTML = `<div style="font-weight:700;margin-bottom:0.3rem;">👥 ${head}</div>${rows}
+        <div style="margin-top:0.4rem;font-size:0.8rem;opacity:0.85;max-height:110px;overflow-y:auto;">${log}</div>
+        <div style="margin-top:0.4rem;">${wildBtn}</div>`;
+}
+
+function advanceGroupWild(battleId) {
+    socket.emit('group_wild_turn', { battle_id: battleId });
+}
+
+socket.on('group_battle_start',  (v) => renderGroupMonitor(v));
+socket.on('group_battle_update', (v) => renderGroupMonitor(v));
+socket.on('group_battle_end',    (v) => renderGroupMonitor(v));
+
+// ============================================
 // POKEDEX — Master (lista completa, sempre desbloqueada)
 // ============================================
 let _masterPokedexAll = [];

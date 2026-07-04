@@ -144,39 +144,55 @@ def main():
     for route, payload in [('/master/xp', {'player_id': u2, 'xp': 999}),
                            ('/master/calendar/advance', {'days': 1}),
                            ('/master/hunts', {'player_id': u1, 'action': 'grant'}),
+                           ('/master/hunt/random', {'player_id': u1, 'hunt_mode': 'normal'}),
                            ('/master/npcs', {'name': 'hack'}),
                            ('/master/quests', {'title': 'hack'})]:
         r = p1.post(route, json=payload)
         check(S, f'jogador bloqueado em {route}', r.status_code == 403)
-    appmod._rate_store.clear()
-    r = p1.post('/api/encounter', json={'route_id': 'route1', 'hunt_mode': 'normal', 'player_level': 99})
-    d = r.get_json()
-    lvl_ok = True
-    if d.get('found'):
-        lvl_ok = d['level'] <= 30
-    check(S, 'player_level do body é ignorado (usa time real)', lvl_ok, f"nível gerado {d.get('level')}")
+    # Caçada aleatória (mestre): nível derivado do time real do alvo, não do body
+    r = m.post('/master/hunt/random', json={'player_id': u1, 'hunt_mode': 'normal',
+                                            'route_id': 'route1', 'player_level': 99})
+    d = (r.get_json() or {}).get('encounter', {})
+    check(S, 'player_level do body é ignorado (usa time real)',
+          d.get('level', 999) <= 30, f"nível gerado {d.get('level')}")
     anon = app.test_client()
-    r = anon.post('/api/encounter', json={'route_id': 'route1'})
-    check(S, 'rota exige login', r.status_code in (302, 401))
+    r = anon.post('/api/hunt/roll', json={})
+    check(S, 'rolagem exige login', r.status_code in (302, 401))
+    for c in (msio, s1, s2):
+        c.get_received()
 
-    # ══════════ 3. CAÇADA & CALENDÁRIO ══════════
-    section('3. Caçada, períodos e calendário')
+    # ══════════ 3. CAÇADA MANUAL & CALENDÁRIO ══════════
+    section('3. Caçada manual, rolagem e calendário')
     S = 'Caçada/Calendário'
     m.post('/master/calendar/advance', json={'days': 1})
-    periods, dcs = [], []
+    msio.get_received()
+    totals = []
     for i in range(6):
         appmod._rate_store.clear()
-        r = p1.post('/api/encounter', json={'route_id': 'route1', 'hunt_mode': 'dungeon'})
+        r = p1.post('/api/hunt/roll', json={})
         d = r.get_json()
-        periods.append(d.get('period'))
-        dcs.append((d.get('survival_check') or {}).get('dc'))
-    check(S, '4 caçadas manhã depois noite',
-          periods[:4] == ['morning'] * 4 and periods[4:] == ['night'] * 2, f'{periods}')
-    check(S, 'CD progressivo por fadiga (6/6/8/8/12/12)',
-          dcs == [6, 6, 8, 8, 12, 12], f'{dcs}')
+        totals.append(d.get('total'))
+        check(S, f'rolagem {i+1} válida (1-20)', 1 <= d.get('roll', 0) <= 20, f"{d.get('roll')}")
+    check(S, '6 rolagens consumidas',
+          all(t is not None for t in totals), f'{totals}')
+    # o mestre recebe as rolagens (socket hunt_roll)
+    hr = recv(msio, 'hunt_roll')
+    hr_arg = hr[0]['args'][0] if hr and hr[0].get('args') else {}
+    check(S, 'mestre recebe rolagem do jogador', bool(hr) and 'total' in hr_arg)
+    # rolagem manual (dado físico) respeita o valor
     appmod._rate_store.clear()
-    r = p1.post('/api/encounter', json={'route_id': 'route1', 'hunt_mode': 'normal'})
-    check(S, '7ª caçada → 403', r.status_code == 403)
+    m.post('/master/hunts', json={'player_id': u1, 'action': 'reset'})
+    r = p1.post('/api/hunt/roll', json={'manual_roll': 15})
+    d = r.get_json() or {}
+    check(S, 'dado físico (manual_roll) respeitado', d.get('roll') == 15 and d.get('manual') is True)
+    check(S, 'rolagem não gera encontro sozinha', 'pokemon' not in d and 'found' not in d)
+    # esgota as caçadas → 403 cansaço na rolagem
+    for _ in range(8):
+        appmod._rate_store.clear()
+        r = p1.post('/api/hunt/roll', json={})
+        if r.status_code == 403:
+            break
+    check(S, 'esgotar caçadas → 403', r.status_code == 403)
     check(S, 'mensagem de cansaço', 'cansad' in (r.get_json() or {}).get('error', '').lower(),
           (r.get_json() or {}).get('error'))
     # Energy Drink: compra + usa → +1 caçada
@@ -186,8 +202,15 @@ def main():
     r = p1.post('/player/use-energy-drink', json={})
     check(S, 'usar Energy Drink dá +1 caçada', (r.get_json() or {}).get('limit') == 7)
     appmod._rate_store.clear()
-    r = p1.post('/api/encounter', json={'route_id': 'route1', 'hunt_mode': 'normal'})
-    check(S, 'caça de novo após Energy Drink', r.status_code == 200)
+    r = p1.post('/api/hunt/roll', json={})
+    check(S, 'rola de novo após Energy Drink', r.status_code == 200)
+    # mestre libera caçada aleatória respeitando horário+terreno (dungeon perigosa)
+    r = m.post('/master/hunt/random', json={'player_id': u1, 'hunt_mode': 'dungeon_night',
+                                            'route_id': 'route1'})
+    d = (r.get_json() or {}).get('encounter', {})
+    check(S, 'caçada aleatória gera encontro', d.get('found') is True)
+    check(S, 'hunt_mode respeitado', d.get('hunt_mode') == 'dungeon_night', f"{d.get('hunt_mode')}")
+    check(S, 'jogador recebe forced_encounter', bool(recv(s1, 'master_action')))
     r = m.post('/master/hunts', json={'player_id': u1, 'action': 'grant', 'amount': 1})
     check(S, 'mestre concede caçada extra', (r.get_json() or {}).get('limit') == 8)
     r = p1.get('/api/hunts/status')
@@ -213,15 +236,11 @@ def main():
     section('4. Batalha selvagem (socket)')
     S = 'Batalha Selvagem'
     m.post('/master/calendar/advance', json={'days': 1})
-    enc = None
-    for _ in range(6):
-        appmod._rate_store.clear()
-        r = p1.post('/api/encounter', json={'route_id': 'route1', 'hunt_mode': 'normal'})
-        d = r.get_json()
-        if d.get('found'):
-            enc = d
-            break
-    check(S, 'encontro gerado', enc is not None)
+    s1.get_received()
+    r = m.post('/master/hunt/random', json={'player_id': u1, 'hunt_mode': 'normal',
+                                            'route_id': 'route1'})
+    enc = (r.get_json() or {}).get('encounter')
+    check(S, 'encontro gerado', enc is not None and enc.get('found') is True)
     if enc:
         s1.emit('start_encounter', {'pokemon': enc['pokemon'], 'level': enc['level'],
                                     'is_shiny': enc['is_shiny'], 'route_id': 'route1',
@@ -267,6 +286,66 @@ def main():
                   u1 not in gstate()['active_encounters'], f'{rounds} rounds')
     r = p1.post('/api/pokemon/battle-xp', json={'winner_level': 20, 'loser_level': 18, 'battle_type': 'wild'})
     check(S, 'XP de batalha calculado', (r.get_json() or {}).get('xp_gained', 0) > 0)
+
+    # ══════════ 4b. BATALHA EM DUPLA (2v1 / 2v2) ══════════
+    section('4b. Batalha em dupla (grupo)')
+    S = 'Batalha em Dupla'
+    # jogador não pode iniciar
+    r = p1.post('/master/group-hunt', json={'player_ids': [u1, u2]})
+    check(S, 'jogador bloqueado em group-hunt', r.status_code == 403)
+    # precisa de 2 jogadores
+    r = m.post('/master/group-hunt', json={'player_ids': [u1]})
+    check(S, 'exige 2 jogadores', r.status_code == 400)
+
+    clients = {u1: s1, u2: s2}
+
+    def drive_group(view, tag):
+        """Conduz a batalha até terminar; retorna o estado final."""
+        for c in (s1, s2, msio):
+            c.get_received()
+        guard = 0
+        while view and view.get('phase') == 'active' and guard < 120:
+            guard += 1
+            turn = next((c for c in view['combatants'] if c['cid'] == view['turn_cid']), None)
+            if not turn or turn['side'] != 'ally':
+                break  # com AUTO ligado os selvagens já jogaram; só aliados esperam ação
+            cli = clients.get(str(turn['player_id']))
+            alive_wild = next((c['cid'] for c in view['combatants']
+                               if c['side'] == 'wild' and not c['fainted']), None)
+            cli.emit('group_battle_action', {'battle_id': view['id'],
+                     'move_name': (turn['moves'] or ['Tackle'])[0], 'target_cid': alive_wild})
+            # captura o estado resultante (update ou end)
+            pkts = cli.get_received()
+            newv = None
+            for p in pkts:
+                if p['name'] in ('group_battle_update', 'group_battle_end') and p.get('args'):
+                    newv = p['args'][0]
+            for c in (s1, s2, msio):
+                c.get_received()
+            view = newv or view
+        return view
+
+    # 2v1: um selvagem forte
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
+                                           'hunt_mode': 'normal', 'route_id': 'route1'})
+    d = r.get_json() or {}
+    v = d.get('battle')
+    check(S, '2v1 criada', r.status_code == 200 and v and v['mode'] == '2v1')
+    check(S, '2v1 tem 3 combatentes', v and len(v['combatants']) == 3)
+    check(S, 'jogadores recebem group_battle_start', bool(recv(s1, 'group_battle_start')))
+    final = drive_group(v, '2v1')
+    check(S, '2v1 terminou com vencedor', final and final.get('phase') == 'finished'
+          and final.get('winner') in ('ally', 'wild'), f"{final and final.get('phase')}")
+
+    # 2v2: dois selvagens
+    for c in (s1, s2, msio):
+        c.get_received()
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 2,
+                                           'hunt_mode': 'dungeon', 'route_id': 'route1'})
+    v = (r.get_json() or {}).get('battle')
+    check(S, '2v2 criada', v and v['mode'] == '2v2' and len(v['combatants']) == 4)
+    final = drive_group(v, '2v2')
+    check(S, '2v2 terminou com vencedor', final and final.get('phase') == 'finished', f"{final and final.get('phase')}")
 
     # ══════════ 5. XP & EVOLUÇÃO ══════════
     section('5. XP, level-up e evoluções')

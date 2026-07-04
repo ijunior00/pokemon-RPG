@@ -1,0 +1,420 @@
+/* ============================================
+   FULL DESIGN GBA — linguagem visual Game Boy Advance
+   Carregado DEPOIS de style.css/themes.css: as regras aqui vencem
+   empates de cascata sem !important. Tudo usa var(--...) para que
+   os 7 temas antigos continuem funcionando como paletas de cor.
+   ============================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap');
+
+/* ── Tokens globais ─────────────────────────── */
+:root {
+    /* Pixelify Sans: pixel legível com pesos 400-700 e acentos PT-BR */
+    --font-body: 'Pixelify Sans', 'Nunito', system-ui, sans-serif;
+    /* Cores fiéis das HP bars de GBA (iguais em todos os temas) */
+    --hp-green:  #58d080;
+    --hp-yellow: #f8d030;
+    --hp-red:    #f05868;
+    --hp-track:  #404040;
+    --hp-border: #202020;
+    /* Caixas GBA são mais quadradas */
+    --radius: 6px;
+}
+
+body {
+    font-size: 16.5px;
+    letter-spacing: 0.015em;
+}
+
+/* ── Paleta GBA Clássico (creme + índigo + dourado) ── */
+[data-theme="gba"] {
+    --primary:       #3858c0;   /* índigo GBA */
+    --primary-dark:  #2840a0;
+    --secondary:     #6858b8;   /* roxo do console */
+    --accent:        #f8b800;   /* dourado GBA */
+    --accent-dark:   #c89000;
+    --dark:          #e8e8d0;   /* painéis claros */
+    --darker:        #d8d8c0;
+    --light:         #ffffff;
+    --success:       #40a058;
+    --warning:       #d8a010;
+    --danger:        #d04058;
+    --bg:            #c8d8a8;   /* verde Emerald pálido */
+    --card-bg:       #f8f8e8;   /* diálogo creme */
+    --card:          #f8f8e8;
+    --card-border:   #383838;
+    --card-border-bright: #585858;
+    --text:          #383838;
+    --text-muted:    #686860;
+    --muted:         #686860;
+    --navbar-bg:     linear-gradient(180deg, #5048a8, #383880);
+    --navbar-border: #282860;
+    --dialog-frame:  #8898d8;   /* moldura interna estilo FR/LG */
+    --green:  #58d080;
+    --red:    #f05868;
+    --yellow: #f8d030;
+    --shadow: 0 3px 0 rgba(56,56,56,0.25);
+}
+/* remove o glow vermelho/azul do body no tema claro */
+[data-theme="gba"] body,
+body[data-theme="gba"] {
+    background-image: none;
+}
+
+/* ── Fundo "Grama GBA" (xadrez Emerald) ─────── */
+[data-bg="gba-grass"]::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    opacity: 0.16;
+    background-image:
+        linear-gradient(45deg, #4a8a3c 25%, transparent 25%, transparent 75%, #4a8a3c 75%),
+        linear-gradient(45deg, #4a8a3c 25%, transparent 25%, transparent 75%, #4a8a3c 75%);
+    background-color: #6ab04c;
+    background-size: 32px 32px;
+    background-position: 0 0, 16px 16px;
+    image-rendering: pixelated;
+}
+/* swatch para a aba Visual do mestre */
+.bg-preview-gba-grass {
+    background-image:
+        linear-gradient(45deg, #4a8a3c 25%, transparent 25%, transparent 75%, #4a8a3c 75%),
+        linear-gradient(45deg, #4a8a3c 25%, transparent 25%, transparent 75%, #4a8a3c 75%);
+    background-color: #6ab04c;
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+}
+
+/* ── Scanlines globais (sutis, todos os temas) ── */
+body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 99998; /* acima dos modais, abaixo dos toasts (99999) */
+    background: repeating-linear-gradient(0deg,
+        rgba(0,0,0,0.5) 0 1px, transparent 1px 3px);
+    opacity: 0.05;
+}
+
+/* ============================================
+   CAIXAS DE DIÁLOGO — moldura clássica em 3 camadas
+   (borda escura + frame interno colorido + fundo creme)
+   ============================================ */
+.card,
+.player-card, .quest-card, .xp-player-card, .npc-card,
+.settings-section, .encounter-controls, .encounter-card,
+.modal-content, .auth-card {
+    background: var(--card-bg);
+    border: 3px solid var(--card-border);
+    border-radius: 6px;
+    box-shadow:
+        inset 0 0 0 2px var(--dialog-frame, var(--card-border-bright)),
+        0 2px 0 rgba(0,0,0,0.25);
+}
+.alert {
+    background: var(--card-bg);
+    border: 3px solid var(--card-border);
+    border-radius: 6px;
+    color: var(--text);
+    box-shadow: inset 0 0 0 2px var(--dialog-frame, var(--card-border-bright));
+}
+.alert-error   { border-color: var(--danger); }
+.alert-success { border-color: var(--success); }
+
+/* caixas de destaque ganham a moldura dourada */
+.wild-pokemon-card {
+    background: var(--card-bg);
+    border: 3px solid var(--card-border);
+    border-radius: 6px;
+    box-shadow:
+        inset 0 0 0 2px var(--accent),
+        0 2px 0 rgba(0,0,0,0.25);
+}
+
+/* ============================================
+   HP BARS — cápsula fiel de GBA
+   verde → amarelo (≤50%) → vermelho (≤20%), nos dois lados
+   ============================================ */
+.hp-bar-container {
+    height: 13px;
+    border: 2px solid var(--hp-border);
+    border-radius: 999px;
+    background: var(--hp-track);
+    overflow: hidden;
+    box-shadow: none;
+}
+.hp-bar,
+.hp-bar.player-hp,
+.hp-bar.enemy-hp {
+    background: var(--hp-green);
+    border-radius: 999px;
+}
+/* declaradas por último: vencem o empate contra player-hp/enemy-hp */
+.hp-bar.hp-mid { background: var(--hp-yellow); }
+.hp-bar.hp-low { background: var(--hp-red); }
+
+.hpbox-hp-label, .hp-text { font-family: var(--font-pixel); }
+.hpbox-hp-label { color: var(--accent); }
+.hpbox-bar-container {
+    height: 10px;
+    border: 2px solid var(--hp-border);
+    border-radius: 999px;
+}
+
+/* ============================================
+   BOTÕES — item de menu GBA (caixa clara + cursor ▶)
+   ============================================ */
+.btn {
+    background: var(--card-bg);
+    color: var(--text);
+    border: 2px solid var(--card-border);
+    border-radius: 4px;
+    box-shadow: 0 2px 0 var(--card-border);
+    font-family: var(--font-body);
+    font-weight: 700;
+}
+.btn::before {
+    content: '▶';
+    font-size: 0.6em;
+    margin-right: 0.15rem;
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: opacity 0.12s, transform 0.12s;
+}
+.btn:hover::before { opacity: 1; transform: translateX(0); }
+.btn:hover { transform: translateY(-1px); }
+.btn:active { box-shadow: none; transform: translateY(2px) !important; }
+
+/* variantes: só borda/texto mudam — semântica preservada */
+.btn-primary   { background: var(--card-bg); color: var(--primary);   border-color: var(--primary);   box-shadow: 0 2px 0 var(--primary-dark); }
+.btn-primary:hover { background: var(--card-bg); box-shadow: 0 3px 0 var(--primary-dark); }
+.btn-secondary { background: var(--card-bg); color: var(--secondary); border-color: var(--secondary); box-shadow: 0 2px 0 var(--secondary); }
+.btn-secondary:hover { background: var(--card-bg); }
+.btn-danger    { background: var(--card-bg); color: var(--danger);    border-color: var(--danger);    box-shadow: 0 2px 0 var(--danger); }
+.btn-warning   { background: var(--card-bg); color: var(--warning);   border-color: var(--warning);   box-shadow: 0 2px 0 var(--warning); }
+.btn-success   { background: var(--card-bg); color: var(--success);   border-color: var(--success);   box-shadow: 0 2px 0 var(--success); }
+
+/* ============================================
+   TABS — tira de menu GBA
+   ============================================ */
+.tab {
+    font-family: var(--font-pixel);
+    font-size: 0.6rem;
+    padding: 0.55rem 0.7rem;
+    background: var(--card-bg);
+    color: var(--text-muted);
+    border: 2px solid var(--card-border);
+    border-radius: 4px;
+    line-height: 1.6;
+}
+.tab:hover {
+    background: var(--card-bg);
+    color: var(--text);
+    border-color: var(--dialog-frame, var(--card-border-bright));
+}
+.tab.active {
+    background: var(--card-bg);
+    color: var(--text);
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent);
+    font-weight: 400;
+}
+.tab.active::before {
+    content: '▶ ';
+    color: var(--accent);
+}
+
+/* ============================================
+   NAVBAR — faixa do console
+   ============================================ */
+.navbar {
+    border-bottom-width: 3px;
+}
+.nav-brand span:last-child {
+    font-family: var(--font-pixel);
+    font-size: 0.72rem;
+    letter-spacing: 0;
+}
+[data-theme="gba"] .navbar { color: #f8f8e8; }
+[data-theme="gba"] .nav-user { color: #d8d8f0; }
+/* remove o "pino de pokébola" solto sob a navbar — não combina com o console */
+.navbar::after { display: none; }
+
+/* títulos de seção legíveis no tema claro (dourado só nos escuros) */
+[data-theme="gba"] .tab-content > h2 {
+    color: var(--primary-dark);
+    text-shadow: none;
+    border-bottom-color: var(--card-border);
+}
+[data-theme="gba"] .nav-brand { text-shadow: none; color: #f8d838; }
+
+/* ============================================
+   FORMS — caixas de entrada GBA
+   ============================================ */
+.form-group input,
+.form-group select,
+.form-group textarea {
+    background: var(--darker);
+    border: 2px solid var(--card-border);
+    border-radius: 4px;
+    color: var(--text);
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--dialog-frame, var(--card-border-bright));
+}
+
+/* ============================================
+   TOASTS — caixa de diálogo GBA
+   ============================================ */
+.gba-toast {
+    background: var(--card-bg);
+    color: var(--text);
+    border: 2px solid var(--card-border);
+    border-radius: 6px;
+    padding: 0.7rem 1.1rem;
+    box-shadow:
+        inset 0 0 0 2px var(--dialog-frame, var(--card-border-bright)),
+        0 3px 0 rgba(0,0,0,0.3);
+    font-size: 0.9rem;
+    max-width: 320px;
+    pointer-events: auto;
+    animation: slideIn 0.3s ease;
+}
+.gba-toast-success { border-left: 6px solid var(--success); }
+.gba-toast-error   { border-left: 6px solid var(--danger); }
+.gba-toast-info    { border-left: 6px solid var(--secondary); }
+.gba-toast-warning { border-left: 6px solid var(--warning); }
+
+/* ============================================
+   BATALHA — console GBA em volta da tela
+   ============================================ */
+.battle-screen-full {
+    background: #383870;             /* plástico do console */
+    border: 3px solid #282850;
+    border-radius: 16px 16px 24px 24px;
+    padding: 26px 14px 22px;
+    position: relative;
+    box-shadow: inset 0 2px 0 rgba(255,255,255,0.12), 0 6px 0 #202040;
+}
+/* LED POWER */
+.battle-screen-full::before {
+    content: 'POWER';
+    position: absolute;
+    top: 8px;
+    left: 16px;
+    padding-left: 14px;
+    font-family: var(--font-pixel);
+    font-size: 0.42rem;
+    color: #b8b8e0;
+    letter-spacing: 1px;
+    background: radial-gradient(circle 4px at 4px 55%, #40d860 60%, #1a7a34 100%);
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 0 3px #40d860);
+    line-height: 10px;
+}
+/* marca do console */
+.battle-screen-full::after {
+    content: 'GAME BOY ADVANCE';
+    position: absolute;
+    top: 8px;
+    right: 16px;
+    font-family: var(--font-pixel);
+    font-size: 0.42rem;
+    color: #8888c0;
+    letter-spacing: 1px;
+    line-height: 10px;
+}
+#battle-area { position: relative; }
+
+/* tela interna: bisel + scanlines + vinheta */
+.poke-scene {
+    border: 3px solid #181830;
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+}
+.poke-scene::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 11;
+    background:
+        repeating-linear-gradient(0deg, rgba(0,0,0,0.45) 0 1px, transparent 1px 3px),
+        radial-gradient(ellipse at center, transparent 62%, rgba(0,0,20,0.22) 100%);
+    opacity: 0.12;
+}
+
+/* painel inferior = caixa de diálogo clássica */
+.poke-bottom-panel {
+    background: var(--card-bg);
+    border: 3px solid #181830;
+    border-top: 2px solid #181830;
+    border-radius: 0 0 6px 6px;
+    box-shadow: inset 0 0 0 2px var(--dialog-frame, var(--card-border-bright));
+}
+.poke-textbox {
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 0.92rem;
+    border-right: 2px solid var(--card-border);
+}
+.poke-menu { background: transparent; }
+.poke-menu-btn {
+    background: var(--card-bg);
+    border-width: 2px;
+    border-radius: 4px;
+    box-shadow: 0 2px 0 var(--card-border);
+}
+.poke-menu-btn:hover { transform: scale(1.03); }
+.poke-menu-btn:active { box-shadow: none; transform: translateY(1px); }
+.poke-moves-panel, .poke-extra-panel { background: transparent; }
+
+/* cores dos botões do menu no tema claro (legibilidade no creme) */
+[data-theme="gba"] .fight-btn { color: #c03048; }
+[data-theme="gba"] .poke-btn  { color: #3858c0; }
+[data-theme="gba"] .bag-btn   { color: #b07808; }
+[data-theme="gba"] .run-btn   { color: #308048; }
+
+/* mensagem "sem batalha" dentro do console */
+.battle-screen-full .empty-state {
+    background: #182818;   /* tela desligada esverdeada */
+    border: 3px solid #181830;
+    border-radius: 6px;
+    color: #58a058;
+    font-family: var(--font-pixel);
+    font-size: 0.62rem;
+    line-height: 2.2;
+    padding: 2.5rem 1rem;
+    text-align: center;
+}
+
+/* ── HP box da batalha (creme, moldura dourada fina) ── */
+.poke-hpbox {
+    box-shadow:
+        inset 0 0 0 1px var(--dialog-frame, transparent),
+        0 2px 0 rgba(0,0,0,0.3);
+}
+
+/* ============================================
+   AJUSTES DE LEGIBILIDADE DA FONTE PIXEL
+   ============================================ */
+.btn-sm { font-size: 0.84rem; }
+.settings-desc, .form-group label { font-size: 0.88rem; }
+.region-tab { font-size: 0.88rem; }
+.empty-state { font-size: 0.95rem; }
+
+/* headers com Press Start 2P mais respiráveis */
+h2 { line-height: 1.7; }
+h3 { line-height: 1.6; }
+
+/* transição suave também nas novas superfícies */
+.card, .modal-content, .auth-card, .settings-section,
+.form-group input, .form-group select, .form-group textarea,
+.poke-bottom-panel, .poke-textbox {
+    transition: background-color 0.4s ease, border-color 0.4s ease, color 0.3s ease;
+}

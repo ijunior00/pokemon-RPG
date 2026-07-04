@@ -13,6 +13,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import database as db
 import pvp_battle as pvp
+import group_battle as gb
 import status_effects as effects
 import pokemon_scaling as scaling
 import abilities as ab
@@ -357,23 +358,10 @@ def _apply_xp(trainer: dict, xp_amount: int) -> dict:
 # ============================================================
 DEFAULT_CALENDAR = {'day': 1, 'month': 1, 'year': 1}
 MAX_HUNTS_PER_DAY = 6
-SURVIVAL_DC = {'normal': 10, 'dungeon': 13, 'dungeon_night': 15, 'night': 15}
-
-def _survival_dc(hunts_used):
-    """CD do teste de Sobrevivência pela fadiga — sobe a cada 2 caçadas.
-    1ª-2ª caçada = 6, 3ª-4ª = 8, 5ª-6ª = 12."""
-    if hunts_used < 2:
-        return 6
-    if hunts_used < 4:
-        return 8
-    return 12
-# Caçadas 1-4 são de manhã (normal/dungeon); 5ª em diante são de noite
-# (dungeon perigosa/noturna)
-MORNING_HUNTS = 4
-PERIOD_MODES = {
-    'morning': ('normal', 'dungeon'),
-    'night': ('dungeon_night', 'night'),
-}
+# Modos de caçada válidos. O teste de caçada é MANUAL: o jogador rola o d20
+# (virtual ou físico) e o mestre decide liberar a caçada. Não há mais CD
+# automática — o mestre libera a "Caçada Aleatória" pelo painel.
+HUNT_MODES = ('normal', 'dungeon', 'dungeon_night', 'night')
 
 
 def _get_calendar(state):
@@ -2307,82 +2295,25 @@ def api_mega_all():
     """Get all mega stones."""
     return jsonify(MEGA_DB)
 
-@app.route('/api/encounter', methods=['POST'])
-@login_required
-def api_encounter():
-    """Generate a random encounter based on route, hunt mode, rarity.
-    
-    Level scale: Pokemon 1-100.
-    player_level = highest Pokemon level in player's team.
-    
-    Modes:
-    - Normal: ±5 levels of player. Common Pokemon. Shiny 1%.
-    - Dungeon: ±15 levels, skews harder. Rare/evolved Pokemon. Shiny 3%.
-    - Night: +10 to +30 above player. Extremely dangerous. Shiny 5%.
+def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
+    """Gera um encontro selvagem aleatório (puro, sem gate nem estado).
+
+    O teste de caçada é MANUAL: o jogador rola o d20 e o mestre libera a
+    "Caçada Aleatória" pelo painel. Este helper apenas monta o encontro.
+
+    Level scale: Pokemon 1-100. player_level = maior nível do time.
+    Modos:
+    - normal: -50% a +5 níveis. Comuns. Shiny 1%.
+    - dungeon: -10 a +10. Raros/evoluídos. Shiny 3%.
+    - dungeon_night: -5 a +15. Evoluídos fortes. Shiny 4%.
+    - night: -10 a +20. Extremamente perigoso. Shiny 5%.
+
+    Retorna o dict do encontro, ou None se não houver Pokémon para a rota.
     """
-    # Rate limit: max 10 encounters per IP per minute (prevents encounter spam)
-    if _rate_limit(10, 60):
-        return jsonify({'error': 'Muitos encontros em pouco tempo. Aguarde um momento.'}), 429
-    data = request.json
-    route_id = data.get('route_id')
-    hunt_mode = data.get('hunt_mode', 'normal')
-    if data.get('is_dungeon') and hunt_mode == 'normal':
-        hunt_mode = 'dungeon'
-    if hunt_mode not in SURVIVAL_DC:
+    if hunt_mode not in HUNT_MODES:
         hunt_mode = 'normal'
+    player_level = max(1, min(100, int(player_level or 5)))
 
-    # ── Gate de caçadas diárias + teste de Sobrevivência (server-side) ──
-    pid = str(current_user.id)
-    state = get_game_state()
-    entry, dkey = _hunt_entry(state, pid)
-    hunts_limit = MAX_HUNTS_PER_DAY + int(entry.get('bonus', 0))
-    if entry['used'] >= hunts_limit:
-        return jsonify({
-            'error': 'Você está muito cansado(a) para continuar caçando! '
-                     'Descanse até o mestre avançar o dia (ou tome um Energy Drink).',
-            'hunts_used': entry['used'], 'hunts_limit': hunts_limit
-        }), 403
-
-    # Período pela ordem da caçada: 1ª-4ª = manhã, 5ª em diante = noite.
-    # O modo é forçado pelo servidor para os permitidos do período.
-    period = 'morning' if entry['used'] < MORNING_HUNTS else 'night'
-    allowed = PERIOD_MODES[period]
-    if hunt_mode not in allowed:
-        # coerção natural: dungeon vira dungeon perigosa à noite; o resto
-        # cai no modo padrão do período
-        if period == 'night' and hunt_mode == 'dungeon':
-            hunt_mode = 'dungeon_night'
-        else:
-            hunt_mode = allowed[0] if period == 'morning' else 'night'
-
-    trainer = get_users().get(pid, {}).get('trainer_data', {})
-    wis_mod = (int(trainer.get('wis', 10) or 10) - 10) // 2
-    prof = _trainer_prof(trainer.get('level', 1))
-    roll = random.randint(1, 20)
-    total = roll + wis_mod + prof
-    # CD progressiva pela FADIGA (a cada 2 caçadas fica mais difícil):
-    # 1ª-2ª = 6, 3ª-4ª = 8, 5ª-6ª = 12.
-    dc = _survival_dc(entry['used'])
-    survival = {'roll': roll, 'wis_mod': wis_mod, 'prof': prof,
-                'total': total, 'dc': dc}
-
-    # Consome a tentativa em qualquer resultado e salva ANTES de gerar
-    entry['used'] += 1
-    hunts = state.get('hunts') or {}
-    hunts[pid] = entry
-    state['hunts'] = hunts
-    save_game_state(state)
-
-    is_ambush = (roll == 1)
-    if total < dc and not is_ambush:
-        return jsonify({'found': False, 'survival_check': survival,
-                        'period': period, 'hunt_mode': hunt_mode,
-                        'hunts_used': entry['used'], 'hunts_limit': hunts_limit})
-
-    # player_level derivado do time real (não confia no cliente); fallback: body
-    team_levels = [int(p.get('level', 1) or 1) for p in trainer.get('team', [])]
-    player_level = max(team_levels) if team_levels else int(data.get('player_level', 5))
-    
     route = ROUTES_DATA.get(route_id, {})
     route_types = route.get('types', ['Normal'])
     # Scale route level range to 1-100 (original was 1-20 based)
@@ -2556,7 +2487,7 @@ def api_encounter():
             pokemon_data['stats'][stat] = int(pokemon_data['stats'][stat] * 1.2)
         pokemon_data['is_shiny'] = True
     
-    encounter = {
+    return {
         'pokemon': pokemon_data,
         'level': encounter_level,
         'wild_moves': wild_moves,
@@ -2565,13 +2496,284 @@ def api_encounter():
         'route_id': route_id,
         'found': True,
         'ambush': is_ambush,
-        'survival_check': survival,
-        'period': period,
-        'hunts_used': entry['used'],
-        'hunts_limit': hunts_limit
     }
 
-    return jsonify(encounter)
+
+@app.route('/api/hunt/roll', methods=['POST'])
+@login_required
+def api_hunt_roll():
+    """Teste de caçada MANUAL: o jogador rola o d20 (virtual ou físico).
+
+    Consome 1 das caçadas do dia (6 + bônus de Energy Drink) e envia o
+    resultado ao mestre, que decide liberar a caçada pela 'Caçada Aleatória'.
+    NÃO gera encontro — só a rolagem."""
+    if _rate_limit(15, 60):
+        return jsonify({'error': 'Muitas rolagens em pouco tempo. Aguarde um momento.'}), 429
+    data = request.json or {}
+    pid = str(current_user.id)
+    state = get_game_state()
+    entry, dkey = _hunt_entry(state, pid)
+    limit = MAX_HUNTS_PER_DAY + int(entry.get('bonus', 0))
+    if entry['used'] >= limit:
+        return jsonify({
+            'error': 'Você está muito cansado(a) para continuar caçando! '
+                     'Descanse até o mestre avançar o dia (ou tome um Energy Drink).',
+            'used': entry['used'], 'limit': limit
+        }), 403
+
+    trainer = get_users().get(pid, {}).get('trainer_data', {})
+    wis_mod = (int(trainer.get('wis', 10) or 10) - 10) // 2
+    prof = _trainer_prof(trainer.get('level', 1))
+
+    # Rolagem física (o jogador digita o valor do d20 real) ou virtual
+    manual = data.get('manual_roll')
+    is_manual = False
+    if manual is not None:
+        try:
+            roll = max(1, min(20, int(manual)))
+            is_manual = True
+        except (TypeError, ValueError):
+            roll = random.randint(1, 20)
+    else:
+        roll = random.randint(1, 20)
+    total = roll + wis_mod + prof
+
+    # Consome a tentativa e salva
+    entry['used'] += 1
+    hunts = state.get('hunts') or {}
+    hunts[pid] = entry
+    state['hunts'] = hunts
+    save_game_state(state)
+
+    roll_info = {
+        'player_id': pid, 'player_name': current_user.username,
+        'roll': roll, 'wis_mod': wis_mod, 'prof': prof, 'total': total,
+        'manual': is_manual, 'used': entry['used'], 'limit': limit,
+        'day_key': dkey,
+    }
+    # Avisa o mestre (caixa de rolagens) e atualiza o contador do jogador
+    socketio.emit('hunt_roll', roll_info, room=f'master_{_tid()}')
+    socketio.emit('hunts_update', {'used': entry['used'], 'limit': limit}, room=pid)
+    return jsonify({'ok': True, **roll_info})
+
+
+@app.route('/master/hunt/random', methods=['POST'])
+@login_required
+def master_hunt_random():
+    """Mestre libera uma CAÇADA ALEATÓRIA para um jogador selecionado.
+
+    Respeita o horário (dia/noite) e o terreno (dungeon / dungeon perigosa)
+    via hunt_mode. Gera um encontro e envia ao jogador pelo fluxo
+    forced_encounter (mesmo socket do encontro manual)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    player_id = str(data.get('player_id', ''))
+    if not player_id:
+        return jsonify({'error': 'player_id obrigatório'}), 400
+    hunt_mode = data.get('hunt_mode', 'normal')
+    if hunt_mode not in HUNT_MODES:
+        hunt_mode = 'normal'
+    route_id = data.get('route_id') or next(iter(ROUTES_DATA.keys()), None)
+    is_ambush = bool(data.get('is_ambush'))
+
+    # Nível do encontro baseado no time real do jogador-alvo
+    trainer = get_users().get(player_id, {}).get('trainer_data', {})
+    team_levels = [int(p.get('level', 1) or 1) for p in trainer.get('team', [])]
+    player_level = max(team_levels) if team_levels else int(data.get('player_level', 5))
+
+    enc = _build_random_encounter(route_id, hunt_mode, player_level, is_ambush)
+    if not enc:
+        return jsonify({'error': 'Nenhum Pokémon disponível para esta rota'}), 404
+
+    # Envia ao jogador pelo mesmo canal do encontro manual
+    payload = {
+        'type': 'forced_encounter', 'player_id': player_id,
+        'pokemon': enc['pokemon'], 'level': enc['level'],
+        'is_shiny': enc['is_shiny'], 'is_mega': False,
+        'wild_moves': enc['wild_moves'], 'route_id': enc['route_id'],
+        'ambush': enc.get('ambush', False), 'hunt_mode': enc['hunt_mode'],
+        'random_hunt': True,
+    }
+    socketio.emit('master_action', payload, room=player_id)
+    return jsonify({'ok': True, 'encounter': enc})
+
+
+# ============================================================
+# BATALHA EM DUPLA (caçada em grupo) — 2v1 / 2v2
+# ============================================================
+ACTIVE_GROUP_BATTLES = {}  # battle_id -> battle (em memória, como o PvP)
+
+
+def _group_active_pokemon(player_id):
+    """Pokémon ativo (primeiro vivo) do jogador para a batalha em grupo."""
+    trainer = get_users().get(str(player_id), {}).get('trainer_data', {})
+    team = trainer.get('team', [])
+    _enrich_team(team)
+    for p in team:
+        if p and gb._poke_hp(p) > 0:
+            return trainer.get('name') or trainer.get('trainer_name', ''), p
+    return (trainer.get('name', ''), team[0]) if team else ('', None)
+
+
+def _group_broadcast(battle, event='group_battle_update'):
+    view = gb.state_view(battle)
+    for pid in battle['player_ids']:
+        socketio.emit(event, view, room=pid)
+    socketio.emit(event, view, room=f"master_{battle['table_id']}")
+
+
+def _group_run_wild_turns(battle):
+    """Executa as jogadas automáticas dos selvagens enquanto for a vez deles."""
+    guard = 0
+    while (battle['phase'] == 'active' and guard < 12):
+        cur = gb.current_combatant(battle)
+        if not cur or cur['side'] != 'wild':
+            break
+        guard += 1
+        target_cid = gb.choose_wild_target(battle, cur['cid'])
+        if not target_cid:
+            break
+        target = battle['combatants'][target_cid]
+        wild_poke = dict(cur['pokemon'])
+        wild_poke['currentHp'] = cur['hp']
+        wild_poke['maxHp'] = cur['maxHp']
+        wild_poke['moves'] = cur['moves']
+        wild_poke['level'] = cur.get('level') or wild_poke.get('level', 1)
+        tgt_poke = dict(target['pokemon'])
+        tgt_poke['currentHp'] = target['hp']
+        move_name, _md, _is_status = _npc_pick_move(wild_poke, tgt_poke)
+        calc = _calc_pvp_attack(wild_poke, tgt_poke, move_name)
+        msg = f"{cur['name']} usou {move_name} em {target['name']} — {calc.get('message','')}"
+        gb.apply_damage(battle, cur['cid'], target_cid, calc.get('damage', 0),
+                        move_name, msg, hit=calc.get('hit', True))
+
+
+@app.route('/master/group-hunt', methods=['POST'])
+@login_required
+def master_group_hunt():
+    """Mestre inicia uma BATALHA EM DUPLA (caçada em grupo).
+
+    body: {player_ids:[2], hunt_mode, route_id, wild_count:1|2}
+    2v1 (wild_count=1) gera 1 selvagem mais forte; 2v2 gera 2 selvagens.
+    """
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    player_ids = [str(p) for p in (data.get('player_ids') or []) if p]
+    player_ids = list(dict.fromkeys(player_ids))  # únicos, mantém ordem
+    if len(player_ids) < 2:
+        return jsonify({'error': 'Selecione 2 jogadores para a batalha em dupla'}), 400
+    player_ids = player_ids[:2]
+    hunt_mode = data.get('hunt_mode', 'normal')
+    if hunt_mode not in HUNT_MODES:
+        hunt_mode = 'normal'
+    route_id = data.get('route_id') or next(iter(ROUTES_DATA.keys()), None)
+    wild_count = 2 if int(data.get('wild_count', 1)) == 2 else 1
+
+    # Aliados: Pokémon ativo de cada jogador
+    allies = []
+    for pid in player_ids:
+        name, poke = _group_active_pokemon(pid)
+        if not poke:
+            return jsonify({'error': f'Jogador {pid} não tem Pokémon disponível'}), 400
+        allies.append({'player_id': pid, 'name': name or 'Treinador', 'pokemon': poke})
+
+    # Nível-base do encontro = maior nível entre os ativos dos dois jogadores
+    base_level = max(int(a['pokemon'].get('level', 1) or 1) for a in allies)
+
+    wilds = []
+    for i in range(wild_count):
+        enc = _build_random_encounter(route_id, hunt_mode, base_level)
+        if not enc:
+            return jsonify({'error': 'Nenhum Pokémon disponível para esta rota'}), 404
+        poke = dict(enc['pokemon'])
+        level = enc['level']
+        if wild_count == 1:
+            # 2v1: selvagem mais forte para equilibrar contra a dupla
+            level = min(100, level + random.randint(3, 8))
+            scaled = scaling.calculate_pokemon_stats(poke, level)
+            poke.update({'hp': int(scaled['hp'] * 1.3), 'maxHp': int(scaled['maxHp'] * 1.3),
+                         'ac': scaled['ac'], 'stats': scaled['stats'],
+                         'proficiency': scaled['proficiency'], 'stab': scaled['stab']})
+        poke['level'] = level
+        wilds.append({'pokemon': poke, 'level': level, 'moves': enc['wild_moves']})
+
+    battle = gb.build_battle(allies, wilds, hunt_mode, route_id, _tid())
+    ACTIVE_GROUP_BATTLES[battle['id']] = battle
+
+    # Se começar com selvagem e AUTO ligado, roda as jogadas dos selvagens
+    if _wild_auto_mode():
+        _group_run_wild_turns(battle)
+
+    _group_broadcast(battle, 'group_battle_start')
+    return jsonify({'ok': True, 'battle': gb.state_view(battle)})
+
+
+@socketio.on('group_battle_action')
+def handle_group_battle_action(data):
+    """Um jogador ataca no seu turno da batalha em dupla."""
+    if not current_user.is_authenticated:
+        return
+    battle = ACTIVE_GROUP_BATTLES.get(data.get('battle_id'))
+    if not battle or battle['phase'] != 'active':
+        return
+    cur = gb.current_combatant(battle)
+    if not cur or cur['side'] != 'ally':
+        return
+    # Só o dono do combatente atual pode agir (mestre pode agir por qualquer aliado)
+    if current_user.role != 'master' and str(current_user.id) != cur['player_id']:
+        return
+
+    target_cid = data.get('target_cid')
+    target = battle['combatants'].get(target_cid)
+    if not target or target['side'] != 'wild' or target['fainted']:
+        # alvo inválido → mira o primeiro selvagem vivo
+        alive = gb.alive_cids(battle, 'wild')
+        if not alive:
+            return
+        target_cid = alive[0]
+        target = battle['combatants'][target_cid]
+
+    move_name = data.get('move_name') or (cur['moves'][0] if cur['moves'] else 'Tackle')
+    att_poke = dict(cur['pokemon'])
+    att_poke['currentHp'] = cur['hp']; att_poke['maxHp'] = cur['maxHp']
+    att_poke['moves'] = cur['moves']
+    tgt_poke = dict(target['pokemon']); tgt_poke['currentHp'] = target['hp']
+    calc = _calc_pvp_attack(att_poke, tgt_poke, move_name, data.get('attack_roll'))
+    msg = f"{cur['name']} usou {move_name} em {target['name']} — {calc.get('message','')}"
+    gb.apply_damage(battle, cur['cid'], target_cid, calc.get('damage', 0),
+                    move_name, msg, hit=calc.get('hit', True))
+
+    # Turnos automáticos dos selvagens (se AUTO ligado)
+    if _wild_auto_mode():
+        _group_run_wild_turns(battle)
+
+    if battle['phase'] == 'finished':
+        _group_broadcast(battle, 'group_battle_end')
+        ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
+    else:
+        _group_broadcast(battle)
+
+
+@socketio.on('group_wild_turn')
+def handle_group_wild_turn(data):
+    """Mestre avança manualmente as jogadas dos selvagens (AUTO desligado)."""
+    if not current_user.is_authenticated or current_user.role != 'master':
+        return
+    battle = ACTIVE_GROUP_BATTLES.get(data.get('battle_id'))
+    if not battle or battle['phase'] != 'active':
+        return
+    cur = gb.current_combatant(battle)
+    if not cur or cur['side'] != 'wild':
+        return
+    _group_run_wild_turns(battle)
+    if battle['phase'] == 'finished':
+        _group_broadcast(battle, 'group_battle_end')
+        ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
+    else:
+        _group_broadcast(battle)
+
 
 # ============================================================
 # PLAYER ROUTES
