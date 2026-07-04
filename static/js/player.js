@@ -301,6 +301,74 @@ function _survivalCheckText(sc) {
     return `🎲 Sobrevivência: d20(${sc.roll}) + SAB(${sc.wis_mod >= 0 ? '+' : ''}${sc.wis_mod}) + Prof(+${sc.prof}) = <strong>${sc.total}</strong> vs CD ${sc.dc}`;
 }
 
+// ============================================
+// ANIMAÇÃO DE D20 DA CAÇADA (teste de Sobrevivência)
+// Overlay auto-contido; mostra o dado rolando e o resultado bem visível.
+// ============================================
+function _ensureHuntRollOverlay() {
+    let ov = document.getElementById('hunt-roll-overlay');
+    if (ov) return ov;
+    ov = document.createElement('div');
+    ov.id = 'hunt-roll-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.72);';
+    ov.innerHTML = `
+      <div id="hunt-roll-card" style="background:var(--card-bg,#1b2233);border:2px solid var(--accent,#ffcb05);border-radius:16px;padding:1.5rem 2rem;text-align:center;max-width:92vw;width:360px;box-shadow:0 12px 40px rgba(0,0,0,0.6);">
+        <div style="font-size:0.9rem;opacity:0.85;margin-bottom:0.4rem;">🎯 Teste de Sobrevivência</div>
+        <div id="hunt-d20" style="font-size:5rem;font-weight:900;line-height:1;transition:transform 0.1s;color:var(--accent,#ffcb05);text-shadow:0 2px 8px rgba(0,0,0,0.5);">🎲</div>
+        <div id="hunt-roll-breakdown" style="margin-top:0.8rem;font-size:0.95rem;min-height:1.4em;"></div>
+        <div id="hunt-roll-verdict" style="margin-top:0.6rem;font-size:1.25rem;font-weight:800;min-height:1.4em;"></div>
+      </div>`;
+    document.body.appendChild(ov);
+    return ov;
+}
+
+function showHuntRoll(sc, ambush) {
+    // Retorna Promise que resolve quando a animação termina.
+    return new Promise((resolve) => {
+        const ov = _ensureHuntRollOverlay();
+        const d20 = ov.querySelector('#hunt-d20');
+        const bd = ov.querySelector('#hunt-roll-breakdown');
+        const vd = ov.querySelector('#hunt-roll-verdict');
+        bd.innerHTML = ''; vd.innerHTML = '';
+        ov.style.display = 'flex';
+        try { playSound && playSound('dice'); } catch(e) {}
+
+        // fase 1: rolando (números aleatórios)
+        let ticks = 0;
+        const spin = setInterval(() => {
+            d20.textContent = Math.floor(Math.random() * 20) + 1;
+            d20.style.transform = `rotate(${Math.random() * 40 - 20}deg) scale(${1 + Math.random() * 0.15})`;
+            ticks++;
+            if (ticks > 12) {
+                clearInterval(spin);
+                // fase 2: assenta no valor real
+                const roll = sc ? sc.roll : (Math.floor(Math.random() * 20) + 1);
+                d20.textContent = roll;
+                d20.style.transform = 'rotate(0deg) scale(1)';
+                const nat = roll === 20 ? ' <span style="color:#ffd54f;">(NAT 20!)</span>'
+                          : roll === 1 ? ' <span style="color:#e53935;">(NAT 1!)</span>' : '';
+                if (sc) {
+                    bd.innerHTML = `d20(<strong>${roll}</strong>)${nat} + SAB(${sc.wis_mod >= 0 ? '+' : ''}${sc.wis_mod}) + Prof(+${sc.prof}) = <strong>${sc.total}</strong> &nbsp;vs&nbsp; CD <strong>${sc.dc}</strong>`;
+                }
+                const success = ambush || (sc && sc.total >= sc.dc);
+                if (ambush) {
+                    d20.style.color = '#e53935';
+                    vd.innerHTML = '💀 <span style="color:#e53935;">EMBOSCADA!</span>';
+                } else if (success) {
+                    d20.style.color = '#66bb6a';
+                    vd.innerHTML = '✅ <span style="color:#66bb6a;">Sucesso! Um Pokémon apareceu!</span>';
+                } else {
+                    d20.style.color = '#e53935';
+                    vd.innerHTML = '❌ <span style="color:#e53935;">Falhou — nada encontrado.</span>';
+                }
+                try { playSound && playSound(success ? 'levelup' : 'status'); } catch(e) {}
+                // fecha após uma pausa para o jogador ler
+                setTimeout(() => { ov.style.display = 'none'; resolve(); }, 1400);
+            }
+        }, 70);
+    });
+}
+
 async function searchWildPokemon() {
     const routeId = document.getElementById('current-route').value;
     const huntMode = document.getElementById('hunt-mode').value;
@@ -325,11 +393,12 @@ async function searchWildPokemon() {
         return;
     }
 
+    // Mostra a animação do d20 com o teste de Sobrevivência (sucesso/falha/emboscada)
+    await showHuntRoll(encounter.survival_check, encounter.ambush);
+
     // Falhou no teste de Sobrevivência: gastou a tentativa, não achou nada
     if (encounter.found === false) {
         hideElement('encounter-result');
-        const sc = encounter.survival_check || {};
-        showNotification(`❌ Teste de Sobrevivência falhou! (${sc.total} vs CD ${sc.dc}) — gastou 1 caçada e não encontrou nada.`, 'error');
         if (failBox) {
             failBox.innerHTML = `${_survivalCheckText(encounter.survival_check)} — ❌ <strong>Falhou!</strong> Você não encontrou nada nesta caçada. (${encounter.hunts_used}/${encounter.hunts_limit} usadas)`;
             failBox.classList.remove('hidden');
