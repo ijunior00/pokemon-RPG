@@ -2029,9 +2029,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -2164,9 +2162,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -6177,9 +6173,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -6317,9 +6311,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -8752,8 +8744,7 @@
    "Fighting",
    "Fire",
    "Ice",
-   "Poison",
-   ""
+   "Poison"
   ],
   "ability": {
    "name": "Clear Body",
@@ -8898,8 +8889,7 @@
    "Fighting",
    "Fire",
    "Ice",
-   "Poison",
-   ""
+   "Poison"
   ],
   "ability": {
    "name": "Clear Body",
@@ -9025,8 +9015,7 @@
    "Grass",
    "Ground",
    "Ice",
-   "Steel",
-   ""
+   "Steel"
   ],
   "resistances": [
    "Fire",
@@ -9176,8 +9165,7 @@
    "Grass",
    "Ground",
    "Ice",
-   "Steel",
-   ""
+   "Steel"
   ],
   "resistances": [
    "Fire",
@@ -9311,8 +9299,7 @@
    "Grass",
    "Ground",
    "Ice",
-   "Steel",
-   ""
+   "Steel"
   ],
   "resistances": [
    "Fire",
@@ -9992,8 +9979,7 @@
    "Dragon",
    "Electric",
    "Fairy",
-   "Flying",
-   ""
+   "Flying"
   ],
   "immunities": [
    "Poison"
@@ -10123,8 +10109,7 @@
    "Dragon",
    "Electric",
    "Fairy",
-   "Flying",
-   ""
+   "Flying"
   ],
   "immunities": [
    "Poison"
@@ -11844,8 +11829,7 @@
    "Grass",
    "Ground",
    "Ice",
-   "Steel",
-   ""
+   "Steel"
   ],
   "resistances": [
    "Fire",
@@ -12774,15 +12758,13 @@
    "Fire",
    "Flying",
    "Ghost",
-   "Ice",
-   ""
+   "Ice"
   ],
   "resistances": [
    "Electric",
    "Fighting",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "ability": {
    "name": "Chlorophyll",
@@ -12918,15 +12900,13 @@
    "Fire",
    "Flying",
    "Ghost",
-   "Ice",
-   ""
+   "Ice"
   ],
   "resistances": [
    "Electric",
    "Fighting",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "ability": {
    "name": "Chlorophyll",
@@ -13553,9 +13533,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -13950,8 +13928,7 @@
    "Grass",
    "Ground",
    "Ice",
-   "Steel",
-   ""
+   "Steel"
   ],
   "resistances": [
    "Fire",
@@ -14113,8 +14090,7 @@
    "Grass",
    "Ground",
    "Ice",
-   "Steel",
-   ""
+   "Steel"
   ],
   "resistances": [
    "Fire",
@@ -14256,9 +14232,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -14536,9 +14510,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -16206,9 +16178,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -16675,9 +16645,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -16738,9 +16706,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -17219,9 +17185,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -18035,9 +17999,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -20254,9 +20216,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -20397,9 +20357,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -21335,7 +21293,7 @@
    "Constitution"
   ],
   "vulnerabilities": [
-   "Elecric",
+   "Electric",
    "Ice",
    "Psychic",
    "Rock"
@@ -24057,9 +24015,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -25960,8 +25916,7 @@
    "Fairy",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -26081,9 +26036,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -26402,8 +26355,7 @@
    "Dragon",
    "Fighting",
    "Flying",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Electric",
@@ -26842,8 +26794,7 @@
    "Fighting",
    "Fire",
    "Ice",
-   "Poison",
-   ""
+   "Poison"
   ],
   "ability": {
    "name": "Poison Point",
@@ -26987,8 +26938,7 @@
    "Fairy",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -27554,9 +27504,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -27697,9 +27645,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -27972,8 +27918,7 @@
    "Fire",
    "Flying",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "ability": {
    "name": "Magma Armor",
@@ -29043,8 +28988,7 @@
    "Dragon",
    "Fairy",
    "Flying",
-   "Grass",
-   ""
+   "Grass"
   ],
   "immunities": [
    "Ground",
@@ -29823,9 +29767,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -29946,9 +29888,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -30090,9 +30030,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -30811,9 +30749,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -30954,9 +30890,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -31434,8 +31368,7 @@
    "Grass",
    "Ground",
    "Ice",
-   "Steel",
-   ""
+   "Steel"
   ],
   "resistances": [
    "Fire",
@@ -31580,8 +31513,7 @@
    "Grass",
    "Ground",
    "Ice",
-   "Steel",
-   ""
+   "Steel"
   ],
   "resistances": [
    "Fire",
@@ -31706,16 +31638,14 @@
    "Fairy",
    "Fighting",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "resistances": [
    "Dark",
    "Fire",
    "Flying",
    "Ghost",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Psychic"
@@ -32113,15 +32043,13 @@
    "Fire",
    "Flying",
    "Ghost",
-   "Ice",
-   ""
+   "Ice"
   ],
   "resistances": [
    "Electric",
    "Fighting",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "ability": {
    "name": "Natural Cure",
@@ -33657,9 +33585,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -33790,9 +33716,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -34835,16 +34759,14 @@
    "Fighting",
    "Fire",
    "Flying",
-   "Ice",
-   ""
+   "Ice"
   ],
   "resistances": [
    "Dark",
    "Electric",
    "Ghost",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "immunities": [
    "Psychic"
@@ -34973,16 +34895,14 @@
    "Fighting",
    "Fire",
    "Flying",
-   "Ice",
-   ""
+   "Ice"
   ],
   "resistances": [
    "Dark",
    "Electric",
    "Ghost",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "immunities": [
    "Psychic"
@@ -36554,9 +36474,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -36679,9 +36597,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -36798,9 +36714,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -37275,9 +37189,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -37404,9 +37316,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -37527,9 +37437,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -38196,9 +38104,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -38348,9 +38254,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -38614,8 +38518,7 @@
    "Fairy",
    "Flying",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "immunities": [
    "Dragon",
@@ -38777,8 +38680,7 @@
    "Fairy",
    "Flying",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -38923,8 +38825,7 @@
    "Fairy",
    "Flying",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -39053,8 +38954,7 @@
    "Fairy",
    "Flying",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -41842,9 +41742,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -42506,16 +42404,14 @@
    "Fighting",
    "Fire",
    "Flying",
-   "Ice",
-   ""
+   "Ice"
   ],
   "resistances": [
    "Dark",
    "Electric",
    "Ghost",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "immunities": [
    "Psychic"
@@ -42907,9 +42803,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -43198,8 +43092,7 @@
    "Dark",
    "Ghost",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "resistances": [
    "Fire",
@@ -43324,8 +43217,7 @@
    "Dark",
    "Ghost",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "resistances": [
    "Fire",
@@ -45008,9 +44900,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -45137,9 +45027,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -47946,8 +47834,7 @@
    "Flying",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -48021,8 +47908,7 @@
    "Flying",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -48153,8 +48039,7 @@
    "Flying",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -48518,8 +48403,7 @@
    "Fairy",
    "Flying",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "immunities": [
    "Poison"
@@ -48646,8 +48530,7 @@
    "Fighting",
    "Fire",
    "Grass",
-   "Psychic",
-   ""
+   "Psychic"
   ],
   "ability": {
    "name": "Levitate",
@@ -48782,8 +48665,7 @@
    "Fighting",
    "Fire",
    "Grass",
-   "Psychic",
-   ""
+   "Psychic"
   ],
   "ability": {
    "name": "Levitate",
@@ -49293,8 +49175,7 @@
    "Flying",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -50574,8 +50455,7 @@
    "Fairy",
    "Flying",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -51052,9 +50932,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -52383,8 +52261,7 @@
    "Fairy",
    "Flying",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -52531,8 +52408,7 @@
    "Fairy",
    "Flying",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -54058,9 +53934,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -54461,9 +54335,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -54605,9 +54477,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -54977,9 +54847,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -55114,9 +54982,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -55641,8 +55507,7 @@
    "Flying",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -55784,8 +55649,7 @@
    "Flying",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -56214,9 +56078,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -56985,9 +56847,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -57275,8 +57135,7 @@
    "Dragon",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -58759,8 +58618,7 @@
    "Fighting",
    "Fire",
    "Flying",
-   "Poison",
-   ""
+   "Poison"
   ],
   "resistances": [
    "Electric",
@@ -58893,8 +58751,7 @@
    "Fighting",
    "Fire",
    "Flying",
-   "Poison",
-   ""
+   "Poison"
   ],
   "resistances": [
    "Electric",
@@ -59167,8 +59024,7 @@
    "Dragon",
    "Electric",
    "Fairy",
-   "Flying",
-   ""
+   "Flying"
   ],
   "immunities": [
    "Poison"
@@ -59290,9 +59146,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -59427,8 +59281,7 @@
    "Grass",
    "Ground",
    "Ice",
-   "Steel",
-   ""
+   "Steel"
   ],
   "resistances": [
    "Fire",
@@ -60697,9 +60550,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -60978,8 +60829,7 @@
    "Fairy",
    "Flying",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -61851,8 +61701,7 @@
    "Electric",
    "Flying",
    "Grass",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -62104,8 +61953,7 @@
    "Fairy",
    "Flying",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "immunities": [
    "Poison"
@@ -62218,9 +62066,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -63012,9 +62858,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -63162,8 +63006,7 @@
    "Fire",
    "Grass",
    "Ice",
-   "Psychic",
-   ""
+   "Psychic"
   ],
   "ability": {
    "name": "Victory Star",
@@ -64420,9 +64263,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -64544,9 +64385,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -64668,9 +64507,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -64802,9 +64639,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -64920,9 +64755,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -67708,8 +67541,7 @@
    "Dragon",
    "Fairy",
    "Flying",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Electric",
@@ -67833,9 +67665,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -69722,8 +69552,7 @@
    "Electric",
    "Fighting",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "immunities": [
    "Dragon"
@@ -69864,8 +69693,7 @@
    "Electric",
    "Fighting",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "immunities": [
    "Dragon"
@@ -73172,9 +73000,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -73307,9 +73133,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -75360,8 +75184,7 @@
    "Fairy",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -76400,8 +76223,7 @@
    "Electric",
    "Fairy",
    "Grass",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -76530,8 +76352,7 @@
    "Electric",
    "Fairy",
    "Grass",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -76660,8 +76481,7 @@
    "Fairy",
    "Flying",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "immunities": [
    "Poison"
@@ -76782,8 +76602,7 @@
    "Fairy",
    "Flying",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "immunities": [
    "Poison"
@@ -76903,8 +76722,7 @@
    "Fairy",
    "Flying",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "immunities": [
    "Poison"
@@ -79827,8 +79645,7 @@
    "Flying",
    "Ghost",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "immunities": [
    "Psychic",
@@ -79977,8 +79794,7 @@
    "Flying",
    "Ghost",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "immunities": [
    "Psychic",
@@ -80106,9 +79922,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -80910,8 +80724,7 @@
    "Fairy",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -81693,8 +81506,7 @@
    "Dragon",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -81808,8 +81620,7 @@
    "Fairy",
    "Fighting",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "resistances": [
    "Bug",
@@ -81927,8 +81738,7 @@
    "Electric",
    "Grass",
    "Ground",
-   "Rock",
-   ""
+   "Rock"
   ],
   "ability": {
    "name": "Justified",
@@ -83041,8 +82851,7 @@
    "Fairy",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -83437,8 +83246,7 @@
    "Electric",
    "Grass",
    "Ground",
-   "Rock",
-   ""
+   "Rock"
   ],
   "ability": {
    "name": "Overgrow",
@@ -83833,8 +83641,7 @@
    "Fire",
    "Grass",
    "Ice",
-   "Psychic",
-   ""
+   "Psychic"
   ],
   "ability": {
    "name": "Blaze",
@@ -84339,9 +84146,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -86439,9 +86244,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -86823,8 +86626,7 @@
    "Fairy",
    "Flying",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "immunities": [
    "Fighting",
@@ -86952,8 +86754,7 @@
    "Fairy",
    "Flying",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "immunities": [
    "Fighting",
@@ -87070,8 +86871,7 @@
    "Fairy",
    "Flying",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "immunities": [
    "Fighting",
@@ -87685,9 +87485,7 @@
    "Bug",
    "Fairy"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Psychic"
   ],
@@ -87826,9 +87624,7 @@
    "Bug",
    "Fairy"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Psychic"
   ],
@@ -88268,8 +88064,7 @@
    "Fighting",
    "Fire",
    "Ice",
-   "Poison",
-   ""
+   "Poison"
   ],
   "ability": {
    "name": "Poison Point",
@@ -88402,8 +88197,7 @@
    "Electric",
    "Fighting",
    "Fire",
-   "Grass",
-   ""
+   "Grass"
   ],
   "ability": {
    "name": "Poison Point",
@@ -89013,8 +88807,7 @@
    "Fairy",
    "Fighting",
    "Ground",
-   "Ice",
-   ""
+   "Ice"
   ],
   "resistances": [
    "Electric",
@@ -89150,8 +88943,7 @@
    "Fairy",
    "Fighting",
    "Ground",
-   "Ice",
-   ""
+   "Ice"
   ],
   "resistances": [
    "Electric",
@@ -89274,8 +89066,7 @@
    "Grass",
    "Ground",
    "Rock",
-   "Steel",
-   ""
+   "Steel"
   ],
   "resistances": [
    "Flying",
@@ -89418,8 +89209,7 @@
    "Grass",
    "Ground",
    "Rock",
-   "Steel",
-   ""
+   "Steel"
   ],
   "resistances": [
    "Flying",
@@ -90441,8 +90231,7 @@
    "Flying",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Dragon",
@@ -93951,9 +93740,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -94078,9 +93865,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -94658,8 +94443,7 @@
    "Fighting",
    "Fire",
    "Flying",
-   "Psychic",
-   ""
+   "Psychic"
   ],
   "resistances": [
    "Bug",
@@ -95551,8 +95335,7 @@
    "Fighting",
    "Fire",
    "Ice",
-   "Poison",
-   ""
+   "Poison"
   ],
   "ability": {
    "name": "Merciless",
@@ -95682,8 +95465,7 @@
    "Fighting",
    "Fire",
    "Ice",
-   "Poison",
-   ""
+   "Poison"
   ],
   "ability": {
    "name": "Merciless",
@@ -96525,8 +96307,7 @@
    "Electric",
    "Fighting",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "immunities": [
    "Dragon"
@@ -96662,8 +96443,7 @@
    "Electric",
    "Fighting",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "immunities": [
    "Dragon"
@@ -96788,8 +96568,7 @@
    "Fighting",
    "Fire",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "ability": {
    "name": "Corrosion",
@@ -96923,8 +96702,7 @@
    "Fighting",
    "Fire",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "ability": {
    "name": "Corrosion",
@@ -98727,9 +98505,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -98992,9 +98768,7 @@
   "vulnerabilities": [
    "Fighting"
   ],
-  "resistances": [
-   "None"
-  ],
+  "resistances": [],
   "immunities": [
    "Ghost"
   ],
@@ -99250,8 +99024,7 @@
    "Dragon",
    "Electric",
    "Fairy",
-   "Flying",
-   ""
+   "Flying"
   ],
   "immunities": [
    "Poison"
@@ -100621,8 +100394,7 @@
    "Electric",
    "Fighting",
    "Grass",
-   "Ground",
-   ""
+   "Ground"
   ],
   "immunities": [
    "Dragon"
@@ -101017,8 +100789,7 @@
    "Flying",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -101741,8 +101512,7 @@
    "Dragon",
    "Fairy",
    "Flying",
-   "Grass",
-   ""
+   "Grass"
   ],
   "immunities": [
    "Ground",
@@ -101864,8 +101634,7 @@
    "Electric",
    "Fairy",
    "Grass",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -102225,8 +101994,7 @@
    "Flying",
    "Grass",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Dragon",
@@ -102577,8 +102345,7 @@
    "Electric",
    "Fighting",
    "Fire",
-   "Grass",
-   ""
+   "Grass"
   ],
   "ability": {
    "name": "Beast Boost",
@@ -102698,8 +102465,7 @@
    "Fairy",
    "Flying",
    "Ice",
-   "Normal",
-   ""
+   "Normal"
   ],
   "immunities": [
    "Poison"
@@ -103046,8 +102812,7 @@
    "Fairy",
    "Flying",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "immunities": [
    "Poison"
@@ -103140,8 +102905,7 @@
    "Fairy",
    "Flying",
    "Grass",
-   "Ice",
-   ""
+   "Ice"
   ],
   "immunities": [
    "Poison"

@@ -1897,7 +1897,8 @@ def give_xp():
                 old_number = pokemon.get('number', 0)
                 evolved_base_data = POKEMON_BY_NAME.get(evolved_name.lower(), {})
                 new_moves = [m for m in (evolved_base_data.get('startingMoves') or [])
-                             if m not in (pokemon.get('moves') or [])]
+                             if m not in (pokemon.get('moves') or [])
+                             and m.lower() in MOVES_BY_NAME]
                 trainer['team'][i] = evolved
                 evolutions.append({
                     'from': old_name, 'to': evolved_name, 'slot': i,
@@ -2690,7 +2691,8 @@ def use_evolution_stone():
 
     stone_evolved_base = POKEMON_BY_NAME.get(evolved['name'].lower(), {})
     stone_new_moves = [m for m in (stone_evolved_base.get('startingMoves') or [])
-                       if m not in (pokemon.get('moves') or [])]
+                       if m not in (pokemon.get('moves') or [])
+                       and m.lower() in MOVES_BY_NAME]
     return jsonify({
         'ok': True, 'evolved_into': evolved['name'], 'pokemon': evolved,
         'old_number': pokemon.get('number', 0), 'new_number': evolved.get('number', 0),
@@ -2765,7 +2767,8 @@ def friendship_evolve():
 
     friendship_evolved_base = POKEMON_BY_NAME.get(evolved['name'].lower(), {})
     friendship_new_moves = [m for m in (friendship_evolved_base.get('startingMoves') or [])
-                            if m not in (pokemon.get('moves') or [])]
+                            if m not in (pokemon.get('moves') or [])
+                            and m.lower() in MOVES_BY_NAME]
     return jsonify({
         'ok': True, 'evolved_into': evolved['name'], 'pokemon': evolved,
         'old_number': pokemon.get('number', 0), 'new_number': evolved.get('number', 0),
@@ -2821,7 +2824,8 @@ def level_evolve():
 
     evolved_base_data = POKEMON_BY_NAME.get(evolved_name.lower(), {})
     new_moves = [m for m in (evolved_base_data.get('startingMoves') or [])
-                 if m not in (pokemon.get('moves') or [])]
+                 if m not in (pokemon.get('moves') or [])
+                 and m.lower() in MOVES_BY_NAME]
 
     team[slot] = evolved
     trainer['team'] = team
@@ -4232,6 +4236,12 @@ def handle_pvp_attack(data):
         defender = battle[defender_key]
         att_poke = attacker['team'][attacker['active_idx']]
         def_poke = defender['team'][defender['active_idx']]
+
+        # Defensor com ativo desmaiado está aguardando troca — atacar o
+        # "corpo" empurraria o HP até -30 (morte permanente indevida).
+        if pvp._poke_hp(def_poke) <= 0:
+            emit('pvp_error', {'message': 'Oponente está trocando de Pokémon — aguarde.'})
+            return
         calc = _calc_pvp_attack(att_poke, def_poke, move_name, data.get('attack_roll'))
         damage   = calc['damage']
         message  = calc['message']
@@ -4357,10 +4367,19 @@ def handle_pvp_switch(data):
         battle = ACTIVE_PVP.get(battle_id)
         if not battle:
             return
-        
+
         player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
+
+        # Troca voluntária só no seu turno; forçada (ativo desmaiado) sempre pode
+        side = battle[player_key]
+        active = side['team'][side['active_idx']] if side.get('active_idx') is not None else None
+        forced = active is not None and pvp._poke_hp(active) <= 0
+        if battle['turn'] != player_key and not forced:
+            emit('pvp_error', {'message': 'Não é seu turno para trocar!'})
+            return
+
         success, msg = pvp.switch_pokemon(battle, player_key, new_idx)
-        
+
         if not success:
             emit('pvp_error', {'message': msg})
             return
@@ -4710,6 +4729,10 @@ def handle_npc_turn(battle, npc_key):
     if not can_act:
         pvp.advance_turn(battle)
         _broadcast_pvp_state(battle)
+        return
+
+    if pvp._poke_hp(def_poke) <= 0:
+        # Defensor humano desmaiado aguardando troca — NPC não ataca o corpo
         return
 
     move, move_data, is_status = _npc_pick_move(npc_poke, def_poke,

@@ -89,37 +89,44 @@ def roll_initiative(pokemon):
     return roll + mod
 
 
+def _poke_hp(p):
+    """HP atual com fallback para maxHp — pokémon recém-montado na ficha
+    pode não ter o campo currentHp e NÃO está desmaiado."""
+    hp = p.get('currentHp')
+    return hp if isinstance(hp, (int, float)) else p.get('maxHp', 20)
+
+
 def switch_pokemon(battle, player_key, new_idx):
     """Switch active pokemon. Returns (success, message)."""
     player = battle[player_key]
     mode = battle['mode']
-    
+
     if new_idx >= len(player['team']):
         return False, "Índice inválido"
-    
+
     new_poke = player['team'][new_idx]
-    
+
     # Check if pokemon is alive
-    if new_poke.get('currentHp', 0) <= 0:
+    if _poke_hp(new_poke) <= 0:
         return False, "Pokémon desmaiado não pode batalhar"
-    
+
     # Official/Tournament: pokemon can only enter once
     if mode in ('official', 'tournament'):
         if new_idx in player['used_pokemon']:
             return False, "Este Pokémon já foi usado nesta batalha e está bloqueado"
         player['used_pokemon'].append(new_idx)
-    
+
     old_idx = player['active_idx']
     player['active_idx'] = new_idx
-    
+
     # Street mode: switching costs a turn
     # Official/Tournament: switching is free when forced (faint) but costs turn if voluntary
-    is_forced = player['team'][old_idx].get('currentHp', 0) <= 0 if old_idx is not None else False
-    
+    is_forced = _poke_hp(player['team'][old_idx]) <= 0 if old_idx is not None else False
+
     if not is_forced:
         # Voluntary switch costs the turn
         advance_turn(battle)
-    
+
     return True, "switch_success"
 
 
