@@ -287,6 +287,66 @@ def main():
     r = p1.post('/api/pokemon/battle-xp', json={'winner_level': 20, 'loser_level': 18, 'battle_type': 'wild'})
     check(S, 'XP de batalha calculado', (r.get_json() or {}).get('xp_gained', 0) > 0)
 
+    # ══════════ 4b. BATALHA EM DUPLA (2v1 / 2v2) ══════════
+    section('4b. Batalha em dupla (grupo)')
+    S = 'Batalha em Dupla'
+    # jogador não pode iniciar
+    r = p1.post('/master/group-hunt', json={'player_ids': [u1, u2]})
+    check(S, 'jogador bloqueado em group-hunt', r.status_code == 403)
+    # precisa de 2 jogadores
+    r = m.post('/master/group-hunt', json={'player_ids': [u1]})
+    check(S, 'exige 2 jogadores', r.status_code == 400)
+
+    clients = {u1: s1, u2: s2}
+
+    def drive_group(view, tag):
+        """Conduz a batalha até terminar; retorna o estado final."""
+        for c in (s1, s2, msio):
+            c.get_received()
+        guard = 0
+        while view and view.get('phase') == 'active' and guard < 120:
+            guard += 1
+            turn = next((c for c in view['combatants'] if c['cid'] == view['turn_cid']), None)
+            if not turn or turn['side'] != 'ally':
+                break  # com AUTO ligado os selvagens já jogaram; só aliados esperam ação
+            cli = clients.get(str(turn['player_id']))
+            alive_wild = next((c['cid'] for c in view['combatants']
+                               if c['side'] == 'wild' and not c['fainted']), None)
+            cli.emit('group_battle_action', {'battle_id': view['id'],
+                     'move_name': (turn['moves'] or ['Tackle'])[0], 'target_cid': alive_wild})
+            # captura o estado resultante (update ou end)
+            pkts = cli.get_received()
+            newv = None
+            for p in pkts:
+                if p['name'] in ('group_battle_update', 'group_battle_end') and p.get('args'):
+                    newv = p['args'][0]
+            for c in (s1, s2, msio):
+                c.get_received()
+            view = newv or view
+        return view
+
+    # 2v1: um selvagem forte
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
+                                           'hunt_mode': 'normal', 'route_id': 'route1'})
+    d = r.get_json() or {}
+    v = d.get('battle')
+    check(S, '2v1 criada', r.status_code == 200 and v and v['mode'] == '2v1')
+    check(S, '2v1 tem 3 combatentes', v and len(v['combatants']) == 3)
+    check(S, 'jogadores recebem group_battle_start', bool(recv(s1, 'group_battle_start')))
+    final = drive_group(v, '2v1')
+    check(S, '2v1 terminou com vencedor', final and final.get('phase') == 'finished'
+          and final.get('winner') in ('ally', 'wild'), f"{final and final.get('phase')}")
+
+    # 2v2: dois selvagens
+    for c in (s1, s2, msio):
+        c.get_received()
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 2,
+                                           'hunt_mode': 'dungeon', 'route_id': 'route1'})
+    v = (r.get_json() or {}).get('battle')
+    check(S, '2v2 criada', v and v['mode'] == '2v2' and len(v['combatants']) == 4)
+    final = drive_group(v, '2v2')
+    check(S, '2v2 terminou com vencedor', final and final.get('phase') == 'finished', f"{final and final.get('phase')}")
+
     # ══════════ 5. XP & EVOLUÇÃO ══════════
     section('5. XP, level-up e evoluções')
     S = 'XP/Evolução'

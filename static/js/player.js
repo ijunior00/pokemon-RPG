@@ -198,6 +198,125 @@ socket.on('master_action', (data) => {
 });
 
 // ============================================
+// BATALHA EM DUPLA (caçada em grupo) — 2v1 / 2v2
+// Painel compartilhado, servidor autoritativo. Ataca só no seu turno.
+// ============================================
+let _groupBattleView = null;
+
+function _ensureGroupOverlay() {
+    let ov = document.getElementById('group-battle-overlay');
+    if (ov) return ov;
+    ov = document.createElement('div');
+    ov.id = 'group-battle-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9998;display:none;flex-direction:column;align-items:center;justify-content:flex-start;padding:2vh 1rem;overflow-y:auto;background:rgba(6,10,20,0.94);';
+    ov.innerHTML = `<div id="group-battle-card" style="max-width:760px;width:100%;background:var(--card-bg,#151b2b);border:2px solid var(--accent,#ffcb05);border-radius:16px;padding:1rem 1.2rem;box-shadow:0 12px 40px rgba(0,0,0,0.6);"></div>`;
+    document.body.appendChild(ov);
+    return ov;
+}
+
+function _gbHpBar(c) {
+    const pct = c.maxHp ? Math.max(0, Math.round(100 * c.hp / c.maxHp)) : 0;
+    const col = c.fainted ? '#555' : c.side === 'ally' ? '#4caf50' : '#e53935';
+    return `<div style="background:rgba(255,255,255,0.12);border-radius:6px;height:12px;overflow:hidden;margin-top:2px;">
+        <div style="width:${pct}%;height:100%;background:${col};transition:width 0.3s;"></div></div>`;
+}
+
+function _gbCombatantHtml(c, isTurn) {
+    const spr = c.number ? getPokemonSpriteUrl(c.number, c.is_shiny) : '';
+    const ring = isTurn ? 'box-shadow:0 0 0 3px var(--accent,#ffcb05);' : '';
+    const dead = c.fainted ? 'opacity:0.4;filter:grayscale(1);' : '';
+    return `<div style="flex:1;min-width:130px;background:rgba(255,255,255,0.05);border-radius:10px;padding:0.5rem;${ring}${dead}">
+        <div style="display:flex;align-items:center;gap:0.4rem;">
+            ${spr ? `<img src="${spr}" width="42" height="42" alt="">` : ''}
+            <div style="flex:1;">
+                <div style="font-weight:700;font-size:0.85rem;">${isTurn ? '▶️ ' : ''}${c.name}${c.fainted ? ' 💀' : ''}</div>
+                <div style="font-size:0.72rem;opacity:0.8;">Nv.${c.level || '?'} · ${c.hp}/${c.maxHp} HP</div>
+            </div>
+        </div>${_gbHpBar(c)}</div>`;
+}
+
+function renderGroupBattle(view) {
+    _groupBattleView = view;
+    const ov = _ensureGroupOverlay();
+    const card = ov.querySelector('#group-battle-card');
+    ov.style.display = 'flex';
+
+    const myId = String(window.CURRENT_USER_ID);
+    const allies = view.combatants.filter(c => c.side === 'ally');
+    const wilds  = view.combatants.filter(c => c.side === 'wild');
+    const turnC  = view.combatants.find(c => c.cid === view.turn_cid);
+    const myTurn = view.phase === 'active' && turnC && turnC.side === 'ally'
+                   && String(turnC.player_id) === myId;
+
+    const alliesHtml = allies.map(c => _gbCombatantHtml(c, c.cid === view.turn_cid)).join('');
+    const wildsHtml  = wilds.map(c => _gbCombatantHtml(c, c.cid === view.turn_cid)).join('');
+    const log = (view.log || []).slice(-7).map(l => `<div>• ${l.message || ''}</div>`).join('');
+
+    let controls = '';
+    if (view.phase === 'finished') {
+        const win = view.winner === 'ally';
+        controls = `<div style="text-align:center;font-size:1.3rem;font-weight:800;margin:0.6rem 0;color:${win ? '#66bb6a' : '#e53935'};">
+            ${win ? '🎉 Vitória da dupla!' : '💀 A dupla foi derrotada!'}</div>
+            <button class="btn btn-primary" style="width:100%;" onclick="closeGroupBattle()">Fechar</button>`;
+    } else if (myTurn) {
+        const aliveWilds = wilds.filter(w => !w.fainted);
+        const moveOpts = (turnC.moves || ['Tackle']).map(m => `<option value="${m}">${m}</option>`).join('');
+        const targetOpts = aliveWilds.map(w => `<option value="${w.cid}">${w.name} (${w.hp}/${w.maxHp})</option>`).join('');
+        controls = `<div style="margin-top:0.6rem;padding:0.6rem;border:1px solid var(--accent,#ffcb05);border-radius:10px;">
+            <div style="font-weight:700;margin-bottom:0.4rem;">🎯 Seu turno — ${turnC.name}!</div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;">
+                <div class="form-group" style="flex:1;min-width:130px;"><label>Golpe</label>
+                    <select id="gb-move">${moveOpts}</select></div>
+                <div class="form-group" style="flex:1;min-width:130px;"><label>Alvo</label>
+                    <select id="gb-target">${targetOpts}</select></div>
+                <button class="btn btn-danger" onclick="groupBattleAttack()">⚔️ Atacar</button>
+            </div></div>`;
+    } else if (view.phase === 'active') {
+        const who = turnC ? turnC.name : '...';
+        controls = `<div style="text-align:center;opacity:0.85;margin-top:0.6rem;">⏳ Vez de <strong>${who}</strong> — aguarde.</div>`;
+    }
+
+    card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <strong>👥 Batalha em Dupla — ${view.mode}</strong>
+            <span style="opacity:0.75;font-size:0.85rem;">Rodada ${view.round}</span>
+        </div>
+        <div style="font-size:0.75rem;opacity:0.7;margin-bottom:0.2rem;">🟢 Sua dupla</div>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">${alliesHtml}</div>
+        <div style="text-align:center;font-weight:800;margin:0.4rem 0;opacity:0.8;">⚔️ VS ⚔️</div>
+        <div style="font-size:0.75rem;opacity:0.7;margin-bottom:0.2rem;">🔴 Selvagens</div>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">${wildsHtml}</div>
+        ${controls}
+        <div style="margin-top:0.6rem;font-size:0.8rem;opacity:0.85;max-height:120px;overflow-y:auto;background:rgba(0,0,0,0.25);border-radius:8px;padding:0.4rem 0.6rem;">${log}</div>`;
+}
+
+function groupBattleAttack() {
+    if (!_groupBattleView) return;
+    const move = document.getElementById('gb-move')?.value;
+    const target = document.getElementById('gb-target')?.value;
+    if (!target) { showNotification('Escolha um alvo', 'error'); return; }
+    socket.emit('group_battle_action', {
+        battle_id: _groupBattleView.id, move_name: move, target_cid: target
+    });
+}
+
+function closeGroupBattle() {
+    const ov = document.getElementById('group-battle-overlay');
+    if (ov) ov.style.display = 'none';
+    _groupBattleView = null;
+}
+
+socket.on('group_battle_start', (v) => {
+    try { playSound && playSound('levelup'); } catch(e) {}
+    renderGroupBattle(v);
+});
+socket.on('group_battle_update', (v) => renderGroupBattle(v));
+socket.on('group_battle_end', (v) => {
+    try { playSound && playSound(v.winner === 'ally' ? 'levelup' : 'status'); } catch(e) {}
+    renderGroupBattle(v);
+});
+
+// ============================================
 // DICE ROLLER WITH ANIMATION
 // ============================================
 function rollDice(sides) {

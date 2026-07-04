@@ -624,6 +624,76 @@ function _selectHuntPlayer(pid) {
 socket.on('hunt_roll', (data) => _renderHuntRoll(data));
 
 // ============================================
+// BATALHA EM DUPLA (caçada em grupo) — 2v1 / 2v2
+// ============================================
+async function startGroupHunt() {
+    const p1 = document.getElementById('group-player-1')?.value;
+    const p2 = document.getElementById('group-player-2')?.value;
+    if (!p1 || !p2) { alert('Selecione os dois jogadores'); return; }
+    if (p1 === p2) { alert('Escolha dois jogadores diferentes'); return; }
+    const wildCount = parseInt(document.getElementById('group-mode')?.value || '1');
+    const period  = document.getElementById('group-period')?.value  || 'day';
+    const terrain = document.getElementById('group-terrain')?.value || 'normal';
+    const routeId = document.getElementById('group-route')?.value   || null;
+    const huntMode = _huntModeFromControls(period, terrain);
+
+    const out = document.getElementById('group-hunt-result');
+    if (out) out.textContent = '⏳ Montando batalha...';
+    try {
+        const resp = await fetch('/master/group-hunt', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_ids: [p1, p2], hunt_mode: huntMode,
+                                   route_id: routeId, wild_count: wildCount })
+        });
+        const data = await resp.json();
+        if (data.error) { if (out) out.textContent = `❌ ${data.error}`; return; }
+        if (out) out.innerHTML = `✅ Batalha em dupla iniciada (${data.battle.mode}).`;
+        renderGroupMonitor(data.battle);
+    } catch(e) { if (out) out.textContent = '❌ Erro de conexão.'; }
+}
+
+function _hpBar(c) {
+    const pct = c.maxHp ? Math.max(0, Math.round(100 * c.hp / c.maxHp)) : 0;
+    const col = c.fainted ? '#666' : c.side === 'ally' ? '#4caf50' : '#e53935';
+    return `<div style="background:rgba(255,255,255,0.12);border-radius:6px;height:10px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${col};"></div></div>`;
+}
+
+function renderGroupMonitor(view) {
+    const mon = document.getElementById('group-battle-monitor');
+    if (!mon || !view) return;
+    mon.classList.remove('hidden');
+    const rows = view.combatants.map(c => {
+        const turn = c.cid === view.turn_cid ? '▶️ ' : '';
+        const dead = c.fainted ? ' 💀' : '';
+        const icon = c.side === 'ally' ? '🟢' : '🔴';
+        return `<div style="margin:0.25rem 0;font-size:0.85rem;">
+            ${turn}${icon} <strong>${c.name}</strong> Nv.${c.level || '?'}${dead}
+            <span style="opacity:0.7;">(${c.hp}/${c.maxHp})</span>
+            ${_hpBar(c)}</div>`;
+    }).join('');
+    const log = (view.log || []).slice(-6).map(l => `<div>• ${l.message || ''}</div>`).join('');
+    const auto = document.getElementById('wild-auto-mode')?.checked;
+    const curWild = view.combatants.find(c => c.cid === view.turn_cid && c.side === 'wild');
+    const wildBtn = (view.phase === 'active' && curWild && !auto)
+        ? `<button class="btn btn-sm btn-warning" onclick="advanceGroupWild('${view.id}')">▶️ Jogar selvagem</button>` : '';
+    let head = `Rodada ${view.round} · ${view.mode}`;
+    if (view.phase === 'finished')
+        head = view.winner === 'ally' ? '🎉 A dupla venceu!' : '💀 Os selvagens venceram!';
+    mon.innerHTML = `<div style="font-weight:700;margin-bottom:0.3rem;">👥 ${head}</div>${rows}
+        <div style="margin-top:0.4rem;font-size:0.8rem;opacity:0.85;max-height:110px;overflow-y:auto;">${log}</div>
+        <div style="margin-top:0.4rem;">${wildBtn}</div>`;
+}
+
+function advanceGroupWild(battleId) {
+    socket.emit('group_wild_turn', { battle_id: battleId });
+}
+
+socket.on('group_battle_start',  (v) => renderGroupMonitor(v));
+socket.on('group_battle_update', (v) => renderGroupMonitor(v));
+socket.on('group_battle_end',    (v) => renderGroupMonitor(v));
+
+// ============================================
 // POKEDEX — Master (lista completa, sempre desbloqueada)
 // ============================================
 let _masterPokedexAll = [];
