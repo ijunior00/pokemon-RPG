@@ -323,6 +323,27 @@ def main():
     check(S, 'status on-hit do selvagem aplicado pelo servidor', server_poisoned)
     s1.emit('end_encounter', {'result': 'fainted', 'active_pokemon_name': 'Charmander'}); recv(s1)
 
+    # Habilidade do ATACANTE (Poison Touch) envenena o alvo no contato físico.
+    pt_procs = sum(1 for _ in range(400)
+                   if (appmod.ab.check_attacker_contact_ability('Poison Touch') or {}).get('status') == 'badly_poisoned')
+    check(S, 'Poison Touch (habilidade do atacante) envenena', 60 <= pt_procs <= 180, f'{pt_procs}/400 ~30%')
+    check(S, 'Poison Touch aceita formato dict {name}',
+          any(appmod.ab.check_attacker_contact_ability({'name': 'Poison Touch'}) for _ in range(50)))
+    check(S, 'habilidade sem efeito de contato retorna None',
+          appmod.ab.check_attacker_contact_ability('Overgrow') is None)
+
+    # Venoshock: dano dobra contra alvo envenenado (sinergia de veneno).
+    import statistics as _stat
+    _enc_base = {'player_pokemon': make_poke('Croagunk', 30), 'pokemon': make_poke('Rattata', 20),
+                 'level': 20, 'battle_state': {'wild_status': None}}
+    _clean = [appmod._calc_player_attack({**_enc_base, 'battle_state': {'wild_status': None}}, 'Venoshock', 18)['damage']
+              for _ in range(150)]
+    _pois = [appmod._calc_player_attack({**_enc_base, 'battle_state': {'wild_status': {'condition': 'badly_poisoned', 'turns_active': 0}}}, 'Venoshock', 18)['damage']
+             for _ in range(150)]
+    check(S, 'Venoshock x2 vs alvo envenenado',
+          _stat.mean(_pois) > 1.6 * max(1, _stat.mean(_clean)),
+          f'limpo={_stat.mean(_clean):.1f} envenenado={_stat.mean(_pois):.1f}')
+
     r = p1.post('/api/pokemon/battle-xp', json={'winner_level': 20, 'loser_level': 18, 'battle_type': 'wild'})
     check(S, 'XP de batalha calculado', (r.get_json() or {}).get('xp_gained', 0) > 0)
 

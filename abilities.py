@@ -227,6 +227,29 @@ def check_contact_ability(ability, defender_prof: int) -> dict | None:
     return None
 
 
+def check_attacker_contact_ability(ability) -> dict | None:
+    """Habilidade do ATACANTE que reage ao acertar um golpe de contato (físico).
+
+    Ao contrário de check_contact_ability (defensor), aqui é o ATACANTE quem tem a
+    habilidade e o efeito recai sobre o DEFENSOR. Ex.: Poison Touch (30% envenena
+    ao tocar). Retorna {'status': str|None, 'message': str} aplicado ao defensor,
+    ou None.
+    """
+    import random as _r
+    key = normalize_ability(ability)
+
+    if key == 'poison touch' and _r.random() < 0.30:
+        return {'status': 'badly_poisoned',
+                'message': '☠️ Toque Venenoso: o alvo foi envenenado pelo contato!'}
+    if key == 'toxic chain' and _r.random() < 0.30:
+        return {'status': 'badly_poisoned',
+                'message': '☠️ Corrente Tóxica: o alvo foi gravemente envenenado!'}
+    if key == 'stench' and _r.random() < 0.10:
+        return {'status': 'atordoado',
+                'message': '🤢 Fedor: o alvo recuou de nojo!'}
+    return None
+
+
 def check_on_enter(ability: str, pokemon_name: str) -> dict | None:
     """
     Returns on-enter effect info for a Pokémon entering battle, or None.

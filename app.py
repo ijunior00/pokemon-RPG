@@ -266,6 +266,14 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
     else:
         stab = 0
 
+    # Sinergia de veneno: Venoshock dobra o dano se o alvo está envenenado.
+    venoshock_x2 = False
+    if move_name.lower() == 'venoshock':
+        _wst = (encounter.get('battle_state') or {}).get('wild_status') or {}
+        if _wst.get('condition') == 'badly_poisoned':
+            damage *= 2
+            venoshock_x2 = True
+
     # Type effectiveness
     vulns      = [t.lower() for t in (wild_poke.get('vulnerabilities') or [])]
     resists    = [t.lower() for t in (wild_poke.get('resistances') or [])]
@@ -291,6 +299,7 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
            f'{scaled_dice}({roll1}) + {stat_lbl}({mod})'
            f'{f" + STAB({stab})" if stab else ""}'
            f'{" ×2 CRIT" if is_crit else ""}'
+           f'{" ☠️×2 (alvo envenenado)" if venoshock_x2 else ""}'
            f'{eff_label} = <strong>{damage} dano {move.get("type","")}</strong>')
 
     return {'hit': True, 'damage': damage,
@@ -371,6 +380,10 @@ def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
         stab *= ab.stab_multiplier(attacker_poke.get('ability'), move_type_en,
                                    attacker_poke.get('currentHp'), attacker_poke.get('maxHp'))
         damage += stab
+
+    # Sinergia de veneno: Venoshock dobra o dano se o defensor está envenenado.
+    if move_name.lower() == 'venoshock' and (defender_poke.get('status') or {}).get('condition') == 'badly_poisoned':
+        damage *= 2
 
     # Type effectiveness
     vulns      = [t.lower() for t in (defender_poke.get('vulnerabilities') or [])]
@@ -4135,9 +4148,10 @@ def handle_battle_action(data):
         if damage > 0 and action_type == 'attack' and move_name:
             move_cat = (MOVES_BY_NAME.get(move_name.lower()) or {}).get('category', 'physical')
             if move_cat == 'physical':
+                wild_poke = encounter.get('pokemon', {})
+                p_poke = encounter.get('player_pokemon') or {}
                 if action_by == 'player':
                     # selvagem defendeu → atacante (jogador) sofre a reação
-                    wild_poke = encounter.get('pokemon', {})
                     wild_lv = int(wild_poke.get('level') or encounter.get('level') or 5)
                     res = ab.check_contact_ability(wild_poke.get('ability'), _prof_for_level(wild_lv))
                     if res:
@@ -4147,9 +4161,13 @@ def handle_battle_action(data):
                                 PERMADEATH_FLOOR, battle_state['player_hp_current'] - res['damage'])
                         if res['status'] and not battle_state.get('player_status'):
                             battle_state['player_status'] = {'condition': res['status'], 'turns_active': 0}
+                    # Habilidade do ATACANTE (jogador): Poison Touch etc. envenenam o selvagem
+                    ares = ab.check_attacker_contact_ability(p_poke.get('ability'))
+                    if ares and ares.get('status') and not battle_state.get('wild_status'):
+                        battle_state['wild_status'] = {'condition': ares['status'], 'turns_active': 0}
+                        contact_trigger = contact_trigger or ares
                 else:
                     # pokémon do jogador defendeu → selvagem sofre a reação
-                    p_poke = encounter.get('player_pokemon') or {}
                     res = ab.check_contact_ability(p_poke.get('ability'), p_poke.get('proficiency') or 2)
                     if res:
                         contact_trigger = res
@@ -4158,6 +4176,11 @@ def handle_battle_action(data):
                                 PERMADEATH_FLOOR, battle_state['wild_hp_current'] - res['damage'])
                         if res['status'] and not battle_state.get('wild_status'):
                             battle_state['wild_status'] = {'condition': res['status'], 'turns_active': 0}
+                    # Habilidade do ATACANTE (selvagem): Poison Touch etc. envenenam o jogador
+                    ares = ab.check_attacker_contact_ability(wild_poke.get('ability'))
+                    if ares and ares.get('status') and not battle_state.get('player_status'):
+                        battle_state['player_status'] = {'condition': ares['status'], 'turns_active': 0}
+                        contact_trigger = contact_trigger or ares
 
         # Apply healing
         if action_by == 'player' and heal > 0:
@@ -4737,6 +4760,11 @@ def handle_pvp_attack(data):
                 if cres['status'] and not att_poke.get('status'):
                     att_poke['status'] = {'condition': cres['status'], 'turns_active': 0}
                 battle['log'].append({'type': 'ability', 'message': cres['message']})
+            # Habilidade do ATACANTE (Poison Touch...) envenena o defensor no contato
+            ares = ab.check_attacker_contact_ability(att_poke.get('ability'))
+            if ares and ares.get('status') and not def_poke.get('status'):
+                def_poke['status'] = {'condition': ares['status'], 'turns_active': 0}
+                battle['log'].append({'type': 'ability', 'message': ares['message']})
 
         # Apply status effect to defender if move has one
         status_applied = False
@@ -5271,6 +5299,11 @@ def handle_npc_turn(battle, npc_key):
             if cres['status'] and not npc_poke.get('status'):
                 npc_poke['status'] = {'condition': cres['status'], 'turns_active': 0}
             battle['log'].append({'type': 'ability', 'message': cres['message']})
+        # Habilidade do ATACANTE (NPC com Poison Touch...) envenena o defensor
+        ares = ab.check_attacker_contact_ability(npc_poke.get('ability'))
+        if ares and ares.get('status') and not def_poke.get('status'):
+            def_poke['status'] = {'condition': ares['status'], 'turns_active': 0}
+            battle['log'].append({'type': 'ability', 'message': ares['message']})
 
     _broadcast_pvp_state(battle, 'npc_attack')
 
