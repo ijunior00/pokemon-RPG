@@ -289,7 +289,14 @@ def can_control_pokemon(trainer_level, pokemon_level):
 # ============================================================
 # FULL POKEMON STAT BLOCK AT LEVEL
 # ============================================================
-def calculate_pokemon_stats(base_pokemon, level, nature=None):
+# Bônus de Pokémon Shiny: +35% em TODOS os atributos base, aplicado ANTES de
+# qualquer escalonamento por nível/natureza — assim HP máximo, CAs, iniciativa,
+# dano e modificadores derivam naturalmente dos atributos já acrescidos, sem
+# duplicar bônus em estatísticas derivadas.
+SHINY_MULT = 1.35
+
+
+def calculate_pokemon_stats(base_pokemon, level, nature=None, is_shiny=None):
     """Calculate all stats for a Pokemon at a given level.
 
     New Pokemon stat system: ATK, DEF, SPA, SPD, SPE, HP
@@ -299,10 +306,19 @@ def calculate_pokemon_stats(base_pokemon, level, nature=None):
     - SPD: Special defense (AC vs special moves)
     - SPE: Speed (initiative + dodge AC)
     - HP: Hit points bonus
+
+    is_shiny: aplica +35% nos atributos BASE antes de escalonar. None = lê a
+    flag 'is_shiny' do próprio dict (dicts de instância carregam a flag).
     """
+    if is_shiny is None:
+        is_shiny = bool(base_pokemon.get('is_shiny'))
     base_stats = base_pokemon.get('stats', {})
     base_hp = base_pokemon.get('hp', 20)
     base_ac = base_pokemon.get('ac', 13)
+    if is_shiny:
+        base_stats = {k: (int(round(v * SHINY_MULT)) if isinstance(v, (int, float)) else v)
+                      for k, v in base_stats.items()}
+        base_hp = int(round(base_hp * SHINY_MULT))
     hp_stat = base_stats.get('HP', base_stats.get('CON', 10))
 
     stats = {}

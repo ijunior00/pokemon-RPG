@@ -1908,8 +1908,8 @@ def generate_npc():
     else:
         candidates = POKEMON_DB[:]
 
-    # Restrict to Gen 1-3 (≤386)
-    candidates = [p for p in candidates if p.get('number', 999) <= 386]
+    # Mesa limitada à 1ª geração (≤151)
+    candidates = [p for p in candidates if p.get('number', 999) <= 151]
 
     # Filter by level appropriateness
     level_filtered = [p for p in candidates if p.get('minLevel', 1) <= level]
@@ -2012,7 +2012,8 @@ def check_and_evolve_pokemon(pokemon, trainer_level=None):
         return None, None
 
     # Build evolved pokemon, preserving player-specific data
-    scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'))
+    scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'),
+                                             is_shiny=pokemon.get('is_shiny', False))
     evolved = {
         'name': evolved_base['name'],
         'number': evolved_base['number'],
@@ -2035,6 +2036,7 @@ def check_and_evolve_pokemon(pokemon, trainer_level=None):
         'evolutionInfo': evolved_base.get('evolutionInfo', ''),
         'evolutionStage': evolved_base.get('evolutionStage', ''),
         # Preserve player-specific fields
+        'is_shiny': pokemon.get('is_shiny', False),
         'nickname': pokemon.get('nickname', ''),
         'nature': pokemon.get('nature', ''),
         'moves': pokemon.get('moves', []),
@@ -2072,7 +2074,8 @@ def give_xp():
                 # Recalculate stats for the new level
                 base_poke = POKEMON_BY_NAME.get((pokemon.get('name') or '').lower())
                 if base_poke:
-                    scaled = scaling.calculate_pokemon_stats(base_poke, pokemon['level'], pokemon.get('nature'))
+                    scaled = scaling.calculate_pokemon_stats(base_poke, pokemon['level'], pokemon.get('nature'),
+                                                             is_shiny=pokemon.get('is_shiny', False))
                     old_ratio = pokemon.get('currentHp', scaled['hp']) / max(1, pokemon.get('maxHp', scaled['hp']))
                     pokemon['stats'] = scaled['stats']
                     pokemon['maxHp'] = scaled['hp']
@@ -2168,7 +2171,8 @@ def give_pokemon_xp():
     if leveled_up:
         base_poke = POKEMON_BY_NAME.get((pokemon.get('name') or '').lower())
         if base_poke:
-            scaled = scaling.calculate_pokemon_stats(base_poke, new_level, pokemon.get('nature'))
+            scaled = scaling.calculate_pokemon_stats(base_poke, new_level, pokemon.get('nature'),
+                                                     is_shiny=pokemon.get('is_shiny', False))
             old_ratio = pokemon.get('currentHp', scaled['hp']) / max(1, pokemon.get('maxHp', scaled['hp']))
             pokemon['stats'] = scaled['stats']
             pokemon['maxHp'] = scaled['hp']
@@ -2444,8 +2448,8 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     if hunt_mode in ('dungeon', 'night', 'dungeon_night'):
         route_types = route.get('dungeon_types', route_types)
 
-    # Gen 1-3 filter (up to #386)
-    GEN3_MAX = 386
+    # Mesa limitada à 1ª GERAÇÃO (até #151)
+    GEN1_MAX = 151
 
     # If route has an explicit pokemon list, use it (route-specific encounters)
     route_pokemon_names = route.get('pokemon', [])
@@ -2454,7 +2458,7 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
         candidates = []
         for pname in route_pokemon_names:
             entry = POKEMON_BY_NAME.get(pname.lower())
-            if entry and entry['number'] <= GEN3_MAX:
+            if entry and entry['number'] <= GEN1_MAX:
                 candidates.append(entry)
         # Fallback to type pool if nothing matched
         if not candidates:
@@ -2465,7 +2469,7 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
         candidates = []
         for ptype in route_types:
             for p in POKEMON_BY_TYPE.get(ptype.lower(), []):
-                if p['number'] <= GEN3_MAX:
+                if p['number'] <= GEN1_MAX:
                     candidates.append(p)
 
     # Remove duplicates
@@ -2479,7 +2483,7 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
 
     if not candidates:
         # Last resort: all Gen 1-3 Normal-type
-        candidates = [p for p in POKEMON_BY_TYPE.get('normal', []) if p['number'] <= GEN3_MAX]
+        candidates = [p for p in POKEMON_BY_TYPE.get('normal', []) if p['number'] <= GEN1_MAX]
     
     # Level filtering based on mode
     if hunt_mode == 'night':
@@ -2586,9 +2590,12 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     # Pick last 4 moves (highest level moves)
     wild_moves = move_pool[-4:] if len(move_pool) > 4 else (move_pool if move_pool else ['Tackle'])
     
-    # Calculate scaled stats for the wild pokemon
-    scaled = scaling.calculate_pokemon_stats(chosen, encounter_level)
-    
+    # Calculate scaled stats for the wild pokemon.
+    # Shiny: +35% nos atributos BASE antes do escalonamento (SHINY_MULT em
+    # pokemon_scaling) — HP/CA/iniciativa/dano derivam dos atributos já
+    # acrescidos. Substitui o antigo boost pós-cálculo (+20% stats, +2 CA).
+    scaled = scaling.calculate_pokemon_stats(chosen, encounter_level, is_shiny=is_shiny)
+
     # Build pokemon data with scaled stats
     pokemon_data = dict(chosen)
     pokemon_data['hp'] = scaled['hp']
@@ -2597,16 +2604,8 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     pokemon_data['stats'] = scaled['stats']
     pokemon_data['proficiency'] = scaled['proficiency']
     pokemon_data['stab'] = scaled['stab']
-    
-    # Shiny boost: +20% em todos os stats, +20% HP, +2 AC
-    if is_shiny:
-        pokemon_data['hp'] = int(pokemon_data['hp'] * 1.2)
-        pokemon_data['maxHp'] = pokemon_data['hp']
-        pokemon_data['ac'] += 2
-        for stat in pokemon_data['stats']:
-            pokemon_data['stats'][stat] = int(pokemon_data['stats'][stat] * 1.2)
-        pokemon_data['is_shiny'] = True
-    
+    pokemon_data['is_shiny'] = is_shiny
+
     return {
         'pokemon': pokemon_data,
         'level': encounter_level,
@@ -2885,9 +2884,11 @@ def master_group_hunt():
         poke = dict(enc['pokemon'])
         level = enc['level']
         if wild_count == 1:
-            # 2v1: selvagem mais forte para equilibrar contra a dupla
+            # 2v1: selvagem mais forte para equilibrar contra a dupla.
+            # is_shiny=False: os stats do dict JÁ vêm com o bônus shiny do
+            # _build_random_encounter — sem a trava, o ×1.35 aplicaria 2 vezes.
             level = min(100, level + random.randint(3, 8))
-            scaled = scaling.calculate_pokemon_stats(poke, level)
+            scaled = scaling.calculate_pokemon_stats(poke, level, is_shiny=False)
             poke.update({'hp': int(scaled['hp'] * 1.3), 'maxHp': int(scaled['maxHp'] * 1.3),
                          'ac': scaled['ac'], 'stats': scaled['stats'],
                          'proficiency': scaled['proficiency'], 'stab': scaled['stab']})
@@ -3125,7 +3126,8 @@ def use_evolution_stone():
 
     # Build evolved Pokémon
     current_level = pokemon.get('level', 1)
-    scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'))
+    scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'),
+                                             is_shiny=pokemon.get('is_shiny', False))
     evolved = {
         'name': evolved_base['name'],
         'number': evolved_base['number'],
@@ -3141,6 +3143,7 @@ def use_evolution_stone():
         'resistances': evolved_base.get('resistances', []),
         'evolutionInfo': evolved_base.get('evolutionInfo', ''),
         'evolutionStage': evolved_base.get('evolutionStage', ''),
+        'is_shiny': pokemon.get('is_shiny', False),
         'nickname': pokemon.get('nickname', ''),
         'nature': pokemon.get('nature', ''),
         'moves': pokemon.get('moves', []),
@@ -3214,7 +3217,8 @@ def friendship_evolve():
         return jsonify({'error': f'"{evolved_name}" não encontrado.'}), 404
 
     current_level = pokemon.get('level', 1)
-    scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'))
+    scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'),
+                                             is_shiny=pokemon.get('is_shiny', False))
     evolved = {
         'name': evolved_base['name'], 'number': evolved_base['number'],
         'types': evolved_base.get('types', pokemon.get('types', [])),
@@ -3229,6 +3233,7 @@ def friendship_evolve():
         'resistances': evolved_base.get('resistances', []),
         'evolutionInfo': evolved_base.get('evolutionInfo', ''),
         'evolutionStage': evolved_base.get('evolutionStage', ''),
+        'is_shiny': pokemon.get('is_shiny', False),
         'nickname': pokemon.get('nickname', ''),
         'nature': pokemon.get('nature', ''),
         'moves': pokemon.get('moves', []),
@@ -3734,7 +3739,9 @@ def api_pokemon_scaled_stats():
     if not base_pokemon:
         return jsonify({'error': 'Pokemon not found'}), 404
 
-    stats = scaling.calculate_pokemon_stats(base_pokemon, level, nature or None)
+    # Shiny: +35% nos atributos base antes do escalonamento
+    stats = scaling.calculate_pokemon_stats(base_pokemon, level, nature or None,
+                                            is_shiny=bool(data.get('is_shiny')))
     stats['growth_rate'] = scaling.get_growth_rate(base_pokemon)
     stats['xp_to_next'] = scaling.xp_to_next_level(level, stats['growth_rate'])
     # Include which stat was boosted/lowered for UI display

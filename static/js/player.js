@@ -533,7 +533,7 @@ async function displayEncounter(encounter) {
         const resp = await fetch('/api/pokemon/stats', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ number: pokemon.number, level: encounter.level })
+            body: JSON.stringify({ number: pokemon.number, level: encounter.level, is_shiny: !!encounter.is_shiny })
         });
         const scaledStats = await resp.json();
         if (!scaledStats.error) {
@@ -646,7 +646,7 @@ async function startBattle() {
             const scaledResp = await fetch('/api/pokemon/stats', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ number: api.number, level: playerPokemon.level || 1 })
+                body: JSON.stringify({ number: api.number, level: playerPokemon.level || 1, is_shiny: !!playerPokemon.is_shiny })
             });
             const scaled = await scaledResp.json();
             if (!scaled.error) {
@@ -755,7 +755,7 @@ async function startBattle() {
 
     // Fill player pokemon data
     const pNum = playerPokemon.number || 0;
-    const playerSpriteUrl = pNum ? getPokemonSpriteUrl(pNum) : '';
+    const playerSpriteUrl = pNum ? getPokemonSpriteUrl(pNum, playerPokemon.is_shiny) : '';
     console.log('SPRITE player:', pNum, playerSpriteUrl);
     document.getElementById('battle-player-sprite').src = playerSpriteUrl;
     battleSpriteEnter('battle-player-sprite', 'player');
@@ -1480,7 +1480,10 @@ function endBattle(result) {
                     maxHp: pokemon.hp, currentHp: capturedHp, ac: pokemon.ac,
                     stats: pokemon.stats, moves: pokemon.startingMoves || [],
                     ability: pokemon.ability ? pokemon.ability.name : '',
-                    speed: pokemon.speed, heldItem: '', notes: ''
+                    speed: pokemon.speed, heldItem: '', notes: '',
+                    // Shiny é PERMANENTE: a flag persiste no save e o bônus de
+                    // +35% nos atributos base é reaplicado em todo recálculo
+                    is_shiny: !!(currentEncounter.is_shiny || pokemon.is_shiny)
                 });
                 saveTeam();
                 refreshTeamDisplay();
@@ -1976,7 +1979,7 @@ async function savePokemon() {
                 const scaledRes = await fetch('/api/pokemon/stats', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ number: r.number, level: pokemon.level, nature: pokemon.nature || '' })
+                    body: JSON.stringify({ number: r.number, level: pokemon.level, nature: pokemon.nature || '', is_shiny: !!pokemon.is_shiny })
                 });
                 const scaled = await scaledRes.json();
                 if (!scaled.error) {
@@ -2392,10 +2395,19 @@ const TYPE_COLORS = {
     dark:'#705848',steel:'#b8b8d0',fairy:'#ee99ac'
 };
 
+// Sprites shiny locais (1ª geração). Estes números não têm sprite shiny no
+// pacote — caem no sprite normal como fallback.
+const SHINY_SPRITE_MISSING = new Set([132, 144, 145, 146, 150, 151]);
+
 function getPokemonSpriteUrl(poke, isShiny) {
     const num = typeof poke === 'number' ? poke : (poke?.number || 0);
     if (!num) return '';
+    const shiny = (isShiny !== undefined && isShiny !== null)
+        ? isShiny : (typeof poke === 'object' && (poke?.is_shiny || poke?.isShiny));
     const padded = String(num).padStart(3, '0');
+    if (shiny && num <= 151 && !SHINY_SPRITE_MISSING.has(num)) {
+        return `/static/sprites/shiny/${padded}.gif`;
+    }
     const ext = num <= 649 ? 'gif' : 'png';
     return `/static/sprites/${padded}.${ext}`;
 }
@@ -2432,7 +2444,7 @@ function refreshTeamDisplay() {
             const hpPct     = poke.maxHp > 0 ? Math.max(0, Math.min(100, (poke.currentHp / poke.maxHp) * 100)) : 0;
             const hpClass   = hpBarClass(poke.currentHp, poke.maxHp);
             const spriteUrl = getPokemonSpriteUrl(poke);
-            const isShiny   = poke.isShiny || false;
+            const isShiny   = poke.is_shiny || poke.isShiny || false;
             const isFainted = (poke.currentHp || 0) <= 0;
             const statusCond = poke.status?.condition || null;
             const statusIcon = statusCond ? getStatusIcon(statusCond) : '';
@@ -2865,7 +2877,7 @@ async function confirmSwitch(teamIdx) {
     
     // Update UI
     const pNum = newPoke.number || 0;
-    document.getElementById('battle-player-sprite').src = pNum ? getPokemonSpriteUrl(pNum) : '';
+    document.getElementById('battle-player-sprite').src = pNum ? getPokemonSpriteUrl(pNum, newPoke.is_shiny) : '';
     document.getElementById('battle-player-name-full').textContent = `${newPoke.nickname || newPoke.name} Nv.${newPoke.level}`;
     document.getElementById('battle-player-types').innerHTML = formatTypes(newPoke.types || []);
     const pHp = newPoke.currentHp || newPoke.maxHp || 20;
@@ -3339,7 +3351,7 @@ socket.on('pvp_battle_created', (data) => {
                 ${team.map((p, i) => `
                     <div class="pvp-select-card" onclick="pvpSelectPokemon(${i})" id="pvp-select-${i}" 
                          style="background:var(--darker);border:2px solid var(--card-border);border-radius:var(--radius);padding:0.75rem;text-align:center;cursor:pointer;transition:all 0.2s;">
-                        <img src="${getPokemonSpriteUrl(p.number || 0)}" width="48" height="48" style="image-rendering:pixelated;">
+                        <img src="${getPokemonSpriteUrl(p.number || 0, p.is_shiny)}" width="48" height="48" style="image-rendering:pixelated;">
                         <div style="font-weight:bold;">${p.nickname || p.name}</div>
                         <div style="font-size:0.8rem;color:var(--text-muted);">Nv.${p.level} | HP:${p.currentHp || p.maxHp}/${p.maxHp}</div>
                         <div class="type-badges" style="justify-content:center;">${formatTypes(p.types || [])}</div>
@@ -3453,7 +3465,7 @@ function renderPvpBattle(state) {
             <div class="battle-side-full enemy-side">
                 <h3>🔴 Oponente</h3>
                 <div class="battle-pokemon-full">
-                    <img src="${getPokemonSpriteUrl(opponent.number || 0)}" class="battle-sprite" id="pvp-opp-sprite">
+                    <img src="${getPokemonSpriteUrl(opponent.number || 0, opponent.is_shiny)}" class="battle-sprite" id="pvp-opp-sprite">
                     <h4>${opponent.nickname || opponent.name || '???'} Nv.${opponent.level || '?'}</h4>
                     <div class="type-badges" style="justify-content:center;">${formatTypes(opponent.types || [])}</div>
                     <div class="hp-bar-container" id="pvp-opp-hpbar">
@@ -3477,7 +3489,7 @@ function renderPvpBattle(state) {
             <div class="battle-side-full player-side">
                 <h3>🟢 Seu Pokémon</h3>
                 <div class="battle-pokemon-full">
-                    <img src="${getPokemonSpriteUrl(myActive.number || 0)}" class="battle-sprite" id="pvp-my-sprite">
+                    <img src="${getPokemonSpriteUrl(myActive.number || 0, myActive.is_shiny)}" class="battle-sprite" id="pvp-my-sprite">
                     <h4>${myActive.nickname || myActive.name || '???'} Nv.${myActive.level || '?'}</h4>
                     <div class="type-badges" style="justify-content:center;">${formatTypes(myActive.types || [])}</div>
                     ${state.your_status ? `<div class="status-badge status-${state.your_status.condition}">${getStatusIcon(state.your_status.condition)} ${state.your_status.condition.toUpperCase()}</div>` : ''}
@@ -5836,7 +5848,7 @@ function pcPokemonCard(p, idx, source) {
         : '';
 
     return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0.75rem;background:var(--darker);border-radius:var(--radius);">
-        <img src="${getPokemonSpriteUrl(p.number||0)}" style="width:40px;height:40px;object-fit:contain;">
+        <img src="${getPokemonSpriteUrl(p.number||0, p.is_shiny)}" style="width:40px;height:40px;object-fit:contain;">
         <div style="flex:1;min-width:0;">
             <div style="font-weight:bold;font-size:0.9rem;">${name} <span style="color:var(--muted);font-size:0.8rem;">Nv.${p.level}</span></div>
             <div style="display:flex;gap:0.25rem;flex-wrap:wrap;margin:0.1rem 0;">${typeHtml}</div>

@@ -410,6 +410,76 @@ def main():
     r = p1.post('/api/pokemon/battle-xp', json={'winner_level': 20, 'loser_level': 18, 'battle_type': 'wild'})
     check(S, 'XP de batalha calculado', (r.get_json() or {}).get('xp_gained', 0) > 0)
 
+    # ══════════ 4a-bis. SHINY (+35% nos atributos base) + GEN 1 ══════════
+    section('4a-bis. Shiny e limite Gen 1')
+    S = 'Shiny/Gen1'
+    _base = appmod.POKEMON_BY_NAME['bulbasaur']
+    _norm = scaling.calculate_pokemon_stats(_base, 30)
+    _shin = scaling.calculate_pokemon_stats(_base, 30, is_shiny=True)
+    # cada stat escalado parte do atributo base ×1.35 (arredondado)
+    _ok_stats = all(
+        _shin['stats'][k] == scaling.calculate_stat(int(round(_base['stats'].get(k, 10) * 1.35)), 30)
+        for k in ('ATK', 'DEF', 'SPA', 'SPD', 'SPE', 'HP'))
+    check(S, 'shiny: stats = escala(base ×1.35)', _ok_stats,
+          f"norm={_norm['stats']} shiny={_shin['stats']}")
+    check(S, 'shiny: HP máximo derivado maior', _shin['maxHp'] > _norm['maxHp'],
+          f"{_norm['maxHp']} → {_shin['maxHp']}")
+    check(S, 'shiny: CA física derivada maior (DEF maior)', _shin['phys_ac'] >= _norm['phys_ac'])
+    # flag no próprio dict também ativa o bônus (dicts de instância)
+    _auto = scaling.calculate_pokemon_stats(dict(_base, is_shiny=True), 30)
+    check(S, 'shiny: flag no dict ativa o bônus', _auto['stats'] == _shin['stats'])
+
+    # encontro selvagem shiny carrega flag e stats acrescidos (sem +2 CA legado)
+    random.seed(4242)
+    _found_shiny = None
+    for _ in range(600):
+        _e = appmod._build_random_encounter('route1', 'night', 40)
+        if isinstance(_e, dict) and _e.get('is_shiny'):
+            _found_shiny = _e
+            break
+    check(S, 'encontro shiny gerado carrega is_shiny no pokémon',
+          _found_shiny is not None and _found_shiny['pokemon'].get('is_shiny') is True)
+    if _found_shiny:
+        _sp = appmod.POKEMON_BY_NAME[_found_shiny['pokemon']['name'].lower()]
+        _ref = scaling.calculate_pokemon_stats(_sp, _found_shiny['level'], is_shiny=True)
+        check(S, 'encontro shiny: stats/HP vêm do base ×1.35',
+              _found_shiny['pokemon']['stats'] == _ref['stats']
+              and _found_shiny['pokemon']['maxHp'] == _ref['maxHp'])
+
+    # evolução PRESERVA is_shiny e recalcula com o bônus
+    _char = make_poke('Charmander', 20, is_shiny=True,
+                      evolutionInfo=appmod.POKEMON_BY_NAME['charmander'].get('evolutionInfo', ''))
+    _evo, _evo_name = appmod.check_and_evolve_pokemon(_char, trainer_level=20)
+    check(S, 'evolução preserva is_shiny', _evo is not None and _evo.get('is_shiny') is True,
+          f'evo={_evo_name}')
+    if _evo:
+        _evo_ref = scaling.calculate_pokemon_stats(
+            appmod.POKEMON_BY_NAME[_evo_name.lower()], _evo['level'], is_shiny=True)
+        check(S, 'evolução shiny recalcula com ×1.35', _evo['stats'] == _evo_ref['stats'])
+
+    # /api/pokemon/stats respeita is_shiny
+    _rn = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30}).get_json()
+    _rs = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30, 'is_shiny': True}).get_json()
+    check(S, 'API /pokemon/stats aplica shiny', _rs['maxHp'] > _rn['maxHp']
+          and all(_rs['stats'][k] >= _rn['stats'][k] for k in _rn['stats']))
+
+    # mesa limitada à 1ª geração
+    random.seed(77)
+    _gen_ok = True
+    for _mode in ('normal', 'dungeon', 'night'):
+        for _ in range(25):
+            _e = appmod._build_random_encounter('route1', _mode, 60)
+            if isinstance(_e, dict) and _e['pokemon']['number'] > 151:
+                _gen_ok = False
+    check(S, 'caçadas geram só Gen 1 (≤151)', _gen_ok)
+
+    # sprites shiny no lugar
+    import os as _os
+    _spr = [f for f in _os.listdir('static/sprites/shiny') if f.endswith('.gif')]
+    check(S, '145 sprites shiny gen1 instalados', len(_spr) == 145, f'{len(_spr)} arquivos')
+    check(S, 'sprite shiny acessível via rota estática',
+          p1.get('/static/sprites/shiny/001.gif').status_code == 200)
+
     # ══════════ 4b. BATALHA EM DUPLA (2v1 / 2v2) ══════════
     section('4b. Batalha em dupla (grupo)')
     S = 'Batalha em Dupla'
@@ -671,8 +741,9 @@ def main():
     poke_d = {'level': 18, 'stats': {'DEF': 12}}
     calc_growl = appmod._calc_pvp_attack(poke_a, poke_d, 'Growl')
     check(S, 'Growl = 0 dano no calc', calc_growl['damage'] == 0 and calc_growl.get('is_status'))
+    # attack_roll fixo: sem ele o d20 do servidor pode tirar nat 1 (~5% flake)
     calc_hit = appmod._calc_pvp_attack(dict(poke_a, level=30, stats={'ATK': 30}),
-                                       dict(poke_d, stats={'DEF': 8}), 'Tackle')
+                                       dict(poke_d, stats={'DEF': 8}), 'Tackle', 15)
     check(S, 'move de dano ainda dá dano', calc_hit['damage'] > 0)
 
     # Duas curvas de modificador: acerto com teto, dano sem teto

@@ -65,11 +65,17 @@ function formatTypes(types) {
 }
 
 function getPokemonSpriteUrl(number, shiny = false) {
-    // Using PokeAPI sprites - shiny uses /shiny/ path
-    if (shiny) {
-        return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${number}.png`;
+    // Sprites LOCAIS (sem CDN externa). Shiny: pacote da 1ª geração em
+    // /static/sprites/shiny; números sem sprite shiny caem no normal.
+    const SHINY_MISSING = [132, 144, 145, 146, 150, 151];
+    const num = typeof number === 'number' ? number : (number?.number || parseInt(number) || 0);
+    if (!num) return '';
+    const padded = String(num).padStart(3, '0');
+    if (shiny && num <= 151 && !SHINY_MISSING.includes(num)) {
+        return `/static/sprites/shiny/${padded}.gif`;
     }
-    return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${number}.png`;
+    const ext = num <= 649 ? 'gif' : 'png';
+    return `/static/sprites/${padded}.${ext}`;
 }
 
 // Close modal on escape

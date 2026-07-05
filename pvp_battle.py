@@ -252,6 +252,7 @@ def get_battle_state_for_player(battle, player_key):
             'moves': active.get('moves', []),
             'speed': active.get('speed', '30ft'),
             'stat_stages': active.get('stat_stages'),
+            'is_shiny': active.get('is_shiny', False),
         }
 
     return state
