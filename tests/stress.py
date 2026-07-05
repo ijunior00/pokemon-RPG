@@ -367,9 +367,45 @@ def main():
     check(S, 'Haze anula stages', _hz['effect_type'] == 'reset_stages')
     _tp = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('teleport'), _att_stats, _tgt_stats)
     check(S, 'Teleport foge (selvagem)', _tp['effect_type'] == 'flee')
-    _ut = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('trick room') or {'name': 'Trick Room'},
-                                             _att_stats, _tgt_stats)
-    check(S, 'utilidade avisa "mestre adjudica"', 'adjudica' in _ut['message'])
+    # TODOS os moves de status têm efeito (nenhum cai no limbo de "utilidade")
+    import json as _json
+    _all_moves = _json.load(open('server/data/moves.json'))
+    _no_effect = [n for n, md in _all_moves.items()
+                  if md.get('category') == 'status' and appmod.effects.auto_detect_move_effect(md) is None]
+    check(S, 'nenhum move de status sem efeito', len(_no_effect) == 0, f'{len(_no_effect)} sem efeito')
+
+    # Escalada de dano: com higherLevels o dado cresce entre os degraus (25/50/85)
+    _hl = 'muda para 2d6 no nível 5, 3d6 no nível 10 e 4d6 no nível 17'
+    def _avg(ds):
+        c, s = map(int, ds.split('d')); return c * (s + 1) / 2
+    _avgs = [_avg(appmod._get_scaled_dice('1d6', lv, _hl)) for lv in (5, 15, 25, 35, 45, 55, 65, 75, 85)]
+    check(S, 'dano escala monotônico com o nível', all(b >= a for a, b in zip(_avgs, _avgs[1:])),
+          f'médias={_avgs}')
+    check(S, 'dano cresce entre degraus do texto (25→45)',
+          _avg(appmod._get_scaled_dice('1d6', 45, _hl)) > _avg(appmod._get_scaled_dice('1d6', 25, _hl)))
+
+    # Novas mecânicas: Pain Split, OHKO, stage_op, Endeavor, Nature's Madness
+    _att_hp = dict(_att_stats, currentHp=20)
+    _tgt_hp = dict(_tgt_stats, currentHp=100)
+    _ps = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('pain split'), _att_hp, _tgt_hp)
+    check(S, 'Pain Split divide os HPs', _ps['effect_type'] == 'fixed_damage'
+          and _ps['damage'] == 40 and _ps['heal'] == 40)
+    _en = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('endeavor'), _att_hp, _tgt_hp)
+    check(S, 'Endeavor iguala HP do alvo ao seu', _en.get('damage') == 80)
+    _fg = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('final gambit'), _att_hp, _tgt_hp)
+    check(S, 'Final Gambit: dano = HP e desmaia junto',
+          _fg.get('damage') == 20 and _fg.get('self_damage') == 20)
+    _oh = [appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('guillotine'), _att_hp, _tgt_hp)
+           for _ in range(80)]
+    check(S, 'OHKO tem fatais E resistidos',
+          any(r['effect_type'] == 'fixed_damage' for r in _oh) and any(r['effect_type'] == 'resisted' for r in _oh))
+    _so = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('psych up'), _att_hp, _tgt_hp)
+    check(S, 'Psych Up é stage_op copy', _so['effect_type'] == 'stage_op' and _so['op'] == 'copy')
+    _tt = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('topsy-turvy'), _att_hp, _tgt_hp)
+    check(S, 'Topsy-Turvy é stage_op invert', _tt['op'] == 'invert')
+    for _vm in ('Copycat', 'Mirror Move', 'Assist'):
+        _vc = appmod._calc_pvp_attack(make_poke('Clefairy', 30), make_poke('Rattata', 30), _vm, 15)
+        check(S, f'{_vm} resolve como ataque', not _vc.get('is_status') and _vm in _vc.get('message', ''))
 
     r = p1.post('/api/pokemon/battle-xp', json={'winner_level': 20, 'loser_level': 18, 'battle_type': 'wild'})
     check(S, 'XP de batalha calculado', (r.get_json() or {}).get('xp_gained', 0) > 0)

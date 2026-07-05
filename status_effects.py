@@ -671,14 +671,101 @@ def auto_detect_move_effect(move_data):
         'night shade': {'type': 'fixed_damage', 'formula': 'level'},
         'seismic toss': {'type': 'fixed_damage', 'formula': 'level'},
         'sonic boom': {'type': 'fixed_damage', 'formula': 'half_level'},
+        'bide': {'type': 'fixed_damage', 'formula': 'level'},          # energia acumulada devolvida
+        'metal burst': {'type': 'fixed_damage', 'formula': 'level'},   # retalia o último golpe
+        'beat up': {'type': 'fixed_damage', 'formula': 'half_level'},  # o time todo golpeia
+        'fling': {'type': 'fixed_damage', 'formula': 'half_level'},    # arremesso improvisado
+        'nightmare': {'type': 'fixed_damage', 'formula': 'half_level'},  # pesadelo devora o alvo
+        'spikes': {'type': 'fixed_damage', 'formula': 'quarter_level'},        # farpas no terreno
+        'stealth rock': {'type': 'fixed_damage', 'formula': 'quarter_level'},  # pedras flutuantes
+        "nature's madness": {'type': 'fixed_damage', 'formula': 'half_target_hp'},  # canon: metade do HP
+        'endeavor': {'type': 'fixed_damage', 'formula': 'endeavor'},   # canon: iguala HP do alvo ao seu
+        'final gambit': {'type': 'fixed_damage', 'formula': 'user_hp'},  # canon: dano = seu HP; você desmaia
+        'perish song': {'type': 'fixed_damage', 'formula': 'half_level', 'self': True},  # fere ambos
+        'pain split': {'type': 'pain_split'},                          # canon: divide os HPs igualmente
+        # OHKO (homebrew: save com +4 de bônus; falhou → desmaia)
+        'fissure': {'type': 'ohko', 'save': 'DEX'},
+        'guillotine': {'type': 'ohko', 'save': 'CON'},
+        'horn drill': {'type': 'ohko', 'save': 'CON'},
         # Haze: anula TODOS os buffs/debuffs acumulados (dos dois lados)
         'haze': {'type': 'reset_stages'},
+        # Operações sobre stat stages (copiar/trocar/inverter)
+        'psych up': {'type': 'stage_op', 'op': 'copy'},
+        'role play': {'type': 'stage_op', 'op': 'copy'},
+        'transform': {'type': 'stage_op', 'op': 'copy'},
+        'heart swap': {'type': 'stage_op', 'op': 'swap'},
+        'topsy-turvy': {'type': 'stage_op', 'op': 'invert'},
         # Teleport: foge da batalha selvagem (falha em batalha de treinador — canon)
         'teleport': {'type': 'flee'},
-        # Aurora Veil: barreira dupla física+especial → CA +2 (homebrew)
+        # Moves "imprevisíveis": viram um move de DANO aleatório (caminho de ataque);
+        # a entrada aqui é fallback p/ quando processados pelo motor de status.
+        'metronome': {'type': 'variable'},
+        'mirror move': {'type': 'variable'},
+        'copycat': {'type': 'variable'},
+        'assist': {'type': 'variable'},
+        'me first': {'type': 'variable'},
+        'mimic': {'type': 'variable'},
+        'sketch': {'type': 'variable'},
+        # Barreiras/proteções
         'aurora veil': {'type': 'buff_self', 'stat': 'AC', 'value': 2, 'duration': 5},
-        # Helping Hand: prepara o próximo golpe (homebrew: +2 no acerto)
+        'ally switch': {'type': 'protect'},
+        'crafty shield': {'type': 'protect'},
+        'magic coat': {'type': 'protect'},
+        'quick guard': {'type': 'protect'},
+        # Buffs próprios (homebrew p/ moves situacionais)
         'helping hand': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 2, 'duration': 1},
+        'after you': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 1, 'duration': 1},
+        'hold hands': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 1, 'duration': 1},
+        'instruct': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 1, 'duration': 1},
+        'foresight': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 2, 'duration': 3},
+        'odor sleuth': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 2, 'duration': 3},
+        'baton pass': {'type': 'buff_self', 'stat': 'SPE', 'value': 2, 'duration': 2},
+        'camouflage': {'type': 'buff_self', 'stat': 'AC', 'value': 2, 'duration': 3},
+        'conversion': {'type': 'buff_self', 'stat': 'AC', 'value': 2, 'duration': 3},
+        'conversion 2': {'type': 'buff_self', 'stat': 'DEF', 'value': 2, 'duration': 3},
+        'reflect type': {'type': 'buff_self', 'stat': 'AC', 'value': 2, 'duration': 3},
+        'magnet rise': {'type': 'buff_self', 'stat': 'AC', 'value': 2, 'duration': 3},
+        'lucky chant': {'type': 'buff_self', 'stat': 'AC', 'value': 1, 'duration': 5},
+        'power trick': {'type': 'buff_self', 'stat': 'ATK', 'value': 2, 'duration': 3},
+        'follow me': {'type': 'buff_self', 'stat': 'DEF', 'value': 2, 'duration': 1},
+        'rage powder': {'type': 'buff_self', 'stat': 'DEF', 'value': 2, 'duration': 1},
+        'mud sport': {'type': 'buff_self', 'stat': 'SPD', 'value': 2, 'duration': 3},
+        'water sport': {'type': 'buff_self', 'stat': 'SPD', 'value': 2, 'duration': 3},
+        'electric terrain': {'type': 'buff_self', 'stat': 'SPA', 'value': 2, 'duration': 3},
+        'ion deluge': {'type': 'buff_self', 'stat': 'SPA', 'value': 1, 'duration': 2},
+        'recycle': {'type': 'heal_self', 'amount': 'quarter'},
+        # Debuffs no alvo (homebrew p/ moves de manipulação)
+        'block': {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'save': 'CON', 'duration': 3},
+        'spider web': {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'save': 'DEX', 'duration': 3},
+        'fairy lock': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'save': 'WIS', 'duration': 2},
+        'quash': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'save': 'CON', 'duration': 2},
+        'trick room': {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'save': 'INT', 'duration': 3},
+        'speed swap': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'save': 'CON', 'duration': 3},
+        'gastro acid': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'CON', 'duration': 3},
+        'entrainment': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 3},
+        'skill swap': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'INT', 'duration': 3},
+        'imprison': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 3},
+        'destiny bond': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 3},
+        'grudge': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 3},
+        'powder': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'DEX', 'duration': 2},
+        'trick': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 2},
+        'switcheroo': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 2},
+        'bestow': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -1, 'save': 'WIS', 'duration': 2},
+        'soak': {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'save': 'CON', 'duration': 3},
+        "forest's curse": {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'save': 'WIS', 'duration': 3},
+        'trick-or-treat': {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'save': 'WIS', 'duration': 3},
+        'guard split': {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'save': 'CON', 'duration': 3},
+        'power split': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'CON', 'duration': 3},
+        'power swap': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'CON', 'duration': 3},
+        'simple beam': {'type': 'debuff_target', 'stat': 'SPA', 'value': -2, 'save': 'CON', 'duration': 3},
+        'electrify': {'type': 'debuff_target', 'stat': 'SPA', 'value': -2, 'save': 'CON', 'duration': 2},
+        'magic room': {'type': 'debuff_target', 'stat': 'SPD', 'value': -2, 'save': 'INT', 'duration': 3},
+        'wonder room': {'type': 'debuff_target', 'stat': 'SPD', 'value': -2, 'save': 'INT', 'duration': 3},
+        'gravity': {'type': 'debuff_target', 'stat': 'AC', 'value': -2, 'save': 'CON', 'duration': 3},
+        'telekinesis': {'type': 'debuff_target', 'stat': 'AC', 'value': -3, 'save': 'CON', 'duration': 3},
+        'spotlight': {'type': 'debuff_target', 'stat': 'AC', 'value': -2, 'save': 'WIS', 'duration': 1},
+        # Psycho Shift: transfere o mal-estar (homebrew: confunde o alvo)
+        'psycho shift': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
         # Splash: canonicamente inútil
         'splash': {'type': 'utility', 'message': '💦 Splash! Nada aconteceu... absolutamente nada!'},
         # Debuffs conhecidos
@@ -905,15 +992,120 @@ def process_status_move(move_data, attacker_stats, target_stats):
         }
 
     elif effect['type'] == 'fixed_damage':
-        # Dano fixo que ignora CA/save (Night Shade/Seismic Toss = nível;
-        # Sonic Boom = metade do nível). Aplicado pelo caller ao alvo.
+        # Dano fixo que ignora CA/save. Fórmulas: level (Night Shade/Seismic
+        # Toss), half_level, quarter_level (chip), half_target_hp (Nature's
+        # Madness), endeavor (iguala HP), user_hp (Final Gambit — você desmaia).
+        # 'self': True fere o usuário com o mesmo valor (Perish Song).
         level = int(attacker_stats.get('level', 1) or 1)
-        dmg = level if effect.get('formula') == 'level' else max(4, level // 2)
+        att_hp = attacker_stats.get('currentHp')
+        tgt_hp = target_stats.get('currentHp')
+        formula = effect.get('formula', 'half_level')
+        self_damage = 0
+        if formula == 'level':
+            dmg = level
+        elif formula == 'quarter_level':
+            dmg = max(2, level // 4)
+        elif formula == 'half_target_hp':
+            dmg = max(1, int(tgt_hp if tgt_hp is not None else level) // 2)
+        elif formula == 'endeavor':
+            dmg = max(0, int(tgt_hp or 0) - int(att_hp or 0))
+            if dmg == 0:
+                return {'success': False, 'effect_type': 'utility',
+                        'message': f"{move_name}! Não teve efeito (o alvo já tem menos HP que você).",
+                        'status_applied': None, 'stat_changes': None}
+        elif formula == 'user_hp':
+            dmg = max(1, int(att_hp if att_hp is not None else level))
+            self_damage = dmg   # Final Gambit: o usuário desmaia junto
+        else:
+            dmg = max(4, level // 2)
+        if effect.get('self'):
+            self_damage = dmg
+        extra = ' Vocês dois são feridos!' if effect.get('self') else (
+                ' Você desmaia com o esforço!' if formula == 'user_hp' else '')
         return {
             'success': True,
             'effect_type': 'fixed_damage',
             'damage': dmg,
-            'message': f"{move_name}! Dano fixo de {dmg} (ignora CA)!",
+            'self_damage': self_damage,
+            'message': f"{move_name}! Dano fixo de {dmg} (ignora CA)!{extra}",
+            'status_applied': None,
+            'stat_changes': None
+        }
+
+    elif effect['type'] == 'ohko':
+        # OHKO (Fissure/Guillotine/Horn Drill) — homebrew: o alvo salva com +4
+        # de bônus (fica raro acertar); se falhar, desmaia (dano = HP atual).
+        save_stat = effect.get('save', 'CON')
+        save_mod = _save_mod(target_stats, save_stat) + 4
+        save_roll = random.randint(1, 20)
+        save_total = save_roll + save_mod
+        if save_total < move_dc:
+            tgt_hp = int(target_stats.get('currentHp') or 0) or (2 * int(attacker_stats.get('level', 1) or 1))
+            return {
+                'success': True,
+                'effect_type': 'fixed_damage',
+                'damage': tgt_hp,
+                'self_damage': 0,
+                'message': f"{move_name}! CD {move_dc} vs d20({save_roll})+{save_mod}={save_total} → 💀 GOLPE FATAL! {tgt_hp} de dano!",
+                'status_applied': None,
+                'stat_changes': None
+            }
+        return {
+            'success': False,
+            'effect_type': 'resisted',
+            'message': f"{move_name}! CD {move_dc} vs d20({save_roll})+{save_mod}={save_total} → Resistiu ao golpe fatal!",
+            'status_applied': None,
+            'stat_changes': None
+        }
+
+    elif effect['type'] == 'pain_split':
+        # Canon: soma os HPs dos dois e divide igualmente.
+        att_hp = attacker_stats.get('currentHp')
+        tgt_hp = target_stats.get('currentHp')
+        if att_hp is None or tgt_hp is None:
+            return {'success': True, 'effect_type': 'utility',
+                    'message': f"{move_name}! (HPs desconhecidos — o mestre adjudica a divisão)",
+                    'status_applied': None, 'stat_changes': None}
+        att_hp, tgt_hp = max(0, int(att_hp)), max(0, int(tgt_hp))
+        if att_hp >= tgt_hp:
+            return {'success': False, 'effect_type': 'utility',
+                    'message': f"{move_name}! Não teve efeito (você não tem menos HP que o alvo).",
+                    'status_applied': None, 'stat_changes': None}
+        avg = (att_hp + tgt_hp) // 2
+        return {
+            'success': True,
+            'effect_type': 'fixed_damage',
+            'damage': tgt_hp - avg,
+            'heal': avg - att_hp,
+            'self_damage': 0,
+            'message': f"{move_name}! Os HPs foram somados e divididos: ambos ficam com {avg}!",
+            'status_applied': None,
+            'stat_changes': None
+        }
+
+    elif effect['type'] == 'stage_op':
+        # Operações sobre os stat stages: copy (Psych Up/Role Play/Transform),
+        # swap (Heart Swap), invert (Topsy-Turvy). O caller executa.
+        op = effect.get('op', 'copy')
+        op_msgs = {'copy': 'copiou os buffs/debuffs do alvo!',
+                   'swap': 'trocou os buffs/debuffs com o alvo!',
+                   'invert': 'inverteu os buffs/debuffs do alvo!'}
+        return {
+            'success': True,
+            'effect_type': 'stage_op',
+            'op': op,
+            'message': f"{move_name}! {op_msgs.get(op, op)}",
+            'status_applied': None,
+            'stat_changes': None
+        }
+
+    elif effect['type'] == 'variable':
+        # Metronome/Copycat/etc.: normalmente resolvidos como ATAQUE no caminho
+        # de dano. Fallback quando processados aqui (ex.: cache do cliente).
+        return {
+            'success': True,
+            'effect_type': 'utility',
+            'message': f"{move_name}! Prepara um move imprevisível... (executa como ataque)",
             'status_applied': None,
             'stat_changes': None
         }

@@ -1142,10 +1142,12 @@ async function useMove(moveName) {
         'disable', 'torment', 'spite', 'wish', 'heal bell', 'aromatherapy',
         'venom drench', 'toxic spikes', 'spikes', 'stealth rock', 'sticky web'];
 
-    // Metronome vira um move de DANO aleatório — resolvido no SERVIDOR
-    // (_calc_player_attack), então segue pelo caminho de ataque normal.
-    const isMetronome = moveName.toLowerCase() === 'metronome';
-    if (!isMetronome && (m.category === 'status' || !m.baseDamage || PLAYER_STATUS_MOVES.includes(moveName.toLowerCase()))) {
+    // Moves imprevisíveis (Metronome/Copycat/Mirror Move/Assist/Me First/
+    // Mimic/Sketch) viram um move de DANO aleatório — resolvidos no SERVIDOR
+    // (_calc_player_attack), então seguem pelo caminho de ataque normal.
+    const VARIABLE_DMG = ['metronome', 'mirror move', 'copycat', 'assist', 'me first', 'mimic', 'sketch'];
+    const isVariable = VARIABLE_DMG.includes(moveName.toLowerCase());
+    if (!isVariable && (m.category === 'status' || !m.baseDamage || PLAYER_STATUS_MOVES.includes(moveName.toLowerCase()))) {
         await processStatusMove(moveName, poke, window.currentBattleData?.enemy);
         return;
     }
@@ -1193,6 +1195,11 @@ function getScaledDice(baseDamage, level, higherLevelsText) {
             const pokeLv = parseInt(m[2]) * 5; // trainer lv → pokemon lv
             if (level >= pokeLv) bestDice = m[1];
         }
+        // Degraus do texto são esparsos (25/50/85): soma o bônus aditivo por
+        // faixa para o dado crescer entre eles (espelha _get_scaled_dice).
+        const bonusHl = level >= 70 ? 3 : level >= 40 ? 2 : level >= 15 ? 1 : 0;
+        const bm = bestDice.match(/(\d+)d(\d+)/);
+        if (bm) return `${parseInt(bm[1]) + bonusHl}d${bm[2]}`;
         return bestDice;
     }
     
@@ -4605,8 +4612,20 @@ async function _executeWildTurn() {
     }
 
     // IA: escolhe move ponderando efetividade, STAB, status e cura
-    const moveName = wildChooseBestMove(wildMoves, enemy, playerPoke);
-    const moveData = MOVES_CACHE[moveName] || {};
+    let moveName = wildChooseBestMove(wildMoves, enemy, playerPoke);
+    let moveData = MOVES_CACHE[moveName] || {};
+
+    // Moves imprevisíveis (Metronome/Copycat/Mirror Move...): viram um move de
+    // DANO aleatório do cache e seguem pelo caminho de ataque normal
+    const VARIABLE_DMG_MOVES = new Set(['metronome', 'mirror move', 'copycat', 'assist', 'me first', 'mimic', 'sketch']);
+    if (VARIABLE_DMG_MOVES.has(moveName.toLowerCase())) {
+        const pool = Object.keys(MOVES_CACHE).filter(n =>
+            MOVES_CACHE[n]?.baseDamage && ['physical', 'special'].includes(MOVES_CACHE[n]?.category));
+        const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'Tackle';
+        addBattleLog(`🔴 🎲 <strong>${moveName}</strong> → <strong>${pick}</strong>!`);
+        moveName = pick;
+        moveData = MOVES_CACHE[pick] || {};
+    }
     
     // If move not found in cache, skip it (bad data)
     if (!moveData.name && !moveData.baseDamage && !moveData.type) {
@@ -5075,11 +5094,13 @@ async function processStatusMove(moveName, attackerPoke, targetPoke) {
         ...(attackerPoke?.stats || {}),
         level: attackerPoke?.level || 1,
         proficiency: attackerPoke?.proficiency || getProficiencyForLevel(attackerPoke?.level || 1),
-        maxHp: attackerPoke?.maxHp || 20
+        maxHp: attackerPoke?.maxHp || 20,
+        currentHp: attackerPoke?.currentHp ?? attackerPoke?.maxHp ?? 20
     };
     const targetStats = {
         ...(targetPoke?.stats || {}),
-        level: targetPoke?.level || currentEncounter?.level || 5
+        level: targetPoke?.level || currentEncounter?.level || 5,
+        currentHp: targetPoke?.currentHp ?? targetPoke?.hp ?? 20
     };
     
     try {
@@ -5099,13 +5120,15 @@ async function processStatusMove(moveName, attackerPoke, targetPoke) {
             return;
         }
 
-        // Dano fixo (Night Shade/Seismic Toss/Sonic Boom): ignora CA;
-        // o servidor aplica o dano no HP do selvagem.
-        if (result.effect_type === 'fixed_damage' && result.damage > 0) {
+        // Dano fixo (Night Shade/Pain Split/OHKO/Final Gambit): ignora CA; o
+        // servidor aplica dano no selvagem, heal em você (Pain Split) e
+        // self_damage em você (Final Gambit/Perish Song).
+        if (result.effect_type === 'fixed_damage' && (result.damage > 0 || result.self_damage > 0)) {
             socket.emit('battle_action', {
                 action_by: 'player', action_type: 'status',
-                move_name: moveName, damage: result.damage,
-                player_status_damage: window._playerPreTurnStatusDamage || 0,
+                move_name: moveName, damage: result.damage || 0,
+                heal: result.heal || 0,
+                player_status_damage: (window._playerPreTurnStatusDamage || 0) + (result.self_damage || 0),
                 message: result.message
             });
             return;
@@ -5116,6 +5139,17 @@ async function processStatusMove(moveName, attackerPoke, targetPoke) {
             socket.emit('battle_action', {
                 action_by: 'player', action_type: 'status',
                 move_name: moveName, damage: 0, reset_stages: true,
+                player_status_damage: window._playerPreTurnStatusDamage || 0,
+                message: result.message
+            });
+            return;
+        }
+
+        // Psych Up/Heart Swap/Topsy-Turvy: operação sobre stages no servidor
+        if (result.effect_type === 'stage_op') {
+            socket.emit('battle_action', {
+                action_by: 'player', action_type: 'status',
+                move_name: moveName, damage: 0, stage_op: result.op,
                 player_status_damage: window._playerPreTurnStatusDamage || 0,
                 message: result.message
             });
@@ -5185,10 +5219,13 @@ async function processStatusMove(moveName, attackerPoke, targetPoke) {
             addBattleLog(`🔒 ${moveName} prendeu o Pokémon selvagem! Não pode fugir.`);
         }
 
-        // Emit to server (costs turn)
+        // Emit to server (costs turn). Inclui heal para o servidor sincronizar
+        // o HP (antes, Recover em batalha selvagem curava só no display e o
+        // próximo battle_update revertia a cura).
         socket.emit('battle_action', {
             action_by: 'player', action_type: 'status',
             move_name: moveName, damage: 0,
+            heal: (result.effect_type === 'heal' && result.heal) ? result.heal : 0,
             player_status_damage: window._playerPreTurnStatusDamage || 0,
             status_effect: result.status_applied || null,
             message: result.message
@@ -5215,11 +5252,13 @@ async function processWildStatusMove(moveName) {
         ...(enemy?.stats || {}),
         level: wildLevel,
         proficiency: getProficiencyForLevel(wildLevel),
-        maxHp: enemy?.maxHp || enemy?.hp || 20
+        maxHp: enemy?.maxHp || enemy?.hp || 20,
+        currentHp: enemy?.currentHp ?? enemy?.hp ?? 20
     };
     const targetStats = {
         ...(playerPoke?.stats || {}),
-        level: playerPoke?.level || 1
+        level: playerPoke?.level || 1,
+        currentHp: playerPoke?.currentHp ?? playerPoke?.maxHp ?? 20
     };
     
     try {
@@ -5245,12 +5284,14 @@ async function processWildStatusMove(moveName) {
             return;
         }
 
-        // Dano fixo do selvagem (Night Shade etc.): servidor aplica no jogador
-        if (result.effect_type === 'fixed_damage' && result.damage > 0) {
+        // Dano fixo do selvagem (Night Shade/Pain Split/OHKO...): servidor
+        // aplica dano no jogador, heal/self_damage no próprio selvagem
+        if (result.effect_type === 'fixed_damage' && (result.damage > 0 || result.self_damage > 0)) {
             socket.emit('battle_action', {
                 action_by: 'master', action_type: 'status',
-                move_name: moveName, damage: result.damage,
-                wild_status_damage: window._wildPreTurnStatusDamage || 0,
+                move_name: moveName, damage: result.damage || 0,
+                heal: result.heal || 0,
+                wild_status_damage: (window._wildPreTurnStatusDamage || 0) + (result.self_damage || 0),
                 message: result.message
             });
             return;
@@ -5261,6 +5302,17 @@ async function processWildStatusMove(moveName) {
             socket.emit('battle_action', {
                 action_by: 'master', action_type: 'status',
                 move_name: moveName, damage: 0, reset_stages: true,
+                wild_status_damage: window._wildPreTurnStatusDamage || 0,
+                message: result.message
+            });
+            return;
+        }
+
+        // Psych Up/Heart Swap/Topsy-Turvy do selvagem
+        if (result.effect_type === 'stage_op') {
+            socket.emit('battle_action', {
+                action_by: 'master', action_type: 'status',
+                move_name: moveName, damage: 0, stage_op: result.op,
                 wild_status_damage: window._wildPreTurnStatusDamage || 0,
                 message: result.message
             });
