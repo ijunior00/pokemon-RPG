@@ -293,6 +293,36 @@ def main():
                 recv(s1)
             check(S, 'batalha completa terminou e limpou estado',
                   u1 not in gstate()['active_encounters'], f'{rounds} rounds')
+    # Status on-hit do SELVAGEM é rolado no SERVIDOR (não depende de o cliente ter
+    # carregado statusEffectsData). Selvagem usa Poison Sting → jogador envenenado.
+    s1.get_received()
+    s1.emit('start_encounter', {'pokemon': dict(enc['pokemon'], hp=enc['pokemon'].get('maxHp', enc['pokemon'].get('hp', 30))),
+                                'level': enc['level'], 'is_shiny': False, 'route_id': 'route1',
+                                'player_pokemon': 'Charmander', 'player_pokemon_idx': 0,
+                                'wild_moves': ['Poison Sting']})
+    recv(s1)
+    server_poisoned = False
+    for _ in range(60):
+        st = gstate()['active_encounters'].get(u1)
+        if not st:
+            break
+        bs = st['battle_state']
+        bs['turn'] = 'wild'; bs['player_status'] = None
+        bs['player_hp_current'] = bs['player_hp_max']
+        gs = gstate(); gs['active_encounters'][u1]['battle_state'] = bs; db.save_game_state(gs, TID)
+        s1.get_received()
+        # Poison Sting é on:'hit' (30%) — dano>0 dispara a rolagem no servidor
+        s1.emit('battle_action', {'action_by': 'master', 'action_type': 'attack',
+                                  'move_name': 'Poison Sting', 'move_type': 'poison',
+                                  'damage': 5, 'attack_roll': 12})
+        recv(s1)
+        ps = gstate()['active_encounters'][u1]['battle_state'].get('player_status')
+        if ps and ps.get('condition') == 'badly_poisoned':
+            server_poisoned = True
+            break
+    check(S, 'status on-hit do selvagem aplicado pelo servidor', server_poisoned)
+    s1.emit('end_encounter', {'result': 'fainted', 'active_pokemon_name': 'Charmander'}); recv(s1)
+
     r = p1.post('/api/pokemon/battle-xp', json={'winner_level': 20, 'loser_level': 18, 'battle_type': 'wild'})
     check(S, 'XP de batalha calculado', (r.get_json() or {}).get('xp_gained', 0) > 0)
 

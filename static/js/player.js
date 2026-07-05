@@ -4777,17 +4777,16 @@ async function _executeWildTurn() {
 
         addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> ${categoryLabel} → d20(${attackRoll})+${moveMod}+${profBonus}${wildAccMod ? `+Acc(${wildAccMod})` : ''}=${totalAttack} vs ${defLabel}(${targetAC}) ✅ ${scaledDice}(${diceRoll})+MOD(${moveMod})${stab > 0 ? `+STAB(${stab})` : ''}${window.playerDodging ? ' ×1.25(esquiva)' : ''}${isCrit ? ' CRIT!' : ''}${effectLabel ? ' '+effectLabel : ''} = <strong>${damage} dano</strong>`);
 
-        // Check if wild move inflicts status on player
-        checkWildStatusOnHit(moveName, attackRoll, damage);
-
+        // Status on-hit do selvagem (veneno/queimadura/paralisia...) é rolado no
+        // SERVIDOR (dados canônicos de 224 moves + independe de statusEffectsData
+        // ter carregado no cliente). Mandamos o attack_roll p/ moves 'nat15plus'.
         socket.emit('battle_action', {
             action_by: 'master', action_type: 'attack',
             move_name: moveName, move_type: wildMoveTypeEn, damage: damage,
+            attack_roll: attackRoll,
             wild_status_damage: wildPreTurnStatusDamage,
-            status_effect: window._wildStatusApplied || null,
             message: `${totalAttack} vs AC ${targetAC}${isCrit ? ' Crítico!' : ''}`
         });
-        window._wildStatusApplied = null;
     } else {
         addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> ${categoryLabel} → d20(${attackRoll})+${moveMod}+${profBonus}${wildAccMod ? `+Acc(${wildAccMod})` : ''}=${totalAttack} vs ${defLabel}(${targetAC}) ❌ Errou!${window.playerDodging ? ' (esquivou!)' : ''}`);
         socket.emit('battle_action', {
@@ -4799,27 +4798,9 @@ async function _executeWildTurn() {
     }
 }
 
-function checkWildStatusOnHit(moveName, attackRoll, damage) {
-    // Check if the wild's damaging move inflicts a status on hit
-    const effectsData = window.statusEffectsData?.move_effects || {};
-    const effect = effectsData[moveName];
-    if (!effect || damage <= 0) return;
-    
-    let inflict = false;
-    if (effect.on === 'hit') {
-        inflict = Math.random() < effect.chance;
-    } else if (effect.on === 'nat15plus' && attackRoll >= 15) {
-        inflict = Math.random() < effect.chance;
-    }
-    
-    if (inflict) {
-        const cond = window.statusEffectsData?.conditions?.[effect.status];
-        window.playerPokemonStatus = { condition: effect.status, turns_active: 0 };
-        window._wildStatusApplied = effect.status;
-        if (cond) addBattleLog(`${cond.icon} Seu Pokémon ficou <strong>${cond.name}</strong>! ${cond.description}`);
-        updateStatusDisplay();
-    }
-}
+// checkWildStatusOnHit foi removida: o status on-hit do selvagem agora é rolado
+// no servidor (fonte canônica, independe de statusEffectsData no cliente). O badge
+// aparece pela sincronização de bs.player_status no handler de battle_update.
 
 
 // ============================================

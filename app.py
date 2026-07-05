@@ -4115,7 +4115,20 @@ def handle_battle_action(data):
             battle_state['wild_hp_current'] = max(PERMADEATH_FLOOR, battle_state['wild_hp_current'] - damage)
         elif action_by == 'master' and damage > 0:
             battle_state['player_hp_current'] = max(PERMADEATH_FLOOR, battle_state['player_hp_current'] - damage)
-        
+
+        # Status on-hit do SELVAGEM no jogador (Poison Sting→veneno, Ember→queimadura...)
+        # rolado no SERVIDOR (fonte canônica de 224 moves), não só no cliente. Antes,
+        # o veneno de golpes selvagens dependia de o cliente ter carregado
+        # window.statusEffectsData (~40 moves); se a busca falhasse, nenhum status
+        # do selvagem funcionava. O guard 'not player_status' evita empilhar com o
+        # cliente. Só sobrescreve se o cliente ainda não aplicou nada.
+        if (action_type == 'attack' and action_by == 'master' and damage > 0
+                and move_name and not status_effect and not battle_state.get('player_status')):
+            skey, inflicted = effects.check_status_on_hit(
+                move_name, int(data.get('attack_roll', 10) or 10), damage)
+            if inflicted:
+                status_effect = {'condition': skey, 'turns_active': 0}
+
         # Habilidades de contato (Static, Rough Skin, Flame Body...) —
         # o defensor reage a golpes físicos que causaram dano.
         contact_trigger = None
