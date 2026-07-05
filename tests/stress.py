@@ -344,6 +344,33 @@ def main():
           _stat.mean(_pois) > 1.6 * max(1, _stat.mean(_clean)),
           f'limpo={_stat.mean(_clean):.1f} envenenado={_stat.mean(_pois):.1f}')
 
+    # Imunidade de tipo com fallback da espécie: pokémon salvo pela ficha vem
+    # sem 'immunities' — Ghost NÃO pode tomar dano de move Normal.
+    _gastly = make_poke('Gastly', 30)
+    _gastly['immunities'] = []   # como a ficha salva
+    _imm_hits = sum(1 for _ in range(30)
+                    if appmod._calc_pvp_attack(make_poke('Rattata', 30), _gastly, 'Tackle', 18)['damage'] > 0)
+    check(S, 'imunidade Ghost×Normal (fallback da espécie)', _imm_hits == 0, f'{_imm_hits}/30 acertos')
+    check(S, 'super efetivo ainda acerta Ghost',
+          appmod._calc_pvp_attack(make_poke('Rattata', 30), _gastly, 'Bite', 18)['damage'] > 0)
+
+    # Metronome vira move de DANO aleatório (nunca cai em "utilidade")
+    _met = appmod._calc_pvp_attack(make_poke('Clefairy', 30), make_poke('Rattata', 30), 'Metronome', 15)
+    check(S, 'Metronome resolve como ataque', not _met.get('is_status') and 'Metronome' in _met.get('message', ''))
+
+    # Moves de dano fixo / Haze / Teleport / Splash têm efeito real
+    _att_stats = {'ATK': 14, 'SPA': 14, 'CON': 12, 'level': 40, 'proficiency': 5, 'maxHp': 80}
+    _tgt_stats = {'DEF': 12, 'level': 40}
+    _ns = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('night shade'), _att_stats, _tgt_stats)
+    check(S, 'Night Shade dano fixo = nível', _ns['effect_type'] == 'fixed_damage' and _ns['damage'] == 40)
+    _hz = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('haze'), _att_stats, _tgt_stats)
+    check(S, 'Haze anula stages', _hz['effect_type'] == 'reset_stages')
+    _tp = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('teleport'), _att_stats, _tgt_stats)
+    check(S, 'Teleport foge (selvagem)', _tp['effect_type'] == 'flee')
+    _ut = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('trick room') or {'name': 'Trick Room'},
+                                             _att_stats, _tgt_stats)
+    check(S, 'utilidade avisa "mestre adjudica"', 'adjudica' in _ut['message'])
+
     r = p1.post('/api/pokemon/battle-xp', json={'winner_level': 20, 'loser_level': 18, 'battle_type': 'wild'})
     check(S, 'XP de batalha calculado', (r.get_json() or {}).get('xp_gained', 0) > 0)
 

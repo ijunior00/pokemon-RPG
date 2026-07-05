@@ -667,6 +667,20 @@ def auto_detect_move_effect(move_data):
         'laser focus': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 2, 'duration': 1},
         'lock-on': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 4, 'duration': 1},
         'mind reader': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 4, 'duration': 1},
+        # Moves de dano fixo (canônico: Night Shade/Seismic Toss = nível do usuário)
+        'night shade': {'type': 'fixed_damage', 'formula': 'level'},
+        'seismic toss': {'type': 'fixed_damage', 'formula': 'level'},
+        'sonic boom': {'type': 'fixed_damage', 'formula': 'half_level'},
+        # Haze: anula TODOS os buffs/debuffs acumulados (dos dois lados)
+        'haze': {'type': 'reset_stages'},
+        # Teleport: foge da batalha selvagem (falha em batalha de treinador — canon)
+        'teleport': {'type': 'flee'},
+        # Aurora Veil: barreira dupla física+especial → CA +2 (homebrew)
+        'aurora veil': {'type': 'buff_self', 'stat': 'AC', 'value': 2, 'duration': 5},
+        # Helping Hand: prepara o próximo golpe (homebrew: +2 no acerto)
+        'helping hand': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 2, 'duration': 1},
+        # Splash: canonicamente inútil
+        'splash': {'type': 'utility', 'message': '💦 Splash! Nada aconteceu... absolutamente nada!'},
         # Debuffs conhecidos
         'noble roar': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'WIS', 'duration': 2},
         'captivate': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'CHA', 'duration': 2},
@@ -792,7 +806,8 @@ def process_status_move(move_data, attacker_stats, target_stats):
         return {
             'success': True,
             'effect_type': 'utility',
-            'message': f"{move_data.get('name', '???')} foi usado! (utilidade)",
+            'message': f"{move_data.get('name', '???')}: efeito narrativo/situacional — "
+                       f"o mestre adjudica o resultado.",
             'status_applied': None,
             'stat_changes': None
         }
@@ -888,7 +903,50 @@ def process_status_move(move_data, attacker_stats, target_stats):
             'status_applied': None,
             'stat_changes': None
         }
-    
+
+    elif effect['type'] == 'fixed_damage':
+        # Dano fixo que ignora CA/save (Night Shade/Seismic Toss = nível;
+        # Sonic Boom = metade do nível). Aplicado pelo caller ao alvo.
+        level = int(attacker_stats.get('level', 1) or 1)
+        dmg = level if effect.get('formula') == 'level' else max(4, level // 2)
+        return {
+            'success': True,
+            'effect_type': 'fixed_damage',
+            'damage': dmg,
+            'message': f"{move_name}! Dano fixo de {dmg} (ignora CA)!",
+            'status_applied': None,
+            'stat_changes': None
+        }
+
+    elif effect['type'] == 'reset_stages':
+        # Haze: o caller zera os stat_stages dos DOIS lados.
+        return {
+            'success': True,
+            'effect_type': 'reset_stages',
+            'message': f"{move_name}! Todos os buffs e debuffs foram anulados!",
+            'status_applied': None,
+            'stat_changes': None
+        }
+
+    elif effect['type'] == 'flee':
+        # Teleport: foge de batalha selvagem; em batalha de treinador falha (canon).
+        return {
+            'success': True,
+            'effect_type': 'flee',
+            'message': f"{move_name}! Teletransportou para longe da batalha!",
+            'status_applied': None,
+            'stat_changes': None
+        }
+
+    elif effect['type'] == 'utility':
+        return {
+            'success': True,
+            'effect_type': 'utility',
+            'message': effect.get('message') or f"{move_name} foi usado!",
+            'status_applied': None,
+            'stat_changes': None
+        }
+
     # Default
     return {
         'success': True,

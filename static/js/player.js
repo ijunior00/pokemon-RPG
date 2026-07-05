@@ -627,9 +627,11 @@ async function startBattle() {
             playerPokemon.number = api.number;
             if (!playerPokemon.types || playerPokemon.types.length === 0) playerPokemon.types = api.types;
             if (!playerPokemon.speed) playerPokemon.speed = api.speed;
-            if (!playerPokemon.vulnerabilities) playerPokemon.vulnerabilities = api.vulnerabilities;
-            if (!playerPokemon.resistances) playerPokemon.resistances = api.resistances;
-            if (!playerPokemon.immunities) playerPokemon.immunities = api.immunities;
+            // lista vazia [] é truthy — sem o length check, Ghost salvo pela ficha
+            // (immunities: []) nunca recebia a imunidade a Normal/Fighting da espécie
+            if (!playerPokemon.vulnerabilities?.length) playerPokemon.vulnerabilities = api.vulnerabilities;
+            if (!playerPokemon.resistances?.length) playerPokemon.resistances = api.resistances;
+            if (!playerPokemon.immunities?.length) playerPokemon.immunities = api.immunities;
             if (!playerPokemon.moves || playerPokemon.moves.length === 0) {
                 let moves = [...(api.startingMoves || [])];
                 if (api.levelMoves) {
@@ -1140,7 +1142,10 @@ async function useMove(moveName) {
         'disable', 'torment', 'spite', 'wish', 'heal bell', 'aromatherapy',
         'venom drench', 'toxic spikes', 'spikes', 'stealth rock', 'sticky web'];
 
-    if (m.category === 'status' || !m.baseDamage || PLAYER_STATUS_MOVES.includes(moveName.toLowerCase())) {
+    // Metronome vira um move de DANO aleatório — resolvido no SERVIDOR
+    // (_calc_player_attack), então segue pelo caminho de ataque normal.
+    const isMetronome = moveName.toLowerCase() === 'metronome';
+    if (!isMetronome && (m.category === 'status' || !m.baseDamage || PLAYER_STATUS_MOVES.includes(moveName.toLowerCase()))) {
         await processStatusMove(moveName, poke, window.currentBattleData?.enemy);
         return;
     }
@@ -5084,9 +5089,39 @@ async function processStatusMove(moveName, attackerPoke, targetPoke) {
             body: JSON.stringify({ move_name: moveName, attacker_stats: attackerStats, target_stats: targetStats })
         });
         const result = await resp.json();
-        
+
         addBattleLog(`▶️ <strong>${moveName}</strong> → ${result.message}`);
-        
+
+        // Teleport: foge da batalha selvagem (ignora até prisão — teletransporte)
+        if (result.effect_type === 'flee') {
+            playSound('run');
+            fleeBattle();
+            return;
+        }
+
+        // Dano fixo (Night Shade/Seismic Toss/Sonic Boom): ignora CA;
+        // o servidor aplica o dano no HP do selvagem.
+        if (result.effect_type === 'fixed_damage' && result.damage > 0) {
+            socket.emit('battle_action', {
+                action_by: 'player', action_type: 'status',
+                move_name: moveName, damage: result.damage,
+                player_status_damage: window._playerPreTurnStatusDamage || 0,
+                message: result.message
+            });
+            return;
+        }
+
+        // Haze: anula buffs/debuffs dos dois lados (servidor zera as stages)
+        if (result.effect_type === 'reset_stages') {
+            socket.emit('battle_action', {
+                action_by: 'player', action_type: 'status',
+                move_name: moveName, damage: 0, reset_stages: true,
+                player_status_damage: window._playerPreTurnStatusDamage || 0,
+                message: result.message
+            });
+            return;
+        }
+
         // Apply effects based on result
         if (result.status_applied) {
             window.wildPokemonStatus = { condition: result.status_applied, turns_active: 0 };
@@ -5194,9 +5229,44 @@ async function processWildStatusMove(moveName) {
             body: JSON.stringify({ move_name: moveName, attacker_stats: attackerStats, target_stats: targetStats })
         });
         const result = await resp.json();
-        
+
         addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> → ${result.message}`);
-        
+
+        // Teleport: o SELVAGEM foge da batalha
+        if (result.effect_type === 'flee') {
+            addBattleLog('<strong>🌀 O Pokémon selvagem se teletransportou para longe!</strong>');
+            playSound('run');
+            hideElement('encounter-result');
+            hideElement('battle-area');
+            showElement('no-battle-msg');
+            currentEncounter = null;
+            battleActive = false;
+            socket.emit('end_encounter', { result: 'fled' });
+            return;
+        }
+
+        // Dano fixo do selvagem (Night Shade etc.): servidor aplica no jogador
+        if (result.effect_type === 'fixed_damage' && result.damage > 0) {
+            socket.emit('battle_action', {
+                action_by: 'master', action_type: 'status',
+                move_name: moveName, damage: result.damage,
+                wild_status_damage: window._wildPreTurnStatusDamage || 0,
+                message: result.message
+            });
+            return;
+        }
+
+        // Haze: anula buffs/debuffs dos dois lados
+        if (result.effect_type === 'reset_stages') {
+            socket.emit('battle_action', {
+                action_by: 'master', action_type: 'status',
+                move_name: moveName, damage: 0, reset_stages: true,
+                wild_status_damage: window._wildPreTurnStatusDamage || 0,
+                message: result.message
+            });
+            return;
+        }
+
         if (result.status_applied) {
             window.playerPokemonStatus = { condition: result.status_applied, turns_active: 0 };
             const cond = window.statusEffectsData?.conditions?.[result.status_applied];

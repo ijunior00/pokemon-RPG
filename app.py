@@ -176,10 +176,43 @@ def _mod_precisao(stat, teto=4):
     raw = (stat - 10) // 4
     return max(-2, min(teto, raw))
 
+
+def _type_lists(poke):
+    """(vulnerabilities, resistances, immunities) em lowercase, com fallback
+    nos dados-base da espécie quando o dict do pokémon não traz as listas.
+
+    Pokémon salvos pela ficha do jogador frequentemente vêm sem 'immunities'
+    (o formulário só tem vulnerabilidades) — sem o fallback, Ghost tomava
+    dano de move Normal em PvP porque a lista chegava vazia no servidor."""
+    if not isinstance(poke, dict):
+        return [], [], []
+    base = POKEMON_BY_NAME.get((poke.get('name') or '').lower()) or {}
+    def pick(field):
+        vals = poke.get(field)
+        if not vals:  # None ou lista vazia → usa a espécie
+            vals = base.get(field) or []
+        return [t.lower() for t in vals]
+    return pick('vulnerabilities'), pick('resistances'), pick('immunities')
+
+
+def _resolve_metronome(move_name):
+    """Metronome executa um move de DANO aleatório do banco.
+
+    Retorna (nome_final, became): became é o nome sorteado quando o move era
+    Metronome (para o log), ou None se não era."""
+    if (move_name or '').lower() != 'metronome':
+        return move_name, None
+    pool = [n for n, md in MOVES_DB.items()
+            if md.get('baseDamage') and md.get('category') in ('physical', 'special')]
+    pick = random.choice(pool) if pool else 'Tackle'
+    return pick, pick
+
+
 def _calc_player_attack(encounter, move_name, attack_roll=None):
     """Calculate player attack fully server-side. Returns result dict."""
     player_poke = encounter.get('player_pokemon') or {}
     wild_poke   = encounter.get('pokemon') or {}
+    move_name, metronome_became = _resolve_metronome(move_name)
     move = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name) or {}
 
     level  = int(player_poke.get('level') or 1)
@@ -226,18 +259,19 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
 
     move_type_raw = (move.get('type') or '').lower()
     move_type_en  = _TYPE_MAP_PT.get(move_type_raw, move_type_raw)
+    met = f'🎶 Metronome → <strong>{metronome_became}</strong>! ' if metronome_became else ''
 
     if is_nat1:
         return {'hit': False, 'damage': 0, 'message': 'Nat 1 - Falha',
                 'attack_roll': attack_roll, 'move_type_en': move_type_en,
-                'log': f'❌ Falha crítica! (Nat 1)'}
+                'log': f'{met}❌ Falha crítica! (Nat 1)'}
 
     hit = (total >= enemy_ac) or is_crit
     if not hit:
         return {'hit': False, 'damage': 0,
                 'message': f'Errou ({total} vs AC {enemy_ac})',
                 'attack_roll': attack_roll, 'move_type_en': move_type_en,
-                'log': f'❌ Errou! ({total} < AC {enemy_ac})'}
+                'log': f'{met}❌ Errou! ({total} < AC {enemy_ac})'}
 
     # sem default '1d6': a auditoria canônica garante dados p/ moves de dano;
     # os poucos de dano variável (Seismic Toss etc.) ficam p/ o mestre adjudicar
@@ -246,7 +280,7 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
         return {'hit': True, 'damage': 0,
                 'message': f'{total} vs AC {enemy_ac} — dano variável (mestre adjudica)',
                 'attack_roll': attack_roll, 'move_type_en': move_type_en,
-                'is_crit': is_crit, 'log': f'✅ Acertou! ({total} vs AC {enemy_ac}) — dano variável, mestre adjudica.'}
+                'is_crit': is_crit, 'log': f'{met}✅ Acertou! ({total} vs AC {enemy_ac}) — dano variável, mestre adjudica.'}
     higher_lvs  = move.get('higherLevels', '') or ''
     scaled_dice = _get_scaled_dice(base_dmg, level, higher_lvs)
     roll1   = _roll_dice(scaled_dice)
@@ -274,10 +308,8 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
             damage *= 2
             venoshock_x2 = True
 
-    # Type effectiveness
-    vulns      = [t.lower() for t in (wild_poke.get('vulnerabilities') or [])]
-    resists    = [t.lower() for t in (wild_poke.get('resistances') or [])]
-    immunities = [t.lower() for t in (wild_poke.get('immunities') or [])]
+    # Type effectiveness (com fallback nos dados da espécie p/ listas vazias)
+    vulns, resists, immunities = _type_lists(wild_poke)
     eff = 1.0
     if move_type_en in immunities:
         eff = 0.0
@@ -295,7 +327,7 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
     elif eff > 1:  eff_label = f' ⚡ Super Efetivo (x{eff:.0f})'
     elif eff < 1:  eff_label = f' 🛡️ Não Efetivo (x{eff})'
 
-    log = (f'✅ Acertou! ({total} vs AC {enemy_ac}) → '
+    log = (f'{met}✅ Acertou! ({total} vs AC {enemy_ac}) → '
            f'{scaled_dice}({roll1}) + {stat_lbl}({mod})'
            f'{f" + STAB({stab})" if stab else ""}'
            f'{" ×2 CRIT" if is_crit else ""}'
@@ -310,6 +342,7 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
 
 def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
     """Server-side damage for PVP: attacker_poke vs defender_poke (both full pokemon dicts)."""
+    move_name, metronome_became = _resolve_metronome(move_name)
     move = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name) or {}
 
     level    = int(attacker_poke.get('level') or 1)
@@ -352,19 +385,20 @@ def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
 
     move_type_raw = (move.get('type') or '').lower()
     move_type_en  = _TYPE_MAP_PT.get(move_type_raw, move_type_raw)
+    met = f'🎶 Metronome → {metronome_became}! ' if metronome_became else ''
 
     if is_nat1:
-        return {'hit': False, 'damage': 0, 'message': 'Nat 1 - Falha', 'move_type_en': move_type_en}
+        return {'hit': False, 'damage': 0, 'message': f'{met}Nat 1 - Falha', 'move_type_en': move_type_en}
 
     hit = (total >= enemy_ac) or is_crit
     if not hit:
-        return {'hit': False, 'damage': 0, 'message': f'Errou ({total} vs AC {enemy_ac})', 'move_type_en': move_type_en}
+        return {'hit': False, 'damage': 0, 'message': f'{met}Errou ({total} vs AC {enemy_ac})', 'move_type_en': move_type_en}
 
     # sem default '1d6': a auditoria canônica garante dados p/ moves de dano
     base_dmg = move.get('baseDamage')
     if not base_dmg:
         return {'hit': True, 'damage': 0,
-                'message': f'{total} vs AC {enemy_ac} — dano variável (mestre adjudica)',
+                'message': f'{met}{total} vs AC {enemy_ac} — dano variável (mestre adjudica)',
                 'move_type_en': move_type_en}
     higher_lvs  = move.get('higherLevels', '') or ''
     scaled_dice = _get_scaled_dice(base_dmg, level, higher_lvs)
@@ -385,10 +419,9 @@ def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
     if move_name.lower() == 'venoshock' and (defender_poke.get('status') or {}).get('condition') == 'badly_poisoned':
         damage *= 2
 
-    # Type effectiveness
-    vulns      = [t.lower() for t in (defender_poke.get('vulnerabilities') or [])]
-    resists    = [t.lower() for t in (defender_poke.get('resistances') or [])]
-    immunities = [t.lower() for t in (defender_poke.get('immunities') or [])]
+    # Type effectiveness (com fallback nos dados da espécie p/ listas vazias —
+    # pokémon salvos pela ficha não trazem 'immunities': Ghost tomava Normal)
+    vulns, resists, immunities = _type_lists(defender_poke)
     eff = 1.0
     if move_type_en in immunities:
         eff = 0.0
@@ -398,8 +431,9 @@ def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
     damage = max(0, int(damage * eff))
     if damage < 1 and eff > 0: damage = 1
 
+    eff_label = ' ⛔ IMUNE!' if eff == 0 else (' ⚡ Super Efetivo!' if eff > 1 else (' 🛡️ Não Efetivo' if eff < 1 else ''))
     return {'hit': True, 'damage': damage,
-            'message': f'{total} vs AC {enemy_ac}{"  Crítico!" if is_crit else ""}',
+            'message': f'{met}{total} vs AC {enemy_ac}{"  Crítico!" if is_crit else ""}{eff_label}',
             'move_type_en': move_type_en}
 
 # ============================================================
@@ -2703,6 +2737,26 @@ def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data
                                               _prof_for_level(actor['pokemon'].get('level', 1))),
              maxHp=actor['maxHp']),
         dict(target['pokemon'].get('stats', {}), level=target['pokemon'].get('level', 1)))
+    # Dano fixo (Night Shade etc.): ignora CA — aplica direto no alvo
+    # (gb.apply_damage já registra no log e avança o turno)
+    if result.get('effect_type') == 'fixed_damage' and result.get('damage'):
+        gb.apply_damage(battle, actor_cid, target_cid, result['damage'],
+                        move_name, result.get('message', ''))
+        return
+    # Haze: anula os buffs/debuffs de TODOS os combatentes
+    if result.get('effect_type') == 'reset_stages':
+        for c in battle['combatants'].values():
+            effects.reset_stat_stages(c.get('pokemon') or {})
+        battle['log'].append({'type': 'status_move', 'actor': actor_cid,
+                              'message': f"{actor['name']} usou {move_name} — {result.get('message','')}"})
+        gb.advance_turn(battle)
+        return
+    # Teleport falha em batalha em grupo com treinadores (canon)
+    if result.get('effect_type') == 'flee':
+        battle['log'].append({'type': 'status_move', 'actor': actor_cid,
+                              'message': f"{actor['name']} usou {move_name} — ...mas não funcionou!"})
+        gb.advance_turn(battle)
+        return
     if result.get('status_applied'):
         target['status'] = {'condition': result['status_applied'], 'turns_active': 0}
     if result.get('heal'):
@@ -2737,7 +2791,7 @@ def _group_run_wild_turns(battle):
         tgt_poke = dict(target['pokemon'])
         tgt_poke['currentHp'] = target['hp']
         move_name, move_data, is_status = _npc_pick_move(wild_poke, tgt_poke)
-        if is_status:
+        if is_status and move_name.lower() != 'metronome':
             _group_apply_status_move(battle, cur['cid'], target_cid, move_name, move_data)
             continue
         calc = _calc_pvp_attack(wild_poke, tgt_poke, move_name)
@@ -2834,7 +2888,7 @@ def handle_group_battle_action(data):
 
     move_name = data.get('move_name') or (cur['moves'][0] if cur['moves'] else 'Tackle')
     move_data = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name)
-    if _is_status_move(move_data):
+    if _is_status_move(move_data) and move_name.lower() != 'metronome':
         # Move de status: sem dano, aplica efeito no alvo/atacante
         _group_apply_status_move(battle, cur['cid'], target_cid, move_name, move_data)
     else:
@@ -3234,7 +3288,7 @@ def level_evolve():
 
 
 def _enrich_team(team):
-    """Fill in missing evolutionInfo / phys_ac / spec_ac from base pokemon data."""
+    """Fill in missing evolutionInfo / type matchups from base pokemon data."""
     for poke in team:
         if not poke:
             continue
@@ -3245,6 +3299,11 @@ def _enrich_team(team):
             poke['evolutionInfo'] = base.get('evolutionInfo', '')
         if not poke.get('evolutionStage'):
             poke['evolutionStage'] = base.get('evolutionStage', '')
+        # A ficha não preenche as listas de tipo — sem elas, imunidades
+        # (Ghost×Normal etc.) não valem na batalha selvagem do cliente.
+        for field in ('vulnerabilities', 'resistances', 'immunities'):
+            if not poke.get(field):
+                poke[field] = base.get(field, [])
     return team
 
 @app.route('/player/team-data')
@@ -4197,6 +4256,13 @@ def handle_battle_action(data):
             else:
                 if not battle_state.get('player_status'):
                     battle_state['player_status'] = status_dict
+
+        # Haze: anula os buffs/debuffs acumulados dos DOIS lados
+        if data.get('reset_stages'):
+            effects.reset_stat_stages(encounter.get('pokemon') or {})
+            effects.reset_stat_stages(encounter.get('player_pokemon') or {})
+            battle_state['wild_stat_stages'] = None
+            battle_state['player_stat_stages'] = None
         
         # Switch turn
         battle_state['turn'] = 'wild' if battle_state['turn'] == 'player' else 'player'
@@ -4721,8 +4787,9 @@ def handle_pvp_attack(data):
             return
 
         # ── Move de STATUS: nunca causa dano — roteia pelo motor de efeitos ──
+        # (exceto Metronome: vira um move de DANO aleatório, resolvido no calc)
         move_data = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name)
-        if _is_status_move(move_data):
+        if _is_status_move(move_data) and move_name.lower() != 'metronome':
             _process_pvp_status_move(battle, player_key, move_name, move_data)
             next_key = battle['turn']
             if battle['phase'] == 'battle' and battle[next_key].get('is_npc'):
@@ -5106,9 +5173,7 @@ def _npc_pick_move(attacker_poke, defender_poke, defender_has_status=False):
     Returns (move_name, move_data, is_status).
     """
     moves = [m for m in (attacker_poke.get('moves') or []) if m] or ['Tackle']
-    def_vulns   = [t.lower() for t in (defender_poke.get('vulnerabilities') or [])]
-    def_resists = [t.lower() for t in (defender_poke.get('resistances') or [])]
-    def_immune  = [t.lower() for t in (defender_poke.get('immunities') or [])]
+    def_vulns, def_resists, def_immune = _type_lists(defender_poke)
     atk_types   = [t.lower() for t in (attacker_poke.get('types') or [])]
 
     max_hp = attacker_poke.get('maxHp', 20) or 20
@@ -5134,6 +5199,8 @@ def _npc_pick_move(attacker_poke, defender_poke, defender_has_status=False):
                 score = 8
             elif detected['type'] == 'buff_self':
                 score = 8
+            elif detected['type'] == 'fixed_damage':
+                score = 18   # dano garantido (ignora CA) — quase tão bom quanto atacar
             else:
                 score = 3
         else:
@@ -5180,8 +5247,49 @@ def _process_pvp_status_move(battle, attacker_key, move_name, move_data):
              proficiency=att_poke.get('proficiency', _prof_for_level(att_poke.get('level', 1))),
              maxHp=att_poke.get('maxHp', 20)),
         dict(def_poke.get('stats', {}), level=def_poke.get('level', 1)))
+
+    # Teleport em batalha de treinador falha (canon gens 1-7) — mensagem clara.
+    if result.get('effect_type') == 'flee':
+        battle['log'].append({'type': 'status_move', 'attacker': attacker_key,
+                              'move': move_name,
+                              'message': f'{move_name}! ...mas não funciona em batalha de treinador!'})
+        pvp.advance_turn(battle)
+        _broadcast_pvp_state(battle)
+        return result
+
     battle['log'].append({'type': 'status_move', 'attacker': attacker_key,
                           'move': move_name, 'message': result.get('message', '')})
+
+    # Dano fixo (Night Shade/Seismic Toss/Sonic Boom): ignora CA, aplica no
+    # defensor via apply_damage (que trata desmaio/troca/fim de batalha).
+    if result.get('effect_type') == 'fixed_damage' and result.get('damage'):
+        dmg_result = pvp.apply_damage(battle, attacker_key, result['damage'],
+                                      move_name, result.get('message', ''))
+        _handle_pvp_permadeath(battle)
+        _broadcast_pvp_state(battle)
+        if dmg_result == 'battle_end':
+            handle_pvp_victory(battle)
+        elif dmg_result == 'must_switch':
+            if not battle[defender_key].get('is_npc'):
+                socketio.emit('pvp_must_switch', {
+                    'battle_id': battle['id'],
+                    'message': 'Seu Pokémon desmaiou! Escolha o próximo.'
+                }, room=battle[defender_key]['id'])
+            else:
+                npc_next = pvp.npc_choose_pokemon(battle, defender_key)
+                if npc_next is not None:
+                    pvp.switch_pokemon(battle, defender_key, npc_next)
+                    _broadcast_pvp_state(battle)
+        return result
+
+    # Haze: anula os buffs/debuffs acumulados dos DOIS lados
+    if result.get('effect_type') == 'reset_stages':
+        effects.reset_stat_stages(att_poke)
+        effects.reset_stat_stages(def_poke)
+        pvp.advance_turn(battle)
+        _broadcast_pvp_state(battle)
+        return result
+
     if result.get('status_applied'):
         applied = pvp.apply_status(battle, defender_key,
                                    {'condition': result['status_applied']})
@@ -5251,7 +5359,7 @@ def handle_npc_turn(battle, npc_key):
     move, move_data, is_status = _npc_pick_move(npc_poke, def_poke,
                                                 defender_has_status=bool(def_poke.get('status')))
 
-    if is_status:
+    if is_status and move.lower() != 'metronome':
         _process_pvp_status_move(battle, npc_key, move, move_data)
         return
 
