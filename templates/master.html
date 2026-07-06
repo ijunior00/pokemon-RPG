@@ -4,6 +4,17 @@
 
 {% block content %}
 <div class="dashboard">
+    {% if is_super_admin %}
+    <script>window.IS_SUPER_ADMIN = true;</script>
+    <!-- Painel do super-admin (lusmar): aprovar cadastros de mestre -->
+    <div id="admin-approval-panel" style="border:2px solid var(--accent,#ffcb05);border-radius:12px;padding:0.8rem 1rem;margin-bottom:1rem;background:rgba(255,203,5,0.06);">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+            <strong>🛡️ Aprovação de Mestres <span id="admin-pending-count" style="opacity:0.8;font-size:0.85rem;"></span></strong>
+            <button class="btn btn-sm btn-secondary" onclick="loadPendingMasters()">↻ Atualizar</button>
+        </div>
+        <div id="admin-pending-list" style="margin-top:0.6rem;font-size:0.9rem;">Carregando...</div>
+    </div>
+    {% endif %}
     <!-- TABS -->
     <div class="tabs">
         <button class="tab active" data-tab="encounters">⚔️ Batalhas</button>

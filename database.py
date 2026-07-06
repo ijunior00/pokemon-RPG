@@ -172,6 +172,15 @@ def save_users(users_dict):
     cur.close()
     conn.close()
 
+def delete_user(uid):
+    """Remove a user permanently (usado ao rejeitar cadastro de mestre)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('DELETE FROM users WHERE id = %s', (uid,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
 def save_user(uid, user_data):
     """Save a single user efficiently."""
     conn = get_conn()

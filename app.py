@@ -7,6 +7,7 @@ import json
 import math
 import random
 import secrets
+from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -27,7 +28,12 @@ import time as _time
 from collections import defaultdict
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'pokemon5e-rpg-secret-key-2024-galar')
+# SECRET_KEY assina os cookies de sessão. SEM um valor forte, qualquer um
+# forja a sessão de outro usuário (inclusive mestre). Em produção o Render
+# injeta um valor via env (render.yaml). Só caímos num aleatório efêmero
+# em dev/local — nunca numa constante commitada no repositório.
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB (upload de avatar)
 app.config['REMEMBER_COOKIE_DURATION'] = 2592000  # 30 dias
 
 # Atrás do proxy do Render, request.remote_addr é o IP do proxy (igual p/ todos).
@@ -47,9 +53,11 @@ db.init_db()
 # ============================================================
 _rate_store: dict = defaultdict(list)  # ip -> [timestamps]
 
-def _rate_limit(max_calls: int, window_seconds: int) -> bool:
-    """Return True (blocked) if IP exceeds max_calls in window_seconds."""
-    ip = request.remote_addr or 'unknown'
+def _rate_limit(max_calls: int, window_seconds: int, bucket: str = '') -> bool:
+    """Return True (blocked) if IP exceeds max_calls in window_seconds.
+    `bucket` isola contadores por AÇÃO (login/registro/caçada não competem
+    pelo mesmo limite) — sem ele, muitas ações legítimas de um IP se somavam."""
+    ip = (request.remote_addr or 'unknown') + ('|' + bucket if bucket else '')
     now = _time.time()
     calls = [t for t in _rate_store[ip] if now - t < window_seconds]
     calls.append(now)
@@ -402,6 +410,20 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
         def_hp=bs.get('wild_hp_current'))
 
 
+def _calc_wild_attack(encounter, move_name, attack_roll=None):
+    """Ataque do SELVAGEM contra o jogador — recalculado no servidor para o
+    turno do selvagem no modo AUTO (senão o cliente do jogador podia mandar
+    o inimigo bater de graça)."""
+    bs = encounter.get('battle_state') or {}
+    return _calc_attack_core(
+        encounter.get('pokemon') or {}, encounter.get('player_pokemon') or {},
+        move_name, attack_roll,
+        attacker_status=bs.get('wild_status'),
+        defender_status=bs.get('player_status'),
+        atk_hp=bs.get('wild_hp_current'), atk_max_hp=bs.get('wild_hp_max'),
+        def_hp=bs.get('player_hp_current'))
+
+
 def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
     """Ataque em PvP/NPC/grupo (estado vive nos dicts dos Pokémon)."""
     return _calc_attack_core(
@@ -572,6 +594,42 @@ def load_user(user_id):
         return User(user_id, u['username'], u['password_hash'], u['role'], u.get('trainer_data'))
     return None
 
+
+# ============================================================
+# APROVAÇÃO DE CONTAS DE MESTRE (super-admin: lusmar)
+# ============================================================
+# Só o super-admin (lusmar) pode criar mesas livremente. Qualquer OUTRO
+# cadastro de mestre entra como PENDENTE (sem mesa, sem login) até o
+# super-admin aprovar. Jogadores continuam entrando por código de convite.
+# As flags ficam em trainer_data['_account'] (schema de users é fixo).
+SUPER_ADMIN_USERNAME = (os.environ.get('SUPER_ADMIN_USERNAME') or 'lusmar').strip().lower()
+
+
+def _account_meta(u):
+    return (u.get('trainer_data') or {}).get('_account') or {}
+
+
+def _is_super_admin(u):
+    """True se o dict de usuário é o super-admin (mestre lusmar aprovado)."""
+    return (u.get('role') == 'master'
+            and (u.get('username', '').strip().lower() == SUPER_ADMIN_USERNAME)
+            and _account_meta(u).get('super_admin') is True)
+
+
+def _super_admin_exists(users):
+    return any(_is_super_admin(u) for u in users.values())
+
+
+def _master_approved(u):
+    """Mestre pode logar? Pendentes = não. Mestres antigos (sem a flag) são
+    tratados como aprovados (grandfather) para não quebrar mesas existentes."""
+    if u.get('role') != 'master':
+        return True
+    meta = _account_meta(u)
+    if 'approved' not in meta:
+        return True   # conta anterior ao sistema de aprovação
+    return meta.get('approved') is True
+
 # ============================================================
 # CONTEXT PROCESSOR - inject site settings into all templates
 # ============================================================
@@ -631,7 +689,7 @@ def health_check():
 def login():
     if request.method == 'POST':
         # Rate limit: max 10 login attempts per IP per minute
-        if _rate_limit(10, 60):
+        if _rate_limit(10, 60, bucket='login'):
             flash('Muitas tentativas de login. Aguarde um momento.', 'error')
             return render_template('login.html')
         username = request.form.get('username', '').strip()
@@ -640,6 +698,11 @@ def login():
         for uid, u in users.items():
             if u['username'].lower() == username.lower():
                 if check_password_hash(u['password_hash'], password):
+                    # Mestre pendente de aprovação não pode entrar
+                    if not _master_approved(u):
+                        flash('Sua conta de Mestre está aguardando aprovação do '
+                              'administrador. Você será avisado quando for liberada.', 'error')
+                        return render_template('login.html')
                     user = User(uid, u['username'], u['password_hash'], u['role'], u.get('trainer_data'))
                     remember = request.form.get('remember') == '1'
                     login_user(user, remember=remember)
@@ -650,12 +713,19 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
+        # Throttle: no máx. 8 cadastros por IP por minuto (anti-flood de contas)
+        if _rate_limit(8, 60, bucket='register'):
+            flash('Muitos cadastros em pouco tempo. Aguarde um momento.', 'error')
+            return render_template('register.html')
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         role = request.form.get('role', 'player')
-        
+
         if not username or not password:
             flash('Preencha todos os campos', 'error')
+            return render_template('register.html')
+        if len(password) < 4:
+            flash('A senha deve ter pelo menos 4 caracteres.', 'error')
             return render_template('register.html')
         
         users = get_users()
@@ -679,6 +749,23 @@ def register():
                 return render_template('register.html')
             table_id = table['id']
 
+        # Aprovação de mestre: só o super-admin (lusmar) cria mesa direto;
+        # os demais mestres entram PENDENTES. Decide isto antes de gravar.
+        account_meta = {}
+        is_bootstrap_admin = False
+        if role == 'master':
+            if username.lower() == SUPER_ADMIN_USERNAME:
+                if _super_admin_exists(users):
+                    flash('Este nome de administrador já está em uso.', 'error')
+                    return render_template('register.html')
+                is_bootstrap_admin = True
+                account_meta = {'approved': True, 'super_admin': True}
+            else:
+                # mestre comum: pendente, sem mesa, até o super-admin aprovar
+                account_meta = {'approved': False, 'super_admin': False,
+                                'requested_at': datetime.utcnow().isoformat() + 'Z'}
+                table_id = None
+
         uid = secrets.token_hex(8)
         users[uid] = {
             'username': username,
@@ -694,20 +781,23 @@ def register():
                 'bag': [],
                 'badges': [],
                 'visited_routes': [],
-                'notes': ''
+                'notes': '',
+                **({'_account': account_meta} if account_meta else {})
             }
         }
         save_users(users)
 
-        # Masters auto-create their table
-        if role == 'master':
+        # Mestre APROVADO (super-admin no bootstrap) ganha mesa imediatamente
+        if role == 'master' and is_bootstrap_admin:
             new_table_id = secrets.token_hex(6)
             invite = secrets.token_hex(3).upper()
             _db_raw.create_table(new_table_id, f"Mesa de {username}", uid, invite)
-            # Assign master to their own table
             users[uid]['table_id'] = new_table_id
             save_users(users)
-            flash(f'Conta criada! Sua mesa foi criada. Código de convite para jogadores: {invite}', 'success')
+            flash(f'Conta de administrador criada! Código de convite da sua mesa: {invite}', 'success')
+        elif role == 'master':
+            flash('Conta de Mestre criada e enviada para aprovação do administrador. '
+                  'Você poderá entrar assim que for aprovada.', 'success')
         else:
             flash('Conta criada com sucesso!', 'success')
         return redirect(url_for('login'))
@@ -733,11 +823,78 @@ def master_dashboard():
     players = {uid: u for uid, u in users.items() if u['role'] == 'player' and u.get('table_id') == tid}
     game_state = get_game_state()
     table = _db_raw.get_table(tid)
+    is_super_admin = _is_super_admin(users.get(current_user.id, {}))
     return render_template('master.html',
                          players=players,
                          game_state=game_state,
                          routes=ROUTES_DATA,
-                         current_table=table)
+                         current_table=table,
+                         is_super_admin=is_super_admin)
+
+
+def _require_super_admin():
+    """Retorna o dict do usuário logado se for super-admin, senão None."""
+    if not current_user.is_authenticated:
+        return None
+    u = get_users().get(current_user.id)
+    return u if u and _is_super_admin(u) else None
+
+
+@app.route('/admin/pending-masters', methods=['GET'])
+@login_required
+def admin_pending_masters():
+    """Lista os cadastros de mestre aguardando aprovação (só super-admin)."""
+    if not _require_super_admin():
+        return jsonify({'error': 'Unauthorized'}), 403
+    users = get_users()
+    pending = [{'id': uid, 'username': u['username'],
+                'requested_at': _account_meta(u).get('requested_at', '')}
+               for uid, u in users.items()
+               if u.get('role') == 'master' and _account_meta(u).get('approved') is False]
+    pending.sort(key=lambda p: p['requested_at'])
+    return jsonify({'pending': pending})
+
+
+@app.route('/admin/masters/<uid>/approve', methods=['POST'])
+@login_required
+def admin_approve_master(uid):
+    """Super-admin aprova um mestre: cria a mesa dele e libera o login."""
+    if not _require_super_admin():
+        return jsonify({'error': 'Unauthorized'}), 403
+    users = get_users()
+    u = users.get(uid)
+    if not u or u.get('role') != 'master':
+        return jsonify({'error': 'Cadastro não encontrado'}), 404
+    meta = _account_meta(u)
+    if meta.get('approved') is not False:
+        return jsonify({'error': 'Este cadastro não está pendente'}), 400
+    # cria a mesa do novo mestre (mesmo fluxo do registro antigo)
+    new_table_id = secrets.token_hex(6)
+    invite = secrets.token_hex(3).upper()
+    _db_raw.create_table(new_table_id, f"Mesa de {u['username']}", uid, invite)
+    u['table_id'] = new_table_id
+    td = u.setdefault('trainer_data', {})
+    acc = td.setdefault('_account', {})
+    acc['approved'] = True
+    acc['approved_by'] = current_user.username
+    acc['approved_at'] = datetime.utcnow().isoformat() + 'Z'
+    users[uid] = u
+    save_users(users)
+    return jsonify({'ok': True, 'username': u['username'], 'invite': invite})
+
+
+@app.route('/admin/masters/<uid>/reject', methods=['POST'])
+@login_required
+def admin_reject_master(uid):
+    """Super-admin rejeita (remove) um cadastro de mestre pendente."""
+    if not _require_super_admin():
+        return jsonify({'error': 'Unauthorized'}), 403
+    users = get_users()
+    u = users.get(uid)
+    if not u or u.get('role') != 'master' or _account_meta(u).get('approved') is not False:
+        return jsonify({'error': 'Cadastro pendente não encontrado'}), 404
+    _db_raw.delete_user(uid)
+    return jsonify({'ok': True})
 
 
 @app.route('/master/table', methods=['GET'])
@@ -2032,8 +2189,10 @@ def give_xp():
     data = request.json
     player_id = data.get('player_id')
     xp_amount = int(data.get('xp', 0))
-    
+
     users = get_users()
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
     if player_id in users:
         trainer = users[player_id].get('trainer_data', {})
         lv_info = _apply_xp(trainer, xp_amount)
@@ -2106,8 +2265,8 @@ def master_get_player_team(player_id):
     if current_user.role != 'master':
         return jsonify({'error': 'Unauthorized'}), 403
     users = get_users()
-    if player_id not in users:
-        return jsonify({'error': 'Player não encontrado'}), 404
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
     team = users[player_id].get('trainer_data', {}).get('team', [])
     return jsonify({'team': [{'name': p.get('name'), 'level': p.get('level', 1)} for p in team]})
 
@@ -2126,8 +2285,8 @@ def give_pokemon_xp():
         return jsonify({'error': 'Parâmetros inválidos'}), 400
 
     users = get_users()
-    if player_id not in users:
-        return jsonify({'error': 'Player não encontrado'}), 404
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
 
     trainer = users[player_id].get('trainer_data', {})
     team = trainer.get('team', [])
@@ -2752,6 +2911,8 @@ def master_hunt_random():
     player_id = str(data.get('player_id', ''))
     if not player_id:
         return jsonify({'error': 'player_id obrigatório'}), 400
+    if not _player_in_master_table(player_id, get_users(), _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
     hunt_mode = data.get('hunt_mode', 'normal')
     if hunt_mode not in HUNT_MODES:
         hunt_mode = 'normal'
@@ -4394,11 +4555,16 @@ def handle_battle_action(data):
     """Handle a battle action (attack, status move, etc.)."""
     if current_user.is_authenticated:
         action_by = data.get('action_by')  # 'player' or 'master' (for wild pokemon)
-        # Security: non-masters can only act for themselves
+        # Security: non-masters can only act for themselves. No modo AUTO o
+        # navegador do JOGADOR conduz o turno do selvagem (action_by='master')
+        # — permitido, mas o dano é RECALCULADO no servidor abaixo, então o
+        # cliente não consegue mandar o selvagem bater de graça (dano 0).
         if current_user.role != 'master':
             player_id = str(current_user.id)
         else:
             player_id = str(data.get('player_id', current_user.id))
+            if not _player_in_master_table(player_id, get_users(), _tid()):
+                return
         action_type = data.get('action_type')  # 'attack', 'status', 'item'
         move_name = data.get('move_name', '')
         move_type = data.get('move_type', '')   # e.g. 'fire', 'ground'
@@ -4487,6 +4653,18 @@ def handle_battle_action(data):
                     server_calc['status_inflicted'] = skey
                     server_calc['log'] = (server_calc.get('log', '') +
                         f" {cond.get('icon','')} Selvagem ficou <strong>{cond.get('name', skey)}</strong>!")
+
+        # Turno do SELVAGEM conduzido pelo cliente do jogador (modo AUTO):
+        # recalcula o dano no servidor — o cliente não é autoridade sobre o
+        # quanto o inimigo bate (fechava o cheat de "selvagem dá dano 0").
+        # Se o MESTRE conduz manualmente, mantém o valor enviado por ele.
+        if (action_type == 'attack' and action_by == 'master' and move_name
+                and current_user.role != 'master'):
+            wild_calc = _calc_wild_attack(encounter, move_name, data.get('attack_roll'))
+            if not wild_calc.get('is_status'):
+                damage = wild_calc.get('damage', 0)
+                move_type = wild_calc.get('move_type_en', move_type)
+                server_calc = wild_calc
 
         if server_calc:
             action_log = server_calc.get('log')
@@ -4777,7 +4955,14 @@ def handle_end_encounter(data):
     """End an encounter."""
     if current_user.is_authenticated:
         game_state = get_game_state()
-        player_id = str(data.get('player_id', current_user.id))
+        # jogador só encerra o PRÓPRIO encontro; mestre precisa que o alvo
+        # seja da mesa dele (evita forjar player_id de outra pessoa/mesa)
+        if current_user.role == 'master':
+            player_id = str(data.get('player_id', current_user.id))
+            if not _player_in_master_table(player_id, get_users(), _tid()):
+                return
+        else:
+            player_id = str(current_user.id)
         result = data.get('result', '')
 
         # Track battle_wins on active Pokémon when player wins
@@ -4812,10 +4997,21 @@ def handle_master_action(data):
 def handle_mega_evolve(data):
     """Handle mega evolution in battle."""
     if current_user.is_authenticated:
-        player_id = str(data.get('player_id', current_user.id))
         side = data.get('side', 'player')  # 'player' or 'wild'
+        # Só o mestre mega-evolui o SELVAGEM ou age no encontro de outro
+        # jogador; jogador só mega-evolui no próprio encontro (o lado
+        # 'player'). Sem isto, qualquer um forjava player_id/side e mexia
+        # na batalha alheia.
+        if current_user.role == 'master':
+            player_id = str(data.get('player_id', current_user.id))
+            if not _player_in_master_table(player_id, get_users(), _tid()):
+                return
+        else:
+            if side == 'wild':
+                return
+            player_id = str(current_user.id)
         stone_name = data.get('stone_name', '')
-        
+
         stone_data = MEGA_DB.get(stone_name, {})
         if not stone_data:
             return
