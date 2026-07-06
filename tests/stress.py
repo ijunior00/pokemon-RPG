@@ -233,6 +233,72 @@ def main():
     for c in (msio, s1, s2):
         c.get_received()
 
+    # ── Economia: cliente não é autoridade sobre dinheiro/nível/espécie ──
+    users = db.get_users(); users[u1]['trainer_data']['money'] = 1000; db.save_users(users)
+    p1.post('/player/trainer', json={'money': 999999999, 'badges': [0,1,2,3,4,5,6,7],
+                                     'pokeslots': 6, 'name': 'Ash'})
+    _td = db.get_users()[u1]['trainer_data']
+    check(S, 'jogador NÃO edita o próprio dinheiro', _td.get('money') == 1000)
+    check(S, 'jogador NÃO edita as próprias insígnias', not _td.get('badges'))
+    check(S, 'campo legítimo (nome) ainda salva', _td.get('name') == 'Ash')
+    # bolsa: quantidade sanitizada (sem forjar 99999 itens)
+    p1.post('/player/trainer', json={'bag': [{'name': 'Master Ball', 'qty': 99999}]})
+    _bag = db.get_users()[u1]['trainer_data'].get('bag', [])
+    check(S, 'bolsa clampa quantidade forjada (≤999)',
+          _bag and _bag[0]['qty'] == 999)
+
+    # /player/team: nível não salta para 100, espécie inventada é descartada
+    _cur = db.get_users()[u1]['trainer_data']['team']
+    _cur_lvl = _cur[0]['level'] if _cur else 20
+    p1.post('/player/team', json={'team': [
+        dict(_cur[0], level=100, is_shiny=True) if _cur else
+        {'name': 'Charmander', 'number': 4, 'level': 100},
+        {'name': 'Fakemon', 'number': 99999, 'level': 100,
+         'maxHp': 99999, 'stats': {'ATK': 9999}}]})
+    _saved = db.get_users()[u1]['trainer_data']['team']
+    check(S, 'nível não salta (máx +5 por save)',
+          _saved[0]['level'] <= _cur_lvl + 5)
+    check(S, 'shiny não é ligado pelo cliente num Pokémon existente',
+          _saved[0].get('is_shiny') is False)
+    check(S, 'espécie inventada é descartada (anti-forja de stats)',
+          all(p['name'] != 'Fakemon' for p in _saved))
+
+    # Pokédex: número inexistente não dá XP
+    appmod._rate_store.clear()
+    _xp0 = db.get_users()[u1]['trainer_data'].get('xp', 0)
+    r = p1.post('/player/pokedex/register', json={'pokemon_number': 999999})
+    check(S, 'Pokédex rejeita número inexistente', r.status_code == 400)
+    check(S, 'XP não sobe com número falso',
+          db.get_users()[u1]['trainer_data'].get('xp', 0) == _xp0)
+
+    # Transfer: quantidade negativa não duplica
+    users = db.get_users()
+    users[u1]['trainer_data']['bag'] = [{'name': 'Ultra Bola', 'qty': 1}]
+    users[u1]['trainer_data']['money'] = 500
+    db.save_users(users)
+    p1.post('/player/transfer', json={'target_id': u2,
+                                      'items': [{'name': 'Ultra Bola', 'qty': -100}],
+                                      'money': -100})
+    _b1 = db.get_users()[u1]['trainer_data'].get('bag', [])
+    _ub = next((b for b in _b1 if b['name'] == 'Ultra Bola'), None)
+    check(S, 'transfer com qty negativo não duplica item',
+          _ub is None or _ub['qty'] <= 1)
+    check(S, 'transfer com dinheiro negativo não rouba',
+          db.get_users()[u1]['trainer_data'].get('money') == 500)
+
+    # _apply_xp nunca rebaixa nível definido pelo mestre
+    _t = {'level': 10, 'xp': 50}
+    appmod._apply_xp(_t, 10)
+    check(S, '_apply_xp não rebaixa nível manual do mestre', _t['level'] == 10)
+
+    # stat_mods de história só o mestre aplica
+    _rn = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30}).get_json()
+    _rp = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30,
+                  'stat_mods': {'HP': 500}}).get_json()
+    check(S, 'jogador não infla stats via stat_mods', _rp['maxHp'] == _rn['maxHp'])
+    for c in (msio, s1, s2):
+        c.get_received()
+
     # ══════════ 3. CAÇADA MANUAL & CALENDÁRIO ══════════
     section('3. Caçada manual, rolagem e calendário')
     S = 'Caçada/Calendário'
@@ -544,9 +610,10 @@ def main():
     check(S, 'API /pokemon/stats aplica shiny', _rs['maxHp'] > _rn['maxHp']
           and all(_rs['stats'][k] >= _rn['stats'][k] for k in _rn['stats']))
 
-    # 🎭 STATS DE HISTÓRIA (encontro manual do mestre): % por stat na API
-    _rn2 = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30}).get_json()
-    _rm = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30,
+    # 🎭 STATS DE HISTÓRIA (encontro manual do mestre): % por stat na API.
+    # SÓ o mestre aplica stat_mods → usa o client do mestre (m).
+    _rn2 = m.post('/api/pokemon/stats', json={'number': 25, 'level': 30}).get_json()
+    _rm = m.post('/api/pokemon/stats', json={'number': 25, 'level': 30,
                   'stat_mods': {'HP': 300, 'ATK': 50, 'SPE': 9999, 'DEF': 100}}).get_json()
     check(S, 'stats de história: HP 300% triplica o máximo',
           _rm['maxHp'] == _rn2['maxHp'] * 3, f"{_rn2['maxHp']} → {_rm['maxHp']}")

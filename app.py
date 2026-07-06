@@ -448,6 +448,9 @@ def _apply_xp(trainer: dict, xp_amount: int) -> dict:
         if current_xp >= threshold:
             new_level = i + 1
     old_level = trainer.get('level', 1)
+    # nunca REBAIXA: se o mestre subiu o nível à mão (sem XP correspondente),
+    # um ganho pequeno de XP não pode fazer o nível cair pela tabela.
+    new_level = max(new_level, old_level)
     trainer['level'] = new_level
     trainer['xp_to_next'] = XP_TABLE[min(new_level, len(XP_TABLE) - 1)] if new_level < len(XP_TABLE) else 99999
     return {'new_level': new_level, 'old_level': old_level, 'leveled_up': new_level > old_level}
@@ -1169,7 +1172,13 @@ def complete_quest(quest_id):
     data = request.json or {}
     target_player = data.get('player_id')   # optional: complete for one player only
     game_state = get_game_state()
+    # SÓ jogadores DESTA mesa podem ser premiados — antes usava get_users()
+    # global e uma quest sem assigned_to premiava jogadores de OUTRAS mesas.
     users = get_users()
+    table_players = {uid for uid, u in db.get_users_in_table().items()
+                     if u.get('role') == 'player'}
+    if target_player and target_player not in table_players:
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
     XP_TABLE = [0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500,
                 5500, 6600, 7800, 9100, 10500, 12000, 13600, 15300, 17100, 19000]
 
@@ -1184,7 +1193,9 @@ def complete_quest(quest_id):
             players_to_reward = [target_player]
         else:
             assigned = quest.get('assigned_to', [])
-            players_to_reward = assigned if assigned else [uid for uid, u in users.items() if u['role'] == 'player']
+            # sem atribuição = todos os jogadores DESTA mesa (não os globais)
+            players_to_reward = [p for p in assigned if p in table_players] \
+                if assigned else list(table_players)
 
         # Check already completed:
         # - With target_player: use per-player completion tracking so each player
@@ -1194,8 +1205,10 @@ def complete_quest(quest_id):
             completions = quest.setdefault('completions', {})
             if completions.get(target_player):
                 return jsonify({'error': 'Quest já completada para este jogador'}), 400
-        elif not per_player and quest.get('completed'):
-            return jsonify({'error': 'Quest já completada'}), 400
+        elif not per_player and quest.get('rewards_paid'):
+            # usa rewards_paid (não 'completed'): objetivos marcados pelo jogador
+            # deixam 'completed'=True mas ainda NÃO pagaram — o mestre paga aqui
+            return jsonify({'error': 'Recompensa desta quest já foi entregue'}), 400
 
         # For per-player repeatable quests, filter out those who already completed
         if per_player and not target_player:
@@ -1255,9 +1268,10 @@ def complete_quest(quest_id):
 
             rewarded.append(player_id)
 
-        # Mark global completion only when no specific player targeted
+        # Marca conclusão global + recompensa ENTREGUE (só sem alvo específico)
         if not per_player and not target_player:
             quest['completed'] = True
+            quest['rewards_paid'] = True
 
         save_users(users)
         save_game_state(game_state)
@@ -1622,9 +1636,10 @@ def toggle_objective(quest_id, obj_idx):
     for quest in game_state['quests']:
         if quest['id'] != quest_id:
             continue
-        # Only master or players assigned to this quest can toggle objectives
+        # Só o mestre ou um jogador ATRIBUÍDO alterna objetivos. Antes, quest
+        # sem assigned_to podia ser alternada por qualquer jogador (griefing).
         assigned = quest.get('assigned_to', [])
-        if current_user.role != 'master' and assigned and current_user.id not in assigned:
+        if current_user.role != 'master' and current_user.id not in assigned:
             return jsonify({'error': 'Forbidden'}), 403
         objectives = quest.get('objectives', [])
         if obj_idx < 0 or obj_idx >= len(objectives):
@@ -1632,7 +1647,9 @@ def toggle_objective(quest_id, obj_idx):
         objectives[obj_idx]['done'] = not objectives[obj_idx]['done']
         quest['objectives'] = objectives
 
-        # Auto-complete if all objectives done
+        # Objetivos completos = quest "pronta", mas a RECOMPENSA é entregue só
+        # quando o mestre clica em Completar (rewards_paid). Sem isto, marcar
+        # os objetivos travava o pagamento (completed=True bloqueava o botão).
         auto_completed = False
         if objectives and all(o['done'] for o in objectives) and not quest['completed']:
             quest['completed'] = True
@@ -1706,6 +1723,23 @@ def master_edit_player(player_id):
 
     for key, value in data.items():
         trainer[key] = value
+
+    # o mestre pode editar, mas mantém os INVARIANTES do sistema: atributos
+    # 1-20, perícias no teto, dinheiro/nível não-negativos — senão um valor
+    # absurdo (ex.: determinacao=99999) corrompe rolagens de perícia e HP.
+    trainer_attrs.migrate_trainer(trainer)
+    for k in trainer_attrs.ATTRIBUTES:
+        try:
+            trainer[k] = max(1, min(20, int(trainer.get(k, 10) or 10)))
+        except (TypeError, ValueError):
+            trainer[k] = 10
+    trainer_attrs.clamp_profs(trainer)
+    for num_key in ('money', 'level', 'xp', 'hp_max', 'hp_current', 'pokeslots'):
+        if num_key in trainer:
+            try:
+                trainer[num_key] = max(0, int(trainer[num_key]))
+            except (TypeError, ValueError):
+                trainer.pop(num_key, None)
 
     users[player_id]['trainer_data'] = trainer
     save_users(users)
@@ -3424,6 +3458,10 @@ def use_evolution_stone():
         'heldItem': pokemon.get('heldItem', ''),
         'notes': pokemon.get('notes', ''),
         'battle_wins': pokemon.get('battle_wins', 0),
+        # preserva o XP acumulado (senão o Pokémon "regredia" no próximo load)
+        'xp': pokemon.get('xp', 0),
+        'totalXp': pokemon.get('totalXp', 0),
+        'statPointsAvailable': pokemon.get('statPointsAvailable', 0),
     }
     team[pokemon_idx] = evolved
 
@@ -3517,6 +3555,10 @@ def friendship_evolve():
         'heldItem': pokemon.get('heldItem', ''),
         'notes': pokemon.get('notes', ''),
         'battle_wins': wins,
+        # preserva o XP acumulado (senão o Pokémon "regredia" no próximo load)
+        'xp': pokemon.get('xp', 0),
+        'totalXp': pokemon.get('totalXp', 0),
+        'statPointsAvailable': pokemon.get('statPointsAvailable', 0),
     }
     team[pokemon_idx] = evolved
     trainer['team'] = team
@@ -3669,10 +3711,38 @@ def update_team():
     if current_user.id in users:
         team = data.get('team', [])
         _mig(team)
-        # valida treino no servidor: budget por nível e teto por stat
+        # Estado ANTERIOR do time (autoridade sobre nível/shiny): impede o
+        # cliente de saltar para Nv.100 ou ligar shiny de graça. Casa por
+        # (número, apelido); Pokémon novo (captura) não casa e é tratado à parte.
+        prev_team = users[current_user.id].get('trainer_data', {}).get('team', [])
+        prev_by_key = {}
+        for pp in prev_team:
+            if isinstance(pp, dict):
+                prev_by_key[(pp.get('number'), (pp.get('nickname') or ''))] = pp
+        clean_team = []
         for p in team:
+            if not isinstance(p, dict):
+                continue
+            # ESPÉCIE precisa existir no Pokédex — senão o cliente forjaria
+            # stats de uma espécie inventada (o bloco de recálculo é pulado)
+            base = POKEMON_BY_NAME.get((p.get('name') or '').lower()) \
+                or POKEMON_BY_NUMBER.get(p.get('number'))
+            if not base or not base.get('base_stats'):
+                continue   # espécie desconhecida → descarta (anti-forja)
+            prev = prev_by_key.get((p.get('number'), (p.get('nickname') or '')))
+            level = max(1, min(100, int(p.get('level') or 1)))
+            if prev is not None:
+                # Pokémon já existente: nível só sobe (e no máx. +5 por save,
+                # pois level-up é incremental) e o shiny não muda pelo cliente
+                prev_level = max(1, min(100, int(prev.get('level') or 1)))
+                level = max(prev_level, min(level, prev_level + 5))
+                p['is_shiny'] = bool(prev.get('is_shiny'))
+            else:
+                # Pokémon novo (captura): shiny é o do encontro; nível limitado
+                p['is_shiny'] = bool(p.get('is_shiny'))
+            p['level'] = level
+
             tr = p.get('training') or {}
-            level = max(1, int(p.get('level') or 1))
             cap = bm_core.training_cap(level)
             tr = {k: max(0, min(cap, int(v or 0))) for k, v in tr.items()}
             budget = bm_core.training_budget(level)
@@ -3683,24 +3753,22 @@ def update_team():
             p['statPointsAvailable'] = max(0, budget - sum(tr.values()))
             # stats são DERIVADOS (espécie+nível+natureza+shiny+treino):
             # recalcula no save — o cliente nunca é autoridade sobre stats
-            base = POKEMON_BY_NAME.get((p.get('name') or '').lower()) \
-                or POKEMON_BY_NUMBER.get(p.get('number'))
-            if base and base.get('base_stats'):
-                scaled = scaling.calculate_pokemon_stats(
-                    base, level, p.get('nature') or None,
-                    is_shiny=bool(p.get('is_shiny')), training=tr)
-                p['stats'] = scaled['stats']
-                p['maxHp'] = scaled['maxHp']
-                p['hp'] = scaled['maxHp']
-                cur = p.get('currentHp')
-                if not isinstance(cur, (int, float)):
-                    p['currentHp'] = scaled['maxHp']
-                elif cur > scaled['maxHp']:
-                    p['currentHp'] = scaled['maxHp']
+            scaled = scaling.calculate_pokemon_stats(
+                base, level, p.get('nature') or None,
+                is_shiny=bool(p.get('is_shiny')), training=tr)
+            p['stats'] = scaled['stats']
+            p['maxHp'] = scaled['maxHp']
+            p['hp'] = scaled['maxHp']
+            cur = p.get('currentHp')
+            if not isinstance(cur, (int, float)):
+                p['currentHp'] = scaled['maxHp']
+            elif cur > scaled['maxHp']:
+                p['currentHp'] = scaled['maxHp']
             # chaves D&D aposentadas não voltam mais para o save
             for legacy in ('hitDice', 'savingThrows', 'ac'):
                 p.pop(legacy, None)
-        users[current_user.id]['trainer_data']['team'] = team
+            clean_team.append(p)
+        users[current_user.id]['trainer_data']['team'] = clean_team
         save_users(users)
         return jsonify({'success': True})
     return jsonify({'error': 'User not found'}), 404
@@ -3713,18 +3781,36 @@ def update_trainer():
     users = get_users()
     if current_user.id in users:
         trainer = users[current_user.id]['trainer_data']
-        # Update allowed fields
-        allowed_fields = ['name', 'bag', 'badges', 'visited_routes', 'notes',
+        # Campos que o jogador PODE editar na própria ficha. money, badges,
+        # pokeslots, max_sr e pokedex_seen saíram daqui de propósito: mudam
+        # só por fluxos do servidor (loja, quest, PvP, ginásio, Pokédex) —
+        # senão o jogador se dava dinheiro/insígnias infinitos.
+        allowed_fields = ['name', 'visited_routes', 'notes',
                          'race', 'background', 'path', 'specializations',
                          'str', 'dex', 'con', 'int', 'wis', 'cha',
                          'vinculo', 'tatica', 'conhecimento', 'agilidade',
                          'influencia', 'determinacao', 'skill_profs',
                          'hp_max', 'hp_current', 'proficiencies',
-                         'money', 'pokeslots', 'max_sr', 'pokedex_seen',
                          'avatar', 'trainerStatPointsUsed']
         for field in allowed_fields:
             if field in data:
                 trainer[field] = data[field]
+        # A bolsa o jogador gerencia (usar poção/bola), mas sanitiza para não
+        # forjar itens: quantidades inteiras 0-999; sem entradas malformadas.
+        if isinstance(data.get('bag'), list):
+            clean_bag = []
+            for it in data['bag']:
+                if not isinstance(it, dict) or not it.get('name'):
+                    continue
+                try:
+                    qty = max(0, min(999, int(it.get('qty', 1))))
+                except (TypeError, ValueError):
+                    qty = 1
+                if qty <= 0:
+                    continue
+                clean_bag.append({'name': str(it['name'])[:60], 'qty': qty,
+                                  'description': str(it.get('description', ''))[:200]})
+            trainer['bag'] = clean_bag
         # atributos novos: valida 1-20; perícias: teto por nível
         trainer_attrs.migrate_trainer(trainer)
         for key in trainer_attrs.ATTRIBUTES:
@@ -3927,13 +4013,15 @@ def api_shop_sell():
     if not bag_item or (bag_item.get('qty') or 0) < qty:
         return jsonify({'error': f'Você não tem {qty}x {item_name} na bolsa'}), 400
 
-    # Find base price from catalog
+    # Find base price from catalog — item fora do catálogo (item de história/
+    # quest) NÃO é vendável (senão rendia um preço fixo de ~200 do nada).
     catalog_item = next((i for i in SHOP_CATALOG if i['name'].lower() == item_name.lower()), None)
-    base_sell_price = int((catalog_item['price'] if catalog_item else 100) * 0.5)
+    if not catalog_item:
+        return jsonify({'error': 'Este item não pode ser vendido na loja.'}), 400
 
     cha = _influence_value(trainer)
     _, sell_mult = _cha_modifier(cha)
-    unit_price = max(1, int((catalog_item['price'] if catalog_item else 200) * sell_mult))
+    unit_price = max(1, int(catalog_item['price'] * sell_mult))
     total_earned = unit_price * qty
 
     # Remove from bag
@@ -4097,8 +4185,10 @@ def api_pokemon_scaled_stats():
 
     # Stats de HISTÓRIA (encontro manual do mestre): porcentagem por stat
     # aplicada DEPOIS do escalonamento — boss com 300% de HP, lendário
-    # enfraquecido a 50% etc. Clamp 10%-500%.
-    raw_mods = data.get('stat_mods')
+    # enfraquecido a 50% etc. Clamp 10%-500%. SÓ o mestre pode usar (o
+    # endpoint é stateless e não vaza para captura, mas por higiene um
+    # jogador não deveria nem inflar a própria pré-visualização).
+    raw_mods = data.get('stat_mods') if current_user.role == 'master' else None
     if isinstance(raw_mods, dict) and raw_mods:
         applied = {}
         for k, pct in raw_mods.items():
@@ -4266,12 +4356,20 @@ def register_pokedex():
     """Register a Pokemon in the player's Pokedex and award XP."""
     data = request.json
     pokemon_number = data.get('pokemon_number')
-    
+    # Só números de Pokémon REAIS dão XP — senão o jogador farmava XP infinito
+    # registrando números inventados (cada um "novo" valia +10 XP).
+    try:
+        pokemon_number = int(pokemon_number)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Número inválido'}), 400
+    if pokemon_number not in POKEMON_BY_NUMBER:
+        return jsonify({'error': 'Pokémon inexistente'}), 400
+
     users = get_users()
     if current_user.id in users:
         trainer = users[current_user.id]['trainer_data']
         pokedex_seen = trainer.get('pokedex_seen', [])
-        
+
         if pokemon_number not in pokedex_seen:
             pokedex_seen.append(pokemon_number)
             trainer['pokedex_seen'] = pokedex_seen
@@ -4671,8 +4769,19 @@ def handle_battle_action(data):
             action_log = server_calc.get('log')
             message = server_calc.get('message', message)
 
-        # Apply pre-turn status damage first (doesn't count as an action)
+        # Dano de status pré-turno (não conta como ação). O cliente manda o
+        # valor, mas o servidor NÃO confia: só aplica se o alvo tem status e
+        # clampa a no máx. 1/4 do HP máximo por tick (veneno/queimadura tickam
+        # ~1/8-1/16) — sem isto o cliente mandava 9999 e one-shotava o selvagem.
         PERMADEATH_FLOOR = -30
+        def _safe_status_dmg(raw, has_status, max_hp):
+            if not has_status or raw <= 0:
+                return 0
+            return min(int(raw), max(1, int(max_hp or 20) // 4))
+        wild_status_damage = _safe_status_dmg(
+            wild_status_damage, battle_state.get('wild_status'), battle_state.get('wild_hp_max'))
+        player_status_damage = _safe_status_dmg(
+            player_status_damage, battle_state.get('player_status'), battle_state.get('player_hp_max'))
         if wild_status_damage > 0:
             battle_state['wild_hp_current'] = max(PERMADEATH_FLOOR, battle_state['wild_hp_current'] - wild_status_damage)
         if player_status_damage > 0:
@@ -6058,6 +6167,10 @@ def handle_npc_turn(battle, npc_key):
             def_poke['status'] = {'condition': ares['status'], 'turns_active': 0}
             battle['log'].append({'type': 'ability', 'message': ares['message']})
 
+    # permadeath causada pelo NPC (HP ≤ -30) precisa ser processada aqui —
+    # senão o Pokémon morto permanente não saía do time do jogador.
+    _handle_pvp_permadeath(battle)
+
     _broadcast_pvp_state(battle, 'npc_attack')
 
     if result == 'battle_end':
@@ -6091,26 +6204,45 @@ def handle_pvp_victory(battle):
     rewards = {'money': 0, 'items': []}
     
     if mode == 'official' or mode == 'tournament':
-        # Winner gets both bets
-        p1_bet = battle['bets'].get('player1', {})
-        p2_bet = battle['bets'].get('player2', {})
-        total_money = p1_bet.get('money', 0) + p2_bet.get('money', 0)
-        total_items = p1_bet.get('items', []) + p2_bet.get('items', [])
-        
-        winner_trainer['money'] = winner_trainer.get('money', 0) + total_money
-        for item in total_items:
-            bag = winner_trainer.get('bag', [])
-            added = False
-            for bi in bag:
-                if isinstance(bi, dict) and bi.get('name', '').lower() == item.get('name', '').lower():
-                    bi['qty'] = bi.get('qty', 1) + item.get('qty', 1)
-                    added = True
+        # A aposta é TRANSFERIDA do perdedor (não cunhada): o vencedor recebe
+        # no máximo o que o perdedor REALMENTE tem — sem isso, apostas do
+        # cliente criavam dinheiro/itens do nada (o perdedor não perdia nada).
+        loser_bet = battle['bets'].get(loser_key, {})
+        bet_money = max(0, int(loser_bet.get('money', 0) or 0))
+        moved_money = min(bet_money, max(0, int(loser_trainer.get('money', 0) or 0)))
+        loser_trainer['money'] = max(0, loser_trainer.get('money', 0) - moved_money)
+        winner_trainer['money'] = winner_trainer.get('money', 0) + moved_money
+
+        moved_items = []
+        loser_bag = loser_trainer.get('bag', [])
+        for item in (loser_bet.get('items', []) or []):
+            name = (item.get('name') or '').lower()
+            want = max(0, int(item.get('qty', 1) or 1))
+            if not name or want <= 0:
+                continue
+            # só move o que o perdedor tem de fato na bolsa
+            for bi in loser_bag:
+                if isinstance(bi, dict) and bi.get('name', '').lower() == name:
+                    take = min(want, int(bi.get('qty', 0) or 0))
+                    if take <= 0:
+                        break
+                    bi['qty'] = int(bi.get('qty', 0)) - take
+                    moved_items.append({'name': bi.get('name'), 'qty': take,
+                                        'description': bi.get('description', '')})
                     break
-            if not added:
-                bag.append(item)
-            winner_trainer['bag'] = bag
-        
-        rewards = {'money': total_money, 'items': total_items}
+        loser_trainer['bag'] = [b for b in loser_bag
+                                if not (isinstance(b, dict) and int(b.get('qty', 0) or 0) <= 0)]
+        winner_bag = winner_trainer.get('bag', [])
+        for item in moved_items:
+            for bi in winner_bag:
+                if isinstance(bi, dict) and bi.get('name', '').lower() == item['name'].lower():
+                    bi['qty'] = bi.get('qty', 1) + item['qty']
+                    break
+            else:
+                winner_bag.append(dict(item))
+        winner_trainer['bag'] = winner_bag
+
+        rewards = {'money': moved_money, 'items': moved_items}
     
     elif mode == 'street':
         # Winner steals 25% money + 2 random items
@@ -6206,18 +6338,23 @@ def transfer_assets():
     """Transfer money and/or items from current player to another player."""
     data = request.json
     target_id = data.get('target_id')
-    money_amount = int(data.get('money', 0))
+    # quantidades NEGATIVAS forjavam duplicação (perdedor virava 1-(-100)=101x)
+    # e drenavam o alvo — pisos em 0.
+    money_amount = max(0, int(data.get('money', 0) or 0))
     items_to_send = data.get('items', [])  # list of {name, qty, file}
-    
-    if not target_id:
-        return jsonify({'error': 'No target specified'}), 400
-    
+
+    if not target_id or target_id == current_user.id:
+        return jsonify({'error': 'Alvo inválido'}), 400
+
     users = get_users()
     sender = users.get(current_user.id)
     receiver = users.get(target_id)
-    
+
     if not sender or not receiver:
         return jsonify({'error': 'Player not found'}), 404
+    # só transfere para jogador da MESMA mesa
+    if sender.get('table_id') != receiver.get('table_id'):
+        return jsonify({'error': 'Jogador não pertence à sua mesa'}), 403
     
     sender_trainer = sender.get('trainer_data', {})
     receiver_trainer = receiver.get('trainer_data', {})
@@ -6236,9 +6373,9 @@ def transfer_assets():
     
     for item in items_to_send:
         item_name = item.get('name', '')
-        item_qty = int(item.get('qty', 1))
+        item_qty = max(1, int(item.get('qty', 1) or 1))   # nunca ≤ 0
         item_file = item.get('file', '')
-        
+
         # Find item in sender's bag
         found = False
         for i, bag_item in enumerate(sender_bag):
