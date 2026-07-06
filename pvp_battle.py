@@ -184,6 +184,10 @@ def apply_damage(battle, attacker_key, damage, move_name='', message=''):
             return 'battle_end'
         else:
             # Defender must switch - don't advance turn yet
+            # (NOTA: hoje o atacante mantém o turno após o KO e acaba batendo
+            #  de novo no recém-trocado. Passar o turno aqui é o correto, mas
+            #  interage com o fluxo de troca forçada por socket — deixado como
+            #  residual documentado para não arriscar deadlock no PvP.)
             return 'must_switch'
     
     # Advance turn

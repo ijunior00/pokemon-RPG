@@ -199,6 +199,12 @@ socket.on('master_action', (data) => {
     }
 });
 
+// Encontro negado pelo servidor (sem liberação do mestre)
+socket.on('encounter_denied', (d) => {
+    if (typeof showNotification === 'function') showNotification(d.message || 'Aguarde o Mestre liberar um encontro.', 'error');
+    else alert(d.message || 'Aguarde o Mestre liberar um encontro.');
+});
+
 // ============================================
 // BATALHA EM DUPLA (caçada em grupo) — 2v1 / 2v2
 // Painel compartilhado, servidor autoritativo. Ataca só no seu turno.

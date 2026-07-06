@@ -2932,6 +2932,20 @@ def api_skill_list():
     })
 
 
+def _grant_encounter(player_id, number):
+    """Registra que o MESTRE liberou um encontro para o jogador (por espécie).
+    O start_encounter só é aceito se casar com este 'vale' — impede o jogador
+    de iniciar batalhas selvagens à vontade (fora do teto/gate de caçadas)."""
+    try:
+        num = int(number)
+    except (TypeError, ValueError):
+        return
+    gs = get_game_state()
+    pend = gs.setdefault('pending_encounters', {})
+    pend[str(player_id)] = num
+    save_game_state(gs)
+
+
 @app.route('/master/hunt/random', methods=['POST'])
 @login_required
 def master_hunt_random():
@@ -2972,6 +2986,7 @@ def master_hunt_random():
         'ambush': enc.get('ambush', False), 'hunt_mode': enc['hunt_mode'],
         'random_hunt': True,
     }
+    _grant_encounter(player_id, (enc.get('pokemon') or {}).get('number'))
     socketio.emit('master_action', payload, room=player_id)
     return jsonify({'ok': True, 'encounter': enc})
 
@@ -4432,10 +4447,31 @@ def handle_disconnect():
 def handle_encounter(data):
     """Player starts a wild encounter - notify master with full battle data."""
     if current_user.is_authenticated:
+        # GATE: o jogador só inicia um encontro que o MESTRE liberou (por
+        # espécie). Sem isto, dava para emitir start_encounter à vontade,
+        # ignorando o teto de caçadas e a aprovação do mestre.
+        _gs = get_game_state()
+        _pend = (_gs.get('pending_encounters') or {})
+        _granted = _pend.get(str(current_user.id))
+        _inc_num = (data.get('pokemon') or {}).get('number')
+        try:
+            _inc_num = int(_inc_num)
+        except (TypeError, ValueError):
+            _inc_num = None
+        if _granted is None or _inc_num != int(_granted):
+            emit('encounter_denied', {
+                'message': 'Aguarde o Mestre liberar um encontro (Caçada Aleatória).'
+            }, room=str(current_user.id))
+            return
+        # consome o vale (um encontro por liberação)
+        _pend.pop(str(current_user.id), None)
+        _gs['pending_encounters'] = _pend
+        save_game_state(_gs)
+
         users = get_users()
         trainer = users.get(current_user.id, {}).get('trainer_data', {})
         team = trainer.get('team', [])
-        
+
         # Find the player's active pokemon
         player_pokemon_idx = data.get('player_pokemon_idx', 0)
         if _mig(team):
@@ -5101,6 +5137,10 @@ def handle_master_action(data):
     """Master sends an action to a player (e.g., battle command, mega wild)."""
     if current_user.is_authenticated and current_user.role == 'master':
         target_player = data.get('player_id')
+        # encontro manual → registra o 'vale' para liberar o start_encounter
+        if data.get('type') == 'forced_encounter' and target_player:
+            if _player_in_master_table(str(target_player), get_users(), _tid()):
+                _grant_encounter(target_player, (data.get('pokemon') or {}).get('number'))
         emit('master_action', data, room=target_player)
 
 @socketio.on('mega_evolve')

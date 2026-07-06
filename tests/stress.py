@@ -422,8 +422,19 @@ def main():
                 recv(s1)
             check(S, 'batalha completa terminou e limpou estado',
                   u1 not in gstate()['active_encounters'], f'{rounds} rounds')
+    # GATE: sem liberação do mestre o start_encounter é NEGADO
+    s1.get_received()
+    s1.emit('start_encounter', {'pokemon': {'number': 999, 'hp': 30}, 'level': 10,
+                                'player_pokemon': 'Charmander', 'player_pokemon_idx': 0})
+    check(S, 'start_encounter sem liberação é negado', bool(recv(s1, 'encounter_denied')))
+
     # Status on-hit do SELVAGEM é rolado no SERVIDOR (não depende de o cliente ter
     # carregado statusEffectsData). Selvagem usa Poison Sting → jogador envenenado.
+    # (libera o encontro pelo mestre antes — o grant anterior já foi consumido)
+    msio.emit('master_action', {'type': 'forced_encounter', 'player_id': u1,
+                                'pokemon': enc['pokemon'], 'level': enc['level'],
+                                'wild_moves': ['Poison Sting']})
+    recv(msio)
     s1.get_received()
     s1.emit('start_encounter', {'pokemon': dict(enc['pokemon'], hp=enc['pokemon'].get('maxHp', enc['pokemon'].get('hp', 30))),
                                 'level': enc['level'], 'is_shiny': False, 'route_id': 'route1',
