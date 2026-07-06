@@ -2,6 +2,51 @@
    POKEMON 5E RPG - MASTER JS
    ============================================ */
 
+// ── Aprovação de mestres (só o super-admin lusmar vê este painel) ──
+async function loadPendingMasters() {
+    if (!window.IS_SUPER_ADMIN) return;
+    const list = document.getElementById('admin-pending-list');
+    const count = document.getElementById('admin-pending-count');
+    try {
+        const resp = await fetch('/admin/pending-masters');
+        const data = await resp.json();
+        const pend = data.pending || [];
+        if (count) count.textContent = pend.length ? `(${pend.length} pendente${pend.length > 1 ? 's' : ''})` : '(nenhum pendente)';
+        if (!list) return;
+        list.innerHTML = pend.length ? pend.map(p => `
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;border-bottom:1px solid var(--card-border,#333);">
+                <span>🧙 <strong>${p.username}</strong> <span style="opacity:0.6;font-size:0.8rem;">${p.requested_at ? p.requested_at.slice(0,10) : ''}</span></span>
+                <span style="display:flex;gap:0.4rem;">
+                    <button class="btn btn-sm btn-success" onclick="approveMaster('${p.id}','${p.username.replace(/'/g,"\\'")}')">✅ Aprovar</button>
+                    <button class="btn btn-sm btn-danger" onclick="rejectMaster('${p.id}','${p.username.replace(/'/g,"\\'")}')">✕ Recusar</button>
+                </span>
+            </div>`).join('') : '<span style="opacity:0.7;">Nenhum cadastro de mestre aguardando aprovação.</span>';
+    } catch(e) { if (list) list.innerHTML = '⚠️ Erro ao carregar.'; }
+}
+
+async function approveMaster(uid, username) {
+    if (!confirm(`Aprovar a conta de Mestre "${username}"? Uma mesa nova será criada para ele.`)) return;
+    try {
+        const resp = await fetch(`/admin/masters/${uid}/approve`, { method: 'POST' });
+        const data = await resp.json();
+        if (data.ok) alert(`✅ ${data.username} aprovado! Código de convite da mesa dele: ${data.invite}`);
+        else alert('❌ ' + (data.error || 'Falha'));
+    } catch(e) { alert('❌ Erro de conexão.'); }
+    loadPendingMasters();
+}
+
+async function rejectMaster(uid, username) {
+    if (!confirm(`Recusar e REMOVER o cadastro de "${username}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+        const resp = await fetch(`/admin/masters/${uid}/reject`, { method: 'POST' });
+        const data = await resp.json();
+        if (!data.ok) alert('❌ ' + (data.error || 'Falha'));
+    } catch(e) { alert('❌ Erro de conexão.'); }
+    loadPendingMasters();
+}
+
+document.addEventListener('DOMContentLoaded', () => { if (window.IS_SUPER_ADMIN) loadPendingMasters(); });
+
 // Status condition display names + icons (must match STATUS_CONDITIONS keys in status_effects.py)
 const STATUS_DISPLAY = {
     'badly_poisoned': '☠️ Envenenado',

@@ -199,6 +199,12 @@ socket.on('master_action', (data) => {
     }
 });
 
+// Encontro negado pelo servidor (sem liberação do mestre)
+socket.on('encounter_denied', (d) => {
+    if (typeof showNotification === 'function') showNotification(d.message || 'Aguarde o Mestre liberar um encontro.', 'error');
+    else alert(d.message || 'Aguarde o Mestre liberar um encontro.');
+});
+
 // ============================================
 // BATALHA EM DUPLA (caçada em grupo) — 2v1 / 2v2
 // Painel compartilhado, servidor autoritativo. Ataca só no seu turno.
@@ -3028,10 +3034,12 @@ function megaEvolve() {
     if (poke.stats) applyMegaBonusesV2(poke.stats, bonuses);
     if (chosen.newTypes) poke.types = chosen.newTypes;
 
-    // Update UI
+    // Update UI (nível fica no badge — não repetir no nome)
     const nameEl = document.getElementById('battle-player-name-full');
-    nameEl.textContent = `🔮 ${chosen.megaName} Nv.${poke.level}`;
+    nameEl.textContent = `🔮 ${chosen.megaName}`;
     nameEl.style.color = 'var(--accent)';
+    const megaLvlBadge = document.getElementById('battle-player-level-badge');
+    if (megaLvlBadge) megaLvlBadge.textContent = `Nv.${poke.level}`;
 
     if (chosen.newTypes) {
         document.getElementById('battle-player-types').innerHTML = formatTypes(chosen.newTypes);
@@ -3149,7 +3157,10 @@ async function confirmSwitch(teamIdx) {
     const switchSpriteEl = document.getElementById('battle-player-sprite');
     switchSpriteEl.src = pNum ? getPokemonSpriteUrl(pNum, newPoke.is_shiny) : '';
     switchSpriteEl.classList.toggle('sprite-shiny', !!newPoke.is_shiny);
-    document.getElementById('battle-player-name-full').textContent = `${newPoke.nickname || newPoke.name} Nv.${newPoke.level}`;
+    // nome SEM nível (o nível vive no badge separado — senão vira "Nv.36Nv.20")
+    document.getElementById('battle-player-name-full').textContent = newPoke.nickname || newPoke.name;
+    const swLvlBadge = document.getElementById('battle-player-level-badge');
+    if (swLvlBadge) swLvlBadge.textContent = `Nv.${newPoke.level}`;
     document.getElementById('battle-player-types').innerHTML = formatTypes(newPoke.types || []);
     const pHp = newPoke.currentHp || newPoke.maxHp || 20;
     const pMax = newPoke.maxHp || 20;

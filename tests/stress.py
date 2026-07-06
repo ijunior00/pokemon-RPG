@@ -118,10 +118,11 @@ def main():
     # ══════════ 1. AUTH & MESAS ══════════
     section('1. Autenticação & Mesas')
     S = 'Auth/Mesas'
-    r = register(m, 'gm_rev', 'master')
-    check(S, 'registro de mestre', r.status_code in (200, 302))
-    check(S, 'login mestre', login(m, 'gm_rev').status_code == 302)
-    mid = uid_of('gm_rev')
+    # O super-admin (lusmar) é o único mestre que cria mesa direto no cadastro
+    r = register(m, 'lusmar', 'master')
+    check(S, 'registro do super-admin (lusmar)', r.status_code in (200, 302))
+    check(S, 'login do super-admin', login(m, 'lusmar').status_code == 302)
+    mid = uid_of('lusmar')
     tables = db.get_tables_for_master(mid)
     check(S, 'mesa criada automaticamente c/ convite', bool(tables) and bool(tables[0].get('invite_code')))
     TID = tables[0]['id']
@@ -167,6 +168,134 @@ def main():
     anon = app.test_client()
     r = anon.post('/api/hunt/roll', json={})
     check(S, 'rolagem exige login', r.status_code in (302, 401))
+    for c in (msio, s1, s2):
+        c.get_received()
+
+    # ── Aprovação de conta de MESTRE (super-admin lusmar) ──
+    appmod._rate_store.clear()
+    gm2 = app.test_client()
+    register(gm2, 'gm_pendente', 'master')
+    _pend_uid = uid_of('gm_pendente')
+    check(S, 'mestre comum é criado como PENDENTE', _pend_uid is not None)
+    check(S, 'mestre pendente NÃO tem mesa',
+          not db.get_tables_for_master(_pend_uid))
+    check(S, 'mestre pendente NÃO consegue logar',
+          login(gm2, 'gm_pendente').status_code == 200)   # 200 = re-render (bloqueado), 302 = logou
+    # jogador comum não acessa a fila de aprovação
+    check(S, 'jogador não vê fila de aprovação',
+          p1.get('/admin/pending-masters').status_code == 403)
+    # lusmar vê o pendente e aprova
+    _fila = m.get('/admin/pending-masters').get_json() or {}
+    check(S, 'lusmar vê o cadastro pendente na fila',
+          any(x['id'] == _pend_uid for x in _fila.get('pending', [])))
+    _ap = m.post(f'/admin/masters/{_pend_uid}/approve').get_json() or {}
+    check(S, 'lusmar aprova → mesa criada + convite', _ap.get('ok') and _ap.get('invite'))
+    check(S, 'mestre aprovado agora tem mesa', bool(db.get_tables_for_master(_pend_uid)))
+    check(S, 'mestre aprovado agora consegue logar',
+          login(gm2, 'gm_pendente').status_code == 302)
+    # jogador não consegue aprovar/rejeitar (rota de super-admin)
+    check(S, 'jogador não aprova mestre',
+          p1.post(f'/admin/masters/{_pend_uid}/approve').status_code == 403)
+    # rejeição remove o cadastro pendente
+    appmod._rate_store.clear()
+    gm3 = app.test_client()
+    register(gm3, 'gm_recusar', 'master')
+    _rej_uid = uid_of('gm_recusar')
+    check(S, 'segundo mestre pendente criado', _rej_uid is not None)
+    check(S, 'lusmar recusa o cadastro', (m.post(f'/admin/masters/{_rej_uid}/reject').get_json() or {}).get('ok'))
+    check(S, 'cadastro recusado é removido', uid_of('gm_recusar') is None)
+    # não dá para roubar o nome reservado do super-admin
+    appmod._rate_store.clear()
+    gm4 = app.test_client()
+    register(gm4, 'lusmar', 'master')
+    check(S, 'nome do super-admin não pode ser duplicado',
+          sum(1 for u in db.get_users().values() if u['username'].lower() == 'lusmar') == 1)
+
+    # ── IDOR entre mesas: mestre A não age em jogador de outra mesa ──
+    # o mestre aprovado (gm_pendente) cria sua mesa; um jogador entra nela
+    appmod._rate_store.clear()
+    _t2 = db.get_tables_for_master(_pend_uid)[0]
+    pB = app.test_client()
+    register(pB, 'rev_pB', 'player', _t2['invite_code'])
+    _uB = uid_of('rev_pB')
+    check(S, 'jogador entra na mesa do 2º mestre', _uB is not None)
+    # lusmar (mesa 1) tenta mexer no jogador da mesa 2 → bloqueado
+    for route, payload in [('/master/xp', {'player_id': _uB, 'xp': 999999}),
+                           ('/master/pokemon-xp', {'player_id': _uB, 'pokemon_idx': 0, 'xp': 999}),
+                           ('/master/hunt/random', {'player_id': _uB, 'hunt_mode': 'normal'})]:
+        r = m.post(route, json=payload)
+        check(S, f'IDOR cross-mesa bloqueado em {route}', r.status_code == 403)
+    r = m.get(f'/master/player-team/{_uB}')
+    check(S, 'IDOR cross-mesa bloqueado em /master/player-team', r.status_code == 403)
+    # relogar o lusmar (o login do gm_pendente trocou a sessão do client? não,
+    # gm2 é outro client) — garante que m ainda é o lusmar
+    login(m, 'lusmar')
+    for c in (msio, s1, s2):
+        c.get_received()
+
+    # ── Economia: cliente não é autoridade sobre dinheiro/nível/espécie ──
+    users = db.get_users(); users[u1]['trainer_data']['money'] = 1000; db.save_users(users)
+    p1.post('/player/trainer', json={'money': 999999999, 'badges': [0,1,2,3,4,5,6,7],
+                                     'pokeslots': 6, 'name': 'Ash'})
+    _td = db.get_users()[u1]['trainer_data']
+    check(S, 'jogador NÃO edita o próprio dinheiro', _td.get('money') == 1000)
+    check(S, 'jogador NÃO edita as próprias insígnias', not _td.get('badges'))
+    check(S, 'campo legítimo (nome) ainda salva', _td.get('name') == 'Ash')
+    # bolsa: quantidade sanitizada (sem forjar 99999 itens)
+    p1.post('/player/trainer', json={'bag': [{'name': 'Master Ball', 'qty': 99999}]})
+    _bag = db.get_users()[u1]['trainer_data'].get('bag', [])
+    check(S, 'bolsa clampa quantidade forjada (≤999)',
+          _bag and _bag[0]['qty'] == 999)
+
+    # /player/team: nível não salta para 100, espécie inventada é descartada
+    _cur = db.get_users()[u1]['trainer_data']['team']
+    _cur_lvl = _cur[0]['level'] if _cur else 20
+    p1.post('/player/team', json={'team': [
+        dict(_cur[0], level=100, is_shiny=True) if _cur else
+        {'name': 'Charmander', 'number': 4, 'level': 100},
+        {'name': 'Fakemon', 'number': 99999, 'level': 100,
+         'maxHp': 99999, 'stats': {'ATK': 9999}}]})
+    _saved = db.get_users()[u1]['trainer_data']['team']
+    check(S, 'nível não salta (máx +5 por save)',
+          _saved[0]['level'] <= _cur_lvl + 5)
+    check(S, 'shiny não é ligado pelo cliente num Pokémon existente',
+          _saved[0].get('is_shiny') is False)
+    check(S, 'espécie inventada é descartada (anti-forja de stats)',
+          all(p['name'] != 'Fakemon' for p in _saved))
+
+    # Pokédex: número inexistente não dá XP
+    appmod._rate_store.clear()
+    _xp0 = db.get_users()[u1]['trainer_data'].get('xp', 0)
+    r = p1.post('/player/pokedex/register', json={'pokemon_number': 999999})
+    check(S, 'Pokédex rejeita número inexistente', r.status_code == 400)
+    check(S, 'XP não sobe com número falso',
+          db.get_users()[u1]['trainer_data'].get('xp', 0) == _xp0)
+
+    # Transfer: quantidade negativa não duplica
+    users = db.get_users()
+    users[u1]['trainer_data']['bag'] = [{'name': 'Ultra Bola', 'qty': 1}]
+    users[u1]['trainer_data']['money'] = 500
+    db.save_users(users)
+    p1.post('/player/transfer', json={'target_id': u2,
+                                      'items': [{'name': 'Ultra Bola', 'qty': -100}],
+                                      'money': -100})
+    _b1 = db.get_users()[u1]['trainer_data'].get('bag', [])
+    _ub = next((b for b in _b1 if b['name'] == 'Ultra Bola'), None)
+    check(S, 'transfer com qty negativo não duplica item',
+          _ub is None or _ub['qty'] <= 1)
+    check(S, 'transfer com dinheiro negativo não rouba',
+          db.get_users()[u1]['trainer_data'].get('money') == 500)
+
+    # _apply_xp nunca rebaixa nível definido pelo mestre
+    _t = {'level': 10, 'xp': 50}
+    appmod._apply_xp(_t, 10)
+    check(S, '_apply_xp não rebaixa nível manual do mestre', _t['level'] == 10)
+
+    # stat_mods de história só o mestre aplica
+    _rn = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30}).get_json()
+    _rp = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30,
+                  'stat_mods': {'HP': 500}}).get_json()
+    check(S, 'jogador não infla stats via stat_mods', _rp['maxHp'] == _rn['maxHp'])
     for c in (msio, s1, s2):
         c.get_received()
 
@@ -293,8 +422,19 @@ def main():
                 recv(s1)
             check(S, 'batalha completa terminou e limpou estado',
                   u1 not in gstate()['active_encounters'], f'{rounds} rounds')
+    # GATE: sem liberação do mestre o start_encounter é NEGADO
+    s1.get_received()
+    s1.emit('start_encounter', {'pokemon': {'number': 999, 'hp': 30}, 'level': 10,
+                                'player_pokemon': 'Charmander', 'player_pokemon_idx': 0})
+    check(S, 'start_encounter sem liberação é negado', bool(recv(s1, 'encounter_denied')))
+
     # Status on-hit do SELVAGEM é rolado no SERVIDOR (não depende de o cliente ter
     # carregado statusEffectsData). Selvagem usa Poison Sting → jogador envenenado.
+    # (libera o encontro pelo mestre antes — o grant anterior já foi consumido)
+    msio.emit('master_action', {'type': 'forced_encounter', 'player_id': u1,
+                                'pokemon': enc['pokemon'], 'level': enc['level'],
+                                'wild_moves': ['Poison Sting']})
+    recv(msio)
     s1.get_received()
     s1.emit('start_encounter', {'pokemon': dict(enc['pokemon'], hp=enc['pokemon'].get('maxHp', enc['pokemon'].get('hp', 30))),
                                 'level': enc['level'], 'is_shiny': False, 'route_id': 'route1',
@@ -481,9 +621,10 @@ def main():
     check(S, 'API /pokemon/stats aplica shiny', _rs['maxHp'] > _rn['maxHp']
           and all(_rs['stats'][k] >= _rn['stats'][k] for k in _rn['stats']))
 
-    # 🎭 STATS DE HISTÓRIA (encontro manual do mestre): % por stat na API
-    _rn2 = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30}).get_json()
-    _rm = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30,
+    # 🎭 STATS DE HISTÓRIA (encontro manual do mestre): % por stat na API.
+    # SÓ o mestre aplica stat_mods → usa o client do mestre (m).
+    _rn2 = m.post('/api/pokemon/stats', json={'number': 25, 'level': 30}).get_json()
+    _rm = m.post('/api/pokemon/stats', json={'number': 25, 'level': 30,
                   'stat_mods': {'HP': 300, 'ATK': 50, 'SPE': 9999, 'DEF': 100}}).get_json()
     check(S, 'stats de história: HP 300% triplica o máximo',
           _rm['maxHp'] == _rn2['maxHp'] * 3, f"{_rn2['maxHp']} → {_rm['maxHp']}")

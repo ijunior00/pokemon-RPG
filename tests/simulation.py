@@ -351,8 +351,9 @@ def main():
     p1_http = app.test_client()
     p2_http = app.test_client()
 
-    register_and_login(master_http, 'mestre_sim', 'master')
-    master_uid = get_uid('mestre_sim')
+    # super-admin (lusmar) é o mestre que cria mesa direto no cadastro
+    register_and_login(master_http, 'lusmar', 'master')
+    master_uid = get_uid('lusmar')
     tables = db.get_tables_for_master(master_uid)
     invite = tables[0]['invite_code']
 
