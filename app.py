@@ -610,10 +610,11 @@ def _account_meta(u):
 
 
 def _is_super_admin(u):
-    """True se o dict de usuário é o super-admin (mestre lusmar aprovado)."""
+    """True se o dict de usuário é o super-admin. Definido pelo NOME (lusmar)
+    + papel mestre — assim uma conta lusmar que já exista no banco vira
+    super-admin sem precisar de migração/flag."""
     return (u.get('role') == 'master'
-            and (u.get('username', '').strip().lower() == SUPER_ADMIN_USERNAME)
-            and _account_meta(u).get('super_admin') is True)
+            and u.get('username', '').strip().lower() == SUPER_ADMIN_USERNAME)
 
 
 def _super_admin_exists(users):
