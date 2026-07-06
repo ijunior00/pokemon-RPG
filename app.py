@@ -358,7 +358,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
 
     dmg = bm_core.damage(dice_total, atk_eff, def_eff, stab=stab,
                          effectiveness=eff, tax=tax, burned=burned,
-                         stab_mult=stab_mult)
+                         stab_mult=stab_mult, level=level)
 
     # Sinergia de veneno: Venoshock dobra contra alvo envenenado
     venoshock_x2 = False
@@ -5099,6 +5099,15 @@ def handle_pvp_attack(data):
             # Desmaiou pelo status ou não pode agir (sono/paralisia/congelado)
             if att_active.get('currentHp', 0) <= 0:
                 battle['log'].append({'type': 'faint', 'player': player_key, 'permadeath': False})
+                # Se era o ÚLTIMO pokémon vivo, a batalha ACABA aqui — sem
+                # isso a fase ficava travada em 'battle' para sempre quando o
+                # golpe de misericórdia vinha do próprio veneno/queimadura.
+                if not any(pvp._poke_hp(p) > 0 for p in battle[player_key]['team']):
+                    battle['phase'] = 'finished'
+                    battle['winner'] = defender_key
+                    _broadcast_pvp_state(battle, 'status_faint_end')
+                    handle_pvp_victory(battle)
+                    return
             pvp.advance_turn(battle)
             _broadcast_pvp_state(battle, 'status_skip')
             next_key = battle['turn']

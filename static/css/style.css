@@ -369,7 +369,7 @@ h1, h2 {
 }
 
 .wild-pokemon-info { display: flex; align-items: center; justify-content: center; gap: 2rem; margin: 1rem 0; flex-wrap: wrap; }
-.pokemon-sprite img { width: 120px; height: 120px; image-rendering: pixelated; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); }
+.pokemon-sprite img { width: 120px; height: 120px; image-rendering: pixelated; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); object-fit: contain; }
 .pokemon-stats-quick { text-align: left; }
 .pokemon-stats-quick h2 { color: var(--text); margin-bottom: 0.5rem; }
 .encounter-actions { display: flex; gap: 1rem; align-items: flex-end; justify-content: center; margin-top: 1rem; flex-wrap: wrap; }
@@ -589,7 +589,11 @@ h1, h2 {
 }
 
 .battle-pokemon-full { text-align: center; }
-.battle-sprite { width: 120px; height: 120px; image-rendering: pixelated; margin: 0.5rem auto; display: block; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.6)); }
+.battle-sprite { width: 120px; height: 120px; image-rendering: pixelated; margin: 0.5rem auto; display: block; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.6)); object-fit: contain; --sprite-scale: 1; }
+/* GIFs shiny têm bounding box/padding diferente dos normais → zoom leve
+   padronizado para ocupar a mesma área visual. Vale para QUALQUER <img>
+   com a classe (arena, preview de encontro, cards do mestre). */
+.sprite-shiny { --sprite-scale: 1.18; transform: scale(var(--sprite-scale)); transform-origin: bottom center; }
 .battle-stats-mini { display: flex; justify-content: center; gap: 1rem; margin: 0.5rem 0; font-size: 0.85rem; }
 .battle-pokemon-details { text-align: left; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--card-border); }
 .battle-pokemon-details h5 { color: var(--accent); margin: 0.5rem 0 0.25rem; font-size: 0.85rem; }
@@ -860,16 +864,16 @@ h1, h2 {
    BATTLE ANIMATIONS
    ============================================ */
 
-/* Pokémon entry from left (enemy) */
+/* Pokémon entry from left (enemy) — respeita o zoom do shiny (--sprite-scale) */
 @keyframes poke-enter-left {
-    from { transform: translateX(-160px) scale(0.6); opacity: 0; }
-    to   { transform: translateX(0)      scale(1);   opacity: 1; }
+    from { transform: translateX(-160px) scale(calc(var(--sprite-scale, 1) * 0.6)); opacity: 0; }
+    to   { transform: translateX(0)      scale(var(--sprite-scale, 1));             opacity: 1; }
 }
 
 /* Pokémon entry from right (player) */
 @keyframes poke-enter-right {
-    from { transform: translateX(160px) scale(0.6); opacity: 0; }
-    to   { transform: translateX(0)     scale(1);   opacity: 1; }
+    from { transform: translateX(160px) scale(calc(var(--sprite-scale, 1) * 0.6)); opacity: 0; }
+    to   { transform: translateX(0)     scale(var(--sprite-scale, 1));             opacity: 1; }
 }
 
 /* Hit flash — sprite turns white briefly */
@@ -880,8 +884,8 @@ h1, h2 {
 
 /* Faint — slide down and fade */
 @keyframes poke-faint {
-    0%   { transform: translateY(0);    opacity: 1; }
-    100% { transform: translateY(40px); opacity: 0; }
+    0%   { transform: translateY(0)    scale(var(--sprite-scale, 1)); opacity: 1; }
+    100% { transform: translateY(40px) scale(var(--sprite-scale, 1)); opacity: 0; }
 }
 
 /* HP bar shake on damage */

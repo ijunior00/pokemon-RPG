@@ -184,7 +184,7 @@ function addEncounterCard(data) {
         <div class="battle-field-master">
             <div class="battle-col">
                 <h5>🔴 ${pokemon.name} Nv.${data.level} (Selvagem)</h5>
-                <img src="${getPokemonSpriteUrl(pokemon.number)}" width="80" style="image-rendering:pixelated;">
+                <img src="${getPokemonSpriteUrl(pokemon.number, data.is_shiny)}" width="80" style="image-rendering:pixelated;object-fit:contain;"${data.is_shiny ? ' class="sprite-shiny"' : ''}>
                 <div class="type-badges">${formatTypes(pokemon.types)}</div>
                 <div class="hp-bar-container"><div class="hp-bar enemy-hp wild-hp-bar" style="width:100%"></div></div>
                 <span class="wild-hp-text">${pokemon.hp}/${pokemon.hp}</span>
@@ -367,7 +367,7 @@ function masterAttack(playerId, btn) {
     if (effectiveness > 1) effectLabel = `⚡ Super Efetivo (x${effectiveness})`;
     else if (effectiveness < 1 && effectiveness > 0) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
 
-    const damage = BattleMath.damage(diceTotal, atkEff, defEff, isStab, effectiveness, tax, false, null);
+    const damage = BattleMath.damage(diceTotal, atkEff, defEff, isStab, effectiveness, tax, false, null, wildLevel);
     const ratio = Math.max(0.5, Math.min(2, atkEff / defEff)).toFixed(2);
 
     if (log) log.innerHTML += `<p>🔴 <strong>${moveName}</strong> → d20(${attackRoll}) vs ${accLabel} ✅ → ${dice}(${diceTotal})${isCrit ? ' x2 CRIT' : ''} × ${atkKey}/${defKey}(${ratio})${modeLabel}${isStab ? ' × STAB(1.5)' : ''}${effectLabel ? ' ' + effectLabel : ''} = <strong>${damage} dano ${moveData.type || ''}</strong></p>`;

@@ -362,7 +362,9 @@ def main():
     _att_stats = {'ATK': 14, 'SPA': 14, 'CON': 12, 'level': 40, 'proficiency': 5, 'maxHp': 80}
     _tgt_stats = {'DEF': 12, 'level': 40}
     _ns = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('night shade'), _att_stats, _tgt_stats)
-    check(S, 'Night Shade dano fixo = nível', _ns['effect_type'] == 'fixed_damage' and _ns['damage'] == 40)
+    _ns_exp = max(1, int(40 * appmod.bm_core.damage_scale(40)))
+    check(S, 'Night Shade dano fixo = nível × escala', _ns['effect_type'] == 'fixed_damage'
+          and _ns['damage'] == _ns_exp, f"{_ns['damage']} (esperado {_ns_exp})")
     _hz = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('haze'), _att_stats, _tgt_stats)
     check(S, 'Haze anula stages', _hz['effect_type'] == 'reset_stages')
     _tp = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('teleport'), _att_stats, _tgt_stats)
@@ -429,6 +431,14 @@ def main():
     # flag no próprio dict também ativa o bônus (dicts de instância)
     _auto = scaling.calculate_pokemon_stats(dict(_base, is_shiny=True), 30)
     check(S, 'shiny: flag no dict ativa o bônus', _auto['stats'] == _shin['stats'])
+    # bônus FIXO e não-acumulativo: recálculos repetidos dão SEMPRE o mesmo
+    # valor e não mutam os base_stats da espécie
+    _species_snapshot = dict(_base['base_stats'])
+    _again = [scaling.calculate_pokemon_stats(_base, 30, is_shiny=True) for _ in range(5)]
+    check(S, 'shiny: +35% fixo, não acumula em recálculos',
+          all(a['stats'] == _shin['stats'] and a['maxHp'] == _shin['maxHp'] for a in _again))
+    check(S, 'shiny: base_stats da espécie intactos após recálculos',
+          _base['base_stats'] == _species_snapshot)
 
     # encontro selvagem shiny carrega flag e stats acrescidos (sem +2 CA legado)
     random.seed(4242)
@@ -491,11 +501,13 @@ def main():
     # Paridade battle_math × referência independente (50 amostras)
     def _ref_stat(base, lv, tr=0):
         return (2 * base * lv) // 100 + 5 + tr
-    def _ref_dmg(dice_total, atk, dfn, stab, eff, tax):
+    def _ref_dmg(dice_total, atk, dfn, stab, eff, tax, lv):
         import math as _m
         r = max(0.5, min(2.0, atk / max(1, dfn)))
         d = dice_total * r * tax * (1.5 if stab else 1.0) * eff
-        return max(1, int(d)) if eff > 0 else 0
+        # escala global de dano crescente com o nível: batalhas de 8-15 turnos
+        scale = 0.20 + 0.0003 * max(1, lv)
+        return max(1, int(d * scale)) if eff > 0 else 0
     _par_ok = True
     random.seed(99)
     for _ in range(50):
@@ -504,7 +516,8 @@ def main():
             _par_ok = False
         dt, a_, d_ = random.randint(2, 60), random.randint(10, 200), random.randint(10, 200)
         st_, ef_, tx_ = random.random() < 0.5, random.choice([0, 0.5, 1, 2]), random.choice([1.0, 1.25, 1.5])
-        if bmm.damage(dt, a_, d_, stab=st_, effectiveness=ef_, tax=tx_) != _ref_dmg(dt, a_, d_, st_, ef_, tx_):
+        if bmm.damage(dt, a_, d_, stab=st_, effectiveness=ef_, tax=tx_,
+                      level=lv_) != _ref_dmg(dt, a_, d_, st_, ef_, tx_, lv_):
             _par_ok = False
     check(S, 'paridade battle_math × referência (50 amostras)', _par_ok)
 
@@ -568,7 +581,9 @@ def main():
 
     # dano fixo v2 no calc (Dragon Rage nunca fica 0)
     _dr = appmod._calc_pvp_attack(make_poke('Charmander', 20), make_poke('Rattata', 20), 'Dragon Rage', 15)
-    check(S, 'Dragon Rage = dano fixo (15 + nível//4)', _dr['damage'] == 15 + 20 // 4, str(_dr['damage']))
+    _dr_exp = max(1, int((15 + 20 // 4) * bmm.damage_scale(20)))
+    check(S, 'Dragon Rage = dano fixo escalado ((15+nível//4) × escala)',
+          _dr['damage'] == _dr_exp, f"{_dr['damage']} (esperado {_dr_exp})")
 
     # ══════════ 4a-quater. ATRIBUTOS DO TREINADOR (6 novos + perícias) ══════════
     section('4a-quater. Atributos do treinador (Vínculo/Tática/... + perícias)')
@@ -691,7 +706,8 @@ def main():
         for c in (s1, s2, msio):
             c.get_received()
         guard = 0
-        while view and view.get('phase') == 'active' and guard < 120:
+        # pós-rebalance (8-15 turnos), batalhas em grupo levam bem mais ações
+        while view and view.get('phase') == 'active' and guard < 600:
             guard += 1
             turn = next((c for c in view['combatants'] if c['cid'] == view['turn_cid']), None)
             if not turn or turn['side'] != 'ally':
@@ -700,7 +716,7 @@ def main():
             alive_wild = next((c['cid'] for c in view['combatants']
                                if c['side'] == 'wild' and not c['fainted']), None)
             cli.emit('group_battle_action', {'battle_id': view['id'],
-                     'move_name': (turn['moves'] or ['Tackle'])[0], 'target_cid': alive_wild})
+                     'move_name': dmg_move(turn), 'target_cid': alive_wild})
             # captura o estado resultante (update ou end)
             pkts = cli.get_received()
             newv = None
@@ -900,7 +916,8 @@ def main():
                 else:
                     appmod.handle_npc_turn(battle, 'player2')
             check(S, 'jogador consegue TROCAR pokémon vs NPC (bug reportado)', switched)
-            for _ in range(250):
+            # pós-rebalance (batalhas 8-15 turnos), o 3v3 leva bem mais ações
+            for _ in range(900):
                 if battle['phase'] != 'battle':
                     break
                 p1side = battle['player1']

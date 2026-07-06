@@ -15,6 +15,21 @@ import math
 # ── Constantes de balanceamento (ajustáveis em playtest) ──────────────────
 RATIO_CLAMP = (0.5, 2.0)      # limites da razão Atk_ef / Def_ef
 STAB_MULT = 1.5               # bônus de tipo igual (como nos jogos)
+# Escala GLOBAL de dano: comprime todo dano por dados sem tocar em
+# STAB/efetividade/posturas (que continuam relativos entre si).
+# Antigo equivalente: 1.0 (janela de 2-4 turnos até o KO). Com ×0.20 as
+# batalhas ficam na janela de 8-15 turnos em TODOS os níveis (validado por
+# sweep de 2.100 batalhas com movesets realistas por nível: médias 9-12).
+# O leve crescimento por nível compensa o HP subir mais rápido que os dados.
+DAMAGE_SCALE_BASE = 0.20        # escala no nível 1
+DAMAGE_SCALE_PER_LEVEL = 0.0003  # quase flat: os movesets já ganham Power com o nível
+
+
+def damage_scale(level):
+    """Multiplicador global de dano no nível (alvo: batalhas de 8-15 turnos)."""
+    return DAMAGE_SCALE_BASE + DAMAGE_SCALE_PER_LEVEL * max(1, int(level or 50))
+
+
 TRAINING_POINTS_PER_LEVEL = 4  # pontos de treino ganhos por nível
 TRAINING_CAP = 63             # teto de treino por stat (≈ 252 EVs)
 
@@ -97,12 +112,13 @@ def level_tier_mult(level):
 
 def dice_for_power(power, level):
     """Power do move → expressão de dados. 40→2, 80→4, 90→5, 120→6 dados;
-    quantidade × faixa de nível; d4 abaixo do Nv10, d6 do Nv10 em diante."""
+    quantidade × faixa de nível; d4 abaixo do Nv20, d6 do Nv20 em diante
+    (a transição no 10 dava um salto de +40% de dano cedo demais)."""
     if not power:
         power = 40
     n = math.ceil(power / 20)
     count = math.ceil(n * level_tier_mult(int(level)))
-    sides = 4 if int(level) < 10 else 6
+    sides = 4 if int(level) < 20 else 6
     return f'{count}d{sides}'
 
 
@@ -118,8 +134,10 @@ def defense_tax(defense_mode):
 
 
 def damage(dice_total, atk_eff, def_eff, stab=False, effectiveness=1.0,
-           tax=1.0, burned=False, stab_mult=None):
-    """Dano final: rolagem × clamp(Atk/Def) × taxa da postura × STAB × tipo.
+           tax=1.0, burned=False, stab_mult=None, level=None):
+    """Dano final: rolagem × clamp(Atk/Def) × taxa da postura × STAB × tipo,
+    tudo × damage_scale(nível) — a escala global controla a duração das
+    batalhas (alvo 8-15 turnos) sem mexer nos multiplicadores relativos.
     Queimado corta dano físico pela metade (aplicar só se o move é físico).
     stab_mult sobrepõe o ×1.5 (Blaze/Overgrow com HP baixo dobram → 2.0)."""
     lo, hi = RATIO_CLAMP
@@ -132,7 +150,7 @@ def damage(dice_total, atk_eff, def_eff, stab=False, effectiveness=1.0,
         dmg *= 0.5
     if effectiveness <= 0:
         return 0
-    return max(1, int(dmg))
+    return max(1, int(dmg * damage_scale(level)))
 
 
 # ── Stat stages (multiplicativos, regra oficial) ──────────────────────────
@@ -151,8 +169,14 @@ def initiative_bonus(spe_eff):
 
 # ── Dano fixo ─────────────────────────────────────────────────────────────
 def fixed_damage_for(move_name_lower, level, target_current_hp=None):
-    """Dano de moves de valor fixo, ou None se o move não é desse grupo."""
+    """Dano de moves de valor fixo, ou None se o move não é desse grupo.
+    Escala junto com o dano geral (senão Seismic Toss viraria a melhor
+    opção do jogo depois do rebalance) — exceto Super Fang, que é
+    percentual do HP atual e se auto-limita."""
     fn = FIXED_DAMAGE_FORMULAS.get(move_name_lower)
     if not fn:
         return None
-    return max(1, int(fn(int(level), target_current_hp)))
+    raw = fn(int(level), target_current_hp)
+    if move_name_lower == 'super fang':
+        return max(1, int(raw))
+    return max(1, int(raw * damage_scale(level)))

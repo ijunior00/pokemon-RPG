@@ -227,7 +227,7 @@ function _gbCombatantHtml(c, isTurn) {
     const dead = c.fainted ? 'opacity:0.4;filter:grayscale(1);' : '';
     return `<div style="flex:1;min-width:130px;background:rgba(255,255,255,0.05);border-radius:10px;padding:0.5rem;${ring}${dead}">
         <div style="display:flex;align-items:center;gap:0.4rem;">
-            ${spr ? `<img src="${spr}" width="42" height="42" alt="">` : ''}
+            ${spr ? `<img src="${spr}" width="42" height="42" alt="" style="object-fit:contain;"${c.is_shiny ? ' class="sprite-shiny"' : ''}>` : ''}
             <div style="flex:1;">
                 <div style="font-weight:700;font-size:0.85rem;">${isTurn ? '▶️ ' : ''}${c.name}${c.fainted ? ' 💀' : ''}</div>
                 <div style="font-size:0.72rem;opacity:0.8;">Nv.${c.level || '?'} · ${c.hp}/${c.maxHp} HP</div>
@@ -584,6 +584,7 @@ async function displayEncounter(encounter) {
     const sprite = document.getElementById('wild-pokemon-sprite');
     sprite.src = getPokemonSpriteUrl(pokemon.number, encounter.is_shiny);
     sprite.alt = pokemon.name;
+    sprite.classList.toggle('sprite-shiny', !!encounter.is_shiny);
     const shinyBadge = document.getElementById('shiny-badge');
     encounter.is_shiny ? shinyBadge.classList.remove('hidden') : shinyBadge.classList.add('hidden');
     
@@ -727,7 +728,9 @@ async function startBattle() {
 
     // Fill enemy data
     const enemySpriteUrl = getPokemonSpriteUrl(enemy.number, currentEncounter.is_shiny);
-    document.getElementById('battle-enemy-sprite').src = enemySpriteUrl;
+    const enemySpriteEl = document.getElementById('battle-enemy-sprite');
+    enemySpriteEl.src = enemySpriteUrl;
+    enemySpriteEl.classList.toggle('sprite-shiny', !!currentEncounter.is_shiny);
     battleSpriteEnter('battle-enemy-sprite', 'enemy');
     document.getElementById('battle-enemy-name-full').textContent = enemy.name;
     document.getElementById('battle-enemy-level-badge').textContent = `Nv.${currentEncounter.level}`;
@@ -760,7 +763,9 @@ async function startBattle() {
     const pNum = playerPokemon.number || 0;
     const playerSpriteUrl = pNum ? getPokemonSpriteUrl(pNum, playerPokemon.is_shiny) : '';
     console.log('SPRITE player:', pNum, playerSpriteUrl);
-    document.getElementById('battle-player-sprite').src = playerSpriteUrl;
+    const playerSpriteEl = document.getElementById('battle-player-sprite');
+    playerSpriteEl.src = playerSpriteUrl;
+    playerSpriteEl.classList.toggle('sprite-shiny', !!playerPokemon.is_shiny);
     battleSpriteEnter('battle-player-sprite', 'player');
     document.getElementById('battle-player-name-full').textContent = playerPokemon.nickname || playerPokemon.name;
     const plvlBadge = document.getElementById('battle-player-level-badge');
@@ -2641,6 +2646,8 @@ function statBarColor(v) {
     return '#23cd5e';
 }
 
+const SHINY_MULT_UI = 1.35;   // espelho de pokemon_scaling.SHINY_MULT
+
 async function renderStatBars(pokemon) {
     const box = document.getElementById('poke-stat-bars');
     if (!box || !pokemon?.name) { if (box) box.innerHTML = ''; return; }
@@ -2651,20 +2658,37 @@ async function renderStatBars(pokemon) {
         if (!base) { box.innerHTML = ''; return; }
         const labels = { HP: 'HP', ATK: 'Attack', DEF: 'Defense', SPA: 'Sp. Atk', SPD: 'Sp. Def', SPE: 'Speed' };
         const tr = pokemon.training || {};
+        const shiny = !!pokemon.is_shiny;
+        const level = pokemon.level || 1;
+        const badge = shiny
+            ? `<span style="background:linear-gradient(90deg,#ffd700,#ff8c00);color:#222;font-weight:bold;
+                 padding:0.1rem 0.5rem;border-radius:10px;font-size:0.72rem;margin-left:0.4rem;">✨ SHINY +35%</span>`
+            : '';
         box.innerHTML = `<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.25rem;">
-            Base stats da espécie (pokemondb) — total no Nv.${pokemon.level || 1} inclui natureza${pokemon.is_shiny ? ' e ✨ shiny ×1.35' : ''}${Object.values(tr).some(v => v) ? ' e treino' : ''}</div>` +
+            Base stats da espécie (pokemondb) — total no Nv.${level} inclui natureza${Object.values(tr).some(v => v) ? ' e treino' : ''}${badge}</div>` +
             ['HP', 'ATK', 'DEF', 'SPA', 'SPD', 'SPE'].map(k => {
-                const b = base[k] || 0;
+                const bNormal = base[k] || 0;
+                const b = shiny ? Math.round(bNormal * SHINY_MULT_UI) : bNormal;
                 const total = k === 'HP' ? (pokemon.maxHp || '?') : (pokemon.stats?.[k] ?? '?');
+                // comparação com a versão NORMAL no mesmo nível/treino
+                const normalTotal = k === 'HP'
+                    ? BattleMath.hpAtLevel(bNormal, level) + (tr.HP || 0)
+                    : BattleMath.statAtLevel(bNormal, level, tr[k] || 0);
                 const pct = Math.min(100, (b / 180) * 100);
                 const trained = tr[k] ? ` <span style="color:var(--accent);">+${tr[k]}🏋️</span>` : '';
+                const baseCol = shiny
+                    ? `<strong>${b}</strong> <small style="opacity:0.65;">(${bNormal})</small>`
+                    : `<strong>${b}</strong>`;
+                const totalCol = shiny
+                    ? `<strong>${total}</strong> <small style="opacity:0.65;">(Normal: ${normalTotal} | +35% ✨)</small>`
+                    : `<strong>${total}</strong>${trained}`;
                 return `<div style="display:flex;align-items:center;gap:0.5rem;margin:2px 0;font-size:0.8rem;">
                     <span style="width:52px;color:var(--text-muted);">${labels[k]}</span>
-                    <span style="width:30px;text-align:right;font-weight:bold;">${b}</span>
+                    <span style="min-width:30px;text-align:right;font-weight:bold;white-space:nowrap;">${baseCol}</span>
                     <div style="flex:1;background:var(--darker);border-radius:3px;height:10px;overflow:hidden;">
                         <div style="width:${pct}%;height:100%;background:${statBarColor(b)};"></div>
                     </div>
-                    <span style="width:70px;font-size:0.75rem;color:var(--text-muted);">Nv: <strong>${total}</strong>${trained}</span>
+                    <span style="min-width:70px;font-size:0.75rem;color:var(--text-muted);white-space:nowrap;">Nv: ${totalCol}${shiny && tr[k] ? trained : ''}</span>
                 </div>`;
             }).join('');
     } catch (e) { box.innerHTML = ''; }
@@ -3020,7 +3044,9 @@ async function confirmSwitch(teamIdx) {
     
     // Update UI
     const pNum = newPoke.number || 0;
-    document.getElementById('battle-player-sprite').src = pNum ? getPokemonSpriteUrl(pNum, newPoke.is_shiny) : '';
+    const switchSpriteEl = document.getElementById('battle-player-sprite');
+    switchSpriteEl.src = pNum ? getPokemonSpriteUrl(pNum, newPoke.is_shiny) : '';
+    switchSpriteEl.classList.toggle('sprite-shiny', !!newPoke.is_shiny);
     document.getElementById('battle-player-name-full').textContent = `${newPoke.nickname || newPoke.name} Nv.${newPoke.level}`;
     document.getElementById('battle-player-types').innerHTML = formatTypes(newPoke.types || []);
     const pHp = newPoke.currentHp || newPoke.maxHp || 20;
@@ -3549,11 +3575,12 @@ socket.on('pvp_waiting', (data) => {
 
 // ── PVP Turn Countdown ──────────────────────────────────────
 let _pvpTimerInterval = null;
-let _pvpTimerSeconds  = 20;
+const PVP_TURN_LIMIT  = 30;   // segundos para escolher a ação no PvP
+let _pvpTimerSeconds  = PVP_TURN_LIMIT;
 
 function startPvpTimer() {
     clearPvpTimer();
-    _pvpTimerSeconds = 20;
+    _pvpTimerSeconds = PVP_TURN_LIMIT;
     _pvpTimerInterval = setInterval(() => {
         _pvpTimerSeconds--;
         const el = document.getElementById('pvp-turn-timer');
@@ -3561,11 +3588,11 @@ function startPvpTimer() {
 
         el.textContent = _pvpTimerSeconds;
 
-        // Colour progression
+        // Colour progression (proporcional ao limite: 50% verde, 25% amarelo)
         el.classList.remove('timer-green', 'timer-yellow', 'timer-red', 'timer-panic');
-        if (_pvpTimerSeconds > 10)      el.classList.add('timer-green');
-        else if (_pvpTimerSeconds > 5)  el.classList.add('timer-yellow');
-        else                            el.classList.add('timer-red');
+        if (_pvpTimerSeconds > PVP_TURN_LIMIT / 2)       el.classList.add('timer-green');
+        else if (_pvpTimerSeconds > PVP_TURN_LIMIT / 4)  el.classList.add('timer-yellow');
+        else                                             el.classList.add('timer-red');
 
         // Panic effect in last 5 s
         if (_pvpTimerSeconds <= 5) el.classList.add('timer-panic');
@@ -3608,7 +3635,7 @@ function renderPvpBattle(state) {
             <div class="battle-side-full enemy-side">
                 <h3>🔴 Oponente</h3>
                 <div class="battle-pokemon-full">
-                    <img src="${getPokemonSpriteUrl(opponent.number || 0, opponent.is_shiny)}" class="battle-sprite" id="pvp-opp-sprite">
+                    <img src="${getPokemonSpriteUrl(opponent.number || 0, opponent.is_shiny)}" class="battle-sprite${opponent.is_shiny ? ' sprite-shiny' : ''}" id="pvp-opp-sprite">
                     <h4>${opponent.nickname || opponent.name || '???'} Nv.${opponent.level || '?'}
                         ${(opponent.defense_mode || 1) !== 1 ? `<span style="font-size:0.7rem;background:var(--darker);padding:0.1rem 0.4rem;border-radius:4px;">${BattleMath.DEFENSE_MODES[opponent.defense_mode].label}</span>` : ''}</h4>
                     <div class="type-badges" style="justify-content:center;">${formatTypes(opponent.types || [])}</div>
@@ -3633,7 +3660,7 @@ function renderPvpBattle(state) {
             <div class="battle-side-full player-side">
                 <h3>🟢 Seu Pokémon</h3>
                 <div class="battle-pokemon-full">
-                    <img src="${getPokemonSpriteUrl(myActive.number || 0, myActive.is_shiny)}" class="battle-sprite" id="pvp-my-sprite">
+                    <img src="${getPokemonSpriteUrl(myActive.number || 0, myActive.is_shiny)}" class="battle-sprite${myActive.is_shiny ? ' sprite-shiny' : ''}" id="pvp-my-sprite">
                     <h4>${myActive.nickname || myActive.name || '???'} Nv.${myActive.level || '?'}</h4>
                     <div class="type-badges" style="justify-content:center;">${formatTypes(myActive.types || [])}</div>
                     ${state.your_status ? `<div class="status-badge status-${state.your_status.condition}">${getStatusIcon(state.your_status.condition)} ${state.your_status.condition.toUpperCase()}</div>` : ''}
@@ -3655,7 +3682,7 @@ function renderPvpBattle(state) {
             <span class="turn-indicator" style="font-size:1rem;padding:0.5rem 1.5rem;">
                 ${mustSwitch ? '😵 Seu Pokémon desmaiou — escolha o próximo!'
                     : (isMyTurn ? '🟢 SEU TURNO — Escolha uma ação!' : '🔴 Turno do Oponente — Aguarde...')}
-                ${canAct ? '<span id="pvp-turn-timer" class="timer-green">20</span>' : ''}
+                ${canAct ? `<span id="pvp-turn-timer" class="timer-green">${PVP_TURN_LIMIT}</span>` : ''}
             </span>
             <span style="display:block;margin-top:0.3rem;font-size:0.8rem;color:var(--text-muted);">Round ${state.round || 1}</span>
         </div>
@@ -4934,7 +4961,7 @@ async function _executeWildTurn() {
     if (effectiveness > 1) effectLabel = `⚡ Super Efetivo (x${effectiveness})`;
     else if (effectiveness < 1 && effectiveness > 0) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
 
-    let damage = BattleMath.damage(diceTotal, atkEff, defEff, isStab, effectiveness, tax, wildBurned, stabMult);
+    let damage = BattleMath.damage(diceTotal, atkEff, defEff, isStab, effectiveness, tax, wildBurned, stabMult, wildLevel);
     const ratio = Math.max(0.5, Math.min(2, atkEff / Math.max(1, defEff)));
 
     // Check player pokemon ability against wild move
@@ -6383,7 +6410,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ============================================================
 let _turnTimer = null;
 let _turnSeconds = 0;
-const TURN_LIMIT = 20;
+const TURN_LIMIT = 30;   // segundos para escolher a ação na batalha selvagem
 
 function startTurnCountdown() {
     clearTurnCountdown();

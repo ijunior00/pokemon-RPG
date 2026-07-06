@@ -6,6 +6,14 @@ const BattleMath = (() => {
     // ── Constantes de balanceamento ──
     const RATIO_CLAMP = [0.5, 2.0];
     const STAB_MULT = 1.5;
+    // Escala GLOBAL de dano (espelho do battle_math.py): levemente crescente
+    // com o nível porque o HP cresce mais rápido que os dados.
+    // Antigo equivalente: 1.0 em todos os níveis (janela de 2-4 turnos).
+    const DAMAGE_SCALE_BASE = 0.20;
+    const DAMAGE_SCALE_PER_LEVEL = 0.0003;
+    function damageScale(level) {
+        return DAMAGE_SCALE_BASE + DAMAGE_SCALE_PER_LEVEL * Math.max(1, level || 50);
+    }
     const TRAINING_POINTS_PER_LEVEL = 4;
     const TRAINING_CAP = 63;
     const LEVEL_TIERS = [[80, 3.0], [60, 2.5], [40, 2.0], [20, 1.5], [10, 1.25]];
@@ -61,7 +69,7 @@ const BattleMath = (() => {
         if (!power) power = 40;
         const n = Math.ceil(power / 20);
         const count = Math.ceil(n * levelTierMult(level));
-        const sides = level < 10 ? 4 : 6;
+        const sides = level < 20 ? 4 : 6;
         return `${count}d${sides}`;
     }
     function defenseStatKey(category, defenseMode) {
@@ -72,7 +80,7 @@ const BattleMath = (() => {
         return (DEFENSE_MODES[defenseMode || 1] || DEFENSE_MODES[1]).tax;
     }
     function damage(diceTotal, atkEff, defEff, stab = false, effectiveness = 1.0,
-                    tax = 1.0, burned = false, stabMult = null) {
+                    tax = 1.0, burned = false, stabMult = null, level = null) {
         const ratio = Math.max(RATIO_CLAMP[0],
             Math.min(RATIO_CLAMP[1], atkEff / Math.max(1, defEff)));
         let dmg = diceTotal * ratio * tax;
@@ -80,7 +88,7 @@ const BattleMath = (() => {
         dmg *= effectiveness;
         if (burned) dmg *= 0.5;
         if (effectiveness <= 0) return 0;
-        return Math.max(1, Math.floor(dmg));
+        return Math.max(1, Math.floor(dmg * damageScale(level)));
     }
 
     // ── Stat stages multiplicativos ──
@@ -98,11 +106,13 @@ const BattleMath = (() => {
     function fixedDamageFor(moveNameLower, level, targetCurrentHp = null) {
         const fn = FIXED_DAMAGE_FORMULAS[moveNameLower];
         if (!fn) return null;
-        return Math.max(1, Math.floor(fn(level, targetCurrentHp)));
+        const raw = fn(level, targetCurrentHp);
+        if (moveNameLower === 'super fang') return Math.max(1, Math.floor(raw));
+        return Math.max(1, Math.floor(raw * damageScale(level)));
     }
 
     return {
-        RATIO_CLAMP, STAB_MULT, TRAINING_POINTS_PER_LEVEL, TRAINING_CAP,
+        RATIO_CLAMP, STAB_MULT, damageScale, TRAINING_POINTS_PER_LEVEL, TRAINING_CAP,
         DEFENSE_MODES, statAtLevel, hpAtLevel, trainingBudget, trainingCap,
         missThreshold, rollHits, levelTierMult, diceForPower, defenseStatKey,
         defenseTax, damage, stageMult, initiativeBonus, fixedDamageFor,
