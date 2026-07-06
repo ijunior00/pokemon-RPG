@@ -322,6 +322,13 @@ def main():
             break
     check(S, 'status on-hit do selvagem aplicado pelo servidor', server_poisoned)
     s1.emit('end_encounter', {'result': 'fainted', 'active_pokemon_name': 'Charmander'}); recv(s1)
+    # ESPECTADOR: o OUTRO jogador da mesa (u2) acompanha a batalha do u1
+    _spec = recv(s2, 'spectate_update')
+    check(S, 'espectador: u2 recebe snapshots da batalha do u1',
+          any(p['args'][0].get('kind') == 'wild' and u1 in (p['args'][0].get('players') or [])
+              for p in _spec if p.get('args')))
+    check(S, 'espectador: fim da batalha chega com finished=True',
+          any(p['args'][0].get('finished') for p in _spec if p.get('args')))
 
     # Habilidade do ATACANTE (Poison Touch) envenena o alvo no contato físico.
     pt_procs = sum(1 for _ in range(400)
@@ -749,6 +756,55 @@ def main():
     check(S, '2v2 criada', v and v['mode'] == '2v2' and len(v['combatants']) == 4)
     final = drive_group(v, '2v2')
     check(S, '2v2 terminou com vencedor', final and final.get('phase') == 'finished', f"{final and final.get('phase')}")
+
+    # ── AUTO OFF: selvagem NÃO joga sozinho; o mestre destrava com o botão ──
+    msio.emit('set_auto_mode', {'enabled': False}); recv(msio)
+    for c in (s1, s2, msio):
+        c.get_received()
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
+                                           'hunt_mode': 'normal', 'route_id': 'route1'})
+    _st1 = recv(s1, 'group_battle_start')
+    v3 = _st1[-1]['args'][0] if _st1 else None
+    check(S, 'AUTO OFF: broadcast expõe wild_auto=False',
+          v3 is not None and v3.get('wild_auto') is False)
+    guard3 = 0
+    while v3 and v3['phase'] == 'active' and guard3 < 60:
+        guard3 += 1
+        _t = next((c for c in v3['combatants'] if c['cid'] == v3['turn_cid']), None)
+        if not _t or _t['side'] == 'wild':
+            break
+        _cli = clients[str(_t['player_id'])]
+        _aw = next((c['cid'] for c in v3['combatants'] if c['side'] == 'wild' and not c['fainted']), None)
+        _cli.emit('group_battle_action', {'battle_id': v3['id'],
+                  'move_name': dmg_move(_t), 'target_cid': _aw})
+        for p in _cli.get_received():
+            if p['name'] in ('group_battle_update', 'group_battle_end') and p.get('args'):
+                v3 = p['args'][0]
+        for c in (s1, s2, msio):
+            c.get_received()
+    _t = next((c for c in v3['combatants'] if c['cid'] == v3['turn_cid']), None) if v3 else None
+    check(S, 'AUTO OFF: batalha espera na vez do selvagem',
+          v3 and v3['phase'] == 'active' and _t and _t['side'] == 'wild')
+    # monitor do mestre rehidrata via /master/battles/active
+    r = m.get('/master/battles/active')
+    check(S, 'rehidratação: group_battles no /master/battles/active',
+          any(g.get('id') == v3['id'] for g in (r.get_json() or {}).get('group_battles', [])))
+    # botão do mestre → group_wild_turn destrava (selvagem joga)
+    _log_before = len(v3.get('log') or [])
+    msio.emit('group_wild_turn', {'battle_id': v3['id']})
+    v_after = None
+    for p in msio.get_received():
+        if p['name'] in ('group_battle_update', 'group_battle_end') and p.get('args'):
+            v_after = p['args'][0]
+    _ta = next((c for c in v_after['combatants'] if c['cid'] == v_after['turn_cid']), None) if v_after else None
+    check(S, 'AUTO OFF: group_wild_turn do mestre destrava a batalha',
+          v_after is not None and (v_after['phase'] == 'finished'
+                                   or (_ta and _ta['side'] == 'ally')
+                                   or len(v_after.get('log') or []) > _log_before))
+    msio.emit('set_auto_mode', {'enabled': True}); recv(msio)
+    appmod.ACTIVE_GROUP_BATTLES.pop(v3['id'], None)
+    for c in (s1, s2, msio):
+        c.get_received()
 
     # ══════════ 5. XP & EVOLUÇÃO ══════════
     section('5. XP, level-up e evoluções')

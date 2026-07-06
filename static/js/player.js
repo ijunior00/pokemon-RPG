@@ -273,7 +273,10 @@ function renderGroupBattle(view) {
             </div></div>`;
     } else if (view.phase === 'active') {
         const who = turnC ? turnC.name : '...';
-        controls = `<div style="text-align:center;opacity:0.85;margin-top:0.6rem;">⏳ Vez de <strong>${who}</strong> — aguarde.</div>`;
+        const wildWaiting = turnC && turnC.side === 'wild' && view.wild_auto === false;
+        controls = wildWaiting
+            ? `<div style="text-align:center;opacity:0.85;margin-top:0.6rem;">⏳ Vez de <strong>${who}</strong> — aguardando o <strong>Mestre</strong> jogar o selvagem (modo manual).</div>`
+            : `<div style="text-align:center;opacity:0.85;margin-top:0.6rem;">⏳ Vez de <strong>${who}</strong> — aguarde.</div>`;
     }
 
     card.innerHTML = `
@@ -298,6 +301,96 @@ function groupBattleAttack() {
     socket.emit('group_battle_action', {
         battle_id: _groupBattleView.id, move_name: move, target_cid: target
     });
+}
+
+// ============================================================
+// MODO ESPECTADOR — todas as batalhas da mesa, ao vivo
+// (snapshots compactos via 'spectate_update'; batalhas em que EU
+//  participo são filtradas — já tenho a UI completa delas)
+// ============================================================
+window._spectate = {};
+let _spectateOpen = false;
+
+socket.on('spectate_update', (d) => {
+    if (!d || !d.id) return;
+    const myId = String(window.CURRENT_USER_ID || '');
+    if ((d.players || []).map(String).includes(myId)) return;
+    if (d.finished) {
+        // mostra o resultado por alguns segundos antes de sumir
+        if (window._spectate[d.id]) {
+            window._spectate[d.id] = Object.assign(window._spectate[d.id], d);
+            setTimeout(() => { delete window._spectate[d.id]; renderSpectatePanel(); }, 6000);
+        }
+    } else {
+        window._spectate[d.id] = d;
+    }
+    renderSpectatePanel();
+});
+
+function _spectateHpBar(hp, max, color) {
+    const pct = max ? Math.max(0, Math.min(100, Math.round(100 * hp / max))) : 0;
+    return `<div style="background:rgba(255,255,255,0.12);border-radius:4px;height:8px;overflow:hidden;margin:2px 0;">
+        <div style="width:${pct}%;height:100%;background:${color};transition:width 0.3s;"></div></div>`;
+}
+
+function _spectateEntryHtml(d) {
+    let title = '', body = '';
+    if (d.kind === 'wild') {
+        const a = d.ally || {}, w = d.wild || {};
+        title = `🌿 ${d.trainer || 'Treinador'} vs ${w.name || 'Selvagem'}${w.is_shiny ? ' ✨' : ''}`;
+        body = `
+            <div style="font-size:0.78rem;">🟢 ${a.name || '?'} Nv.${a.level || '?'} — ${a.hp}/${a.max_hp} HP${_spectateHpBar(a.hp, a.max_hp, '#4caf50')}</div>
+            <div style="font-size:0.78rem;">🔴 ${w.name || '?'} Nv.${w.level || '?'} — ${w.hp}/${w.max_hp} HP${_spectateHpBar(w.hp, w.max_hp, '#e53935')}</div>
+            ${d.last ? `<div style="font-size:0.72rem;opacity:0.75;margin-top:2px;">• ${d.last}</div>` : ''}`;
+    } else if (d.kind === 'pvp') {
+        title = `⚔️ ${d.p1_name || '?'} vs ${d.p2_name || '?'} (${d.mode || 'pvp'})`;
+        body = `
+            <div style="font-size:0.78rem;">🟦 ${d.p1_pokemon || '?'} — ${d.p1_hp}/${d.p1_maxhp} HP${_spectateHpBar(d.p1_hp, d.p1_maxhp, '#42a5f5')}</div>
+            <div style="font-size:0.78rem;">🟥 ${d.p2_pokemon || '?'} — ${d.p2_hp}/${d.p2_maxhp} HP${_spectateHpBar(d.p2_hp, d.p2_maxhp, '#e53935')}</div>
+            <div style="font-size:0.72rem;opacity:0.75;">Round ${d.round || 1}</div>`;
+    } else if (d.kind === 'group') {
+        const v = d.view || {};
+        const rows = (v.combatants || []).map(c => `
+            <div style="font-size:0.76rem;">${c.side === 'ally' ? '🟢' : '🔴'} ${c.name}${c.fainted ? ' 💀' : ''} — ${c.hp}/${c.maxHp}${_spectateHpBar(c.hp, c.maxHp, c.side === 'ally' ? '#4caf50' : '#e53935')}</div>`).join('');
+        title = `👥 Batalha em Dupla (${v.mode || '2v?'})`;
+        body = rows + `<div style="font-size:0.72rem;opacity:0.75;">Rodada ${v.round || 1}</div>`;
+    }
+    const endTag = d.finished
+        ? `<div style="font-size:0.75rem;font-weight:bold;color:var(--accent);margin-top:2px;">🏁 Batalha encerrada${d.winner || d.result ? ` (${d.winner || d.result})` : ''}</div>` : '';
+    return `<div style="background:var(--darker,rgba(0,0,0,0.4));border:1px solid var(--card-border,#333);border-radius:8px;padding:0.45rem 0.6rem;margin-bottom:0.4rem;">
+        <div style="font-weight:700;font-size:0.82rem;margin-bottom:0.2rem;">${title}</div>${body}${endTag}</div>`;
+}
+
+function _ensureSpectatePanel() {
+    let box = document.getElementById('spectate-panel');
+    if (box) return box;
+    box = document.createElement('div');
+    box.id = 'spectate-panel';
+    box.style.cssText = 'position:fixed;bottom:12px;left:12px;z-index:1500;max-width:300px;font-family:inherit;';
+    box.innerHTML = `
+        <button id="spectate-toggle" class="btn btn-sm btn-secondary" style="width:100%;"
+                onclick="toggleSpectatePanel()">👀 Batalhas da mesa (<span id="spectate-count">0</span>)</button>
+        <div id="spectate-list" style="display:none;margin-top:0.35rem;max-height:50vh;overflow-y:auto;"></div>`;
+    document.body.appendChild(box);
+    return box;
+}
+
+function toggleSpectatePanel() {
+    _spectateOpen = !_spectateOpen;
+    renderSpectatePanel();
+}
+
+function renderSpectatePanel() {
+    const entries = Object.values(window._spectate);
+    const box = _ensureSpectatePanel();
+    box.style.display = entries.length ? '' : 'none';
+    const count = document.getElementById('spectate-count');
+    if (count) count.textContent = entries.length;
+    const list = document.getElementById('spectate-list');
+    if (!list) return;
+    list.style.display = _spectateOpen ? '' : 'none';
+    if (_spectateOpen) list.innerHTML = entries.map(_spectateEntryHtml).join('') ||
+        '<div style="opacity:0.7;font-size:0.8rem;">Nenhuma batalha rolando agora.</div>';
 }
 
 function closeGroupBattle() {

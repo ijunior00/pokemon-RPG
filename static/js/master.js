@@ -661,10 +661,12 @@ function renderGroupMonitor(view) {
             ${_hpBar(c)}</div>`;
     }).join('');
     const log = (view.log || []).slice(-6).map(l => `<div>• ${l.message || ''}</div>`).join('');
-    const auto = document.getElementById('wild-auto-mode')?.checked;
+    // Botão SEMPRE que for a vez de um selvagem — não depende do checkbox
+    // local (que pode estar dessincronizado do servidor após um reload).
+    // O handler no servidor é idempotente: só age se for mesmo vez de selvagem.
     const curWild = view.combatants.find(c => c.cid === view.turn_cid && c.side === 'wild');
-    const wildBtn = (view.phase === 'active' && curWild && !auto)
-        ? `<button class="btn btn-sm btn-warning" onclick="advanceGroupWild('${view.id}')">▶️ Jogar selvagem</button>` : '';
+    const wildBtn = (view.phase === 'active' && curWild)
+        ? `<button class="btn btn-sm btn-warning" onclick="advanceGroupWild('${view.id}')">▶️ Jogar selvagem (${curWild.name})</button>` : '';
     let head = `Rodada ${view.round} · ${view.mode}`;
     if (view.phase === 'finished')
         head = view.winner === 'ally' ? '🎉 A dupla venceu!' : '💀 Os selvagens venceram!';
@@ -680,6 +682,17 @@ function advanceGroupWild(battleId) {
 socket.on('group_battle_start',  (v) => renderGroupMonitor(v));
 socket.on('group_battle_update', (v) => renderGroupMonitor(v));
 socket.on('group_battle_end',    (v) => renderGroupMonitor(v));
+
+// Rehidrata o monitor da batalha em grupo após reload da página — sem isso
+// o mestre perdia o botão de jogar os selvagens (e a batalha travava).
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const resp = await fetch('/master/battles/active');
+        const data = await resp.json();
+        const groups = (data.group_battles || []).filter(g => g.phase === 'active');
+        if (groups.length) renderGroupMonitor(groups[groups.length - 1]);
+    } catch(e) {}
+});
 
 // ============================================
 // POKEDEX — Master (lista completa, sempre desbloqueada)

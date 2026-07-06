@@ -1627,9 +1627,14 @@ def master_active_battles():
                           and battle['player2'].get('team') else None),
             })
 
+    # Batalhas em grupo ativas da mesa (rehidrata o monitor após reload)
+    group_summary = [gb.state_view(b) for b in ACTIVE_GROUP_BATTLES.values()
+                     if b.get('table_id') == tid]
+
     return jsonify({
         'wild_encounters': encounters,
-        'pvp_battles': pvp_summary
+        'pvp_battles': pvp_summary,
+        'group_battles': group_summary
     })
 
 
@@ -1652,6 +1657,8 @@ def master_force_end_encounter(player_id):
                   room=player_id)
     socketio.emit('encounter_ended', {'player_id': player_id, 'result': result, 'forced_by_master': True},
                   room=f'master_{_tid()}')
+    _spectate('wild', {'id': f'wild_{player_id}', 'players': [player_id],
+                       'finished': True, 'result': result})
     return jsonify({'ok': True})
 
 
@@ -2790,11 +2797,49 @@ def _group_active_pokemon(player_id):
     return (trainer.get('name', ''), team[0]) if team else ('', None)
 
 
+def _spectate(kind, payload, table_id=None):
+    """Modo ESPECTADOR: transmite um snapshot compacto da batalha para todos
+    os jogadores da mesa (sala players_{tid}). O cliente filtra as batalhas
+    em que o próprio jogador participa (ele já tem a UI completa)."""
+    tid = table_id or _tid()
+    socketio.emit('spectate_update', dict(payload, kind=kind), room=f'players_{tid}')
+
+
+def _spectate_wild(player_id, encounter, last='', finished=False):
+    """Snapshot de batalha SELVAGEM para os espectadores da mesa."""
+    bs = (encounter or {}).get('battle_state') or {}
+    pp = (encounter or {}).get('player_pokemon') or {}
+    wp = (encounter or {}).get('pokemon') or {}
+    _spectate('wild', {
+        'id': f'wild_{player_id}',
+        'players': [str(player_id)],
+        'trainer': (encounter or {}).get('player_name', 'Treinador'),
+        'ally': {'name': pp.get('nickname') or pp.get('name', '?'),
+                 'level': pp.get('level', '?'),
+                 'hp': max(0, int(bs.get('player_hp_current') or 0)),
+                 'max_hp': int(bs.get('player_hp_max') or 0)},
+        'wild': {'name': wp.get('name', '?'), 'level': (encounter or {}).get('level', '?'),
+                 'hp': max(0, int(bs.get('wild_hp_current') or 0)),
+                 'max_hp': int(bs.get('wild_hp_max') or 0),
+                 'is_shiny': bool((encounter or {}).get('is_shiny'))},
+        'round': bs.get('round', 0),
+        'last': last,
+        'finished': finished,
+    })
+
+
 def _group_broadcast(battle, event='group_battle_update'):
     view = gb.state_view(battle)
+    # o cliente precisa saber se os selvagens jogam sozinhos (AUTO) ou se é
+    # o Mestre quem joga por eles — sem isso o jogador só vê "aguarde"
+    st = _db_raw.get_game_state(battle['table_id'])
+    view['wild_auto'] = bool(st.get('wild_auto_mode', True))
     for pid in battle['player_ids']:
         socketio.emit(event, view, room=pid)
     socketio.emit(event, view, room=f"master_{battle['table_id']}")
+    _spectate('group', {'id': battle['id'], 'players': [str(p) for p in battle['player_ids']],
+                        'view': view, 'finished': battle['phase'] == 'finished'},
+              table_id=battle['table_id'])
 
 
 def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data):
@@ -4145,6 +4190,7 @@ def handle_encounter(data):
 
         # Notify master
         emit('encounter_started', encounter_data, room=f'master_{_tid()}')
+        _spectate_wild(pid, encounter_data, last='⚔️ Encontro iniciado!')
 
         # Auto-roll initiative if AUTO mode is ON (por mesa)
         if _wild_auto_mode(game_state):
@@ -4602,6 +4648,8 @@ def handle_battle_action(data):
         # Notify both sides
         emit('battle_update', action_result, room=f'master_{_tid()}')
         emit('battle_update', action_result, room=player_id)
+        _spectate_wild(player_id, encounter,
+                       last=(f'{move_name}: {message}' if move_name else message) or '…')
         
         # Wild auto-attack is handled client-side (player.js wildPokemonAutoAttack) to support
         # status damage, move variety, and status moves. Server-side auto-attack removed to
@@ -4723,6 +4771,8 @@ def handle_end_encounter(data):
             save_game_state(game_state)
         emit('encounter_ended', {'player_id': player_id, 'result': result}, room=f'master_{_tid()}')
         emit('encounter_ended', {'player_id': player_id, 'result': result}, room=player_id)
+        _spectate('wild', {'id': f'wild_{player_id}', 'players': [player_id],
+                           'finished': True, 'result': result})
 
 @socketio.on('master_action')
 def handle_master_action(data):
@@ -5459,7 +5509,7 @@ def _emit_pvp_to_master(battle, event='update'):
     npc_map = {n['id']: n['name'] for n in npcs}
     p1_name = users.get(p1.get('id'), {}).get('username') or npc_map.get(p1.get('id'), p1.get('id', '?'))
     p2_name = users.get(p2.get('id'), {}).get('username') or npc_map.get(p2.get('id'), p2.get('id', '?'))
-    socketio.emit('pvp_master_update', {
+    payload = {
         'event':       event,
         'battle_id':   battle.get('id'),
         'mode':        battle.get('mode', 'official'),
@@ -5478,7 +5528,14 @@ def _emit_pvp_to_master(battle, event='update'):
         'p2_hp':       max(0, p2_active.get('currentHp', 0)) if isinstance(p2_active.get('currentHp'), (int, float)) else '?',
         'p2_maxhp':    p2_active.get('maxHp', '?'),
         'p2_pokemon':  p2_active.get('nickname') or p2_active.get('name', '?'),
-    }, room=f'master_{_tid()}')
+    }
+    socketio.emit('pvp_master_update', payload, room=f'master_{_tid()}')
+    # espectadores da mesa acompanham a batalha (só na fase de luta)
+    if battle.get('phase') in ('battle', 'finished'):
+        _spectate('pvp', dict(payload,
+                              id=battle.get('id'),
+                              players=[str(p1.get('id')), str(p2.get('id'))],
+                              finished=battle.get('phase') == 'finished'))
 
 
 def _broadcast_pvp_state(battle, event='update'):
