@@ -322,6 +322,13 @@ def main():
             break
     check(S, 'status on-hit do selvagem aplicado pelo servidor', server_poisoned)
     s1.emit('end_encounter', {'result': 'fainted', 'active_pokemon_name': 'Charmander'}); recv(s1)
+    # ESPECTADOR: o OUTRO jogador da mesa (u2) acompanha a batalha do u1
+    _spec = recv(s2, 'spectate_update')
+    check(S, 'espectador: u2 recebe snapshots da batalha do u1',
+          any(p['args'][0].get('kind') == 'wild' and u1 in (p['args'][0].get('players') or [])
+              for p in _spec if p.get('args')))
+    check(S, 'espectador: fim da batalha chega com finished=True',
+          any(p['args'][0].get('finished') for p in _spec if p.get('args')))
 
     # Habilidade do ATACANTE (Poison Touch) envenena o alvo no contato físico.
     pt_procs = sum(1 for _ in range(400)
@@ -362,7 +369,9 @@ def main():
     _att_stats = {'ATK': 14, 'SPA': 14, 'CON': 12, 'level': 40, 'proficiency': 5, 'maxHp': 80}
     _tgt_stats = {'DEF': 12, 'level': 40}
     _ns = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('night shade'), _att_stats, _tgt_stats)
-    check(S, 'Night Shade dano fixo = nível', _ns['effect_type'] == 'fixed_damage' and _ns['damage'] == 40)
+    _ns_exp = max(1, int(40 * appmod.bm_core.damage_scale(40)))
+    check(S, 'Night Shade dano fixo = nível × escala', _ns['effect_type'] == 'fixed_damage'
+          and _ns['damage'] == _ns_exp, f"{_ns['damage']} (esperado {_ns_exp})")
     _hz = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('haze'), _att_stats, _tgt_stats)
     check(S, 'Haze anula stages', _hz['effect_type'] == 'reset_stages')
     _tp = appmod.effects.process_status_move(appmod.MOVES_BY_NAME.get('teleport'), _att_stats, _tgt_stats)
@@ -429,6 +438,14 @@ def main():
     # flag no próprio dict também ativa o bônus (dicts de instância)
     _auto = scaling.calculate_pokemon_stats(dict(_base, is_shiny=True), 30)
     check(S, 'shiny: flag no dict ativa o bônus', _auto['stats'] == _shin['stats'])
+    # bônus FIXO e não-acumulativo: recálculos repetidos dão SEMPRE o mesmo
+    # valor e não mutam os base_stats da espécie
+    _species_snapshot = dict(_base['base_stats'])
+    _again = [scaling.calculate_pokemon_stats(_base, 30, is_shiny=True) for _ in range(5)]
+    check(S, 'shiny: +35% fixo, não acumula em recálculos',
+          all(a['stats'] == _shin['stats'] and a['maxHp'] == _shin['maxHp'] for a in _again))
+    check(S, 'shiny: base_stats da espécie intactos após recálculos',
+          _base['base_stats'] == _species_snapshot)
 
     # encontro selvagem shiny carrega flag e stats acrescidos (sem +2 CA legado)
     random.seed(4242)
@@ -464,6 +481,19 @@ def main():
     check(S, 'API /pokemon/stats aplica shiny', _rs['maxHp'] > _rn['maxHp']
           and all(_rs['stats'][k] >= _rn['stats'][k] for k in _rn['stats']))
 
+    # 🎭 STATS DE HISTÓRIA (encontro manual do mestre): % por stat na API
+    _rn2 = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30}).get_json()
+    _rm = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30,
+                  'stat_mods': {'HP': 300, 'ATK': 50, 'SPE': 9999, 'DEF': 100}}).get_json()
+    check(S, 'stats de história: HP 300% triplica o máximo',
+          _rm['maxHp'] == _rn2['maxHp'] * 3, f"{_rn2['maxHp']} → {_rm['maxHp']}")
+    check(S, 'stats de história: ATK 50% cai pela metade',
+          _rm['stats']['ATK'] == max(1, _rn2['stats']['ATK'] * 50 // 100))
+    check(S, 'stats de história: clamp no teto de 500%',
+          _rm['stats']['SPE'] == _rn2['stats']['SPE'] * 5)
+    check(S, 'stats de história: 100% não conta como modificação',
+          'DEF' not in (_rm.get('stat_mods') or {}) and 'HP' in (_rm.get('stat_mods') or {}))
+
     # mesa limitada à 1ª geração
     random.seed(77)
     _gen_ok = True
@@ -491,11 +521,13 @@ def main():
     # Paridade battle_math × referência independente (50 amostras)
     def _ref_stat(base, lv, tr=0):
         return (2 * base * lv) // 100 + 5 + tr
-    def _ref_dmg(dice_total, atk, dfn, stab, eff, tax):
+    def _ref_dmg(dice_total, atk, dfn, stab, eff, tax, lv):
         import math as _m
         r = max(0.5, min(2.0, atk / max(1, dfn)))
         d = dice_total * r * tax * (1.5 if stab else 1.0) * eff
-        return max(1, int(d)) if eff > 0 else 0
+        # escala global de dano crescente com o nível: batalhas de 8-15 turnos
+        scale = 0.20 + 0.0003 * max(1, lv)
+        return max(1, int(d * scale)) if eff > 0 else 0
     _par_ok = True
     random.seed(99)
     for _ in range(50):
@@ -504,7 +536,8 @@ def main():
             _par_ok = False
         dt, a_, d_ = random.randint(2, 60), random.randint(10, 200), random.randint(10, 200)
         st_, ef_, tx_ = random.random() < 0.5, random.choice([0, 0.5, 1, 2]), random.choice([1.0, 1.25, 1.5])
-        if bmm.damage(dt, a_, d_, stab=st_, effectiveness=ef_, tax=tx_) != _ref_dmg(dt, a_, d_, st_, ef_, tx_):
+        if bmm.damage(dt, a_, d_, stab=st_, effectiveness=ef_, tax=tx_,
+                      level=lv_) != _ref_dmg(dt, a_, d_, st_, ef_, tx_, lv_):
             _par_ok = False
     check(S, 'paridade battle_math × referência (50 amostras)', _par_ok)
 
@@ -568,7 +601,113 @@ def main():
 
     # dano fixo v2 no calc (Dragon Rage nunca fica 0)
     _dr = appmod._calc_pvp_attack(make_poke('Charmander', 20), make_poke('Rattata', 20), 'Dragon Rage', 15)
-    check(S, 'Dragon Rage = dano fixo (15 + nível//4)', _dr['damage'] == 15 + 20 // 4, str(_dr['damage']))
+    _dr_exp = max(1, int((15 + 20 // 4) * bmm.damage_scale(20)))
+    check(S, 'Dragon Rage = dano fixo escalado ((15+nível//4) × escala)',
+          _dr['damage'] == _dr_exp, f"{_dr['damage']} (esperado {_dr_exp})")
+
+    # ══════════ 4a-quater. ATRIBUTOS DO TREINADOR (6 novos + perícias) ══════════
+    section('4a-quater. Atributos do treinador (Vínculo/Tática/... + perícias)')
+    S = 'Atributos Treinador'
+    import trainer_attrs as ta
+
+    # migração automática old→new preservando o investimento
+    users = db.get_users()
+    _tr = users[u1]['trainer_data']
+    import copy as _cp2
+    _orig_level = _tr.get('level', 1)
+    _orig_team = _cp2.deepcopy(_tr.get('team', []))
+    for k in list(ta.ATTRIBUTES) + ['av', 'skill_profs']:
+        _tr.pop(k, None)
+    _tr.update({'str': 8, 'dex': 14, 'con': 18, 'int': 12, 'wis': 16, 'cha': 15, 'level': 5})
+    db.save_users(users)
+    r = p1.post('/player/trainer', json={})
+    users = db.get_users(); _tr = users[u1]['trainer_data']
+    check(S, 'migração old→new (wis→vinculo, cha→influencia, ...)',
+          _tr.get('vinculo') == 16 and _tr.get('influencia') == 15 and
+          _tr.get('determinacao') == 18 and _tr.get('agilidade') == 14 and
+          _tr.get('tatica') == 8 and _tr.get('conhecimento') == 12 and _tr.get('av') == 2)
+
+    # /api/skill/list: 13 perícias e Sorte com metade do mod de Determinação
+    r = p1.get('/api/skill/list')
+    d = r.get_json() or {}
+    _sk = {s['skill']: s for s in d.get('skills', [])}
+    check(S, '13 perícias definidas', len(_sk) == 13, str(len(_sk)))
+    check(S, 'Sorte = ½ mod DET (18→+4→+2)',
+          _sk.get('Sorte', {}).get('bonus') == 2 and _sk.get('Sorte', {}).get('half_mod') is True)
+    check(S, 'Afinidade usa Vínculo (16→+3)', _sk.get('Afinidade', {}).get('bonus') == 3)
+
+    # proficiências: teto por nível (nível 5 → 3)
+    r = p1.post('/player/trainer', json={'skill_profs':
+        ['Sorte', 'Afinidade', 'Exploração', 'Coragem', 'Diplomacia']})
+    users = db.get_users()
+    check(S, 'teto de proficiências no nível 5 = 3',
+          len(users[u1]['trainer_data']['skill_profs']) == 3)
+
+    # teste de perícia: manual, com proficiência, chega ao mestre
+    appmod._rate_store.clear()
+    msio.get_received()
+    r = p1.post('/api/skill/roll', json={'skill': 'Sorte', 'manual_roll': 12})
+    d = r.get_json() or {}
+    # Sorte proficiente no nível 5: ½ mod (2) + prof (3) = +5
+    check(S, 'teste de Sorte: d20(12) + 2 + prof(3) = 17',
+          d.get('total') == 17 and d.get('proficient') is True, str(d))
+    check(S, 'perícia inválida rejeitada',
+          p1.post('/api/skill/roll', json={'skill': 'Hackear'}).status_code == 400)
+    _skr = recv(msio, 'skill_roll')
+    check(S, 'mestre recebe o teste na caixa de rolagens',
+          bool(_skr) and _skr[0]['args'][0].get('skill') == 'Sorte')
+
+    # caçada agora usa 🧭 Exploração (Agilidade 14 → +2, proficiente → +5)
+    m.post('/master/hunts', json={'player_id': u1, 'action': 'reset'})
+    appmod._rate_store.clear()
+    r = p1.post('/api/hunt/roll', json={'manual_roll': 10})
+    d = r.get_json() or {}
+    check(S, 'caçada = Exploração: d20(10) + 2 + prof(3) = 15',
+          d.get('total') == 15 and d.get('skill') == 'Exploração', str(d))
+
+    # loja usa 👑 Influência (15 → -10% compra)
+    users = db.get_users(); users[u1]['trainer_data']['money'] = 5000; db.save_users(users)
+    r = p1.post('/api/shop/buy', json={'item_id': 'poke-ball', 'qty': 1})
+    d = r.get_json() or {}
+    check(S, 'loja desconta pela Influência (200 → 180)',
+          d.get('unit_price') == 180, str(d.get('unit_price')))
+
+    # iniciativa: mod(♟️ Tática)//2 estampado nos Pokémon do treinador
+    _poke_i = make_poke('Pikachu', 10)
+    _b = appmod._stamp_tatica([_poke_i], {'tatica': 18, 'av': 2, 'level': 5})
+    check(S, 'Tática 18 (+4) → +2 de iniciativa estampado',
+          _b == 2 and _poke_i['trainer_init_bonus'] == 2)
+    check(S, 'sem treinador (NPC/selvagem) → sem bônus',
+          appmod._stamp_tatica([make_poke('Rattata', 5)], None) == 0)
+    _rolls = [appmod.pvp.roll_initiative(_poke_i) for _ in range(40)]
+    _spe_b = bmm.initiative_bonus(_poke_i['stats']['SPE'])
+    check(S, 'roll_initiative soma SPE//10 + Tática',
+          min(_rolls) >= 1 + _spe_b + 2 and max(_rolls) <= 20 + _spe_b + 2)
+
+    # ficha 100% v2: save do time recalcula stats e some com chaves D&D
+    users = db.get_users()
+    _team_junk = [{'name': 'Pikachu', 'number': 25, 'level': 10, 'sv': 2,
+                   'stats': {'ATK': 999, 'DEF': 1, 'SPA': 999, 'SPD': 1, 'SPE': 999, 'HP': 999},
+                   'maxHp': 9999, 'currentHp': 9999, 'training': {'ATK': 5},
+                   'ac': 13, 'hitDice': 'd6', 'savingThrows': 'Dexterity',
+                   'moves': ['Thunder Shock']}]
+    r = p1.post('/player/team', json={'team': _team_junk})
+    users = db.get_users()
+    _saved = users[u1]['trainer_data']['team'][0]
+    _ref = scaling.calculate_pokemon_stats(appmod.POKEMON_BY_NAME['pikachu'], 10,
+                                           training=_saved['training'])
+    check(S, 'save do time: stats recalculados no servidor (cliente não manda)',
+          _saved['stats'] == _ref['stats'] and _saved['maxHp'] == _ref['maxHp'])
+    check(S, 'save do time: currentHp clampado ao máximo',
+          _saved['currentHp'] == _saved['maxHp'])
+    check(S, 'save do time: chaves D&D (ac/hitDice/savingThrows) removidas',
+          all(k not in _saved for k in ('ac', 'hitDice', 'savingThrows')))
+
+    # restaura o estado do u1 para as seções seguintes
+    users = db.get_users()
+    users[u1]['trainer_data']['team'] = _orig_team
+    users[u1]['trainer_data']['level'] = _orig_level
+    db.save_users(users)
 
     # ══════════ 4b. BATALHA EM DUPLA (2v1 / 2v2) ══════════
     section('4b. Batalha em dupla (grupo)')
@@ -587,7 +726,8 @@ def main():
         for c in (s1, s2, msio):
             c.get_received()
         guard = 0
-        while view and view.get('phase') == 'active' and guard < 120:
+        # pós-rebalance (8-15 turnos), batalhas em grupo levam bem mais ações
+        while view and view.get('phase') == 'active' and guard < 600:
             guard += 1
             turn = next((c for c in view['combatants'] if c['cid'] == view['turn_cid']), None)
             if not turn or turn['side'] != 'ally':
@@ -596,7 +736,7 @@ def main():
             alive_wild = next((c['cid'] for c in view['combatants']
                                if c['side'] == 'wild' and not c['fainted']), None)
             cli.emit('group_battle_action', {'battle_id': view['id'],
-                     'move_name': (turn['moves'] or ['Tackle'])[0], 'target_cid': alive_wild})
+                     'move_name': dmg_move(turn), 'target_cid': alive_wild})
             # captura o estado resultante (update ou end)
             pkts = cli.get_received()
             newv = None
@@ -629,6 +769,55 @@ def main():
     check(S, '2v2 criada', v and v['mode'] == '2v2' and len(v['combatants']) == 4)
     final = drive_group(v, '2v2')
     check(S, '2v2 terminou com vencedor', final and final.get('phase') == 'finished', f"{final and final.get('phase')}")
+
+    # ── AUTO OFF: selvagem NÃO joga sozinho; o mestre destrava com o botão ──
+    msio.emit('set_auto_mode', {'enabled': False}); recv(msio)
+    for c in (s1, s2, msio):
+        c.get_received()
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
+                                           'hunt_mode': 'normal', 'route_id': 'route1'})
+    _st1 = recv(s1, 'group_battle_start')
+    v3 = _st1[-1]['args'][0] if _st1 else None
+    check(S, 'AUTO OFF: broadcast expõe wild_auto=False',
+          v3 is not None and v3.get('wild_auto') is False)
+    guard3 = 0
+    while v3 and v3['phase'] == 'active' and guard3 < 60:
+        guard3 += 1
+        _t = next((c for c in v3['combatants'] if c['cid'] == v3['turn_cid']), None)
+        if not _t or _t['side'] == 'wild':
+            break
+        _cli = clients[str(_t['player_id'])]
+        _aw = next((c['cid'] for c in v3['combatants'] if c['side'] == 'wild' and not c['fainted']), None)
+        _cli.emit('group_battle_action', {'battle_id': v3['id'],
+                  'move_name': dmg_move(_t), 'target_cid': _aw})
+        for p in _cli.get_received():
+            if p['name'] in ('group_battle_update', 'group_battle_end') and p.get('args'):
+                v3 = p['args'][0]
+        for c in (s1, s2, msio):
+            c.get_received()
+    _t = next((c for c in v3['combatants'] if c['cid'] == v3['turn_cid']), None) if v3 else None
+    check(S, 'AUTO OFF: batalha espera na vez do selvagem',
+          v3 and v3['phase'] == 'active' and _t and _t['side'] == 'wild')
+    # monitor do mestre rehidrata via /master/battles/active
+    r = m.get('/master/battles/active')
+    check(S, 'rehidratação: group_battles no /master/battles/active',
+          any(g.get('id') == v3['id'] for g in (r.get_json() or {}).get('group_battles', [])))
+    # botão do mestre → group_wild_turn destrava (selvagem joga)
+    _log_before = len(v3.get('log') or [])
+    msio.emit('group_wild_turn', {'battle_id': v3['id']})
+    v_after = None
+    for p in msio.get_received():
+        if p['name'] in ('group_battle_update', 'group_battle_end') and p.get('args'):
+            v_after = p['args'][0]
+    _ta = next((c for c in v_after['combatants'] if c['cid'] == v_after['turn_cid']), None) if v_after else None
+    check(S, 'AUTO OFF: group_wild_turn do mestre destrava a batalha',
+          v_after is not None and (v_after['phase'] == 'finished'
+                                   or (_ta and _ta['side'] == 'ally')
+                                   or len(v_after.get('log') or []) > _log_before))
+    msio.emit('set_auto_mode', {'enabled': True}); recv(msio)
+    appmod.ACTIVE_GROUP_BATTLES.pop(v3['id'], None)
+    for c in (s1, s2, msio):
+        c.get_received()
 
     # ══════════ 5. XP & EVOLUÇÃO ══════════
     section('5. XP, level-up e evoluções')
@@ -796,7 +985,8 @@ def main():
                 else:
                     appmod.handle_npc_turn(battle, 'player2')
             check(S, 'jogador consegue TROCAR pokémon vs NPC (bug reportado)', switched)
-            for _ in range(250):
+            # pós-rebalance (batalhas 8-15 turnos), o 3v3 leva bem mais ações
+            for _ in range(900):
                 if battle['phase'] != 'battle':
                     break
                 p1side = battle['player1']

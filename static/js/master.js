@@ -184,14 +184,14 @@ function addEncounterCard(data) {
         <div class="battle-field-master">
             <div class="battle-col">
                 <h5>🔴 ${pokemon.name} Nv.${data.level} (Selvagem)</h5>
-                <img src="${getPokemonSpriteUrl(pokemon.number)}" width="80" style="image-rendering:pixelated;">
+                <img src="${getPokemonSpriteUrl(pokemon.number, data.is_shiny)}" width="80" style="image-rendering:pixelated;object-fit:contain;"${data.is_shiny ? ' class="sprite-shiny"' : ''}>
                 <div class="type-badges">${formatTypes(pokemon.types)}</div>
                 <div class="hp-bar-container"><div class="hp-bar enemy-hp wild-hp-bar" style="width:100%"></div></div>
                 <span class="wild-hp-text">${pokemon.hp}/${pokemon.hp}</span>
                 <span class="wild-status-badge" style="display:none;background:#7030a0;color:#fff;padding:0.1rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-left:0.4rem;"></span>
                 <div class="mini-stats-master">
-                    <span>AC: ${pokemon.ac}</span> <span>SPD: ${pokemon.speed || '30ft'}</span>
-                    ${pokemon.stats ? Object.entries(pokemon.stats).map(([k,v]) => `<span>${k}:${v}(${Math.floor((v-10)/2) >= 0 ? '+' : ''}${Math.floor((v-10)/2)})</span>`).join('') : ''}
+                    <span>Desloc: ${pokemon.speed || '30ft'}</span>
+                    ${pokemon.stats ? Object.entries(pokemon.stats).map(([k,v]) => `<span>${k}:${v}</span>`).join('') : ''}
                 </div>
                 <div class="wild-moves-master">
                     <strong>Moves:</strong> ${wildMoves.map(m => `<span class="move-btn">${m}</span>`).join('')}
@@ -205,7 +205,6 @@ function addEncounterCard(data) {
                 <span class="player-hp-text-master">${playerPoke.currentHp || playerPoke.maxHp || '?'}/${playerPoke.maxHp || '?'}</span>
                 <span class="player-status-badge" style="display:none;background:#7030a0;color:#fff;padding:0.1rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-left:0.4rem;"></span>
                 <div class="mini-stats-master">
-                    <span>AC: ${playerPoke.ac || '?'}</span>
                     ${playerPoke.stats ? Object.entries(playerPoke.stats).map(([k,v]) => `<span>${k}:${v}</span>`).join('') : ''}
                 </div>
             </div>
@@ -301,23 +300,15 @@ function masterAttack(playerId, btn) {
     const wildStats = wildPoke.stats || {};
     const wildLevel = encounter.level || 5;
     const moveData = window.masterMovesCache?.[moveName] || {};
-    
-    // Determine MOVE modifier from move's power stat
-    let moveMod = 0;
-    const power = (moveData.power || 'FOR').toUpperCase();
-    if (power.includes('FOR')) moveMod = Math.max(moveMod, Math.floor(((wildStats.STR||10) - 10) / 2));
-    if (power.includes('DES')) moveMod = Math.max(moveMod, Math.floor(((wildStats.DEX||10) - 10) / 2));
-    if (power.includes('INT')) moveMod = Math.max(moveMod, Math.floor(((wildStats.INT||10) - 10) / 2));
-    if (power.includes('SAB')) moveMod = Math.max(moveMod, Math.floor(((wildStats.WIS||10) - 10) / 2));
-    if (power.includes('CAR')) moveMod = Math.max(moveMod, Math.floor(((wildStats.CHA||10) - 10) / 2));
-    if (power.includes('CON')) moveMod = Math.max(moveMod, Math.floor(((wildStats.CON||10) - 10) / 2));
-    
-    // Proficiency bonus (1-100 Pokemon level scale)
-    const profBonus = wildLevel >= 91 ? 10 : wildLevel >= 81 ? 9 : wildLevel >= 71 ? 8 : wildLevel >= 61 ? 7 : wildLevel >= 51 ? 6 : wildLevel >= 41 ? 5 : wildLevel >= 31 ? 4 : wildLevel >= 17 ? 3 : 2;
-    
-    // If no damage move (status), send directly
-    if (!moveData.baseDamage && power === 'NENHUM') {
-        const log = card.querySelector('.battle-log-master');
+    const log = card.querySelector('.battle-log-master');
+
+    // ══ SISTEMA v2 (espelho de battle_math): d20 vs Accuracy; dano por Power ══
+    const powerNum = moveData.power_num ?? null;
+    const accuracy = moveData.accuracy ?? null;
+    const moveCategory = moveData.category || 'physical';
+
+    // Sem Power numérico = move de status/utilitário → o servidor processa
+    if (!powerNum) {
         if (log) log.innerHTML += `<p>🔴 Selvagem usou <strong>${moveName}</strong> (status)</p>`;
         socket.emit('battle_action', {
             player_id: playerId, action_by: 'master', action_type: 'status',
@@ -326,76 +317,67 @@ function masterAttack(playerId, btn) {
         card.querySelector('.wild-status-select').value = '';
         return;
     }
-    
-    // Roll d20 attack
+
+    // Acerto: d20 vs accuracy do move
     const attackRoll = Math.floor(Math.random() * 20) + 1;
     const isCrit = attackRoll === 20;
-    const isMiss = attackRoll === 1;
-    const totalAttack = attackRoll + moveMod + profBonus;
-    const targetAC = playerPoke.ac || 13;
-    
-    const log = card.querySelector('.battle-log-master');
-    
-    if (isMiss) {
-        if (log) log.innerHTML += `<p>🔴 <strong>${moveName}</strong> → d20(${attackRoll}) + MOD(${moveMod}) + Prof(${profBonus}) = ${totalAttack} 💨 Falha Crítica!</p>`;
+    const hits = BattleMath.rollHits(attackRoll, accuracy, 0, 0);
+    const thr = BattleMath.missThreshold(accuracy);
+    const accLabel = accuracy ? `Acc ${accuracy}%` : 'não erra';
+
+    if (!hits) {
+        if (log) log.innerHTML += `<p>🔴 <strong>${moveName}</strong> → d20(${attackRoll}) ≤ ${thr} (${accLabel}) ❌ Errou!</p>`;
         socket.emit('battle_action', {
             player_id: playerId, action_by: 'master', action_type: 'attack',
-            move_name: moveName, damage: 0, message: 'Nat 1 - Falha'
+            move_name: moveName, damage: 0, message: `Errou (d20 ${attackRoll} ≤ ${thr})`
         });
-    } else if (totalAttack >= targetAC || isCrit) {
-        // Calculate damage
-        const diceRoll = rollDamageMaster(moveData.baseDamage || '1d6');
-        let damage = diceRoll + moveMod;
-        if (isCrit) {
-            const critExtra = rollDamageMaster(moveData.baseDamage || '1d6');
-            damage = diceRoll + critExtra + moveMod;
-        }
-        
-        // STAB
-        const wildTypes = (wildPoke.types || []).map(t => t.toLowerCase());
-        const moveType = (moveData.type || '').toLowerCase();
-        // STAB for Pokemon level 1-100
-        const getStab = (lv) => lv >= 81 ? 6 : lv >= 61 ? 5 : lv >= 41 ? 4 : lv >= 26 ? 3 : lv >= 11 ? 2 : 1;
-        const stab = wildTypes.includes(moveType) ? getStab(wildLevel) : 0;
-        damage += stab;
-        if (damage < 1) damage = 1;
-        
-        // Type effectiveness vs player pokemon
-        const pVulns = (playerPoke.vulnerabilities || []).map(t => t.toLowerCase());
-        const pResists = (playerPoke.resistances || []).map(t => t.toLowerCase());
-        const pImmunities = (playerPoke.immunities || []).map(t => t.toLowerCase());
-        
-        let effectiveness = 1;
-        let effectLabel = '';
-        if (pImmunities.includes(moveType)) {
-            effectiveness = 0;
-            effectLabel = '⛔ IMUNE (0x)';
-        } else {
-            if (pVulns.includes(moveType)) effectiveness *= 2;
-            if (pResists.includes(moveType)) effectiveness *= 0.5;
-        }
-        
-        damage = Math.floor(damage * effectiveness);
-        if (effectiveness === 0) damage = 0;
-        if (effectiveness > 1) effectLabel = `⚡ Super Efetivo (x${effectiveness})`;
-        else if (effectiveness < 1 && effectiveness > 0) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
-        
-        const powerLabel = moveData.power || 'FOR';
-        if (log) log.innerHTML += `<p>🔴 <strong>${moveName}</strong> → d20(${attackRoll}) + MOD(${moveMod}) + Prof(${profBonus}) = ${totalAttack} ✅ Acertou! (AC ${targetAC}) → ${moveData.baseDamage||'1d6'}(${diceRoll}) + MOVE/${powerLabel}(${moveMod})${stab > 0 ? ` + STAB(${stab})` : ''}${isCrit ? ' x2 CRIT' : ''}${effectLabel ? ' ' + effectLabel : ''} = <strong>${damage} dano ${moveData.type||''}</strong></p>`;
-        
-        socket.emit('battle_action', {
-            player_id: playerId, action_by: 'master', action_type: 'attack',
-            move_name: moveName, damage, status_effect: status || null,
-            message: `${totalAttack} vs AC ${targetAC}${isCrit ? ' Crítico!' : ''}`
-        });
-    } else {
-        if (log) log.innerHTML += `<p>🔴 <strong>${moveName}</strong> → d20(${attackRoll}) + MOD(${moveMod}) + Prof(${profBonus}) = ${totalAttack} ❌ Errou! (AC ${targetAC})</p>`;
-        socket.emit('battle_action', {
-            player_id: playerId, action_by: 'master', action_type: 'attack',
-            move_name: moveName, damage: 0, message: `Errou (${totalAttack} vs AC ${targetAC})`
-        });
+        if (log) log.scrollTop = log.scrollHeight;
+        card.querySelector('.wild-status-select').value = '';
+        return;
     }
-    
+
+    // Dano: dados(Power, nível) × razão Atk/Def × postura do defensor
+    const dice = BattleMath.diceForPower(powerNum, wildLevel);
+    let diceTotal = rollDamageMaster(dice);
+    if (isCrit) diceTotal += rollDamageMaster(dice);
+
+    const atkKey = moveCategory === 'special' ? 'SPA' : 'ATK';
+    const atkEff = Math.max(1, wildStats[atkKey] || 10);
+    const pMode = playerPoke.defense_mode || 1;
+    const defKey = BattleMath.defenseStatKey(moveCategory, pMode);
+    const defEff = Math.max(1, (playerPoke.stats || {})[defKey] || 10);
+    const tax = BattleMath.defenseTax(pMode);
+    const modeLabel = pMode !== 1 ? ` [${BattleMath.DEFENSE_MODES[pMode].label} ×${tax}]` : '';
+
+    // STAB ×1.5 + efetividade de tipo
+    const wildTypes = (wildPoke.types || []).map(t => t.toLowerCase());
+    const moveType = (moveData.type || '').toLowerCase();
+    const isStab = wildTypes.includes(moveType);
+    const pVulns = (playerPoke.vulnerabilities || []).map(t => t.toLowerCase());
+    const pResists = (playerPoke.resistances || []).map(t => t.toLowerCase());
+    const pImmunities = (playerPoke.immunities || []).map(t => t.toLowerCase());
+    let effectiveness = 1;
+    let effectLabel = '';
+    if (pImmunities.includes(moveType)) {
+        effectiveness = 0; effectLabel = '⛔ IMUNE (0x)';
+    } else {
+        if (pVulns.includes(moveType)) effectiveness *= 2;
+        if (pResists.includes(moveType)) effectiveness *= 0.5;
+    }
+    if (effectiveness > 1) effectLabel = `⚡ Super Efetivo (x${effectiveness})`;
+    else if (effectiveness < 1 && effectiveness > 0) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
+
+    const damage = BattleMath.damage(diceTotal, atkEff, defEff, isStab, effectiveness, tax, false, null, wildLevel);
+    const ratio = Math.max(0.5, Math.min(2, atkEff / defEff)).toFixed(2);
+
+    if (log) log.innerHTML += `<p>🔴 <strong>${moveName}</strong> → d20(${attackRoll}) vs ${accLabel} ✅ → ${dice}(${diceTotal})${isCrit ? ' x2 CRIT' : ''} × ${atkKey}/${defKey}(${ratio})${modeLabel}${isStab ? ' × STAB(1.5)' : ''}${effectLabel ? ' ' + effectLabel : ''} = <strong>${damage} dano ${moveData.type || ''}</strong></p>`;
+
+    socket.emit('battle_action', {
+        player_id: playerId, action_by: 'master', action_type: 'attack',
+        move_name: moveName, damage, status_effect: status || null,
+        message: `d20(${attackRoll}) vs ${accLabel}${isCrit ? ' Crítico!' : ''}`
+    });
+
     if (log) log.scrollTop = log.scrollHeight;
     card.querySelector('.wild-status-select').value = '';
 }
@@ -493,7 +475,7 @@ document.getElementById('manual-pokemon-search').addEventListener('input', async
                 <div>
                     <strong>${pokemon.name}</strong> #${pokemon.number}<br>
                     ${formatTypes(pokemon.types)}<br>
-                    <small>HP: ${pokemon.hp} | AC: ${pokemon.ac} | Min Lv: ${pokemon.minLevel}</small>
+                    <small>HP base: ${pokemon.base_stats?.HP ?? pokemon.hp} | SPE base: ${pokemon.base_stats?.SPE ?? '?'} | Min Lv: ${pokemon.minLevel}</small>
                 </div>
             </div>
         `;
@@ -510,20 +492,20 @@ async function sendManualEncounter() {
 
     let pokemon = { ...manualPokemonData };
 
-    // Apply shiny boost: +20% HP/stats, +2 AC
-    if (isShiny) {
-        pokemon.hp    = Math.round((pokemon.hp || 20) * 1.2);
-        pokemon.maxHp = pokemon.hp;
-        pokemon.ac    = (pokemon.ac || 13) + 2;
-        if (pokemon.stats) {
-            pokemon.stats = Object.fromEntries(
-                Object.entries(pokemon.stats).map(([k, v]) => [k, Math.round(v * 1.2)])
-            );
-        }
-        pokemon.is_shiny = true;
-    }
+    // Shiny: só a FLAG — o boost ×1.35 nos base stats é aplicado pelo
+    // servidor no recálculo v2 quando o jogador recebe o encontro
+    if (isShiny) pokemon.is_shiny = true;
 
-    // Apply mega evolution if available
+    // 🎭 Stats de história: % por stat (só envia o que difere de 100)
+    const statMods = {};
+    [['hp', 'HP'], ['atk', 'ATK'], ['def', 'DEF'],
+     ['spa', 'SPA'], ['spd', 'SPD'], ['spe', 'SPE']].forEach(([id, key]) => {
+        const v = parseInt(document.getElementById(`manual-mod-${id}`)?.value) || 100;
+        if (v !== 100) statMods[key] = Math.max(10, Math.min(500, v));
+    });
+
+    // Mega evolution: nome/tipos aqui; boost de stats aplicado no cliente
+    // do jogador via applyMegaBonusesV2 (multiplicadores nos stats reais)
     let megaData = null;
     if (isMega) {
         try {
@@ -533,12 +515,6 @@ async function sendManualEncounter() {
                 megaData = megas[0];
                 pokemon.mega = megaData;
                 pokemon.name = megaData.megaName || pokemon.name;
-                // Apply stat bonuses
-                if (megaData.bonuses) {
-                    if (megaData.bonuses.ac) pokemon.ac = (pokemon.ac || 13) + megaData.bonuses.ac;
-                    if (megaData.bonuses.hp) pokemon.hp = Math.round((pokemon.hp || 20) * (1 + megaData.bonuses.hp / 100));
-                    if (pokemon.stats && megaData.bonuses.atk) pokemon.stats.ATK = Math.round((pokemon.stats.ATK || 10) * (1 + megaData.bonuses.atk / 100));
-                }
                 if (megaData.newTypes) pokemon.types = megaData.newTypes;
             } else {
                 alert(`${manualPokemonData.name} não possui Mega Evolução.`);
@@ -553,11 +529,21 @@ async function sendManualEncounter() {
         pokemon,
         level,
         is_shiny: isShiny,
-        is_mega: !!megaData
+        is_mega: !!megaData,
+        stat_mods: Object.keys(statMods).length ? statMods : null
     });
 
+    const modsTxt = Object.keys(statMods).length
+        ? ' · 🎭 ' + Object.entries(statMods).map(([k, v]) => `${k} ${v}%`).join(', ') : '';
     const flags = [isShiny ? '✨ Shiny' : '', megaData ? '🔮 Mega' : ''].filter(Boolean).join(' + ');
-    alert(`Encontro enviado!${flags ? ' (' + flags + ')' : ''}`);
+    alert(`Encontro enviado!${flags ? ' (' + flags + ')' : ''}${modsTxt}`);
+}
+
+function resetManualMods() {
+    ['hp', 'atk', 'def', 'spa', 'spd', 'spe'].forEach(id => {
+        const el = document.getElementById(`manual-mod-${id}`);
+        if (el) el.value = 100;
+    });
 }
 
 // ============================================
@@ -606,8 +592,9 @@ function _renderHuntRoll(r) {
     const src = r.manual ? '🎲 dado real' : '🖥️ virtual';
     const card = document.createElement('div');
     card.style.cssText = 'padding:0.45rem 0.6rem;border-radius:8px;background:rgba(255,203,5,0.1);border:1px solid rgba(255,203,5,0.35);font-size:0.88rem;';
-    card.innerHTML = `<strong>${r.player_name || 'Jogador'}</strong> — d20(${r.roll})${nat} ` +
-        `+ SAB(${r.wis_mod >= 0 ? '+' : ''}${r.wis_mod}) + Prof(+${r.prof}) = <strong>${r.total}</strong> ` +
+    const mod = r.skill_mod ?? r.wis_mod ?? 0;
+    card.innerHTML = `<strong>${r.player_name || 'Jogador'}</strong> — 🧭 Exploração: d20(${r.roll})${nat} ` +
+        `${mod >= 0 ? '+' : ''}${mod}${r.proficient ? ' (prof.)' : ''} = <strong>${r.total}</strong> ` +
         `<span style="opacity:0.7;">· ${src} · ${r.used}/${r.limit} · ${when}</span>` +
         `<button class="btn btn-sm btn-success" style="margin-left:0.5rem;padding:0.1rem 0.5rem;" ` +
         `onclick="_selectHuntPlayer('${r.player_id}')">Selecionar</button>`;
@@ -622,6 +609,25 @@ function _selectHuntPlayer(pid) {
 }
 
 socket.on('hunt_roll', (data) => _renderHuntRoll(data));
+
+// Testes de PERÍCIA do treinador (Afinidade, Análise, Sorte, ...) — mesma
+// caixa de rolagens da caçada, com o atributo e a perícia usados.
+socket.on('skill_roll', (r) => {
+    const inbox = document.getElementById('hunt-rolls-inbox');
+    if (!inbox) return;
+    const empty = inbox.querySelector('.empty-state');
+    if (empty) empty.remove();
+    const when = new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+    const nat = r.nat20 ? ' 🌟NAT20' : r.nat1 ? ' 💀NAT1' : '';
+    const sign = r.bonus >= 0 ? '+' : '';
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:0.45rem 0.6rem;border-radius:8px;background:rgba(94,158,255,0.1);border:1px solid rgba(94,158,255,0.35);font-size:0.88rem;';
+    card.innerHTML = `<strong>${r.player_name || 'Jogador'}</strong> — ${r.skill_emoji || '🎲'} ` +
+        `<strong>${r.skill}</strong> (${r.attribute_emoji || ''} ${r.attribute}${r.half_mod ? ', ½ mod' : ''}): ` +
+        `d20(${r.roll})${nat} ${sign}${r.bonus}${r.proficient ? ' (prof.)' : ''} = <strong>${r.total}</strong> ` +
+        `<span style="opacity:0.7;">· ${when}</span>`;
+    inbox.insertBefore(card, inbox.firstChild);
+});
 
 // ============================================
 // BATALHA EM DUPLA (caçada em grupo) — 2v1 / 2v2
@@ -673,10 +679,12 @@ function renderGroupMonitor(view) {
             ${_hpBar(c)}</div>`;
     }).join('');
     const log = (view.log || []).slice(-6).map(l => `<div>• ${l.message || ''}</div>`).join('');
-    const auto = document.getElementById('wild-auto-mode')?.checked;
+    // Botão SEMPRE que for a vez de um selvagem — não depende do checkbox
+    // local (que pode estar dessincronizado do servidor após um reload).
+    // O handler no servidor é idempotente: só age se for mesmo vez de selvagem.
     const curWild = view.combatants.find(c => c.cid === view.turn_cid && c.side === 'wild');
-    const wildBtn = (view.phase === 'active' && curWild && !auto)
-        ? `<button class="btn btn-sm btn-warning" onclick="advanceGroupWild('${view.id}')">▶️ Jogar selvagem</button>` : '';
+    const wildBtn = (view.phase === 'active' && curWild)
+        ? `<button class="btn btn-sm btn-warning" onclick="advanceGroupWild('${view.id}')">▶️ Jogar selvagem (${curWild.name})</button>` : '';
     let head = `Rodada ${view.round} · ${view.mode}`;
     if (view.phase === 'finished')
         head = view.winner === 'ally' ? '🎉 A dupla venceu!' : '💀 Os selvagens venceram!';
@@ -692,6 +700,17 @@ function advanceGroupWild(battleId) {
 socket.on('group_battle_start',  (v) => renderGroupMonitor(v));
 socket.on('group_battle_update', (v) => renderGroupMonitor(v));
 socket.on('group_battle_end',    (v) => renderGroupMonitor(v));
+
+// Rehidrata o monitor da batalha em grupo após reload da página — sem isso
+// o mestre perdia o botão de jogar os selvagens (e a batalha travava).
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const resp = await fetch('/master/battles/active');
+        const data = await resp.json();
+        const groups = (data.group_battles || []).filter(g => g.phase === 'active');
+        if (groups.length) renderGroupMonitor(groups[groups.length - 1]);
+    } catch(e) {}
+});
 
 // ============================================
 // POKEDEX — Master (lista completa, sempre desbloqueada)
@@ -751,18 +770,17 @@ async function showPokemonDetail(number) {
             </div>
             
             <div class="stat-grid">
-                <div class="stat-item"><div class="stat-label">HP</div><div class="stat-value">${p.hp}</div></div>
-                <div class="stat-item"><div class="stat-label">AC</div><div class="stat-value">${p.ac}</div></div>
-                <div class="stat-item"><div class="stat-label">Speed</div><div class="stat-value">${p.speed || '-'}</div></div>
-                ${p.stats ? `
-                <div class="stat-item"><div class="stat-label">ATK</div><div class="stat-value">${p.stats.ATK || p.stats.STR || '-'}</div></div>
-                <div class="stat-item"><div class="stat-label">DEF</div><div class="stat-value">${p.stats.DEF || p.stats.DEX || '-'}</div></div>
-                <div class="stat-item"><div class="stat-label">SPA</div><div class="stat-value">${p.stats.SPA || p.stats.INT || '-'}</div></div>
-                <div class="stat-item"><div class="stat-label">SPD</div><div class="stat-value">${p.stats.SPD || p.stats.WIS || '-'}</div></div>
-                <div class="stat-item"><div class="stat-label">SPE</div><div class="stat-value">${p.stats.SPE || p.stats.CON || '-'}</div></div>
-                <div class="stat-item"><div class="stat-label">HP</div><div class="stat-value">${p.stats.HP || p.stats.CHA || '-'}</div></div>
+                <div class="stat-item"><div class="stat-label">Desloc.</div><div class="stat-value">${p.speed || '-'}</div></div>
+                ${p.base_stats ? `
+                <div class="stat-item"><div class="stat-label">HP</div><div class="stat-value">${p.base_stats.HP || '-'}</div></div>
+                <div class="stat-item"><div class="stat-label">ATK</div><div class="stat-value">${p.base_stats.ATK || '-'}</div></div>
+                <div class="stat-item"><div class="stat-label">DEF</div><div class="stat-value">${p.base_stats.DEF || '-'}</div></div>
+                <div class="stat-item"><div class="stat-label">SpA</div><div class="stat-value">${p.base_stats.SPA || '-'}</div></div>
+                <div class="stat-item"><div class="stat-label">SpD</div><div class="stat-value">${p.base_stats.SPD || '-'}</div></div>
+                <div class="stat-item"><div class="stat-label">SPE</div><div class="stat-value">${p.base_stats.SPE || '-'}</div></div>
                 ` : ''}
             </div>
+            <p style="font-size:0.75rem;opacity:0.7;margin:0.25rem 0;">Base stats reais (pokemondb) — o total em batalha escala com o nível.</p>
             
             ${p.ability ? `<p><strong>Habilidade:</strong> ${p.ability.name} - ${p.ability.description}</p>` : ''}
             ${p.hiddenAbility ? `<p><strong>Hidden Ability:</strong> ${p.hiddenAbility.name} - ${p.hiddenAbility.description}</p>` : ''}
@@ -1198,8 +1216,9 @@ async function addNpcPokemon() {
     npcTeamTemp.push({
         name: p.name, number: p.number, level, types: p.types,
         hp: scaled?.hp || p.hp, maxHp: scaled?.maxHp || p.hp, currentHp: scaled?.hp || p.hp,
-        ac: scaled?.ac || p.ac, stats: scaled?.stats || p.stats,
-        proficiency: scaled?.proficiency, stab: scaled?.stab,
+        stats: scaled?.stats || p.stats,
+        // nasce no sistema v2 (stats reais do servidor) — nunca re-inferir
+        sv: 2, training: {}, defense_mode: 1,
         moves, speed: p.speed,
         ability: p.ability?.name || '',
         vulnerabilities: p.vulnerabilities || [],
@@ -1237,8 +1256,7 @@ async function updateNpcPokeLevel(idx, value) {
         const scaled = await sresp.json();
         if (!scaled.error) {
             p.stats = scaled.stats; p.hp = scaled.hp; p.maxHp = scaled.maxHp;
-            p.currentHp = scaled.hp; p.ac = scaled.ac;
-            p.proficiency = scaled.proficiency; p.stab = scaled.stab;
+            p.currentHp = scaled.hp;
         }
         if (p.number) {
             const lresp = await fetch(`/api/pokemon/${p.number}/learnset`);
@@ -1782,12 +1800,12 @@ async function openMasterEdit(playerId, playerName) {
                     <div class="form-group"><label>XP Próx</label><input type="number" id="me-xp-next" value="${trainer.xp_to_next || 100}"></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label>FOR</label><input type="number" id="me-str" value="${trainer.str || 10}"></div>
-                    <div class="form-group"><label>DES</label><input type="number" id="me-dex" value="${trainer.dex || 10}"></div>
-                    <div class="form-group"><label>CON</label><input type="number" id="me-con" value="${trainer.con || 10}"></div>
-                    <div class="form-group"><label>INT</label><input type="number" id="me-int" value="${trainer.int || 10}"></div>
-                    <div class="form-group"><label>SAB</label><input type="number" id="me-wis" value="${trainer.wis || 10}"></div>
-                    <div class="form-group"><label>CAR</label><input type="number" id="me-cha" value="${trainer.cha || 10}"></div>
+                    <div class="form-group"><label>❤️ Vínculo</label><input type="number" id="me-vinculo" value="${trainer.vinculo ?? trainer.wis ?? 10}"></div>
+                    <div class="form-group"><label>♟️ Tática</label><input type="number" id="me-tatica" value="${trainer.tatica ?? trainer.str ?? 10}"></div>
+                    <div class="form-group"><label>📖 Conhecimento</label><input type="number" id="me-conhecimento" value="${trainer.conhecimento ?? trainer.int ?? 10}"></div>
+                    <div class="form-group"><label>🏃 Agilidade</label><input type="number" id="me-agilidade" value="${trainer.agilidade ?? trainer.dex ?? 10}"></div>
+                    <div class="form-group"><label>👑 Influência</label><input type="number" id="me-influencia" value="${trainer.influencia ?? trainer.cha ?? 10}"></div>
+                    <div class="form-group"><label>🔥 Determinação</label><input type="number" id="me-determinacao" value="${trainer.determinacao ?? trainer.con ?? 10}"></div>
                 </div>
                 <div class="form-row">
                     <div class="form-group"><label>HP Máx</label><input type="number" id="me-hp-max" value="${trainer.hp_max || 8}"></div>
@@ -1812,7 +1830,6 @@ async function openMasterEdit(playerId, playerName) {
                             <div class="form-row">
                                 <div class="form-group"><label>HP Atual</label><input type="number" id="me-poke-${i}-hp" value="${p.currentHp || 0}"></div>
                                 <div class="form-group"><label>HP Máx</label><input type="number" id="me-poke-${i}-maxhp" value="${p.maxHp || 0}"></div>
-                                <div class="form-group"><label>AC</label><input type="number" id="me-poke-${i}-ac" value="${p.ac || 10}"></div>
                             </div>
                             <div class="form-row">
                                 <div class="form-group"><label>ATK</label><input type="number" id="me-poke-${i}-atk" value="${p.stats?.ATK || p.stats?.STR || 10}"></div>
@@ -1843,12 +1860,12 @@ async function saveMasterEditTrainer() {
         level: parseInt(document.getElementById('me-level').value) || 1,
         xp: parseInt(document.getElementById('me-xp').value) || 0,
         xp_to_next: parseInt(document.getElementById('me-xp-next').value) || 100,
-        str: parseInt(document.getElementById('me-str').value) || 10,
-        dex: parseInt(document.getElementById('me-dex').value) || 10,
-        con: parseInt(document.getElementById('me-con').value) || 10,
-        int: parseInt(document.getElementById('me-int').value) || 10,
-        wis: parseInt(document.getElementById('me-wis').value) || 10,
-        cha: parseInt(document.getElementById('me-cha').value) || 10,
+        vinculo: parseInt(document.getElementById('me-vinculo').value) || 10,
+        tatica: parseInt(document.getElementById('me-tatica').value) || 10,
+        conhecimento: parseInt(document.getElementById('me-conhecimento').value) || 10,
+        agilidade: parseInt(document.getElementById('me-agilidade').value) || 10,
+        influencia: parseInt(document.getElementById('me-influencia').value) || 10,
+        determinacao: parseInt(document.getElementById('me-determinacao').value) || 10,
         hp_max: parseInt(document.getElementById('me-hp-max').value) || 8,
         hp_current: parseInt(document.getElementById('me-hp-current').value) || 8,
         money: parseInt(document.getElementById('me-money').value) || 0,
@@ -1896,7 +1913,6 @@ async function saveMasterEditTeam() {
         team[i].level = parseInt(document.getElementById(`me-poke-${i}-level`).value) || 1;
         team[i].currentHp = parseInt(document.getElementById(`me-poke-${i}-hp`).value) || 0;
         team[i].maxHp = parseInt(document.getElementById(`me-poke-${i}-maxhp`).value) || 0;
-        team[i].ac = parseInt(document.getElementById(`me-poke-${i}-ac`).value) || 10;
         team[i].totalXp = parseInt(document.getElementById(`me-poke-${i}-xp`).value) || 0;
         team[i].statPointsAvailable = parseInt(document.getElementById(`me-poke-${i}-points`).value) || 0;
         team[i].stats = {

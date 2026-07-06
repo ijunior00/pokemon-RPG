@@ -18,6 +18,7 @@ import status_effects as effects
 import pokemon_scaling as scaling
 import abilities as ab
 import migrations
+import trainer_attrs
 
 # ============================================================
 # APP SETUP
@@ -357,7 +358,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
 
     dmg = bm_core.damage(dice_total, atk_eff, def_eff, stab=stab,
                          effectiveness=eff, tax=tax, burned=burned,
-                         stab_mult=stab_mult)
+                         stab_mult=stab_mult, level=level)
 
     # Sinergia de veneno: Venoshock dobra contra alvo envenenado
     venoshock_x2 = False
@@ -1521,6 +1522,7 @@ def master_view_player(player_id):
     if not _player_in_master_table(player_id, users, _tid()):
         return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
     u = users[player_id]
+    trainer_attrs.migrate_trainer(u.get('trainer_data', {}) or {})
     # Never expose password hashes to the client
     return jsonify({
         'username': u['username'],
@@ -1625,9 +1627,14 @@ def master_active_battles():
                           and battle['player2'].get('team') else None),
             })
 
+    # Batalhas em grupo ativas da mesa (rehidrata o monitor após reload)
+    group_summary = [gb.state_view(b) for b in ACTIVE_GROUP_BATTLES.values()
+                     if b.get('table_id') == tid]
+
     return jsonify({
         'wild_encounters': encounters,
-        'pvp_battles': pvp_summary
+        'pvp_battles': pvp_summary,
+        'group_battles': group_summary
     })
 
 
@@ -1650,6 +1657,8 @@ def master_force_end_encounter(player_id):
                   room=player_id)
     socketio.emit('encounter_ended', {'player_id': player_id, 'result': result, 'forced_by_master': True},
                   room=f'master_{_tid()}')
+    _spectate('wild', {'id': f'wild_{player_id}', 'players': [player_id],
+                       'finished': True, 'result': result})
     return jsonify({'ok': True})
 
 
@@ -2620,8 +2629,9 @@ def api_hunt_roll():
         }), 403
 
     trainer = get_users().get(pid, {}).get('trainer_data', {})
-    wis_mod = (int(trainer.get('wis', 10) or 10) - 10) // 2
-    prof = _trainer_prof(trainer.get('level', 1))
+    trainer_attrs.migrate_trainer(trainer)
+    # Caçada = 🧭 Exploração (Agilidade): rastrear/encontrar Pokémon
+    skill_mod, proficient = trainer_attrs.skill_modifier(trainer, 'Exploração')
 
     # Rolagem física (o jogador digita o valor do d20 real) ou virtual
     manual = data.get('manual_roll')
@@ -2634,7 +2644,7 @@ def api_hunt_roll():
             roll = random.randint(1, 20)
     else:
         roll = random.randint(1, 20)
-    total = roll + wis_mod + prof
+    total = roll + skill_mod
 
     # Consome a tentativa e salva
     entry['used'] += 1
@@ -2645,7 +2655,8 @@ def api_hunt_roll():
 
     roll_info = {
         'player_id': pid, 'player_name': current_user.username,
-        'roll': roll, 'wis_mod': wis_mod, 'prof': prof, 'total': total,
+        'roll': roll, 'skill': 'Exploração', 'skill_mod': skill_mod,
+        'proficient': proficient, 'total': total,
         'manual': is_manual, 'used': entry['used'], 'limit': limit,
         'day_key': dkey,
     }
@@ -2653,6 +2664,78 @@ def api_hunt_roll():
     socketio.emit('hunt_roll', roll_info, room=f'master_{_tid()}')
     socketio.emit('hunts_update', {'used': entry['used'], 'limit': limit}, room=pid)
     return jsonify({'ok': True, **roll_info})
+
+
+@app.route('/api/skill/roll', methods=['POST'])
+@login_required
+def api_skill_roll():
+    """Teste de PERÍCIA do treinador: d20 (virtual ou físico) + mod do
+    atributo (Sorte usa METADE do mod de Determinação) + proficiência se
+    tiver. Resultado vai para a caixa de rolagens do mestre."""
+    if _rate_limit(20, 60):
+        return jsonify({'error': 'Muitas rolagens em pouco tempo. Aguarde um momento.'}), 429
+    data = request.json or {}
+    skill = data.get('skill', '')
+    if skill not in trainer_attrs.SKILLS:
+        return jsonify({'error': f'Perícia desconhecida: {skill}'}), 400
+
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    if trainer_attrs.migrate_trainer(trainer):
+        users[current_user.id]['trainer_data'] = trainer
+        save_users(users)
+
+    bonus, proficient = trainer_attrs.skill_modifier(trainer, skill)
+    manual = data.get('manual_roll')
+    is_manual = False
+    if manual is not None:
+        try:
+            roll = max(1, min(20, int(manual)))
+            is_manual = True
+        except (TypeError, ValueError):
+            roll = random.randint(1, 20)
+    else:
+        roll = random.randint(1, 20)
+    total = roll + bonus
+
+    attr_key, emoji, _desc = trainer_attrs.SKILLS[skill]
+    attr_emoji, attr_name = trainer_attrs.ATTRIBUTES[attr_key]
+    roll_info = {
+        'player_id': str(current_user.id), 'player_name': current_user.username,
+        'skill': skill, 'skill_emoji': emoji,
+        'attribute': attr_name, 'attribute_emoji': attr_emoji,
+        'roll': roll, 'bonus': bonus, 'proficient': proficient,
+        'total': total, 'manual': is_manual,
+        'nat1': roll == 1, 'nat20': roll == 20,
+        'half_mod': skill == 'Sorte',
+    }
+    socketio.emit('skill_roll', roll_info, room=f'master_{_tid()}')
+    return jsonify({'ok': True, **roll_info})
+
+
+@app.route('/api/skill/list')
+@login_required
+def api_skill_list():
+    """Definição das perícias + bônus calculados do treinador logado."""
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    trainer_attrs.migrate_trainer(trainer)
+    out = []
+    for skill, (attr_key, emoji, desc) in trainer_attrs.SKILLS.items():
+        bonus, proficient = trainer_attrs.skill_modifier(trainer, skill)
+        out.append({
+            'skill': skill, 'emoji': emoji, 'description': desc,
+            'attribute': attr_key,
+            'attribute_label': ' '.join(trainer_attrs.ATTRIBUTES[attr_key]),
+            'bonus': bonus, 'proficient': proficient,
+            'half_mod': skill == 'Sorte',
+        })
+    return jsonify({
+        'skills': out,
+        'prof_bonus': trainer_attrs.proficiency_bonus(trainer.get('level', 1)),
+        'max_profs': trainer_attrs.max_proficiencies(trainer.get('level', 1)),
+        'used_profs': len(trainer.get('skill_profs') or []),
+    })
 
 
 @app.route('/master/hunt/random', methods=['POST'])
@@ -2714,11 +2797,49 @@ def _group_active_pokemon(player_id):
     return (trainer.get('name', ''), team[0]) if team else ('', None)
 
 
+def _spectate(kind, payload, table_id=None):
+    """Modo ESPECTADOR: transmite um snapshot compacto da batalha para todos
+    os jogadores da mesa (sala players_{tid}). O cliente filtra as batalhas
+    em que o próprio jogador participa (ele já tem a UI completa)."""
+    tid = table_id or _tid()
+    socketio.emit('spectate_update', dict(payload, kind=kind), room=f'players_{tid}')
+
+
+def _spectate_wild(player_id, encounter, last='', finished=False):
+    """Snapshot de batalha SELVAGEM para os espectadores da mesa."""
+    bs = (encounter or {}).get('battle_state') or {}
+    pp = (encounter or {}).get('player_pokemon') or {}
+    wp = (encounter or {}).get('pokemon') or {}
+    _spectate('wild', {
+        'id': f'wild_{player_id}',
+        'players': [str(player_id)],
+        'trainer': (encounter or {}).get('player_name', 'Treinador'),
+        'ally': {'name': pp.get('nickname') or pp.get('name', '?'),
+                 'level': pp.get('level', '?'),
+                 'hp': max(0, int(bs.get('player_hp_current') or 0)),
+                 'max_hp': int(bs.get('player_hp_max') or 0)},
+        'wild': {'name': wp.get('name', '?'), 'level': (encounter or {}).get('level', '?'),
+                 'hp': max(0, int(bs.get('wild_hp_current') or 0)),
+                 'max_hp': int(bs.get('wild_hp_max') or 0),
+                 'is_shiny': bool((encounter or {}).get('is_shiny'))},
+        'round': bs.get('round', 0),
+        'last': last,
+        'finished': finished,
+    })
+
+
 def _group_broadcast(battle, event='group_battle_update'):
     view = gb.state_view(battle)
+    # o cliente precisa saber se os selvagens jogam sozinhos (AUTO) ou se é
+    # o Mestre quem joga por eles — sem isso o jogador só vê "aguarde"
+    st = _db_raw.get_game_state(battle['table_id'])
+    view['wild_auto'] = bool(st.get('wild_auto_mode', True))
     for pid in battle['player_ids']:
         socketio.emit(event, view, room=pid)
     socketio.emit(event, view, room=f"master_{battle['table_id']}")
+    _spectate('group', {'id': battle['id'], 'players': [str(p) for p in battle['player_ids']],
+                        'view': view, 'finished': battle['phase'] == 'finished'},
+              table_id=battle['table_id'])
 
 
 def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data):
@@ -2851,6 +2972,7 @@ def master_group_hunt():
         if not poke:
             return jsonify({'error': f'Jogador {pid} não tem Pokémon disponível'}), 400
         _mig([poke])
+        _stamp_tatica([poke], get_users().get(pid, {}).get('trainer_data'))
         allies.append({'player_id': pid, 'name': name or 'Treinador', 'pokemon': poke})
 
     # Nível-base do encontro = maior nível entre os ativos dos dois jogadores
@@ -2968,6 +3090,10 @@ def player_dashboard():
     users = get_users()
     trainer_data = users.get(current_user.id, {}).get('trainer_data', {})
     _enrich_team(trainer_data.get('team', []))
+    # migra os atributos do treinador (D&D → 6 novos) na primeira carga
+    if trainer_attrs.migrate_trainer(trainer_data):
+        users[current_user.id]['trainer_data'] = trainer_data
+        save_users(users)
     game_state = get_game_state()
     # Filter quests for this player
     my_quests = [q for q in game_state.get('quests', [])
@@ -3330,6 +3456,20 @@ def _mig(pokes):
     return migrations.ensure_v2(pokes, POKEMON_BY_NAME, POKEMON_BY_NUMBER)
 
 
+def _stamp_tatica(team, trainer):
+    """Iniciativa: Pokémon de TREINADOR ganham +mod(♟️ Tática)//2 no d20 —
+    a decisão mais inteligente sai na frente. Selvagens/NPCs não têm
+    treinador humano → bônus 0 (nada estampado)."""
+    if not isinstance(trainer, dict) or not trainer:
+        return 0
+    trainer_attrs.migrate_trainer(trainer)
+    bonus = trainer_attrs.mod(trainer.get('tatica', 10)) // 2
+    for p in (team or []):
+        if isinstance(p, dict):
+            p['trainer_init_bonus'] = bonus
+    return bonus
+
+
 def _enrich_team(team):
     """Fill in missing evolutionInfo / type matchups from base pokemon data."""
     _mig(team)
@@ -3379,6 +3519,25 @@ def update_team():
                 tr = {k: (v * budget) // total for k, v in tr.items()}
             p['training'] = tr
             p['statPointsAvailable'] = max(0, budget - sum(tr.values()))
+            # stats são DERIVADOS (espécie+nível+natureza+shiny+treino):
+            # recalcula no save — o cliente nunca é autoridade sobre stats
+            base = POKEMON_BY_NAME.get((p.get('name') or '').lower()) \
+                or POKEMON_BY_NUMBER.get(p.get('number'))
+            if base and base.get('base_stats'):
+                scaled = scaling.calculate_pokemon_stats(
+                    base, level, p.get('nature') or None,
+                    is_shiny=bool(p.get('is_shiny')), training=tr)
+                p['stats'] = scaled['stats']
+                p['maxHp'] = scaled['maxHp']
+                p['hp'] = scaled['maxHp']
+                cur = p.get('currentHp')
+                if not isinstance(cur, (int, float)):
+                    p['currentHp'] = scaled['maxHp']
+                elif cur > scaled['maxHp']:
+                    p['currentHp'] = scaled['maxHp']
+            # chaves D&D aposentadas não voltam mais para o save
+            for legacy in ('hitDice', 'savingThrows', 'ac'):
+                p.pop(legacy, None)
         users[current_user.id]['trainer_data']['team'] = team
         save_users(users)
         return jsonify({'success': True})
@@ -3396,12 +3555,22 @@ def update_trainer():
         allowed_fields = ['name', 'bag', 'badges', 'visited_routes', 'notes',
                          'race', 'background', 'path', 'specializations',
                          'str', 'dex', 'con', 'int', 'wis', 'cha',
+                         'vinculo', 'tatica', 'conhecimento', 'agilidade',
+                         'influencia', 'determinacao', 'skill_profs',
                          'hp_max', 'hp_current', 'proficiencies',
                          'money', 'pokeslots', 'max_sr', 'pokedex_seen',
                          'avatar', 'trainerStatPointsUsed']
         for field in allowed_fields:
             if field in data:
                 trainer[field] = data[field]
+        # atributos novos: valida 1-20; perícias: teto por nível
+        trainer_attrs.migrate_trainer(trainer)
+        for key in trainer_attrs.ATTRIBUTES:
+            try:
+                trainer[key] = max(1, min(20, int(trainer.get(key, 10) or 10)))
+            except (TypeError, ValueError):
+                trainer[key] = 10
+        trainer_attrs.clamp_profs(trainer)
         users[current_user.id]['trainer_data'] = trainer
         save_users(users)
         return jsonify({'success': True})
@@ -3521,13 +3690,23 @@ def api_shop():
     catalog = [item for item in SHOP_CATALOG if item['id'] not in hidden_items]
     return jsonify(catalog)
 
-def _cha_modifier(cha: int):
-    """Returns (buy_multiplier, sell_multiplier) based on trainer CHA stat.
-    CHA 10 = normal prices. Each point above/below 10 = -2% buy / +3% sell.
+def _influence_value(trainer):
+    """👑 Influência (Diplomacia) manda nos preços da loja — herda o valor
+    do CAR antigo pela migração automática."""
+    trainer_attrs.migrate_trainer(trainer)
+    try:
+        return int(trainer.get('influencia', 10) or 10)
+    except (TypeError, ValueError):
+        return 10
+
+
+def _cha_modifier(influencia: int):
+    """Returns (buy_multiplier, sell_multiplier) based on trainer Influência.
+    10 = normal prices. Each point above/below 10 = -2% buy / +3% sell.
     Capped at ±20% buy and ±30% sell."""
-    delta = max(-9, min(10, cha - 10))  # clamp to [-9, 10]
-    buy_mult  = max(0.80, 1.0 - delta * 0.02)   # CHA 20 → 0.80, CHA 1 → 1.18
-    sell_mult = min(0.70, 0.50 + delta * 0.02)  # CHA 20 → 0.70, CHA 1 → 0.32
+    delta = max(-9, min(10, influencia - 10))  # clamp to [-9, 10]
+    buy_mult  = max(0.80, 1.0 - delta * 0.02)   # 20 → 0.80, 1 → 1.18
+    sell_mult = min(0.70, 0.50 + delta * 0.02)  # 20 → 0.70, 1 → 0.32
     return round(buy_mult, 4), round(sell_mult, 4)
 
 @app.route('/api/shop/buy', methods=['POST'])
@@ -3546,7 +3725,7 @@ def api_shop_buy():
 
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
-    cha = int(trainer.get('cha', 10))
+    cha = _influence_value(trainer)
     buy_mult, _ = _cha_modifier(cha)
     unit_price = max(1, int(item['price'] * buy_mult))
     total_cost = unit_price * qty
@@ -3590,7 +3769,7 @@ def api_shop_sell():
     catalog_item = next((i for i in SHOP_CATALOG if i['name'].lower() == item_name.lower()), None)
     base_sell_price = int((catalog_item['price'] if catalog_item else 100) * 0.5)
 
-    cha = int(trainer.get('cha', 10))
+    cha = _influence_value(trainer)
     _, sell_mult = _cha_modifier(cha)
     unit_price = max(1, int((catalog_item['price'] if catalog_item else 200) * sell_mult))
     total_earned = unit_price * qty
@@ -3624,7 +3803,7 @@ def api_shop_sell_price():
     item_name = data.get('item_name', '').strip()
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
-    cha = int(trainer.get('cha', 10))
+    cha = _influence_value(trainer)
     _, sell_mult = _cha_modifier(cha)
     catalog_item = next((i for i in SHOP_CATALOG if i['name'].lower() == item_name.lower()), None)
     base_price = catalog_item['price'] if catalog_item else 0
@@ -3749,8 +3928,37 @@ def api_pokemon_scaled_stats():
         return jsonify({'error': 'Pokemon not found'}), 404
 
     # Shiny: +35% nos atributos base antes do escalonamento
+    training = data.get('training') if isinstance(data.get('training'), dict) else None
     stats = scaling.calculate_pokemon_stats(base_pokemon, level, nature or None,
-                                            is_shiny=bool(data.get('is_shiny')))
+                                            is_shiny=bool(data.get('is_shiny')),
+                                            training=training)
+
+    # Stats de HISTÓRIA (encontro manual do mestre): porcentagem por stat
+    # aplicada DEPOIS do escalonamento — boss com 300% de HP, lendário
+    # enfraquecido a 50% etc. Clamp 10%-500%.
+    raw_mods = data.get('stat_mods')
+    if isinstance(raw_mods, dict) and raw_mods:
+        applied = {}
+        for k, pct in raw_mods.items():
+            try:
+                pct = max(10, min(500, int(pct)))
+            except (TypeError, ValueError):
+                continue
+            if pct == 100:
+                continue
+            kk = str(k).upper()
+            if kk == 'HP':
+                stats['maxHp'] = max(1, stats['maxHp'] * pct // 100)
+                stats['hp'] = stats['maxHp']
+                if 'HP' in stats.get('stats', {}):
+                    stats['stats']['HP'] = max(1, stats['stats']['HP'] * pct // 100)
+            elif kk in stats.get('stats', {}):
+                stats['stats'][kk] = max(1, stats['stats'][kk] * pct // 100)
+            else:
+                continue
+            applied[kk] = pct
+        if applied:
+            stats['stat_mods'] = applied
     stats['growth_rate'] = scaling.get_growth_rate(base_pokemon)
     stats['xp_to_next'] = scaling.xp_to_next_level(level, stats['growth_rate'])
     # Include which stat was boosted/lowered for UI display
@@ -3973,6 +4181,7 @@ def handle_encounter(data):
         if _mig(team):
             users[current_user.id]['trainer_data']['team'] = team
             save_users(users)
+        _stamp_tatica(team, trainer)
         player_pokemon = team[player_pokemon_idx] if player_pokemon_idx < len(team) else None
         
         encounter_data = {
@@ -4008,6 +4217,7 @@ def handle_encounter(data):
 
         # Notify master
         emit('encounter_started', encounter_data, room=f'master_{_tid()}')
+        _spectate_wild(pid, encounter_data, last='⚔️ Encontro iniciado!')
 
         # Auto-roll initiative if AUTO mode is ON (por mesa)
         if _wild_auto_mode(game_state):
@@ -4047,7 +4257,8 @@ def handle_initiative(data):
     
     player_stats = player_pokemon.get('stats', {}) if player_pokemon else {}
     player_mod = bm_core.initiative_bonus(
-        effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10)
+        effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10) \
+        + int((player_pokemon or {}).get('trainer_init_bonus') or 0)
     
     wild_init = random.randint(1, 20) + wild_mod
     player_init = random.randint(1, 20) + player_mod
@@ -4464,6 +4675,8 @@ def handle_battle_action(data):
         # Notify both sides
         emit('battle_update', action_result, room=f'master_{_tid()}')
         emit('battle_update', action_result, room=player_id)
+        _spectate_wild(player_id, encounter,
+                       last=(f'{move_name}: {message}' if move_name else message) or '…')
         
         # Wild auto-attack is handled client-side (player.js wildPokemonAutoAttack) to support
         # status damage, move variety, and status moves. Server-side auto-attack removed to
@@ -4483,7 +4696,8 @@ def _auto_roll_initiative(player_id, game_state):
     
     player_stats = player_pokemon.get('stats', {}) if player_pokemon else {}
     player_mod = bm_core.initiative_bonus(
-        effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10)
+        effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10) \
+        + int((player_pokemon or {}).get('trainer_init_bonus') or 0)
     
     wild_init = random.randint(1, 20) + wild_mod
     player_init = random.randint(1, 20) + player_mod
@@ -4584,6 +4798,8 @@ def handle_end_encounter(data):
             save_game_state(game_state)
         emit('encounter_ended', {'player_id': player_id, 'result': result}, room=f'master_{_tid()}')
         emit('encounter_ended', {'player_id': player_id, 'result': result}, room=player_id)
+        _spectate('wild', {'id': f'wild_{player_id}', 'players': [player_id],
+                           'finished': True, 'result': result})
 
 @socketio.on('master_action')
 def handle_master_action(data):
@@ -4699,6 +4915,8 @@ def handle_master_pvp_challenge(data):
     _mig(npc.get('team', []))
     pvp.set_team(battle, 'player1', npc.get('team', []))
     _mig(target_team)
+    if not target_is_npc:
+        _stamp_tatica(target_team, target_trainer)
     pvp.set_team(battle, 'player2', target_team)
     battle['player1']['is_npc'] = True
     if npc.get('team'):
@@ -4747,6 +4965,7 @@ def handle_pvp_challenge(data):
 
             battle = pvp.create_pvp_battle(mode, current_user.id, npc['id'])
             _mig(my_team)
+            _stamp_tatica(my_team, users.get(current_user.id, {}).get('trainer_data'))
             pvp.set_team(battle, 'player1', my_team)
             _mig(npc.get('team', []))
             pvp.set_team(battle, 'player2', npc.get('team', []))
@@ -4805,8 +5024,10 @@ def handle_pvp_accept(data):
         p1_team = users.get(challenger_id, {}).get('trainer_data', {}).get('team', [])
         p2_team = users.get(current_user.id, {}).get('trainer_data', {}).get('team', [])
         _mig(p1_team)
+        _stamp_tatica(p1_team, users.get(challenger_id, {}).get('trainer_data'))
         pvp.set_team(battle, 'player1', p1_team)
         _mig(p2_team)
+        _stamp_tatica(p2_team, users.get(current_user.id, {}).get('trainer_data'))
         pvp.set_team(battle, 'player2', p2_team)
         
         ACTIVE_PVP[battle['id']] = battle
@@ -4955,6 +5176,15 @@ def handle_pvp_attack(data):
             # Desmaiou pelo status ou não pode agir (sono/paralisia/congelado)
             if att_active.get('currentHp', 0) <= 0:
                 battle['log'].append({'type': 'faint', 'player': player_key, 'permadeath': False})
+                # Se era o ÚLTIMO pokémon vivo, a batalha ACABA aqui — sem
+                # isso a fase ficava travada em 'battle' para sempre quando o
+                # golpe de misericórdia vinha do próprio veneno/queimadura.
+                if not any(pvp._poke_hp(p) > 0 for p in battle[player_key]['team']):
+                    battle['phase'] = 'finished'
+                    battle['winner'] = defender_key
+                    _broadcast_pvp_state(battle, 'status_faint_end')
+                    handle_pvp_victory(battle)
+                    return
             pvp.advance_turn(battle)
             _broadcast_pvp_state(battle, 'status_skip')
             next_key = battle['turn']
@@ -5153,8 +5383,10 @@ def handle_tournament_start_match(data):
     p1_team = p1.get('team') or users.get(p1['id'], {}).get('trainer_data', {}).get('team', [])
     p2_team = p2.get('team') or users.get(p2['id'], {}).get('trainer_data', {}).get('team', [])
     _mig(p1_team)
+    _stamp_tatica(p1_team, users.get(p1['id'], {}).get('trainer_data'))
     pvp.set_team(battle, 'player1', p1_team)
     _mig(p2_team)
+    _stamp_tatica(p2_team, users.get(p2['id'], {}).get('trainer_data'))
     pvp.set_team(battle, 'player2', p2_team)
 
     # Mark NPC players
@@ -5304,7 +5536,7 @@ def _emit_pvp_to_master(battle, event='update'):
     npc_map = {n['id']: n['name'] for n in npcs}
     p1_name = users.get(p1.get('id'), {}).get('username') or npc_map.get(p1.get('id'), p1.get('id', '?'))
     p2_name = users.get(p2.get('id'), {}).get('username') or npc_map.get(p2.get('id'), p2.get('id', '?'))
-    socketio.emit('pvp_master_update', {
+    payload = {
         'event':       event,
         'battle_id':   battle.get('id'),
         'mode':        battle.get('mode', 'official'),
@@ -5323,7 +5555,14 @@ def _emit_pvp_to_master(battle, event='update'):
         'p2_hp':       max(0, p2_active.get('currentHp', 0)) if isinstance(p2_active.get('currentHp'), (int, float)) else '?',
         'p2_maxhp':    p2_active.get('maxHp', '?'),
         'p2_pokemon':  p2_active.get('nickname') or p2_active.get('name', '?'),
-    }, room=f'master_{_tid()}')
+    }
+    socketio.emit('pvp_master_update', payload, room=f'master_{_tid()}')
+    # espectadores da mesa acompanham a batalha (só na fase de luta)
+    if battle.get('phase') in ('battle', 'finished'):
+        _spectate('pvp', dict(payload,
+                              id=battle.get('id'),
+                              players=[str(p1.get('id')), str(p2.get('id'))],
+                              finished=battle.get('phase') == 'finished'))
 
 
 def _broadcast_pvp_state(battle, event='update'):
@@ -6278,6 +6517,7 @@ def handle_gym_challenge(data):
     battle['gym_icon']  = gym.get('badge_icon', '🏅')
     battle['extra']     = {'gym_id': gym_id, 'gym_badge': gym['badge_name'], 'gym_icon': gym.get('badge_icon', '🏅')}
     _mig(trainer.get('team', []))
+    _stamp_tatica(trainer.get('team', []), trainer)
     pvp.set_team(battle, 'player1', trainer.get('team', []))
     _mig(npc.get('team', []))
     pvp.set_team(battle, 'player2', npc.get('team', []))
