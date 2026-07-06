@@ -481,6 +481,19 @@ def main():
     check(S, 'API /pokemon/stats aplica shiny', _rs['maxHp'] > _rn['maxHp']
           and all(_rs['stats'][k] >= _rn['stats'][k] for k in _rn['stats']))
 
+    # 🎭 STATS DE HISTÓRIA (encontro manual do mestre): % por stat na API
+    _rn2 = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30}).get_json()
+    _rm = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30,
+                  'stat_mods': {'HP': 300, 'ATK': 50, 'SPE': 9999, 'DEF': 100}}).get_json()
+    check(S, 'stats de história: HP 300% triplica o máximo',
+          _rm['maxHp'] == _rn2['maxHp'] * 3, f"{_rn2['maxHp']} → {_rm['maxHp']}")
+    check(S, 'stats de história: ATK 50% cai pela metade',
+          _rm['stats']['ATK'] == max(1, _rn2['stats']['ATK'] * 50 // 100))
+    check(S, 'stats de história: clamp no teto de 500%',
+          _rm['stats']['SPE'] == _rn2['stats']['SPE'] * 5)
+    check(S, 'stats de história: 100% não conta como modificação',
+          'DEF' not in (_rm.get('stat_mods') or {}) and 'HP' in (_rm.get('stat_mods') or {}))
+
     # mesa limitada à 1ª geração
     random.seed(77)
     _gen_ok = True

@@ -183,6 +183,8 @@ socket.on('master_action', (data) => {
             ambush:   data.ambush   || false,
             route_id: data.route_id || null,
             hunt_mode: data.hunt_mode || 'normal',
+            // 🎭 stats de história do mestre (% por stat — números ocultos)
+            stat_mods: data.stat_mods || null,
             wild_moves: (data.wild_moves && data.wild_moves.length)
                         ? data.wild_moves
                         : (data.pokemon?.startingMoves?.slice(-4) || [])
@@ -621,12 +623,15 @@ async function rollHuntTest() {
 async function displayEncounter(encounter) {
     const pokemon = encounter.pokemon;
     
-    // Calculate scaled stats for the wild pokemon
+    // Calculate scaled stats for the wild pokemon (o servidor aplica os
+    // 🎭 stats de história do mestre, se houver — % por stat)
     try {
         const resp = await fetch('/api/pokemon/stats', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ number: pokemon.number, level: encounter.level, is_shiny: !!encounter.is_shiny })
+            body: JSON.stringify({ number: pokemon.number, level: encounter.level,
+                                   is_shiny: !!encounter.is_shiny,
+                                   stat_mods: encounter.stat_mods || null })
         });
         const scaledStats = await resp.json();
         if (!scaledStats.error) {
@@ -666,6 +671,10 @@ async function displayEncounter(encounter) {
             ? '💀 <strong>Emboscada!</strong> Encontro perigoso — sem fuga fácil.'
             : (encounter.random_hunt || encounter.hunt_mode
                 ? '🎲 Caçada liberada pelo Mestre.' : '');
+        // 🎭 stats de história: o jogador só sente que há algo estranho
+        if (encounter.stat_mods && Object.keys(encounter.stat_mods).length) {
+            scInfo.innerHTML += ' <span style="color:var(--accent);">🌀 Há algo fora do comum neste Pokémon...</span>';
+        }
     }
 
     document.getElementById('wild-pokemon-name').textContent = `${pokemon.name} #${String(pokemon.number).padStart(3, '0')}`;

@@ -3932,6 +3932,33 @@ def api_pokemon_scaled_stats():
     stats = scaling.calculate_pokemon_stats(base_pokemon, level, nature or None,
                                             is_shiny=bool(data.get('is_shiny')),
                                             training=training)
+
+    # Stats de HISTÓRIA (encontro manual do mestre): porcentagem por stat
+    # aplicada DEPOIS do escalonamento — boss com 300% de HP, lendário
+    # enfraquecido a 50% etc. Clamp 10%-500%.
+    raw_mods = data.get('stat_mods')
+    if isinstance(raw_mods, dict) and raw_mods:
+        applied = {}
+        for k, pct in raw_mods.items():
+            try:
+                pct = max(10, min(500, int(pct)))
+            except (TypeError, ValueError):
+                continue
+            if pct == 100:
+                continue
+            kk = str(k).upper()
+            if kk == 'HP':
+                stats['maxHp'] = max(1, stats['maxHp'] * pct // 100)
+                stats['hp'] = stats['maxHp']
+                if 'HP' in stats.get('stats', {}):
+                    stats['stats']['HP'] = max(1, stats['stats']['HP'] * pct // 100)
+            elif kk in stats.get('stats', {}):
+                stats['stats'][kk] = max(1, stats['stats'][kk] * pct // 100)
+            else:
+                continue
+            applied[kk] = pct
+        if applied:
+            stats['stat_mods'] = applied
     stats['growth_rate'] = scaling.get_growth_rate(base_pokemon)
     stats['xp_to_next'] = scaling.xp_to_next_level(level, stats['growth_rate'])
     # Include which stat was boosted/lowered for UI display

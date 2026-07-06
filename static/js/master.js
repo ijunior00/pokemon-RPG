@@ -496,6 +496,14 @@ async function sendManualEncounter() {
     // servidor no recálculo v2 quando o jogador recebe o encontro
     if (isShiny) pokemon.is_shiny = true;
 
+    // 🎭 Stats de história: % por stat (só envia o que difere de 100)
+    const statMods = {};
+    [['hp', 'HP'], ['atk', 'ATK'], ['def', 'DEF'],
+     ['spa', 'SPA'], ['spd', 'SPD'], ['spe', 'SPE']].forEach(([id, key]) => {
+        const v = parseInt(document.getElementById(`manual-mod-${id}`)?.value) || 100;
+        if (v !== 100) statMods[key] = Math.max(10, Math.min(500, v));
+    });
+
     // Mega evolution: nome/tipos aqui; boost de stats aplicado no cliente
     // do jogador via applyMegaBonusesV2 (multiplicadores nos stats reais)
     let megaData = null;
@@ -521,11 +529,21 @@ async function sendManualEncounter() {
         pokemon,
         level,
         is_shiny: isShiny,
-        is_mega: !!megaData
+        is_mega: !!megaData,
+        stat_mods: Object.keys(statMods).length ? statMods : null
     });
 
+    const modsTxt = Object.keys(statMods).length
+        ? ' · 🎭 ' + Object.entries(statMods).map(([k, v]) => `${k} ${v}%`).join(', ') : '';
     const flags = [isShiny ? '✨ Shiny' : '', megaData ? '🔮 Mega' : ''].filter(Boolean).join(' + ');
-    alert(`Encontro enviado!${flags ? ' (' + flags + ')' : ''}`);
+    alert(`Encontro enviado!${flags ? ' (' + flags + ')' : ''}${modsTxt}`);
+}
+
+function resetManualMods() {
+    ['hp', 'atk', 'def', 'spa', 'spd', 'spe'].forEach(id => {
+        const el = document.getElementById(`manual-mod-${id}`);
+        if (el) el.value = 100;
+    });
 }
 
 // ============================================
