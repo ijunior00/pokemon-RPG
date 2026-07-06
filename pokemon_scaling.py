@@ -289,54 +289,80 @@ def can_control_pokemon(trainer_level, pokemon_level):
 # ============================================================
 # FULL POKEMON STAT BLOCK AT LEVEL
 # ============================================================
-def calculate_pokemon_stats(base_pokemon, level, nature=None):
-    """Calculate all stats for a Pokemon at a given level.
+# Bônus de Pokémon Shiny: +35% em TODOS os atributos base, aplicado ANTES de
+# qualquer escalonamento por nível/natureza — assim HP máximo, CAs, iniciativa,
+# dano e modificadores derivam naturalmente dos atributos já acrescidos, sem
+# duplicar bônus em estatísticas derivadas.
+SHINY_MULT = 1.35
 
-    New Pokemon stat system: ATK, DEF, SPA, SPD, SPE, HP
-    - ATK: Physical attack power
-    - DEF: Physical defense (AC vs physical moves)
-    - SPA: Special attack power
-    - SPD: Special defense (AC vs special moves)
-    - SPE: Speed (initiative + dodge AC)
-    - HP: Hit points bonus
+
+def calculate_pokemon_stats(base_pokemon, level, nature=None, is_shiny=None,
+                            training=None):
+    """Calculate all stats for a Pokemon at a given level — SISTEMA v2.
+
+    Base stats REAIS (escala 1-255, pokemondb.net) do campo `base_stats` da
+    espécie, escalonados pela fórmula dos jogos (battle_math.stat_at_level):
+        stat  = (2 × base × nível) // 100 + 5 + treino
+        maxHp = (2 × baseHP × nível) // 100 + nível + 10 + treino_HP
+
+    - ATK×DEF (físico), SPA×SPD (especial), SPE (iniciativa/postura 2).
+    - is_shiny: +35% nos atributos BASE antes de escalonar (None = lê a flag
+      do próprio dict).
+    - training: dict {stat: pontos} de treino do Pokémon (cada ponto = +1 no
+      stat final; None = lê 'training' do próprio dict).
+    - Assinatura e formato de retorno preservados p/ os call sites; as CAs
+      D&D não existem mais (chaves mantidas como None p/ compat de leitura).
     """
-    base_stats = base_pokemon.get('stats', {})
-    base_hp = base_pokemon.get('hp', 20)
-    base_ac = base_pokemon.get('ac', 13)
-    hp_stat = base_stats.get('HP', base_stats.get('CON', 10))
+    import battle_math as bm
+
+    if is_shiny is None:
+        is_shiny = bool(base_pokemon.get('is_shiny'))
+    if training is None:
+        training = base_pokemon.get('training') or {}
+
+    base_stats = base_pokemon.get('base_stats') or {}
+    if not base_stats:
+        # Rede de segurança p/ espécie sem base_stats (não deveria ocorrer:
+        # a tool cobre 808/808): aproxima da escala D&D antiga ×6.
+        old = base_pokemon.get('stats', {})
+        base_stats = {k: max(20, min(160, int(old.get(k, old.get(_LEGACY_KEYS.get(k, k), 10)) or 10) * 6))
+                      for k in ('HP', 'ATK', 'DEF', 'SPA', 'SPD', 'SPE')}
+
+    if is_shiny:
+        base_stats = {k: int(round(v * SHINY_MULT)) for k, v in base_stats.items()}
 
     stats = {}
-    for stat_name in ['ATK', 'DEF', 'SPA', 'SPD', 'SPE', 'HP']:
-        base = base_stats.get(stat_name, 10)
-        stats[stat_name] = calculate_stat(base, level)
+    for stat_name in ('ATK', 'DEF', 'SPA', 'SPD', 'SPE'):
+        stats[stat_name] = bm.stat_at_level(base_stats.get(stat_name, 50), level,
+                                            training.get(stat_name, 0))
+    # 'HP' no dict de stats = o stat bruto escalado (informativo/compat);
+    # o pool real de vida é maxHp abaixo.
+    stats['HP'] = bm.stat_at_level(base_stats.get('HP', 50), level, 0)
 
-    # Apply nature modifier if provided
+    # Natureza ±10% (nunca HP) — mesma tabela dos jogos
     effective_nature = nature or base_pokemon.get('nature')
     if effective_nature:
         stats = apply_nature(stats, effective_nature)
-    
-    # Calculate actual HP
-    hp_mod = (stats['HP'] - 10) // 2
-    actual_hp = calculate_hp(base_hp, level, hp_stat)
-    
-    # AC values: physical AC based on DEF, special AC based on SPD
-    phys_ac = 8 + ((stats['DEF'] - 10) // 2) + calculate_proficiency(level) // 2
-    spec_ac = 8 + ((stats['SPD'] - 10) // 2) + calculate_proficiency(level) // 2
-    dodge_ac = 8 + ((stats['SPE'] - 10) // 2) + calculate_proficiency(level) // 2
-    
+
+    actual_hp = bm.hp_at_level(base_stats.get('HP', 50), level) + int(training.get('HP', 0) or 0)
+
     return {
         'level': level,
         'hp': actual_hp,
         'maxHp': actual_hp,
-        'ac': base_ac,  # legacy field
-        'phys_ac': phys_ac,
-        'spec_ac': spec_ac,
-        'dodge_ac': dodge_ac,
+        'ac': base_pokemon.get('ac', 13),   # legado (cosmético; combate não usa)
+        'phys_ac': None,                    # CAs D&D aposentadas
+        'spec_ac': None,
+        'dodge_ac': None,
         'stats': stats,
-        'proficiency': calculate_proficiency(level),
-        'stab': calculate_stab(level),
+        'proficiency': calculate_proficiency(level),  # usado só em textos/habilidades
+        'stab': calculate_stab(level),                # legado (combate usa ×1.5)
         'speed': base_pokemon.get('speed', '30ft')
     }
+
+
+# chaves legadas D&D → novas (p/ a rede de segurança acima)
+_LEGACY_KEYS = {'ATK': 'STR', 'DEF': 'CON', 'SPA': 'INT', 'SPD': 'WIS', 'SPE': 'DEX'}
 
 
 # ============================================================

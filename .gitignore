@@ -3,3 +3,4 @@ __pycache__/
 .env
 static/uploads/avatars/*
 !static/uploads/avatars/.gitkeep
+backups/

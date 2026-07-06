@@ -23,6 +23,29 @@ try:
 except (FileNotFoundError, ValueError):
     MOVE_EFFECTS_DATA = {}
 
+# Accuracy canônica por move (sistema v2: moves de status aplicam por
+# d20 vs Accuracy, como nos jogos — sem save D&D do alvo).
+_CANONICAL_FILE = _os.path.join(_os.path.dirname(__file__),
+                                'server', 'data', 'canonical_moves.json')
+try:
+    with open(_CANONICAL_FILE, encoding='utf-8') as _f:
+        _CANONICAL_MOVES = _json.load(_f)
+except (FileNotFoundError, ValueError):
+    _CANONICAL_MOVES = {}
+
+
+def _canon_ident(name):
+    n = (name or '').lower().replace("'", '').replace('’', '')
+    n = n.replace('.', '').replace(' ', '-')
+    while '--' in n:
+        n = n.replace('--', '-')
+    return {'vise grip': 'vice-grip'}.get((name or '').lower(), n)
+
+
+def move_accuracy(move_name):
+    """Accuracy canônica 1-100 do move, ou None (move que não erra)."""
+    return (_CANONICAL_MOVES.get(_canon_ident(move_name)) or {}).get('accuracy')
+
 # ============================================================
 # STATUS CONDITIONS
 # ============================================================
@@ -44,9 +67,8 @@ STATUS_CONDITIONS = {
         'turn_effect': 'scaling_damage',
         'base_fraction': 8,               # 1/8, 2/8, 3/8...
         'can_act': True,
-        'stat_modifier': {'ATK': -2},    # queimadura reduz ataque físico
         'duration': 'permanent',
-        'description': 'Perde HP crescente (1/8, 2/8...) e -2 ATK. Dura até ser curado.'
+        'description': 'Perde HP crescente (1/8, 2/8...) e o dano FÍSICO é cortado pela metade. Dura até ser curado.'
     },
     'paralisado': {
         'name': 'Paralisado',
@@ -55,9 +77,8 @@ STATUS_CONDITIONS = {
         'turn_effect': 'skip_chance',
         'skip_chance': 0.25,             # 25% chance to not act
         'can_act': True,                 # can act (but might fail)
-        'stat_modifier': {'DEX': -3},    # reduced speed/dex
         'duration': 'permanent',
-        'description': '25% de chance de não agir. -3 em DEX (velocidade reduzida).'
+        'description': '25% de chance de não agir. Velocidade cortada pela metade.'
     },
     'dormindo': {
         'name': 'Dormindo',
@@ -247,57 +268,10 @@ MOVE_STATUS_EFFECTS = {
 }
 
 
-# PT power abbreviations → stat keys (new system first, legacy fallback)
-_POWER_TO_STATS = {
-    'FOR': ('ATK', 'STR'),
-    'DES': ('SPE', 'DEX'),
-    'CON': ('DEF', 'CON'),
-    'INT': ('SPA', 'INT'),
-    'SAB': ('SPD', 'WIS'),
-    'CAR': ('SPA', 'CHA'),
-}
-
-# Saving throw stat → pokemon stat (new system first, legacy fallback)
-_SAVE_TO_STATS = {
-    'STR': ('ATK', 'STR'),
-    'DEX': ('SPE', 'DEX'),
-    'CON': ('DEF', 'CON'),
-    'INT': ('SPA', 'INT'),
-    'WIS': ('SPD', 'WIS'),
-    'CHA': ('SPD', 'CHA'),
-}
-
-
-def _stat_value(stats: dict, keys) -> int:
-    """Get first available stat value from a (new, legacy) key pair."""
-    for key in keys:
-        val = stats.get(key)
-        if isinstance(val, (int, float)) and val:
-            return int(val)
-    return 10
-
-
-def _best_attacker_mod(attacker_stats: dict, power: str) -> int:
-    """Best ability modifier among the stats listed in a move's power field."""
-    power = (power or '').upper()
-    best = 0
-    for abbrev, keys in _POWER_TO_STATS.items():
-        if abbrev in power:
-            best = max(best, (_stat_value(attacker_stats, keys) - 10) // 2)
-    if not best:
-        # No power field → use the better of ATK/SPA
-        best = max(
-            (_stat_value(attacker_stats, ('ATK', 'STR')) - 10) // 2,
-            (_stat_value(attacker_stats, ('SPA', 'INT')) - 10) // 2,
-            0
-        )
-    return best
-
-
-def _save_mod(target_stats: dict, save_stat: str) -> int:
-    """Target's saving throw modifier for a given save stat."""
-    keys = _SAVE_TO_STATS.get((save_stat or 'WIS').upper(), ('SPD', 'WIS'))
-    return (_stat_value(target_stats, keys) - 10) // 2
+# A ponte D&D (CD de move = 8+prof+mod, saves FOR/DES/CON... do alvo) foi
+# APOSENTADA no sistema v2: moves de status aplicam por d20 vs Accuracy
+# canônica (move_accuracy acima). O campo 'power' PT ("FOR/DES") do
+# moves.json virou texto cosmético da ficha.
 
 
 def check_status_on_hit(move_name, attack_roll, damage_dealt):
@@ -462,23 +436,30 @@ def apply_stat_changes(pokemon, stat_changes, clamp=STAGE_CLAMP):
     return stages
 
 
-def _cond_stat_mod(pokemon, stat):
-    """Modificador de stat vindo da CONDIÇÃO ativa (queimado -ATK etc.)."""
-    mods = get_stat_modifiers(pokemon.get('status')) if isinstance(pokemon, dict) else {}
-    total = 0
-    for k, v in mods.items():
-        if _COND_STAT_ALIAS.get(k, k) == stat:
-            total += int(v)
-    return total
+# Condições → MULTIPLICADORES de stat (sistema v2, escala 1-255).
+# Queimado NÃO entra aqui: o corte de dano físico ×0.5 é aplicado direto na
+# fórmula de dano (battle_math.damage burned=True) — evita duplicar o efeito.
+_COND_STAT_MULT = {
+    'paralisado': {'SPE': 0.5},
+}
+
+
+def _cond_stat_mult(pokemon, stat):
+    """Multiplicador de stat vindo da CONDIÇÃO ativa (paralisado SPE ×0.5)."""
+    status = pokemon.get('status') if isinstance(pokemon, dict) else None
+    cond = (status or {}).get('condition') if isinstance(status, dict) else None
+    return _COND_STAT_MULT.get(cond, {}).get(stat, 1.0)
 
 
 def effective_stat(pokemon, stat):
-    """Stat efetivo = base + stage acumulado + modificador de condição ativa."""
+    """Stat efetivo v2 = stat no nível × stage_mult(±6, oficial) × condição.
+    Stages são MULTIPLICATIVOS na escala 1-255 (+2 = ×2, −2 = ×0.5)."""
+    import battle_math as bm
     if not isinstance(pokemon, dict):
         return 10
     base = int((pokemon.get('stats') or {}).get(stat, 10) or 10)
     stage = int((pokemon.get('stat_stages') or {}).get(stat, 0))
-    return base + stage + _cond_stat_mod(pokemon, stat)
+    return max(1, int(base * bm.stage_mult(stage) * _cond_stat_mult(pokemon, stat)))
 
 
 def attack_roll_bonus(pokemon):
@@ -901,60 +882,53 @@ def process_status_move(move_data, attacker_stats, target_stats):
     
     move_name = move_data.get('name', '???')
 
-    # Calculate Move DC: 8 + proficiency + relevant stat mod.
-    # The 'power' field uses PT abbreviations (FOR/DES/CON/INT/SAB/CAR);
-    # pokemon stats use the new system (ATK/DEF/SPA/SPD/SPE/HP) with
-    # possible legacy keys (STR/DEX/CON/INT/WIS/CHA).
-    prof = attacker_stats.get('proficiency', 2)
-    move_dc = 8 + prof + _best_attacker_mod(attacker_stats, move_data.get('power', ''))
+    # Sistema v2: moves de status aplicam por d20 vs ACCURACY canônica do
+    # move (Thunder Wave 90%, Sleep Powder 75%...), como nos jogos.
+    # Sem save do alvo — a chance é fixa por move.
+    import battle_math as _bm
+
+    def _accuracy_roll():
+        acc = move_accuracy(move_name)
+        roll = random.randint(1, 20)
+        thr = _bm.miss_threshold(acc)
+        acc_label = f'Acc {acc}%' if acc else 'não erra'
+        return _bm.roll_hits(roll, acc), roll, thr, acc_label
 
     if effect['type'] == 'inflict_status':
-        # Target makes a saving throw
-        save_stat = effect.get('save', 'WIS')
-        save_mod = _save_mod(target_stats, save_stat)
-        save_roll = random.randint(1, 20)
-        save_total = save_roll + save_mod
-        
-        if save_total < move_dc:
-            # Status applied!
+        ok, roll, thr, acc_label = _accuracy_roll()
+        if ok:
             return {
                 'success': True,
                 'effect_type': 'status',
-                'message': f"{move_name}! CD {move_dc} vs d20({save_roll})+{save_mod}={save_total} → Falhou no save! Status aplicado!",
+                'message': f"{move_name}! d20({roll}) > {thr} ({acc_label}) → Status aplicado!",
                 'status_applied': effect['status'],
                 'stat_changes': None
             }
-        else:
-            return {
-                'success': False,
-                'effect_type': 'resisted',
-                'message': f"{move_name}! CD {move_dc} vs d20({save_roll})+{save_mod}={save_total} → Resistiu!",
-                'status_applied': None,
-                'stat_changes': None
-            }
-    
+        return {
+            'success': False,
+            'effect_type': 'resisted',
+            'message': f"{move_name}! d20({roll}) ≤ {thr} ({acc_label}) → Errou!",
+            'status_applied': None,
+            'stat_changes': None
+        }
+
     elif effect['type'] == 'debuff_target':
-        save_stat = effect.get('save', 'WIS')
-        save_mod = _save_mod(target_stats, save_stat)
-        save_roll = random.randint(1, 20)
-        save_total = save_roll + save_mod
-        
-        if save_total < move_dc:
+        ok, roll, thr, acc_label = _accuracy_roll()
+        if ok:
             return {
                 'success': True,
                 'effect_type': 'debuff',
-                'message': f"{move_name}! CD {move_dc} vs d20({save_roll})+{save_mod}={save_total} → {effect['stat']} {effect['value']:+d}!",
+                'message': f"{move_name}! d20({roll}) > {thr} ({acc_label}) → {effect['stat']} {effect['value']:+d}!",
                 'status_applied': None,
                 'stat_changes': {effect['stat']: effect['value']}
             }
-        else:
-            return {
-                'success': False,
-                'effect_type': 'resisted',
-                'message': f"{move_name}! CD {move_dc} vs d20({save_roll})+{save_mod}={save_total} → Resistiu!",
-                'status_applied': None,
-                'stat_changes': None
-            }
+        return {
+            'success': False,
+            'effect_type': 'resisted',
+            'message': f"{move_name}! d20({roll}) ≤ {thr} ({acc_label}) → Errou!",
+            'status_applied': None,
+            'stat_changes': None
+        }
     
     elif effect['type'] == 'buff_self':
         return {
@@ -1001,7 +975,12 @@ def process_status_move(move_data, attacker_stats, target_stats):
         tgt_hp = target_stats.get('currentHp')
         formula = effect.get('formula', 'half_level')
         self_damage = 0
-        if formula == 'level':
+        # fórmulas canônicas centralizadas (Seismic Toss/Night Shade/Dragon
+        # Rage/Sonic Boom/Super Fang) vivem em battle_math
+        _bm_fixed = _bm.fixed_damage_for(move_name.lower(), level, tgt_hp)
+        if _bm_fixed is not None:
+            dmg = _bm_fixed
+        elif formula == 'level':
             dmg = level
         elif formula == 'quarter_level':
             dmg = max(2, level // 4)
@@ -1033,27 +1012,24 @@ def process_status_move(move_data, attacker_stats, target_stats):
         }
 
     elif effect['type'] == 'ohko':
-        # OHKO (Fissure/Guillotine/Horn Drill) — homebrew: o alvo salva com +4
-        # de bônus (fica raro acertar); se falhar, desmaia (dano = HP atual).
-        save_stat = effect.get('save', 'CON')
-        save_mod = _save_mod(target_stats, save_stat) + 4
-        save_roll = random.randint(1, 20)
-        save_total = save_roll + save_mod
-        if save_total < move_dc:
+        # OHKO (Fissure/Guillotine/Horn Drill) — accuracy canônica (30%):
+        # d20 vs limiar; acertou → desmaia (dano = HP atual). Igual aos jogos.
+        ok, roll, thr, acc_label = _accuracy_roll()
+        if ok:
             tgt_hp = int(target_stats.get('currentHp') or 0) or (2 * int(attacker_stats.get('level', 1) or 1))
             return {
                 'success': True,
                 'effect_type': 'fixed_damage',
                 'damage': tgt_hp,
                 'self_damage': 0,
-                'message': f"{move_name}! CD {move_dc} vs d20({save_roll})+{save_mod}={save_total} → 💀 GOLPE FATAL! {tgt_hp} de dano!",
+                'message': f"{move_name}! d20({roll}) > {thr} ({acc_label}) → 💀 GOLPE FATAL! {tgt_hp} de dano!",
                 'status_applied': None,
                 'stat_changes': None
             }
         return {
             'success': False,
             'effect_type': 'resisted',
-            'message': f"{move_name}! CD {move_dc} vs d20({save_roll})+{save_mod}={save_total} → Resistiu ao golpe fatal!",
+            'message': f"{move_name}! d20({roll}) ≤ {thr} ({acc_label}) → Errou o golpe fatal!",
             'status_applied': None,
             'stat_changes': None
         }

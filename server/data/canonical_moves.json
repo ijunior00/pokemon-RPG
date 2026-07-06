@@ -1,5 +1,6 @@
 {
  "10-000-000-volt-thunderbolt": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -13,6 +14,7 @@
   "stat_changes": []
  },
  "absorb": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -26,6 +28,7 @@
   "stat_changes": []
  },
  "accelerock": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -39,6 +42,7 @@
   "stat_changes": []
  },
  "acid": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -57,6 +61,7 @@
   ]
  },
  "acid-armor": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -75,6 +80,7 @@
   ]
  },
  "acid-downpour--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -88,6 +94,7 @@
   "stat_changes": []
  },
  "acid-downpour--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -101,6 +108,7 @@
   "stat_changes": []
  },
  "acid-spray": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -119,6 +127,7 @@
   ]
  },
  "acrobatics": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -132,6 +141,7 @@
   "stat_changes": []
  },
  "acupressure": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -145,6 +155,7 @@
   "stat_changes": []
  },
  "aerial-ace": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -158,6 +169,7 @@
   "stat_changes": []
  },
  "aeroblast": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -171,6 +183,7 @@
   "stat_changes": []
  },
  "after-you": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -184,6 +197,7 @@
   "stat_changes": []
  },
  "agility": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -202,6 +216,7 @@
   ]
  },
  "air-cutter": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -215,6 +230,7 @@
   "stat_changes": []
  },
  "air-slash": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -228,6 +244,7 @@
   "stat_changes": []
  },
  "all-out-pummeling--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -241,6 +258,7 @@
   "stat_changes": []
  },
  "all-out-pummeling--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -254,6 +272,7 @@
   "stat_changes": []
  },
  "alluring-voice": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -267,6 +286,7 @@
   "stat_changes": []
  },
  "ally-switch": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -280,6 +300,7 @@
   "stat_changes": []
  },
  "amnesia": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -298,6 +319,7 @@
   ]
  },
  "anchor-shot": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -311,6 +333,7 @@
   "stat_changes": []
  },
  "ancient-power": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -345,6 +368,7 @@
   ]
  },
  "apple-acid": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -363,6 +387,7 @@
   ]
  },
  "aqua-cutter": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -376,6 +401,7 @@
   "stat_changes": []
  },
  "aqua-jet": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -389,6 +415,7 @@
   "stat_changes": []
  },
  "aqua-ring": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -402,6 +429,7 @@
   "stat_changes": []
  },
  "aqua-step": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -420,6 +448,7 @@
   ]
  },
  "aqua-tail": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -433,6 +462,7 @@
   "stat_changes": []
  },
  "arm-thrust": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -446,6 +476,7 @@
   "stat_changes": []
  },
  "armor-cannon": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -468,6 +499,7 @@
   ]
  },
  "aromatherapy": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -481,6 +513,7 @@
   "stat_changes": []
  },
  "aromatic-mist": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -499,6 +532,7 @@
   ]
  },
  "assist": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -512,6 +546,7 @@
   "stat_changes": []
  },
  "assurance": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -525,6 +560,7 @@
   "stat_changes": []
  },
  "astonish": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -538,6 +574,7 @@
   "stat_changes": []
  },
  "astral-barrage": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -551,6 +588,7 @@
   "stat_changes": []
  },
  "attack-order": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -564,6 +602,7 @@
   "stat_changes": []
  },
  "attract": {
+  "accuracy": 100,
   "ailment": "infatuation",
   "ailment_chance": 0,
   "category": "status",
@@ -577,6 +616,7 @@
   "stat_changes": []
  },
  "aura-sphere": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -590,6 +630,7 @@
   "stat_changes": []
  },
  "aura-wheel": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -608,6 +649,7 @@
   ]
  },
  "aurora-beam": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -626,6 +668,7 @@
   ]
  },
  "aurora-veil": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -639,6 +682,7 @@
   "stat_changes": []
  },
  "autotomize": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -657,6 +701,7 @@
   ]
  },
  "avalanche": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -670,6 +715,7 @@
   "stat_changes": []
  },
  "axe-kick": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -683,6 +729,7 @@
   "stat_changes": []
  },
  "baby-doll-eyes": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -701,6 +748,7 @@
   ]
  },
  "baddy-bad": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -714,6 +762,7 @@
   "stat_changes": []
  },
  "baneful-bunker": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -727,6 +776,7 @@
   "stat_changes": []
  },
  "barb-barrage": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -740,6 +790,7 @@
   "stat_changes": []
  },
  "barrage": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -753,6 +804,7 @@
   "stat_changes": []
  },
  "barrier": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -771,6 +823,7 @@
   ]
  },
  "baton-pass": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -784,6 +837,7 @@
   "stat_changes": []
  },
  "beak-blast": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -797,6 +851,7 @@
   "stat_changes": []
  },
  "beat-up": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -810,6 +865,7 @@
   "stat_changes": []
  },
  "behemoth-bash": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -823,6 +879,7 @@
   "stat_changes": []
  },
  "behemoth-blade": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -836,6 +893,7 @@
   "stat_changes": []
  },
  "belch": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -849,6 +907,7 @@
   "stat_changes": []
  },
  "belly-drum": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -862,6 +921,7 @@
   "stat_changes": []
  },
  "bestow": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -875,6 +935,7 @@
   "stat_changes": []
  },
  "bide": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -888,6 +949,7 @@
   "stat_changes": []
  },
  "bind": {
+  "accuracy": 85,
   "ailment": "trap",
   "ailment_chance": 100,
   "category": "physical",
@@ -901,6 +963,7 @@
   "stat_changes": []
  },
  "bite": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -914,6 +977,7 @@
   "stat_changes": []
  },
  "bitter-blade": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -927,6 +991,7 @@
   "stat_changes": []
  },
  "bitter-malice": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -940,6 +1005,7 @@
   "stat_changes": []
  },
  "black-hole-eclipse--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -953,6 +1019,7 @@
   "stat_changes": []
  },
  "black-hole-eclipse--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -966,6 +1033,7 @@
   "stat_changes": []
  },
  "blast-burn": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -979,6 +1047,7 @@
   "stat_changes": []
  },
  "blaze-kick": {
+  "accuracy": 90,
   "ailment": "burn",
   "ailment_chance": 10,
   "category": "physical",
@@ -992,6 +1061,7 @@
   "stat_changes": []
  },
  "blazing-torque": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1005,6 +1075,7 @@
   "stat_changes": []
  },
  "bleakwind-storm": {
+  "accuracy": 80,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1018,6 +1089,7 @@
   "stat_changes": []
  },
  "blizzard": {
+  "accuracy": 70,
   "ailment": "freeze",
   "ailment_chance": 10,
   "category": "special",
@@ -1031,6 +1103,7 @@
   "stat_changes": []
  },
  "block": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -1044,6 +1117,7 @@
   "stat_changes": []
  },
  "blood-moon": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1057,6 +1131,7 @@
   "stat_changes": []
  },
  "bloom-doom--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1070,6 +1145,7 @@
   "stat_changes": []
  },
  "bloom-doom--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1083,6 +1159,7 @@
   "stat_changes": []
  },
  "blue-flare": {
+  "accuracy": 85,
   "ailment": "burn",
   "ailment_chance": 20,
   "category": "special",
@@ -1096,6 +1173,7 @@
   "stat_changes": []
  },
  "body-press": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1109,6 +1187,7 @@
   "stat_changes": []
  },
  "body-slam": {
+  "accuracy": 100,
   "ailment": "paralysis",
   "ailment_chance": 30,
   "category": "physical",
@@ -1122,6 +1201,7 @@
   "stat_changes": []
  },
  "bolt-beak": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1135,6 +1215,7 @@
   "stat_changes": []
  },
  "bolt-strike": {
+  "accuracy": 85,
   "ailment": "paralysis",
   "ailment_chance": 20,
   "category": "physical",
@@ -1148,6 +1229,7 @@
   "stat_changes": []
  },
  "bone-club": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1161,6 +1243,7 @@
   "stat_changes": []
  },
  "bone-rush": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1174,6 +1257,7 @@
   "stat_changes": []
  },
  "bonemerang": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1187,6 +1271,7 @@
   "stat_changes": []
  },
  "boomburst": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1200,6 +1285,7 @@
   "stat_changes": []
  },
  "bounce": {
+  "accuracy": 85,
   "ailment": "paralysis",
   "ailment_chance": 30,
   "category": "physical",
@@ -1213,6 +1299,7 @@
   "stat_changes": []
  },
  "bouncy-bubble": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1226,6 +1313,7 @@
   "stat_changes": []
  },
  "branch-poke": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1239,6 +1327,7 @@
   "stat_changes": []
  },
  "brave-bird": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1252,6 +1341,7 @@
   "stat_changes": []
  },
  "breaking-swipe": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1270,6 +1360,7 @@
   ]
  },
  "breakneck-blitz--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1283,6 +1374,7 @@
   "stat_changes": []
  },
  "breakneck-blitz--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1296,6 +1388,7 @@
   "stat_changes": []
  },
  "brick-break": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1309,6 +1402,7 @@
   "stat_changes": []
  },
  "brine": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1322,6 +1416,7 @@
   "stat_changes": []
  },
  "brutal-swing": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1335,6 +1430,7 @@
   "stat_changes": []
  },
  "bubble": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1353,6 +1449,7 @@
   ]
  },
  "bubble-beam": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1371,6 +1468,7 @@
   ]
  },
  "bug-bite": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1384,6 +1482,7 @@
   "stat_changes": []
  },
  "bug-buzz": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1402,6 +1501,7 @@
   ]
  },
  "bulk-up": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -1424,6 +1524,7 @@
   ]
  },
  "bulldoze": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1442,6 +1543,7 @@
   ]
  },
  "bullet-punch": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1455,6 +1557,7 @@
   "stat_changes": []
  },
  "bullet-seed": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1468,6 +1571,7 @@
   "stat_changes": []
  },
  "burn-up": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1481,6 +1585,7 @@
   "stat_changes": []
  },
  "burning-bulwark": {
+  "accuracy": 0,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -1494,6 +1599,7 @@
   "stat_changes": []
  },
  "burning-jealousy": {
+  "accuracy": 100,
   "ailment": "burn",
   "ailment_chance": 100,
   "category": "special",
@@ -1507,6 +1613,7 @@
   "stat_changes": []
  },
  "buzzy-buzz": {
+  "accuracy": 100,
   "ailment": "paralysis",
   "ailment_chance": 100,
   "category": "special",
@@ -1520,6 +1627,7 @@
   "stat_changes": []
  },
  "calm-mind": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -1542,6 +1650,7 @@
   ]
  },
  "camouflage": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -1555,6 +1664,7 @@
   "stat_changes": []
  },
  "captivate": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -1573,6 +1683,7 @@
   ]
  },
  "catastropika": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1586,6 +1697,7 @@
   "stat_changes": []
  },
  "ceaseless-edge": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1599,6 +1711,7 @@
   "stat_changes": []
  },
  "celebrate": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -1612,6 +1725,7 @@
   "stat_changes": []
  },
  "charge": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -1630,6 +1744,7 @@
   ]
  },
  "charge-beam": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1648,6 +1763,7 @@
   ]
  },
  "charm": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -1666,6 +1782,7 @@
   ]
  },
  "chatter": {
+  "accuracy": 100,
   "ailment": "confusion",
   "ailment_chance": 100,
   "category": "special",
@@ -1679,6 +1796,7 @@
   "stat_changes": []
  },
  "chilling-water": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1697,6 +1815,7 @@
   ]
  },
  "chilly-reception": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -1710,6 +1829,7 @@
   "stat_changes": []
  },
  "chip-away": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1723,6 +1843,7 @@
   "stat_changes": []
  },
  "chloroblast": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1736,6 +1857,7 @@
   "stat_changes": []
  },
  "circle-throw": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1749,6 +1871,7 @@
   "stat_changes": []
  },
  "clamp": {
+  "accuracy": 85,
   "ailment": "trap",
   "ailment_chance": 100,
   "category": "physical",
@@ -1762,6 +1885,7 @@
   "stat_changes": []
  },
  "clanging-scales": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1780,6 +1904,7 @@
   ]
  },
  "clangorous-soul": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -1814,6 +1939,7 @@
   ]
  },
  "clangorous-soulblaze": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1848,6 +1974,7 @@
   ]
  },
  "clear-smog": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -1861,6 +1988,7 @@
   "stat_changes": []
  },
  "close-combat": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1883,6 +2011,7 @@
   ]
  },
  "coaching": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -1905,6 +2034,7 @@
   ]
  },
  "coil": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -1931,6 +2061,7 @@
   ]
  },
  "collision-course": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1944,6 +2075,7 @@
   "stat_changes": []
  },
  "combat-torque": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1957,6 +2089,7 @@
   "stat_changes": []
  },
  "comet-punch": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1970,6 +2103,7 @@
   "stat_changes": []
  },
  "comeuppance": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -1983,6 +2117,7 @@
   "stat_changes": []
  },
  "confide": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2001,6 +2136,7 @@
   ]
  },
  "confuse-ray": {
+  "accuracy": 100,
   "ailment": "confusion",
   "ailment_chance": 0,
   "category": "status",
@@ -2014,6 +2150,7 @@
   "stat_changes": []
  },
  "confusion": {
+  "accuracy": 100,
   "ailment": "confusion",
   "ailment_chance": 10,
   "category": "special",
@@ -2027,6 +2164,7 @@
   "stat_changes": []
  },
  "constrict": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2045,6 +2183,7 @@
   ]
  },
  "continental-crush--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2058,6 +2197,7 @@
   "stat_changes": []
  },
  "continental-crush--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -2071,6 +2211,7 @@
   "stat_changes": []
  },
  "conversion": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2084,6 +2225,7 @@
   "stat_changes": []
  },
  "conversion-2": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2097,6 +2239,7 @@
   "stat_changes": []
  },
  "copycat": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2110,6 +2253,7 @@
   "stat_changes": []
  },
  "core-enforcer": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -2123,6 +2267,7 @@
   "stat_changes": []
  },
  "corkscrew-crash--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2136,6 +2281,7 @@
   "stat_changes": []
  },
  "corkscrew-crash--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -2149,6 +2295,7 @@
   "stat_changes": []
  },
  "corrosive-gas": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2162,6 +2309,7 @@
   "stat_changes": []
  },
  "cosmic-power": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2184,6 +2332,7 @@
   ]
  },
  "cotton-guard": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2202,6 +2351,7 @@
   ]
  },
  "cotton-spore": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2220,6 +2370,7 @@
   ]
  },
  "counter": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2233,6 +2384,7 @@
   "stat_changes": []
  },
  "court-change": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2246,6 +2398,7 @@
   "stat_changes": []
  },
  "covet": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2259,6 +2412,7 @@
   "stat_changes": []
  },
  "crabhammer": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2272,6 +2426,7 @@
   "stat_changes": []
  },
  "crafty-shield": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2285,6 +2440,7 @@
   "stat_changes": []
  },
  "cross-chop": {
+  "accuracy": 80,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2298,6 +2454,7 @@
   "stat_changes": []
  },
  "cross-poison": {
+  "accuracy": 100,
   "ailment": "poison",
   "ailment_chance": 10,
   "category": "physical",
@@ -2311,6 +2468,7 @@
   "stat_changes": []
  },
  "crunch": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2329,6 +2487,7 @@
   ]
  },
  "crush-claw": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2347,6 +2506,7 @@
   ]
  },
  "crush-grip": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2360,6 +2520,7 @@
   "stat_changes": []
  },
  "curse": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2373,6 +2534,7 @@
   "stat_changes": []
  },
  "cut": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2386,6 +2548,7 @@
   "stat_changes": []
  },
  "dark-pulse": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -2399,6 +2562,7 @@
   "stat_changes": []
  },
  "dark-void": {
+  "accuracy": 50,
   "ailment": "sleep",
   "ailment_chance": 0,
   "category": "status",
@@ -2412,6 +2576,7 @@
   "stat_changes": []
  },
  "darkest-lariat": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2425,6 +2590,7 @@
   "stat_changes": []
  },
  "dazzling-gleam": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -2438,6 +2604,7 @@
   "stat_changes": []
  },
  "decorate": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2460,6 +2627,7 @@
   ]
  },
  "defend-order": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2482,6 +2650,7 @@
   ]
  },
  "defense-curl": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2500,6 +2669,7 @@
   ]
  },
  "defog": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2518,6 +2688,7 @@
   ]
  },
  "destiny-bond": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2531,6 +2702,7 @@
   "stat_changes": []
  },
  "detect": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2544,6 +2716,7 @@
   "stat_changes": []
  },
  "devastating-drake--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2557,6 +2730,7 @@
   "stat_changes": []
  },
  "devastating-drake--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -2570,6 +2744,7 @@
   "stat_changes": []
  },
  "diamond-storm": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2588,6 +2763,7 @@
   ]
  },
  "dig": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2601,6 +2777,7 @@
   "stat_changes": []
  },
  "dire-claw": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2614,6 +2791,7 @@
   "stat_changes": []
  },
  "disable": {
+  "accuracy": 100,
   "ailment": "disable",
   "ailment_chance": 0,
   "category": "status",
@@ -2627,6 +2805,7 @@
   "stat_changes": []
  },
  "disarming-voice": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -2640,6 +2819,7 @@
   "stat_changes": []
  },
  "discharge": {
+  "accuracy": 100,
   "ailment": "paralysis",
   "ailment_chance": 30,
   "category": "special",
@@ -2653,6 +2833,7 @@
   "stat_changes": []
  },
  "dive": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2666,6 +2847,7 @@
   "stat_changes": []
  },
  "dizzy-punch": {
+  "accuracy": 100,
   "ailment": "confusion",
   "ailment_chance": 20,
   "category": "physical",
@@ -2679,6 +2861,7 @@
   "stat_changes": []
  },
  "doodle": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2692,6 +2875,7 @@
   "stat_changes": []
  },
  "doom-desire": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -2705,6 +2889,7 @@
   "stat_changes": []
  },
  "double-edge": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2718,6 +2903,7 @@
   "stat_changes": []
  },
  "double-hit": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2731,6 +2917,7 @@
   "stat_changes": []
  },
  "double-iron-bash": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2744,6 +2931,7 @@
   "stat_changes": []
  },
  "double-kick": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2757,6 +2945,7 @@
   "stat_changes": []
  },
  "double-shock": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2770,6 +2959,7 @@
   "stat_changes": []
  },
  "double-slap": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2783,6 +2973,7 @@
   "stat_changes": []
  },
  "double-team": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2801,6 +2992,7 @@
   ]
  },
  "draco-meteor": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -2819,6 +3011,7 @@
   ]
  },
  "dragon-ascent": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2841,6 +3034,7 @@
   ]
  },
  "dragon-breath": {
+  "accuracy": 100,
   "ailment": "paralysis",
   "ailment_chance": 30,
   "category": "special",
@@ -2854,6 +3048,7 @@
   "stat_changes": []
  },
  "dragon-cheer": {
+  "accuracy": 0,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2867,6 +3062,7 @@
   "stat_changes": []
  },
  "dragon-claw": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2880,6 +3076,7 @@
   "stat_changes": []
  },
  "dragon-dance": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -2902,6 +3099,7 @@
   ]
  },
  "dragon-darts": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2915,6 +3113,7 @@
   "stat_changes": []
  },
  "dragon-energy": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -2928,6 +3127,7 @@
   "stat_changes": []
  },
  "dragon-hammer": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2941,6 +3141,7 @@
   "stat_changes": []
  },
  "dragon-pulse": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -2954,6 +3155,7 @@
   "stat_changes": []
  },
  "dragon-rage": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -2967,6 +3169,7 @@
   "stat_changes": []
  },
  "dragon-rush": {
+  "accuracy": 75,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2980,6 +3183,7 @@
   "stat_changes": []
  },
  "dragon-tail": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -2993,6 +3197,7 @@
   "stat_changes": []
  },
  "drain-punch": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3006,6 +3211,7 @@
   "stat_changes": []
  },
  "draining-kiss": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3019,6 +3225,7 @@
   "stat_changes": []
  },
  "dream-eater": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3032,6 +3239,7 @@
   "stat_changes": []
  },
  "drill-peck": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3045,6 +3253,7 @@
   "stat_changes": []
  },
  "drill-run": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3058,6 +3267,7 @@
   "stat_changes": []
  },
  "drum-beating": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3076,6 +3286,7 @@
   ]
  },
  "dual-chop": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3089,6 +3300,7 @@
   "stat_changes": []
  },
  "dual-wingbeat": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3102,6 +3314,7 @@
   "stat_changes": []
  },
  "dynamax-cannon": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3115,6 +3328,7 @@
   "stat_changes": []
  },
  "dynamic-punch": {
+  "accuracy": 50,
   "ailment": "confusion",
   "ailment_chance": 100,
   "category": "physical",
@@ -3128,6 +3342,7 @@
   "stat_changes": []
  },
  "earth-power": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3146,6 +3361,7 @@
   ]
  },
  "earthquake": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3159,6 +3375,7 @@
   "stat_changes": []
  },
  "echoed-voice": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3172,6 +3389,7 @@
   "stat_changes": []
  },
  "eerie-impulse": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -3190,6 +3408,7 @@
   ]
  },
  "eerie-spell": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3203,6 +3422,7 @@
   "stat_changes": []
  },
  "egg-bomb": {
+  "accuracy": 75,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3216,6 +3436,7 @@
   "stat_changes": []
  },
  "electric-terrain": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -3229,6 +3450,7 @@
   "stat_changes": []
  },
  "electrify": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -3242,6 +3464,7 @@
   "stat_changes": []
  },
  "electro-ball": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3255,6 +3478,7 @@
   "stat_changes": []
  },
  "electro-drift": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3268,6 +3492,7 @@
   "stat_changes": []
  },
  "electro-shot": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3286,6 +3511,7 @@
   ]
  },
  "electroweb": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3304,6 +3530,7 @@
   ]
  },
  "embargo": {
+  "accuracy": 100,
   "ailment": "embargo",
   "ailment_chance": 0,
   "category": "status",
@@ -3317,6 +3544,7 @@
   "stat_changes": []
  },
  "ember": {
+  "accuracy": 100,
   "ailment": "burn",
   "ailment_chance": 10,
   "category": "special",
@@ -3330,6 +3558,7 @@
   "stat_changes": []
  },
  "encore": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -3343,6 +3572,7 @@
   "stat_changes": []
  },
  "endeavor": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3356,6 +3586,7 @@
   "stat_changes": []
  },
  "endure": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -3369,6 +3600,7 @@
   "stat_changes": []
  },
  "energy-ball": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3387,6 +3619,7 @@
   ]
  },
  "entrainment": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -3400,6 +3633,7 @@
   "stat_changes": []
  },
  "eruption": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3413,6 +3647,7 @@
   "stat_changes": []
  },
  "esper-wing": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3426,6 +3661,7 @@
   "stat_changes": []
  },
  "eternabeam": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3439,6 +3675,7 @@
   "stat_changes": []
  },
  "expanding-force": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3452,6 +3689,7 @@
   "stat_changes": []
  },
  "explosion": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3465,6 +3703,7 @@
   "stat_changes": []
  },
  "extrasensory": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3478,6 +3717,7 @@
   "stat_changes": []
  },
  "extreme-evoboost": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -3512,6 +3752,7 @@
   ]
  },
  "extreme-speed": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3525,6 +3766,7 @@
   "stat_changes": []
  },
  "facade": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3538,6 +3780,7 @@
   "stat_changes": []
  },
  "fairy-lock": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -3551,6 +3794,7 @@
   "stat_changes": []
  },
  "fairy-wind": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3564,6 +3808,7 @@
   "stat_changes": []
  },
  "fake-out": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3577,6 +3822,7 @@
   "stat_changes": []
  },
  "fake-tears": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -3595,6 +3841,7 @@
   ]
  },
  "false-surrender": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3608,6 +3855,7 @@
   "stat_changes": []
  },
  "false-swipe": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3621,6 +3869,7 @@
   "stat_changes": []
  },
  "feather-dance": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -3639,6 +3888,7 @@
   ]
  },
  "feint": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3652,6 +3902,7 @@
   "stat_changes": []
  },
  "feint-attack": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3665,6 +3916,7 @@
   "stat_changes": []
  },
  "fell-stinger": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3678,6 +3930,7 @@
   "stat_changes": []
  },
  "fickle-beam": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3691,6 +3944,7 @@
   "stat_changes": []
  },
  "fiery-dance": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3709,6 +3963,7 @@
   ]
  },
  "fiery-wrath": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3722,6 +3977,7 @@
   "stat_changes": []
  },
  "fillet-away": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -3748,6 +4004,7 @@
   ]
  },
  "final-gambit": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3761,6 +4018,7 @@
   "stat_changes": []
  },
  "fire-blast": {
+  "accuracy": 85,
   "ailment": "burn",
   "ailment_chance": 10,
   "category": "special",
@@ -3774,6 +4032,7 @@
   "stat_changes": []
  },
  "fire-fang": {
+  "accuracy": 95,
   "ailment": "burn",
   "ailment_chance": 10,
   "category": "physical",
@@ -3787,6 +4046,7 @@
   "stat_changes": []
  },
  "fire-lash": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3805,6 +4065,7 @@
   ]
  },
  "fire-pledge": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3818,6 +4079,7 @@
   "stat_changes": []
  },
  "fire-punch": {
+  "accuracy": 100,
   "ailment": "burn",
   "ailment_chance": 10,
   "category": "physical",
@@ -3831,6 +4093,7 @@
   "stat_changes": []
  },
  "fire-spin": {
+  "accuracy": 85,
   "ailment": "trap",
   "ailment_chance": 100,
   "category": "special",
@@ -3844,6 +4107,7 @@
   "stat_changes": []
  },
  "first-impression": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3857,6 +4121,7 @@
   "stat_changes": []
  },
  "fishious-rend": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3870,6 +4135,7 @@
   "stat_changes": []
  },
  "fissure": {
+  "accuracy": 30,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3883,6 +4149,7 @@
   "stat_changes": []
  },
  "flail": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3896,6 +4163,7 @@
   "stat_changes": []
  },
  "flame-burst": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -3909,6 +4177,7 @@
   "stat_changes": []
  },
  "flame-charge": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -3927,6 +4196,7 @@
   ]
  },
  "flame-wheel": {
+  "accuracy": 100,
   "ailment": "burn",
   "ailment_chance": 10,
   "category": "physical",
@@ -3940,6 +4210,7 @@
   "stat_changes": []
  },
  "flamethrower": {
+  "accuracy": 100,
   "ailment": "burn",
   "ailment_chance": 10,
   "category": "special",
@@ -3953,6 +4224,7 @@
   "stat_changes": []
  },
  "flare-blitz": {
+  "accuracy": 100,
   "ailment": "burn",
   "ailment_chance": 10,
   "category": "physical",
@@ -3966,6 +4238,7 @@
   "stat_changes": []
  },
  "flash": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -3984,6 +4257,7 @@
   ]
  },
  "flash-cannon": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4002,6 +4276,7 @@
   ]
  },
  "flatter": {
+  "accuracy": 100,
   "ailment": "confusion",
   "ailment_chance": 0,
   "category": "status",
@@ -4020,6 +4295,7 @@
   ]
  },
  "fleur-cannon": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4038,6 +4314,7 @@
   ]
  },
  "fling": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4051,6 +4328,7 @@
   "stat_changes": []
  },
  "flip-turn": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4064,6 +4342,7 @@
   "stat_changes": []
  },
  "floaty-fall": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4077,6 +4356,7 @@
   "stat_changes": []
  },
  "floral-healing": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4090,6 +4370,7 @@
   "stat_changes": []
  },
  "flower-shield": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4108,6 +4389,7 @@
   ]
  },
  "flower-trick": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4121,6 +4403,7 @@
   "stat_changes": []
  },
  "fly": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4134,6 +4417,7 @@
   "stat_changes": []
  },
  "flying-press": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4147,6 +4431,7 @@
   "stat_changes": []
  },
  "focus-blast": {
+  "accuracy": 70,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4165,6 +4450,7 @@
   ]
  },
  "focus-energy": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4178,6 +4464,7 @@
   "stat_changes": []
  },
  "focus-punch": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4191,6 +4478,7 @@
   "stat_changes": []
  },
  "follow-me": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4204,6 +4492,7 @@
   "stat_changes": []
  },
  "force-palm": {
+  "accuracy": 100,
   "ailment": "paralysis",
   "ailment_chance": 30,
   "category": "physical",
@@ -4217,6 +4506,7 @@
   "stat_changes": []
  },
  "foresight": {
+  "accuracy": null,
   "ailment": "no-type-immunity",
   "ailment_chance": 0,
   "category": "status",
@@ -4230,6 +4520,7 @@
   "stat_changes": []
  },
  "forests-curse": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4243,6 +4534,7 @@
   "stat_changes": []
  },
  "foul-play": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4256,6 +4548,7 @@
   "stat_changes": []
  },
  "freeze-dry": {
+  "accuracy": 100,
   "ailment": "freeze",
   "ailment_chance": 10,
   "category": "special",
@@ -4269,6 +4562,7 @@
   "stat_changes": []
  },
  "freeze-shock": {
+  "accuracy": 90,
   "ailment": "paralysis",
   "ailment_chance": 30,
   "category": "physical",
@@ -4282,6 +4576,7 @@
   "stat_changes": []
  },
  "freezing-glare": {
+  "accuracy": 100,
   "ailment": "freeze",
   "ailment_chance": 10,
   "category": "special",
@@ -4295,6 +4590,7 @@
   "stat_changes": []
  },
  "freezy-frost": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4308,6 +4604,7 @@
   "stat_changes": []
  },
  "frenzy-plant": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4321,6 +4618,7 @@
   "stat_changes": []
  },
  "frost-breath": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 100,
   "category": "special",
@@ -4334,6 +4632,7 @@
   "stat_changes": []
  },
  "frustration": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4347,6 +4646,7 @@
   "stat_changes": []
  },
  "fury-attack": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4360,6 +4660,7 @@
   "stat_changes": []
  },
  "fury-cutter": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4373,6 +4674,7 @@
   "stat_changes": []
  },
  "fury-swipes": {
+  "accuracy": 80,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4386,6 +4688,7 @@
   "stat_changes": []
  },
  "fusion-bolt": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4399,6 +4702,7 @@
   "stat_changes": []
  },
  "fusion-flare": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4412,6 +4716,7 @@
   "stat_changes": []
  },
  "future-sight": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4425,6 +4730,7 @@
   "stat_changes": []
  },
  "gastro-acid": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4438,6 +4744,7 @@
   "stat_changes": []
  },
  "gear-grind": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4451,6 +4758,7 @@
   "stat_changes": []
  },
  "gear-up": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4473,6 +4781,7 @@
   ]
  },
  "genesis-supernova": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4486,6 +4795,7 @@
   "stat_changes": []
  },
  "geomancy": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4512,6 +4822,7 @@
   ]
  },
  "giga-drain": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4525,6 +4836,7 @@
   "stat_changes": []
  },
  "giga-impact": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4538,6 +4850,7 @@
   "stat_changes": []
  },
  "gigaton-hammer": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4551,6 +4864,7 @@
   "stat_changes": []
  },
  "gigavolt-havoc--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4564,6 +4878,7 @@
   "stat_changes": []
  },
  "gigavolt-havoc--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4577,6 +4892,7 @@
   "stat_changes": []
  },
  "glacial-lance": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4590,6 +4906,7 @@
   "stat_changes": []
  },
  "glaciate": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4608,6 +4925,7 @@
   ]
  },
  "glaive-rush": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4621,6 +4939,7 @@
   "stat_changes": []
  },
  "glare": {
+  "accuracy": 100,
   "ailment": "paralysis",
   "ailment_chance": 0,
   "category": "status",
@@ -4634,6 +4953,7 @@
   "stat_changes": []
  },
  "glitzy-glow": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4647,6 +4967,7 @@
   "stat_changes": []
  },
  "grass-knot": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4660,6 +4981,7 @@
   "stat_changes": []
  },
  "grass-pledge": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4673,6 +4995,7 @@
   "stat_changes": []
  },
  "grass-whistle": {
+  "accuracy": 55,
   "ailment": "sleep",
   "ailment_chance": 0,
   "category": "status",
@@ -4686,6 +5009,7 @@
   "stat_changes": []
  },
  "grassy-glide": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4699,6 +5023,7 @@
   "stat_changes": []
  },
  "grassy-terrain": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4712,6 +5037,7 @@
   "stat_changes": []
  },
  "grav-apple": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4730,6 +5056,7 @@
   ]
  },
  "gravity": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4743,6 +5070,7 @@
   "stat_changes": []
  },
  "growl": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4761,6 +5089,7 @@
   ]
  },
  "growth": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4783,6 +5112,7 @@
   ]
  },
  "grudge": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4796,6 +5126,7 @@
   "stat_changes": []
  },
  "guard-split": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4809,6 +5140,7 @@
   "stat_changes": []
  },
  "guard-swap": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4822,6 +5154,7 @@
   "stat_changes": []
  },
  "guardian-of-alola": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4835,6 +5168,7 @@
   "stat_changes": []
  },
  "guillotine": {
+  "accuracy": 30,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4848,6 +5182,7 @@
   "stat_changes": []
  },
  "gunk-shot": {
+  "accuracy": 80,
   "ailment": "poison",
   "ailment_chance": 30,
   "category": "physical",
@@ -4861,6 +5196,7 @@
   "stat_changes": []
  },
  "gust": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -4874,6 +5210,7 @@
   "stat_changes": []
  },
  "gyro-ball": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4887,6 +5224,7 @@
   "stat_changes": []
  },
  "hail": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4900,6 +5238,7 @@
   "stat_changes": []
  },
  "hammer-arm": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4918,6 +5257,7 @@
   ]
  },
  "happy-hour": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4931,6 +5271,7 @@
   "stat_changes": []
  },
  "hard-press": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4944,6 +5285,7 @@
   "stat_changes": []
  },
  "harden": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4962,6 +5304,7 @@
   ]
  },
  "haze": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -4975,6 +5318,7 @@
   "stat_changes": []
  },
  "head-charge": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -4988,6 +5332,7 @@
   "stat_changes": []
  },
  "head-smash": {
+  "accuracy": 80,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5001,6 +5346,7 @@
   "stat_changes": []
  },
  "headbutt": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5014,6 +5360,7 @@
   "stat_changes": []
  },
  "headlong-rush": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5027,6 +5374,7 @@
   "stat_changes": []
  },
  "heal-bell": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5040,6 +5388,7 @@
   "stat_changes": []
  },
  "heal-block": {
+  "accuracy": 100,
   "ailment": "heal-block",
   "ailment_chance": 0,
   "category": "status",
@@ -5053,6 +5402,7 @@
   "stat_changes": []
  },
  "heal-order": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5066,6 +5416,7 @@
   "stat_changes": []
  },
  "heal-pulse": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5079,6 +5430,7 @@
   "stat_changes": []
  },
  "healing-wish": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5092,6 +5444,7 @@
   "stat_changes": []
  },
  "heart-stamp": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5105,6 +5458,7 @@
   "stat_changes": []
  },
  "heart-swap": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5118,6 +5472,7 @@
   "stat_changes": []
  },
  "heat-crash": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5131,6 +5486,7 @@
   "stat_changes": []
  },
  "heat-wave": {
+  "accuracy": 90,
   "ailment": "burn",
   "ailment_chance": 10,
   "category": "special",
@@ -5144,6 +5500,7 @@
   "stat_changes": []
  },
  "heavy-slam": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5157,6 +5514,7 @@
   "stat_changes": []
  },
  "helping-hand": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5170,6 +5528,7 @@
   "stat_changes": []
  },
  "hex": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -5183,6 +5542,7 @@
   "stat_changes": []
  },
  "hidden-power": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -5196,6 +5556,7 @@
   "stat_changes": []
  },
  "high-horsepower": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5209,6 +5570,7 @@
   "stat_changes": []
  },
  "high-jump-kick": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5222,6 +5584,7 @@
   "stat_changes": []
  },
  "hold-back": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5235,6 +5598,7 @@
   "stat_changes": []
  },
  "hold-hands": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5248,6 +5612,7 @@
   "stat_changes": []
  },
  "hone-claws": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5270,6 +5635,7 @@
   ]
  },
  "horn-attack": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5283,6 +5649,7 @@
   "stat_changes": []
  },
  "horn-drill": {
+  "accuracy": 30,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5296,6 +5663,7 @@
   "stat_changes": []
  },
  "horn-leech": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5309,6 +5677,7 @@
   "stat_changes": []
  },
  "howl": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5327,6 +5696,7 @@
   ]
  },
  "hurricane": {
+  "accuracy": 70,
   "ailment": "confusion",
   "ailment_chance": 30,
   "category": "special",
@@ -5340,6 +5710,7 @@
   "stat_changes": []
  },
  "hydro-cannon": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -5353,6 +5724,7 @@
   "stat_changes": []
  },
  "hydro-pump": {
+  "accuracy": 80,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -5366,6 +5738,7 @@
   "stat_changes": []
  },
  "hydro-steam": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -5379,6 +5752,7 @@
   "stat_changes": []
  },
  "hydro-vortex--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5392,6 +5766,7 @@
   "stat_changes": []
  },
  "hydro-vortex--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -5405,6 +5780,7 @@
   "stat_changes": []
  },
  "hyper-beam": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -5418,6 +5794,7 @@
   "stat_changes": []
  },
  "hyper-drill": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5431,6 +5808,7 @@
   "stat_changes": []
  },
  "hyper-fang": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5444,6 +5822,7 @@
   "stat_changes": []
  },
  "hyper-voice": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -5457,6 +5836,7 @@
   "stat_changes": []
  },
  "hyperspace-fury": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5475,6 +5855,7 @@
   ]
  },
  "hyperspace-hole": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -5488,6 +5869,7 @@
   "stat_changes": []
  },
  "hypnosis": {
+  "accuracy": 60,
   "ailment": "sleep",
   "ailment_chance": 0,
   "category": "status",
@@ -5501,6 +5883,7 @@
   "stat_changes": []
  },
  "ice-ball": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5514,6 +5897,7 @@
   "stat_changes": []
  },
  "ice-beam": {
+  "accuracy": 100,
   "ailment": "freeze",
   "ailment_chance": 10,
   "category": "special",
@@ -5527,6 +5911,7 @@
   "stat_changes": []
  },
  "ice-burn": {
+  "accuracy": 90,
   "ailment": "burn",
   "ailment_chance": 30,
   "category": "special",
@@ -5540,6 +5925,7 @@
   "stat_changes": []
  },
  "ice-fang": {
+  "accuracy": 95,
   "ailment": "freeze",
   "ailment_chance": 10,
   "category": "physical",
@@ -5553,6 +5939,7 @@
   "stat_changes": []
  },
  "ice-hammer": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5571,6 +5958,7 @@
   ]
  },
  "ice-punch": {
+  "accuracy": 100,
   "ailment": "freeze",
   "ailment_chance": 10,
   "category": "physical",
@@ -5584,6 +5972,7 @@
   "stat_changes": []
  },
  "ice-shard": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5597,6 +5986,7 @@
   "stat_changes": []
  },
  "ice-spinner": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5610,6 +6000,7 @@
   "stat_changes": []
  },
  "icicle-crash": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5623,6 +6014,7 @@
   "stat_changes": []
  },
  "icicle-spear": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5636,6 +6028,7 @@
   "stat_changes": []
  },
  "icy-wind": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -5654,6 +6047,7 @@
   ]
  },
  "imprison": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5667,6 +6061,7 @@
   "stat_changes": []
  },
  "incinerate": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -5680,6 +6075,7 @@
   "stat_changes": []
  },
  "infernal-parade": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -5693,6 +6089,7 @@
   "stat_changes": []
  },
  "inferno": {
+  "accuracy": 50,
   "ailment": "burn",
   "ailment_chance": 100,
   "category": "special",
@@ -5706,6 +6103,7 @@
   "stat_changes": []
  },
  "inferno-overdrive--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5719,6 +6117,7 @@
   "stat_changes": []
  },
  "inferno-overdrive--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -5732,6 +6131,7 @@
   "stat_changes": []
  },
  "infestation": {
+  "accuracy": 100,
   "ailment": "trap",
   "ailment_chance": 100,
   "category": "special",
@@ -5745,6 +6145,7 @@
   "stat_changes": []
  },
  "ingrain": {
+  "accuracy": null,
   "ailment": "ingrain",
   "ailment_chance": 0,
   "category": "status",
@@ -5758,6 +6159,7 @@
   "stat_changes": []
  },
  "instruct": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5771,6 +6173,7 @@
   "stat_changes": []
  },
  "ion-deluge": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5784,6 +6187,7 @@
   "stat_changes": []
  },
  "iron-defense": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5802,6 +6206,7 @@
   ]
  },
  "iron-head": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5815,6 +6220,7 @@
   "stat_changes": []
  },
  "iron-tail": {
+  "accuracy": 75,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5833,6 +6239,7 @@
   ]
  },
  "ivy-cudgel": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5846,6 +6253,7 @@
   "stat_changes": []
  },
  "jaw-lock": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5859,6 +6267,7 @@
   "stat_changes": []
  },
  "jet-punch": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5872,6 +6281,7 @@
   "stat_changes": []
  },
  "judgment": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -5885,6 +6295,7 @@
   "stat_changes": []
  },
  "jump-kick": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5898,6 +6309,7 @@
   "stat_changes": []
  },
  "jungle-healing": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5911,6 +6323,7 @@
   "stat_changes": []
  },
  "karate-chop": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5924,6 +6337,7 @@
   "stat_changes": []
  },
  "kinesis": {
+  "accuracy": 80,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5942,6 +6356,7 @@
   ]
  },
  "kings-shield": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -5955,6 +6370,7 @@
   "stat_changes": []
  },
  "knock-off": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5968,6 +6384,7 @@
   "stat_changes": []
  },
  "kowtow-cleave": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5981,6 +6398,7 @@
   "stat_changes": []
  },
  "lands-wrath": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -5994,6 +6412,7 @@
   "stat_changes": []
  },
  "laser-focus": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6007,6 +6426,7 @@
   "stat_changes": []
  },
  "lash-out": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6020,6 +6440,7 @@
   "stat_changes": []
  },
  "last-resort": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6033,6 +6454,7 @@
   "stat_changes": []
  },
  "last-respects": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6046,6 +6468,7 @@
   "stat_changes": []
  },
  "lava-plume": {
+  "accuracy": 100,
   "ailment": "burn",
   "ailment_chance": 30,
   "category": "special",
@@ -6059,6 +6482,7 @@
   "stat_changes": []
  },
  "leaf-blade": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6072,6 +6496,7 @@
   "stat_changes": []
  },
  "leaf-storm": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -6090,6 +6515,7 @@
   ]
  },
  "leaf-tornado": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -6108,6 +6534,7 @@
   ]
  },
  "leafage": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6121,6 +6548,7 @@
   "stat_changes": []
  },
  "leech-life": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6134,6 +6562,7 @@
   "stat_changes": []
  },
  "leech-seed": {
+  "accuracy": 90,
   "ailment": "leech-seed",
   "ailment_chance": 0,
   "category": "status",
@@ -6147,6 +6576,7 @@
   "stat_changes": []
  },
  "leer": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6165,6 +6595,7 @@
   ]
  },
  "lets-snuggle-forever": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6178,6 +6609,7 @@
   "stat_changes": []
  },
  "lick": {
+  "accuracy": 100,
   "ailment": "paralysis",
   "ailment_chance": 30,
   "category": "physical",
@@ -6191,6 +6623,7 @@
   "stat_changes": []
  },
  "life-dew": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6204,6 +6637,7 @@
   "stat_changes": []
  },
  "light-of-ruin": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -6217,6 +6651,7 @@
   "stat_changes": []
  },
  "light-screen": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6230,6 +6665,7 @@
   "stat_changes": []
  },
  "light-that-burns-the-sky": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -6243,6 +6679,7 @@
   "stat_changes": []
  },
  "liquidation": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6261,6 +6698,7 @@
   ]
  },
  "lock-on": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6274,6 +6712,7 @@
   "stat_changes": []
  },
  "lovely-kiss": {
+  "accuracy": 75,
   "ailment": "sleep",
   "ailment_chance": 0,
   "category": "status",
@@ -6287,6 +6726,7 @@
   "stat_changes": []
  },
  "low-kick": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6300,6 +6740,7 @@
   "stat_changes": []
  },
  "low-sweep": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6318,6 +6759,7 @@
   ]
  },
  "lucky-chant": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6331,6 +6773,7 @@
   "stat_changes": []
  },
  "lumina-crash": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -6349,6 +6792,7 @@
   ]
  },
  "lunar-blessing": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6362,6 +6806,7 @@
   "stat_changes": []
  },
  "lunar-dance": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6375,6 +6820,7 @@
   "stat_changes": []
  },
  "lunge": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6393,6 +6839,7 @@
   ]
  },
  "luster-purge": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -6411,6 +6858,7 @@
   ]
  },
  "mach-punch": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6424,6 +6872,7 @@
   "stat_changes": []
  },
  "magic-coat": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6437,6 +6886,7 @@
   "stat_changes": []
  },
  "magic-powder": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6450,6 +6900,7 @@
   "stat_changes": []
  },
  "magic-room": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6463,6 +6914,7 @@
   "stat_changes": []
  },
  "magical-leaf": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -6476,6 +6928,7 @@
   "stat_changes": []
  },
  "magical-torque": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6489,6 +6942,7 @@
   "stat_changes": []
  },
  "magma-storm": {
+  "accuracy": 75,
   "ailment": "trap",
   "ailment_chance": 100,
   "category": "special",
@@ -6502,6 +6956,7 @@
   "stat_changes": []
  },
  "magnet-bomb": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6515,6 +6970,7 @@
   "stat_changes": []
  },
  "magnet-rise": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6528,6 +6984,7 @@
   "stat_changes": []
  },
  "magnetic-flux": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6550,6 +7007,7 @@
   ]
  },
  "magnitude": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6563,6 +7021,7 @@
   "stat_changes": []
  },
  "make-it-rain": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -6581,6 +7040,7 @@
   ]
  },
  "malicious-moonsault": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6594,6 +7054,7 @@
   "stat_changes": []
  },
  "malignant-chain": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -6607,6 +7068,7 @@
   "stat_changes": []
  },
  "mat-block": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6620,6 +7082,7 @@
   "stat_changes": []
  },
  "matcha-gotcha": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -6633,6 +7096,7 @@
   "stat_changes": []
  },
  "max-airstream": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6646,6 +7110,7 @@
   "stat_changes": []
  },
  "max-darkness": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6659,6 +7124,7 @@
   "stat_changes": []
  },
  "max-flare": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6672,6 +7138,7 @@
   "stat_changes": []
  },
  "max-flutterby": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6685,6 +7152,7 @@
   "stat_changes": []
  },
  "max-geyser": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6698,6 +7166,7 @@
   "stat_changes": []
  },
  "max-guard": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6711,6 +7180,7 @@
   "stat_changes": []
  },
  "max-hailstorm": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6724,6 +7194,7 @@
   "stat_changes": []
  },
  "max-knuckle": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6737,6 +7208,7 @@
   "stat_changes": []
  },
  "max-lightning": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6750,6 +7222,7 @@
   "stat_changes": []
  },
  "max-mindstorm": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6763,6 +7236,7 @@
   "stat_changes": []
  },
  "max-ooze": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6776,6 +7250,7 @@
   "stat_changes": []
  },
  "max-overgrowth": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6789,6 +7264,7 @@
   "stat_changes": []
  },
  "max-phantasm": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6802,6 +7278,7 @@
   "stat_changes": []
  },
  "max-quake": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6815,6 +7292,7 @@
   "stat_changes": []
  },
  "max-rockfall": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6828,6 +7306,7 @@
   "stat_changes": []
  },
  "max-starfall": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6841,6 +7320,7 @@
   "stat_changes": []
  },
  "max-steelspike": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6854,6 +7334,7 @@
   "stat_changes": []
  },
  "max-strike": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6867,6 +7348,7 @@
   "stat_changes": []
  },
  "max-wyrmwind": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6880,6 +7362,7 @@
   "stat_changes": []
  },
  "me-first": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6893,6 +7376,7 @@
   "stat_changes": []
  },
  "mean-look": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6906,6 +7390,7 @@
   "stat_changes": []
  },
  "meditate": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6924,6 +7409,7 @@
   ]
  },
  "mega-drain": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -6937,6 +7423,7 @@
   "stat_changes": []
  },
  "mega-kick": {
+  "accuracy": 75,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6950,6 +7437,7 @@
   "stat_changes": []
  },
  "mega-punch": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6963,6 +7451,7 @@
   "stat_changes": []
  },
  "megahorn": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -6976,6 +7465,7 @@
   "stat_changes": []
  },
  "memento": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -6998,6 +7488,7 @@
   ]
  },
  "menacing-moonraze-maelstrom": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7011,6 +7502,7 @@
   "stat_changes": []
  },
  "metal-burst": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7024,6 +7516,7 @@
   "stat_changes": []
  },
  "metal-claw": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7042,6 +7535,7 @@
   ]
  },
  "metal-sound": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7060,6 +7554,7 @@
   ]
  },
  "meteor-assault": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7073,6 +7568,7 @@
   "stat_changes": []
  },
  "meteor-beam": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 100,
   "category": "special",
@@ -7086,6 +7582,7 @@
   "stat_changes": []
  },
  "meteor-mash": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7104,6 +7601,7 @@
   ]
  },
  "metronome": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7117,6 +7615,7 @@
   "stat_changes": []
  },
  "mighty-cleave": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7130,6 +7629,7 @@
   "stat_changes": []
  },
  "milk-drink": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7143,6 +7643,7 @@
   "stat_changes": []
  },
  "mimic": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7156,6 +7657,7 @@
   "stat_changes": []
  },
  "mind-blown": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7169,6 +7671,7 @@
   "stat_changes": []
  },
  "mind-reader": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7182,6 +7685,7 @@
   "stat_changes": []
  },
  "minimize": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7200,6 +7704,7 @@
   ]
  },
  "miracle-eye": {
+  "accuracy": null,
   "ailment": "no-type-immunity",
   "ailment_chance": 0,
   "category": "status",
@@ -7213,6 +7718,7 @@
   "stat_changes": []
  },
  "mirror-coat": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7226,6 +7732,7 @@
   "stat_changes": []
  },
  "mirror-move": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7239,6 +7746,7 @@
   "stat_changes": []
  },
  "mirror-shot": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7257,6 +7765,7 @@
   ]
  },
  "mist": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7270,6 +7779,7 @@
   "stat_changes": []
  },
  "mist-ball": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7288,6 +7798,7 @@
   ]
  },
  "misty-explosion": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7301,6 +7812,7 @@
   "stat_changes": []
  },
  "misty-terrain": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7314,6 +7826,7 @@
   "stat_changes": []
  },
  "moonblast": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7332,6 +7845,7 @@
   ]
  },
  "moongeist-beam": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7345,6 +7859,7 @@
   "stat_changes": []
  },
  "moonlight": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7358,6 +7873,7 @@
   "stat_changes": []
  },
  "morning-sun": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7371,6 +7887,7 @@
   "stat_changes": []
  },
  "mortal-spin": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7384,6 +7901,7 @@
   "stat_changes": []
  },
  "mountain-gale": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7397,6 +7915,7 @@
   "stat_changes": []
  },
  "mud-bomb": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7415,6 +7934,7 @@
   ]
  },
  "mud-shot": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7433,6 +7953,7 @@
   ]
  },
  "mud-slap": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7451,6 +7972,7 @@
   ]
  },
  "mud-sport": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7464,6 +7986,7 @@
   "stat_changes": []
  },
  "muddy-water": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7482,6 +8005,7 @@
   ]
  },
  "multi-attack": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7495,6 +8019,7 @@
   "stat_changes": []
  },
  "mystical-fire": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7513,6 +8038,7 @@
   ]
  },
  "mystical-power": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7526,6 +8052,7 @@
   "stat_changes": []
  },
  "nasty-plot": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7544,6 +8071,7 @@
   ]
  },
  "natural-gift": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7557,6 +8085,7 @@
   "stat_changes": []
  },
  "nature-power": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7570,6 +8099,7 @@
   "stat_changes": []
  },
  "natures-madness": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7583,6 +8113,7 @@
   "stat_changes": []
  },
  "needle-arm": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7596,6 +8127,7 @@
   "stat_changes": []
  },
  "never-ending-nightmare--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7609,6 +8141,7 @@
   "stat_changes": []
  },
  "never-ending-nightmare--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7622,6 +8155,7 @@
   "stat_changes": []
  },
  "night-daze": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7640,6 +8174,7 @@
   ]
  },
  "night-shade": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7653,6 +8188,7 @@
   "stat_changes": []
  },
  "night-slash": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7666,6 +8202,7 @@
   "stat_changes": []
  },
  "nightmare": {
+  "accuracy": 100,
   "ailment": "nightmare",
   "ailment_chance": 0,
   "category": "status",
@@ -7679,6 +8216,7 @@
   "stat_changes": []
  },
  "no-retreat": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7713,6 +8251,7 @@
   ]
  },
  "noble-roar": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7735,6 +8274,7 @@
   ]
  },
  "noxious-torque": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7748,6 +8288,7 @@
   "stat_changes": []
  },
  "nuzzle": {
+  "accuracy": 100,
   "ailment": "paralysis",
   "ailment_chance": 100,
   "category": "physical",
@@ -7761,6 +8302,7 @@
   "stat_changes": []
  },
  "oblivion-wing": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7774,6 +8316,7 @@
   "stat_changes": []
  },
  "obstruct": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7787,6 +8330,7 @@
   "stat_changes": []
  },
  "oceanic-operetta": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7800,6 +8344,7 @@
   "stat_changes": []
  },
  "octazooka": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7818,6 +8363,7 @@
   ]
  },
  "octolock": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7831,6 +8377,7 @@
   "stat_changes": []
  },
  "odor-sleuth": {
+  "accuracy": null,
   "ailment": "no-type-immunity",
   "ailment_chance": 0,
   "category": "status",
@@ -7844,6 +8391,7 @@
   "stat_changes": []
  },
  "ominous-wind": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 10,
   "category": "special",
@@ -7878,6 +8426,7 @@
   ]
  },
  "order-up": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7891,6 +8440,7 @@
   "stat_changes": []
  },
  "origin-pulse": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7904,6 +8454,7 @@
   "stat_changes": []
  },
  "outrage": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -7917,6 +8468,7 @@
   "stat_changes": []
  },
  "overdrive": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7930,6 +8482,7 @@
   "stat_changes": []
  },
  "overheat": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7948,6 +8501,7 @@
   ]
  },
  "pain-split": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7961,6 +8515,7 @@
   "stat_changes": []
  },
  "parabolic-charge": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -7974,6 +8529,7 @@
   "stat_changes": []
  },
  "parting-shot": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -7996,6 +8552,7 @@
   ]
  },
  "pay-day": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8009,6 +8566,7 @@
   "stat_changes": []
  },
  "payback": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8022,6 +8580,7 @@
   "stat_changes": []
  },
  "peck": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8035,6 +8594,7 @@
   "stat_changes": []
  },
  "perish-song": {
+  "accuracy": null,
   "ailment": "perish-song",
   "ailment_chance": 0,
   "category": "status",
@@ -8048,6 +8608,7 @@
   "stat_changes": []
  },
  "petal-blizzard": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8061,6 +8622,7 @@
   "stat_changes": []
  },
  "petal-dance": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -8074,6 +8636,7 @@
   "stat_changes": []
  },
  "phantom-force": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8087,6 +8650,7 @@
   "stat_changes": []
  },
  "photon-geyser": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -8100,6 +8664,7 @@
   "stat_changes": []
  },
  "pika-papow": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -8113,6 +8678,7 @@
   "stat_changes": []
  },
  "pin-missile": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8126,6 +8692,7 @@
   "stat_changes": []
  },
  "plasma-fists": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8139,6 +8706,7 @@
   "stat_changes": []
  },
  "play-nice": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8157,6 +8725,7 @@
   ]
  },
  "play-rough": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8175,6 +8744,7 @@
   ]
  },
  "pluck": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8188,6 +8758,7 @@
   "stat_changes": []
  },
  "poison-fang": {
+  "accuracy": 100,
   "ailment": "poison",
   "ailment_chance": 50,
   "category": "physical",
@@ -8201,6 +8772,7 @@
   "stat_changes": []
  },
  "poison-gas": {
+  "accuracy": 90,
   "ailment": "poison",
   "ailment_chance": 0,
   "category": "status",
@@ -8214,6 +8786,7 @@
   "stat_changes": []
  },
  "poison-jab": {
+  "accuracy": 100,
   "ailment": "poison",
   "ailment_chance": 30,
   "category": "physical",
@@ -8227,6 +8800,7 @@
   "stat_changes": []
  },
  "poison-powder": {
+  "accuracy": 75,
   "ailment": "poison",
   "ailment_chance": 0,
   "category": "status",
@@ -8240,6 +8814,7 @@
   "stat_changes": []
  },
  "poison-sting": {
+  "accuracy": 100,
   "ailment": "poison",
   "ailment_chance": 30,
   "category": "physical",
@@ -8253,6 +8828,7 @@
   "stat_changes": []
  },
  "poison-tail": {
+  "accuracy": 100,
   "ailment": "poison",
   "ailment_chance": 10,
   "category": "physical",
@@ -8266,6 +8842,7 @@
   "stat_changes": []
  },
  "pollen-puff": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -8279,6 +8856,7 @@
   "stat_changes": []
  },
  "poltergeist": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8292,6 +8870,7 @@
   "stat_changes": []
  },
  "population-bomb": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8305,6 +8884,7 @@
   "stat_changes": []
  },
  "pounce": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8323,6 +8903,7 @@
   ]
  },
  "pound": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8336,6 +8917,7 @@
   "stat_changes": []
  },
  "powder": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8349,6 +8931,7 @@
   "stat_changes": []
  },
  "powder-snow": {
+  "accuracy": 100,
   "ailment": "freeze",
   "ailment_chance": 10,
   "category": "special",
@@ -8362,6 +8945,7 @@
   "stat_changes": []
  },
  "power-gem": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -8375,6 +8959,7 @@
   "stat_changes": []
  },
  "power-shift": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8388,6 +8973,7 @@
   "stat_changes": []
  },
  "power-split": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8401,6 +8987,7 @@
   "stat_changes": []
  },
  "power-swap": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8414,6 +9001,7 @@
   "stat_changes": []
  },
  "power-trick": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8427,6 +9015,7 @@
   "stat_changes": []
  },
  "power-trip": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8440,6 +9029,7 @@
   "stat_changes": []
  },
  "power-up-punch": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8458,6 +9048,7 @@
   ]
  },
  "power-whip": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8471,6 +9062,7 @@
   "stat_changes": []
  },
  "precipice-blades": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8484,6 +9076,7 @@
   "stat_changes": []
  },
  "present": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8497,6 +9090,7 @@
   "stat_changes": []
  },
  "prismatic-laser": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -8510,6 +9104,7 @@
   "stat_changes": []
  },
  "protect": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8523,6 +9118,7 @@
   "stat_changes": []
  },
  "psybeam": {
+  "accuracy": 100,
   "ailment": "confusion",
   "ailment_chance": 10,
   "category": "special",
@@ -8536,6 +9132,7 @@
   "stat_changes": []
  },
  "psyblade": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8549,6 +9146,7 @@
   "stat_changes": []
  },
  "psych-up": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8562,6 +9160,7 @@
   "stat_changes": []
  },
  "psychic": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -8580,6 +9179,7 @@
   ]
  },
  "psychic-fangs": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8593,6 +9193,7 @@
   "stat_changes": []
  },
  "psychic-noise": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -8606,6 +9207,7 @@
   "stat_changes": []
  },
  "psychic-terrain": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8619,6 +9221,7 @@
   "stat_changes": []
  },
  "psycho-boost": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -8637,6 +9240,7 @@
   ]
  },
  "psycho-cut": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8650,6 +9254,7 @@
   "stat_changes": []
  },
  "psycho-shift": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8663,6 +9268,7 @@
   "stat_changes": []
  },
  "psyshield-bash": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8676,6 +9282,7 @@
   "stat_changes": []
  },
  "psyshock": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -8689,6 +9296,7 @@
   "stat_changes": []
  },
  "psystrike": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -8702,6 +9310,7 @@
   "stat_changes": []
  },
  "psywave": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -8715,6 +9324,7 @@
   "stat_changes": []
  },
  "pulverizing-pancake": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8728,6 +9338,7 @@
   "stat_changes": []
  },
  "punishment": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8741,6 +9352,7 @@
   "stat_changes": []
  },
  "purify": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8754,6 +9366,7 @@
   "stat_changes": []
  },
  "pursuit": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8767,6 +9380,7 @@
   "stat_changes": []
  },
  "pyro-ball": {
+  "accuracy": 90,
   "ailment": "burn",
   "ailment_chance": 10,
   "category": "physical",
@@ -8780,6 +9394,7 @@
   "stat_changes": []
  },
  "quash": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8793,6 +9408,7 @@
   "stat_changes": []
  },
  "quick-attack": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8806,6 +9422,7 @@
   "stat_changes": []
  },
  "quick-guard": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8819,6 +9436,7 @@
   "stat_changes": []
  },
  "quiver-dance": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8845,6 +9463,7 @@
   ]
  },
  "rage": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8858,6 +9477,7 @@
   "stat_changes": []
  },
  "rage-fist": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8871,6 +9491,7 @@
   "stat_changes": []
  },
  "rage-powder": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8884,6 +9505,7 @@
   "stat_changes": []
  },
  "raging-bull": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8897,6 +9519,7 @@
   "stat_changes": []
  },
  "raging-fury": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8910,6 +9533,7 @@
   "stat_changes": []
  },
  "rain-dance": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8923,6 +9547,7 @@
   "stat_changes": []
  },
  "rapid-spin": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8941,6 +9566,7 @@
   ]
  },
  "razor-leaf": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8954,6 +9580,7 @@
   "stat_changes": []
  },
  "razor-shell": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -8972,6 +9599,7 @@
   ]
  },
  "razor-wind": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -8985,6 +9613,7 @@
   "stat_changes": []
  },
  "recover": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -8998,6 +9627,7 @@
   "stat_changes": []
  },
  "recycle": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9011,6 +9641,7 @@
   "stat_changes": []
  },
  "reflect": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9024,6 +9655,7 @@
   "stat_changes": []
  },
  "reflect-type": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9037,6 +9669,7 @@
   "stat_changes": []
  },
  "refresh": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9050,6 +9683,7 @@
   "stat_changes": []
  },
  "relic-song": {
+  "accuracy": 100,
   "ailment": "sleep",
   "ailment_chance": 10,
   "category": "special",
@@ -9063,6 +9697,7 @@
   "stat_changes": []
  },
  "rest": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9076,6 +9711,7 @@
   "stat_changes": []
  },
  "retaliate": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9089,6 +9725,7 @@
   "stat_changes": []
  },
  "return": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9102,6 +9739,7 @@
   "stat_changes": []
  },
  "revelation-dance": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -9115,6 +9753,7 @@
   "stat_changes": []
  },
  "revenge": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9128,6 +9767,7 @@
   "stat_changes": []
  },
  "reversal": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9141,6 +9781,7 @@
   "stat_changes": []
  },
  "revival-blessing": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9154,6 +9795,7 @@
   "stat_changes": []
  },
  "rising-voltage": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -9167,6 +9809,7 @@
   "stat_changes": []
  },
  "roar": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9180,6 +9823,7 @@
   "stat_changes": []
  },
  "roar-of-time": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -9193,6 +9837,7 @@
   "stat_changes": []
  },
  "rock-blast": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9206,6 +9851,7 @@
   "stat_changes": []
  },
  "rock-climb": {
+  "accuracy": 85,
   "ailment": "confusion",
   "ailment_chance": 20,
   "category": "physical",
@@ -9219,6 +9865,7 @@
   "stat_changes": []
  },
  "rock-polish": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9237,6 +9884,7 @@
   ]
  },
  "rock-slide": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9250,6 +9898,7 @@
   "stat_changes": []
  },
  "rock-smash": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9268,6 +9917,7 @@
   ]
  },
  "rock-throw": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9281,6 +9931,7 @@
   "stat_changes": []
  },
  "rock-tomb": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9299,6 +9950,7 @@
   ]
  },
  "rock-wrecker": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9312,6 +9964,7 @@
   "stat_changes": []
  },
  "role-play": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9325,6 +9978,7 @@
   "stat_changes": []
  },
  "rolling-kick": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9338,6 +9992,7 @@
   "stat_changes": []
  },
  "rollout": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9351,6 +10006,7 @@
   "stat_changes": []
  },
  "roost": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9364,6 +10020,7 @@
   "stat_changes": []
  },
  "rototiller": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9386,6 +10043,7 @@
   ]
  },
  "round": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -9399,6 +10057,7 @@
   "stat_changes": []
  },
  "ruination": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -9412,6 +10071,7 @@
   "stat_changes": []
  },
  "sacred-fire": {
+  "accuracy": 95,
   "ailment": "burn",
   "ailment_chance": 50,
   "category": "physical",
@@ -9425,6 +10085,7 @@
   "stat_changes": []
  },
  "sacred-sword": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9438,6 +10099,7 @@
   "stat_changes": []
  },
  "safeguard": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9451,6 +10113,7 @@
   "stat_changes": []
  },
  "salt-cure": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9464,6 +10127,7 @@
   "stat_changes": []
  },
  "sand-attack": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9482,6 +10146,7 @@
   ]
  },
  "sand-tomb": {
+  "accuracy": 85,
   "ailment": "trap",
   "ailment_chance": 100,
   "category": "physical",
@@ -9495,6 +10160,7 @@
   "stat_changes": []
  },
  "sandsear-storm": {
+  "accuracy": 80,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -9508,6 +10174,7 @@
   "stat_changes": []
  },
  "sandstorm": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9521,6 +10188,7 @@
   "stat_changes": []
  },
  "sappy-seed": {
+  "accuracy": 90,
   "ailment": "leech-seed",
   "ailment_chance": 100,
   "category": "physical",
@@ -9534,6 +10202,7 @@
   "stat_changes": []
  },
  "savage-spin-out--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9547,6 +10216,7 @@
   "stat_changes": []
  },
  "savage-spin-out--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -9560,6 +10230,7 @@
   "stat_changes": []
  },
  "scald": {
+  "accuracy": 100,
   "ailment": "burn",
   "ailment_chance": 30,
   "category": "special",
@@ -9573,6 +10244,7 @@
   "stat_changes": []
  },
  "scale-shot": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9586,6 +10258,7 @@
   "stat_changes": []
  },
  "scary-face": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9604,6 +10277,7 @@
   ]
  },
  "scorching-sands": {
+  "accuracy": 100,
   "ailment": "burn",
   "ailment_chance": 30,
   "category": "special",
@@ -9617,6 +10291,7 @@
   "stat_changes": []
  },
  "scratch": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9630,6 +10305,7 @@
   "stat_changes": []
  },
  "screech": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9648,6 +10324,7 @@
   ]
  },
  "searing-shot": {
+  "accuracy": 100,
   "ailment": "burn",
   "ailment_chance": 30,
   "category": "special",
@@ -9661,6 +10338,7 @@
   "stat_changes": []
  },
  "searing-sunraze-smash": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9674,6 +10352,7 @@
   "stat_changes": []
  },
  "secret-power": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 30,
   "category": "physical",
@@ -9687,6 +10366,7 @@
   "stat_changes": []
  },
  "secret-sword": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -9700,6 +10380,7 @@
   "stat_changes": []
  },
  "seed-bomb": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9713,6 +10394,7 @@
   "stat_changes": []
  },
  "seed-flare": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -9731,6 +10413,7 @@
   ]
  },
  "seismic-toss": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9744,6 +10427,7 @@
   "stat_changes": []
  },
  "self-destruct": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9757,6 +10441,7 @@
   "stat_changes": []
  },
  "shadow-ball": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -9775,6 +10460,7 @@
   ]
  },
  "shadow-bone": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9793,6 +10479,7 @@
   ]
  },
  "shadow-claw": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9806,6 +10493,7 @@
   "stat_changes": []
  },
  "shadow-force": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9819,6 +10507,7 @@
   "stat_changes": []
  },
  "shadow-punch": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9832,6 +10521,7 @@
   "stat_changes": []
  },
  "shadow-sneak": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9845,6 +10535,7 @@
   "stat_changes": []
  },
  "sharpen": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9863,6 +10554,7 @@
   ]
  },
  "shattered-psyche--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -9876,6 +10568,7 @@
   "stat_changes": []
  },
  "shattered-psyche--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -9889,6 +10582,7 @@
   "stat_changes": []
  },
  "shed-tail": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9902,6 +10596,7 @@
   "stat_changes": []
  },
  "sheer-cold": {
+  "accuracy": 30,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -9915,6 +10610,7 @@
   "stat_changes": []
  },
  "shell-side-arm": {
+  "accuracy": 100,
   "ailment": "poison",
   "ailment_chance": 20,
   "category": "special",
@@ -9928,6 +10624,7 @@
   "stat_changes": []
  },
  "shell-smash": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9962,6 +10659,7 @@
   ]
  },
  "shell-trap": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -9975,6 +10673,7 @@
   "stat_changes": []
  },
  "shelter": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -9988,6 +10687,7 @@
   "stat_changes": []
  },
  "shift-gear": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10010,6 +10710,7 @@
   ]
  },
  "shock-wave": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -10023,6 +10724,7 @@
   "stat_changes": []
  },
  "shore-up": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10036,6 +10738,7 @@
   "stat_changes": []
  },
  "signal-beam": {
+  "accuracy": 100,
   "ailment": "confusion",
   "ailment_chance": 10,
   "category": "special",
@@ -10049,6 +10752,7 @@
   "stat_changes": []
  },
  "silk-trap": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10067,6 +10771,7 @@
   ]
  },
  "silver-wind": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -10101,6 +10806,7 @@
   ]
  },
  "simple-beam": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10114,6 +10820,7 @@
   "stat_changes": []
  },
  "sing": {
+  "accuracy": 55,
   "ailment": "sleep",
   "ailment_chance": 0,
   "category": "status",
@@ -10127,6 +10834,7 @@
   "stat_changes": []
  },
  "sinister-arrow-raid": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10140,6 +10848,7 @@
   "stat_changes": []
  },
  "sizzly-slide": {
+  "accuracy": 100,
   "ailment": "burn",
   "ailment_chance": 100,
   "category": "physical",
@@ -10153,6 +10862,7 @@
   "stat_changes": []
  },
  "sketch": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10166,6 +10876,7 @@
   "stat_changes": []
  },
  "skill-swap": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10179,6 +10890,7 @@
   "stat_changes": []
  },
  "skitter-smack": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10197,6 +10909,7 @@
   ]
  },
  "skull-bash": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 100,
   "category": "physical",
@@ -10210,6 +10923,7 @@
   "stat_changes": []
  },
  "sky-attack": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10223,6 +10937,7 @@
   "stat_changes": []
  },
  "sky-drop": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10236,6 +10951,7 @@
   "stat_changes": []
  },
  "sky-uppercut": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10249,6 +10965,7 @@
   "stat_changes": []
  },
  "slack-off": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10262,6 +10979,7 @@
   "stat_changes": []
  },
  "slam": {
+  "accuracy": 75,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10275,6 +10993,7 @@
   "stat_changes": []
  },
  "slash": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10288,6 +11007,7 @@
   "stat_changes": []
  },
  "sleep-powder": {
+  "accuracy": 75,
   "ailment": "sleep",
   "ailment_chance": 0,
   "category": "status",
@@ -10301,6 +11021,7 @@
   "stat_changes": []
  },
  "sleep-talk": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10314,6 +11035,7 @@
   "stat_changes": []
  },
  "sludge": {
+  "accuracy": 100,
   "ailment": "poison",
   "ailment_chance": 30,
   "category": "special",
@@ -10327,6 +11049,7 @@
   "stat_changes": []
  },
  "sludge-bomb": {
+  "accuracy": 100,
   "ailment": "poison",
   "ailment_chance": 30,
   "category": "special",
@@ -10340,6 +11063,7 @@
   "stat_changes": []
  },
  "sludge-wave": {
+  "accuracy": 100,
   "ailment": "poison",
   "ailment_chance": 10,
   "category": "special",
@@ -10353,6 +11077,7 @@
   "stat_changes": []
  },
  "smack-down": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 100,
   "category": "physical",
@@ -10366,6 +11091,7 @@
   "stat_changes": []
  },
  "smart-strike": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10379,6 +11105,7 @@
   "stat_changes": []
  },
  "smelling-salts": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10392,6 +11119,7 @@
   "stat_changes": []
  },
  "smog": {
+  "accuracy": 70,
   "ailment": "poison",
   "ailment_chance": 40,
   "category": "special",
@@ -10405,6 +11133,7 @@
   "stat_changes": []
  },
  "smokescreen": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10423,6 +11152,7 @@
   ]
  },
  "snap-trap": {
+  "accuracy": 100,
   "ailment": "trap",
   "ailment_chance": 100,
   "category": "physical",
@@ -10436,6 +11166,7 @@
   "stat_changes": []
  },
  "snarl": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -10454,6 +11185,7 @@
   ]
  },
  "snatch": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10467,6 +11199,7 @@
   "stat_changes": []
  },
  "snipe-shot": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -10480,6 +11213,7 @@
   "stat_changes": []
  },
  "snore": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -10493,6 +11227,7 @@
   "stat_changes": []
  },
  "snowscape": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10506,6 +11241,7 @@
   "stat_changes": []
  },
  "soak": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10519,6 +11255,7 @@
   "stat_changes": []
  },
  "soft-boiled": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10532,6 +11269,7 @@
   "stat_changes": []
  },
  "solar-beam": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -10545,6 +11283,7 @@
   "stat_changes": []
  },
  "solar-blade": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10558,6 +11297,7 @@
   "stat_changes": []
  },
  "sonic-boom": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -10571,6 +11311,7 @@
   "stat_changes": []
  },
  "soul-stealing-7-star-strike": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10584,6 +11325,7 @@
   "stat_changes": []
  },
  "spacial-rend": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -10597,6 +11339,7 @@
   "stat_changes": []
  },
  "spark": {
+  "accuracy": 100,
   "ailment": "paralysis",
   "ailment_chance": 30,
   "category": "physical",
@@ -10610,6 +11353,7 @@
   "stat_changes": []
  },
  "sparkling-aria": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -10623,6 +11367,7 @@
   "stat_changes": []
  },
  "sparkly-swirl": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -10636,6 +11381,7 @@
   "stat_changes": []
  },
  "spectral-thief": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10649,6 +11395,7 @@
   "stat_changes": []
  },
  "speed-swap": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10662,6 +11409,7 @@
   "stat_changes": []
  },
  "spicy-extract": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10684,6 +11432,7 @@
   ]
  },
  "spider-web": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10697,6 +11446,7 @@
   "stat_changes": []
  },
  "spike-cannon": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10710,6 +11460,7 @@
   "stat_changes": []
  },
  "spikes": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10723,6 +11474,7 @@
   "stat_changes": []
  },
  "spiky-shield": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10736,6 +11488,7 @@
   "stat_changes": []
  },
  "spin-out": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10754,6 +11507,7 @@
   ]
  },
  "spirit-break": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10772,6 +11526,7 @@
   ]
  },
  "spirit-shackle": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10785,6 +11540,7 @@
   "stat_changes": []
  },
  "spit-up": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -10798,6 +11554,7 @@
   "stat_changes": []
  },
  "spite": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10811,6 +11568,7 @@
   "stat_changes": []
  },
  "splash": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10824,6 +11582,7 @@
   "stat_changes": []
  },
  "splintered-stormshards": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10837,6 +11596,7 @@
   "stat_changes": []
  },
  "splishy-splash": {
+  "accuracy": 100,
   "ailment": "paralysis",
   "ailment_chance": 30,
   "category": "special",
@@ -10850,6 +11610,7 @@
   "stat_changes": []
  },
  "spore": {
+  "accuracy": 100,
   "ailment": "sleep",
   "ailment_chance": 0,
   "category": "status",
@@ -10863,6 +11624,7 @@
   "stat_changes": []
  },
  "spotlight": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10876,6 +11638,7 @@
   "stat_changes": []
  },
  "springtide-storm": {
+  "accuracy": 80,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -10889,6 +11652,7 @@
   "stat_changes": []
  },
  "stealth-rock": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10902,6 +11666,7 @@
   "stat_changes": []
  },
  "steam-eruption": {
+  "accuracy": 95,
   "ailment": "burn",
   "ailment_chance": 30,
   "category": "special",
@@ -10915,6 +11680,7 @@
   "stat_changes": []
  },
  "steamroller": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10928,6 +11694,7 @@
   "stat_changes": []
  },
  "steel-beam": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -10941,6 +11708,7 @@
   "stat_changes": []
  },
  "steel-roller": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10954,6 +11722,7 @@
   "stat_changes": []
  },
  "steel-wing": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -10972,6 +11741,7 @@
   ]
  },
  "sticky-web": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -10985,6 +11755,7 @@
   "stat_changes": []
  },
  "stockpile": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11007,6 +11778,7 @@
   ]
  },
  "stoked-sparksurfer": {
+  "accuracy": null,
   "ailment": "paralysis",
   "ailment_chance": 100,
   "category": "special",
@@ -11020,6 +11792,7 @@
   "stat_changes": []
  },
  "stomp": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11033,6 +11806,7 @@
   "stat_changes": []
  },
  "stomping-tantrum": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11046,6 +11820,7 @@
   "stat_changes": []
  },
  "stone-axe": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11059,6 +11834,7 @@
   "stat_changes": []
  },
  "stone-edge": {
+  "accuracy": 80,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11072,6 +11848,7 @@
   "stat_changes": []
  },
  "stored-power": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -11085,6 +11862,7 @@
   "stat_changes": []
  },
  "storm-throw": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11098,6 +11876,7 @@
   "stat_changes": []
  },
  "strange-steam": {
+  "accuracy": 95,
   "ailment": "confusion",
   "ailment_chance": 20,
   "category": "special",
@@ -11111,6 +11890,7 @@
   "stat_changes": []
  },
  "strength": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11124,6 +11904,7 @@
   "stat_changes": []
  },
  "strength-sap": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11142,6 +11923,7 @@
   ]
  },
  "string-shot": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11160,6 +11942,7 @@
   ]
  },
  "struggle": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11173,6 +11956,7 @@
   "stat_changes": []
  },
  "struggle-bug": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -11191,6 +11975,7 @@
   ]
  },
  "stuff-cheeks": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11209,6 +11994,7 @@
   ]
  },
  "stun-spore": {
+  "accuracy": 75,
   "ailment": "paralysis",
   "ailment_chance": 0,
   "category": "status",
@@ -11222,6 +12008,7 @@
   "stat_changes": []
  },
  "submission": {
+  "accuracy": 80,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11235,6 +12022,7 @@
   "stat_changes": []
  },
  "substitute": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11248,6 +12036,7 @@
   "stat_changes": []
  },
  "subzero-slammer--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11261,6 +12050,7 @@
   "stat_changes": []
  },
  "subzero-slammer--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -11274,6 +12064,7 @@
   "stat_changes": []
  },
  "sucker-punch": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11287,6 +12078,7 @@
   "stat_changes": []
  },
  "sunny-day": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11300,6 +12092,7 @@
   "stat_changes": []
  },
  "sunsteel-strike": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11313,6 +12106,7 @@
   "stat_changes": []
  },
  "super-fang": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11326,6 +12120,7 @@
   "stat_changes": []
  },
  "supercell-slam": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11339,6 +12134,7 @@
   "stat_changes": []
  },
  "superpower": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11361,6 +12157,7 @@
   ]
  },
  "supersonic": {
+  "accuracy": 55,
   "ailment": "confusion",
   "ailment_chance": 0,
   "category": "status",
@@ -11374,6 +12171,7 @@
   "stat_changes": []
  },
  "supersonic-skystrike--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11387,6 +12185,7 @@
   "stat_changes": []
  },
  "supersonic-skystrike--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -11400,6 +12199,7 @@
   "stat_changes": []
  },
  "surf": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -11413,6 +12213,7 @@
   "stat_changes": []
  },
  "surging-strikes": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11426,6 +12227,7 @@
   "stat_changes": []
  },
  "swagger": {
+  "accuracy": 85,
   "ailment": "confusion",
   "ailment_chance": 0,
   "category": "status",
@@ -11444,6 +12246,7 @@
   ]
  },
  "swallow": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11457,6 +12260,7 @@
   "stat_changes": []
  },
  "sweet-kiss": {
+  "accuracy": 75,
   "ailment": "confusion",
   "ailment_chance": 0,
   "category": "status",
@@ -11470,6 +12274,7 @@
   "stat_changes": []
  },
  "sweet-scent": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11488,6 +12293,7 @@
   ]
  },
  "swift": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -11501,6 +12307,7 @@
   "stat_changes": []
  },
  "switcheroo": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11514,6 +12321,7 @@
   "stat_changes": []
  },
  "swords-dance": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11532,6 +12340,7 @@
   ]
  },
  "synchronoise": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -11545,6 +12354,7 @@
   "stat_changes": []
  },
  "synthesis": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11558,6 +12368,7 @@
   "stat_changes": []
  },
  "syrup-bomb": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -11576,6 +12387,7 @@
   ]
  },
  "tachyon-cutter": {
+  "accuracy": 0,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -11589,6 +12401,7 @@
   "stat_changes": []
  },
  "tackle": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11602,6 +12415,7 @@
   "stat_changes": []
  },
  "tail-glow": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11620,6 +12434,7 @@
   ]
  },
  "tail-slap": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11633,6 +12448,7 @@
   "stat_changes": []
  },
  "tail-whip": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11651,6 +12467,7 @@
   ]
  },
  "tailwind": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11664,6 +12481,7 @@
   "stat_changes": []
  },
  "take-down": {
+  "accuracy": 85,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11677,6 +12495,7 @@
   "stat_changes": []
  },
  "take-heart": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11690,6 +12509,7 @@
   "stat_changes": []
  },
  "tar-shot": {
+  "accuracy": 100,
   "ailment": "tar-shot",
   "ailment_chance": 100,
   "category": "status",
@@ -11708,6 +12528,7 @@
   ]
  },
  "taunt": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11721,6 +12542,7 @@
   "stat_changes": []
  },
  "tearful-look": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11743,6 +12565,7 @@
   ]
  },
  "teatime": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11756,6 +12579,7 @@
   "stat_changes": []
  },
  "techno-blast": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -11769,6 +12593,7 @@
   "stat_changes": []
  },
  "tectonic-rage--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11782,6 +12607,7 @@
   "stat_changes": []
  },
  "tectonic-rage--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -11795,6 +12621,7 @@
   "stat_changes": []
  },
  "teeter-dance": {
+  "accuracy": 100,
   "ailment": "confusion",
   "ailment_chance": 0,
   "category": "status",
@@ -11808,6 +12635,7 @@
   "stat_changes": []
  },
  "telekinesis": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11821,6 +12649,7 @@
   "stat_changes": []
  },
  "teleport": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -11834,6 +12663,7 @@
   "stat_changes": []
  },
  "temper-flare": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11847,6 +12677,7 @@
   "stat_changes": []
  },
  "tera-blast": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -11869,6 +12700,7 @@
   ]
  },
  "tera-starstorm": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -11882,6 +12714,7 @@
   "stat_changes": []
  },
  "terrain-pulse": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -11895,6 +12728,7 @@
   "stat_changes": []
  },
  "thief": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11908,6 +12742,7 @@
   "stat_changes": []
  },
  "thousand-arrows": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 100,
   "category": "physical",
@@ -11921,6 +12756,7 @@
   "stat_changes": []
  },
  "thousand-waves": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11934,6 +12770,7 @@
   "stat_changes": []
  },
  "thrash": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -11947,6 +12784,7 @@
   "stat_changes": []
  },
  "throat-chop": {
+  "accuracy": 100,
   "ailment": "silence",
   "ailment_chance": 100,
   "category": "physical",
@@ -11960,6 +12798,7 @@
   "stat_changes": []
  },
  "thunder": {
+  "accuracy": 70,
   "ailment": "paralysis",
   "ailment_chance": 30,
   "category": "special",
@@ -11973,6 +12812,7 @@
   "stat_changes": []
  },
  "thunder-cage": {
+  "accuracy": 90,
   "ailment": "trap",
   "ailment_chance": 100,
   "category": "special",
@@ -11986,6 +12826,7 @@
   "stat_changes": []
  },
  "thunder-fang": {
+  "accuracy": 95,
   "ailment": "paralysis",
   "ailment_chance": 10,
   "category": "physical",
@@ -11999,6 +12840,7 @@
   "stat_changes": []
  },
  "thunder-punch": {
+  "accuracy": 100,
   "ailment": "paralysis",
   "ailment_chance": 10,
   "category": "physical",
@@ -12012,6 +12854,7 @@
   "stat_changes": []
  },
  "thunder-shock": {
+  "accuracy": 100,
   "ailment": "paralysis",
   "ailment_chance": 10,
   "category": "special",
@@ -12025,6 +12868,7 @@
   "stat_changes": []
  },
  "thunder-wave": {
+  "accuracy": 90,
   "ailment": "paralysis",
   "ailment_chance": 0,
   "category": "status",
@@ -12038,6 +12882,7 @@
   "stat_changes": []
  },
  "thunderbolt": {
+  "accuracy": 100,
   "ailment": "paralysis",
   "ailment_chance": 10,
   "category": "special",
@@ -12051,6 +12896,7 @@
   "stat_changes": []
  },
  "thunderclap": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12064,6 +12910,7 @@
   "stat_changes": []
  },
  "thunderous-kick": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12082,6 +12929,7 @@
   ]
  },
  "tickle": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12104,6 +12952,7 @@
   ]
  },
  "tidy-up": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12126,6 +12975,7 @@
   ]
  },
  "topsy-turvy": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12139,6 +12989,7 @@
   "stat_changes": []
  },
  "torch-song": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12157,6 +13008,7 @@
   ]
  },
  "torment": {
+  "accuracy": 100,
   "ailment": "torment",
   "ailment_chance": 0,
   "category": "status",
@@ -12170,6 +13022,7 @@
   "stat_changes": []
  },
  "toxic": {
+  "accuracy": 90,
   "ailment": "poison",
   "ailment_chance": 0,
   "category": "status",
@@ -12183,6 +13036,7 @@
   "stat_changes": []
  },
  "toxic-spikes": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12196,6 +13050,7 @@
   "stat_changes": []
  },
  "toxic-thread": {
+  "accuracy": 100,
   "ailment": "poison",
   "ailment_chance": 100,
   "category": "status",
@@ -12214,6 +13069,7 @@
   ]
  },
  "trailblaze": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12232,6 +13088,7 @@
   ]
  },
  "transform": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12245,6 +13102,7 @@
   "stat_changes": []
  },
  "tri-attack": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 20,
   "category": "special",
@@ -12258,6 +13116,7 @@
   "stat_changes": []
  },
  "trick": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12271,6 +13130,7 @@
   "stat_changes": []
  },
  "trick-or-treat": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12284,6 +13144,7 @@
   "stat_changes": []
  },
  "trick-room": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12297,6 +13158,7 @@
   "stat_changes": []
  },
  "triple-arrows": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12310,6 +13172,7 @@
   "stat_changes": []
  },
  "triple-axel": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12323,6 +13186,7 @@
   "stat_changes": []
  },
  "triple-dive": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12336,6 +13200,7 @@
   "stat_changes": []
  },
  "triple-kick": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12349,6 +13214,7 @@
   "stat_changes": []
  },
  "trop-kick": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12367,6 +13233,7 @@
   ]
  },
  "trump-card": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12380,6 +13247,7 @@
   "stat_changes": []
  },
  "twin-beam": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12393,6 +13261,7 @@
   "stat_changes": []
  },
  "twineedle": {
+  "accuracy": 100,
   "ailment": "poison",
   "ailment_chance": 20,
   "category": "physical",
@@ -12406,6 +13275,7 @@
   "stat_changes": []
  },
  "twinkle-tackle--physical": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12419,6 +13289,7 @@
   "stat_changes": []
  },
  "twinkle-tackle--special": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12432,6 +13303,7 @@
   "stat_changes": []
  },
  "twister": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12445,6 +13317,7 @@
   "stat_changes": []
  },
  "u-turn": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12458,6 +13331,7 @@
   "stat_changes": []
  },
  "upper-hand": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12471,6 +13345,7 @@
   "stat_changes": []
  },
  "uproar": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12484,6 +13359,7 @@
   "stat_changes": []
  },
  "v-create": {
+  "accuracy": 95,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12510,6 +13386,7 @@
   ]
  },
  "vacuum-wave": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12523,6 +13400,7 @@
   "stat_changes": []
  },
  "veevee-volley": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12536,6 +13414,7 @@
   "stat_changes": []
  },
  "venom-drench": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12562,6 +13441,7 @@
   ]
  },
  "venoshock": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12575,6 +13455,7 @@
   "stat_changes": []
  },
  "vice-grip": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12588,6 +13469,7 @@
   "stat_changes": []
  },
  "victory-dance": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12601,6 +13483,7 @@
   "stat_changes": []
  },
  "vine-whip": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12614,6 +13497,7 @@
   "stat_changes": []
  },
  "vital-throw": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12627,6 +13511,7 @@
   "stat_changes": []
  },
  "volt-switch": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12640,6 +13525,7 @@
   "stat_changes": []
  },
  "volt-tackle": {
+  "accuracy": 100,
   "ailment": "paralysis",
   "ailment_chance": 10,
   "category": "physical",
@@ -12653,6 +13539,7 @@
   "stat_changes": []
  },
  "wake-up-slap": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12666,6 +13553,7 @@
   "stat_changes": []
  },
  "water-gun": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12679,6 +13567,7 @@
   "stat_changes": []
  },
  "water-pledge": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12692,6 +13581,7 @@
   "stat_changes": []
  },
  "water-pulse": {
+  "accuracy": 100,
   "ailment": "confusion",
   "ailment_chance": 20,
   "category": "special",
@@ -12705,6 +13595,7 @@
   "stat_changes": []
  },
  "water-shuriken": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12718,6 +13609,7 @@
   "stat_changes": []
  },
  "water-sport": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12731,6 +13623,7 @@
   "stat_changes": []
  },
  "water-spout": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12744,6 +13637,7 @@
   "stat_changes": []
  },
  "waterfall": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12757,6 +13651,7 @@
   "stat_changes": []
  },
  "wave-crash": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12770,6 +13665,7 @@
   "stat_changes": []
  },
  "weather-ball": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12783,6 +13679,7 @@
   "stat_changes": []
  },
  "whirlpool": {
+  "accuracy": 85,
   "ailment": "trap",
   "ailment_chance": 100,
   "category": "special",
@@ -12796,6 +13693,7 @@
   "stat_changes": []
  },
  "whirlwind": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12809,6 +13707,7 @@
   "stat_changes": []
  },
  "wicked-blow": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12822,6 +13721,7 @@
   "stat_changes": []
  },
  "wicked-torque": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12835,6 +13735,7 @@
   "stat_changes": []
  },
  "wide-guard": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12848,6 +13749,7 @@
   "stat_changes": []
  },
  "wild-charge": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12861,6 +13763,7 @@
   "stat_changes": []
  },
  "wildbolt-storm": {
+  "accuracy": 80,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -12874,6 +13777,7 @@
   "stat_changes": []
  },
  "will-o-wisp": {
+  "accuracy": 85,
   "ailment": "burn",
   "ailment_chance": 0,
   "category": "status",
@@ -12887,6 +13791,7 @@
   "stat_changes": []
  },
  "wing-attack": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12900,6 +13805,7 @@
   "stat_changes": []
  },
  "wish": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12913,6 +13819,7 @@
   "stat_changes": []
  },
  "withdraw": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12931,6 +13838,7 @@
   ]
  },
  "wonder-room": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12944,6 +13852,7 @@
   "stat_changes": []
  },
  "wood-hammer": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -12957,6 +13866,7 @@
   "stat_changes": []
  },
  "work-up": {
+  "accuracy": null,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12979,6 +13889,7 @@
   ]
  },
  "worry-seed": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "status",
@@ -12992,6 +13903,7 @@
   "stat_changes": []
  },
  "wrap": {
+  "accuracy": 90,
   "ailment": "trap",
   "ailment_chance": 100,
   "category": "physical",
@@ -13005,6 +13917,7 @@
   "stat_changes": []
  },
  "wring-out": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "special",
@@ -13018,6 +13931,7 @@
   "stat_changes": []
  },
  "x-scissor": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -13031,6 +13945,7 @@
   "stat_changes": []
  },
  "yawn": {
+  "accuracy": null,
   "ailment": "yawn",
   "ailment_chance": 0,
   "category": "status",
@@ -13044,6 +13959,7 @@
   "stat_changes": []
  },
  "zap-cannon": {
+  "accuracy": 50,
   "ailment": "paralysis",
   "ailment_chance": 100,
   "category": "special",
@@ -13057,6 +13973,7 @@
   "stat_changes": []
  },
  "zen-headbutt": {
+  "accuracy": 90,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -13070,6 +13987,7 @@
   "stat_changes": []
  },
  "zing-zap": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",
@@ -13083,6 +14001,7 @@
   "stat_changes": []
  },
  "zippy-zap": {
+  "accuracy": 100,
   "ailment": null,
   "ailment_chance": 0,
   "category": "physical",

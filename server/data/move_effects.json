@@ -21,6 +21,14 @@
    "status": "badly_poisoned"
   }
  },
+ "after you": {
+  "effect": {
+   "duration": 1,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 1
+  }
+ },
  "agility": {
   "effect": {
    "duration": 3,
@@ -34,6 +42,11 @@
    "chance": 0.3,
    "on": "nat15plus",
    "status": "atordoado"
+  }
+ },
+ "ally switch": {
+  "effect": {
+   "type": "protect"
   }
  },
  "amnesia": {
@@ -52,6 +65,11 @@
    "value": 2
   }
  },
+ "assist": {
+  "effect": {
+   "type": "variable"
+  }
+ },
  "astonish": {
   "on_hit": {
    "chance": 0.3,
@@ -64,6 +82,14 @@
    "save": "WIS",
    "status": "amedrontado",
    "type": "inflict_status"
+  }
+ },
+ "aurora veil": {
+  "effect": {
+   "duration": 5,
+   "stat": "AC",
+   "type": "buff_self",
+   "value": 2
   }
  },
  "autotomize": {
@@ -97,11 +123,25 @@
    "value": 3
   }
  },
+ "baton pass": {
+  "effect": {
+   "duration": 2,
+   "stat": "SPE",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
  "beak blast": {
   "on_hit": {
    "chance": 1.0,
    "on": "contact",
    "status": "queimado"
+  }
+ },
+ "beat up": {
+  "effect": {
+   "formula": "half_level",
+   "type": "fixed_damage"
   }
  },
  "belly drum": {
@@ -110,6 +150,21 @@
    "stat": "ATK",
    "type": "buff_self",
    "value": 6
+  }
+ },
+ "bestow": {
+  "effect": {
+   "duration": 2,
+   "save": "WIS",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -1
+  }
+ },
+ "bide": {
+  "effect": {
+   "formula": "level",
+   "type": "fixed_damage"
   }
  },
  "bite": {
@@ -131,6 +186,15 @@
    "chance": 0.1,
    "on": "hit",
    "status": "congelado"
+  }
+ },
+ "block": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "SPE",
+   "type": "debuff_target",
+   "value": -3
   }
  },
  "blue flare": {
@@ -180,6 +244,14 @@
   "effect": {
    "duration": 3,
    "stat": "SPA",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "camouflage": {
+  "effect": {
+   "duration": 3,
+   "stat": "AC",
    "type": "buff_self",
    "value": 2
   }
@@ -248,6 +320,27 @@
    "status": "confuso"
   }
  },
+ "conversion": {
+  "effect": {
+   "duration": 3,
+   "stat": "AC",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "conversion 2": {
+  "effect": {
+   "duration": 3,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "copycat": {
+  "effect": {
+   "type": "variable"
+  }
+ },
  "cosmic power": {
   "effect": {
    "duration": 3,
@@ -271,6 +364,11 @@
    "stat": "SPE",
    "type": "debuff_target",
    "value": -4
+  }
+ },
+ "crafty shield": {
+  "effect": {
+   "type": "protect"
   }
  },
  "cross poison": {
@@ -324,6 +422,15 @@
    "duration": 3,
    "save": "WIS",
    "stat": "AC",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "destiny bond": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "attack_roll",
    "type": "debuff_target",
    "value": -2
   }
@@ -410,6 +517,23 @@
    "value": -3
   }
  },
+ "electric terrain": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPA",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "electrify": {
+  "effect": {
+   "duration": 2,
+   "save": "CON",
+   "stat": "SPA",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
  "electroweb": {
   "effect": {
    "duration": 3,
@@ -435,10 +559,25 @@
    "value": -1
   }
  },
+ "endeavor": {
+  "effect": {
+   "formula": "endeavor",
+   "type": "fixed_damage"
+  }
+ },
  "endure": {
   "effect": {
    "duration": 1,
    "type": "protect"
+  }
+ },
+ "entrainment": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -2
   }
  },
  "extrasensory": {
@@ -446,6 +585,15 @@
    "chance": 0.1,
    "on": "nat15plus",
    "status": "atordoado"
+  }
+ },
+ "fairy lock": {
+  "effect": {
+   "duration": 2,
+   "save": "WIS",
+   "stat": "SPE",
+   "type": "debuff_target",
+   "value": -2
   }
  },
  "fake out": {
@@ -478,6 +626,12 @@
    "value": -3
   }
  },
+ "final gambit": {
+  "effect": {
+   "formula": "user_hp",
+   "type": "fixed_damage"
+  }
+ },
  "fire blast": {
   "on_hit": {
    "chance": 0.1,
@@ -497,6 +651,12 @@
    "chance": 0.1,
    "on": "hit",
    "status": "queimado"
+  }
+ },
+ "fissure": {
+  "effect": {
+   "save": "DEX",
+   "type": "ohko"
   }
  },
  "flame wheel": {
@@ -536,6 +696,12 @@
    "type": "inflict_status"
   }
  },
+ "fling": {
+  "effect": {
+   "formula": "half_level",
+   "type": "fixed_damage"
+  }
+ },
  "floral healing": {
   "effect": {
    "amount": "half",
@@ -558,11 +724,36 @@
    "value": 2
   }
  },
+ "follow me": {
+  "effect": {
+   "duration": 1,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
  "force palm": {
   "on_hit": {
    "chance": 0.3,
    "on": "hit",
    "status": "paralisado"
+  }
+ },
+ "foresight": {
+  "effect": {
+   "duration": 3,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "forest's curse": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "DEF",
+   "type": "debuff_target",
+   "value": -2
   }
  },
  "freeze shock": {
@@ -577,6 +768,15 @@
    "chance": 0.1,
    "on": "hit",
    "status": "congelado"
+  }
+ },
+ "gastro acid": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -2
   }
  },
  "gear up": {
@@ -609,6 +809,15 @@
    "type": "inflict_status"
   }
  },
+ "gravity": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "AC",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
  "growl": {
   "effect": {
    "duration": 3,
@@ -624,6 +833,30 @@
    "stat": "attack_roll",
    "type": "buff_self",
    "value": 2
+  }
+ },
+ "grudge": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "guard split": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "DEF",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "guillotine": {
+  "effect": {
+   "save": "CON",
+   "type": "ohko"
   }
  },
  "gunk shot": {
@@ -646,6 +879,11 @@
    "stat": "DEF",
    "type": "buff_self",
    "value": 2
+  }
+ },
+ "haze": {
+  "effect": {
+   "type": "reset_stages"
   }
  },
  "headbutt": {
@@ -674,11 +912,33 @@
    "status": "atordoado"
   }
  },
+ "heart swap": {
+  "effect": {
+   "op": "swap",
+   "type": "stage_op"
+  }
+ },
  "heat wave": {
   "on_hit": {
    "chance": 0.1,
    "on": "hit",
    "status": "queimado"
+  }
+ },
+ "helping hand": {
+  "effect": {
+   "duration": 1,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "hold hands": {
+  "effect": {
+   "duration": 1,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 1
   }
  },
  "hone claws": {
@@ -687,6 +947,12 @@
    "stat": "ATK",
    "type": "buff_self",
    "value": 2
+  }
+ },
+ "horn drill": {
+  "effect": {
+   "save": "CON",
+   "type": "ohko"
   }
  },
  "howl": {
@@ -753,6 +1019,15 @@
    "status": "atordoado"
   }
  },
+ "imprison": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
  "inferno": {
   "on_hit": {
    "chance": 1.0,
@@ -764,6 +1039,22 @@
   "effect": {
    "amount": "quarter",
    "type": "heal_self"
+  }
+ },
+ "instruct": {
+  "effect": {
+   "duration": 1,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 1
+  }
+ },
+ "ion deluge": {
+  "effect": {
+   "duration": 2,
+   "stat": "SPA",
+   "type": "buff_self",
+   "value": 1
   }
  },
  "iron defense": {
@@ -850,12 +1141,47 @@
    "type": "inflict_status"
   }
  },
+ "lucky chant": {
+  "effect": {
+   "duration": 5,
+   "stat": "AC",
+   "type": "buff_self",
+   "value": 1
+  }
+ },
+ "magic coat": {
+  "effect": {
+   "type": "protect"
+  }
+ },
+ "magic room": {
+  "effect": {
+   "duration": 3,
+   "save": "INT",
+   "stat": "SPD",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "magnet rise": {
+  "effect": {
+   "duration": 3,
+   "stat": "AC",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
  "magnetic flux": {
   "effect": {
    "duration": 3,
    "stat": "DEF",
    "type": "buff_self",
    "value": 2
+  }
+ },
+ "me first": {
+  "effect": {
+   "type": "variable"
   }
  },
  "meditate": {
@@ -875,6 +1201,12 @@
    "value": -4
   }
  },
+ "metal burst": {
+  "effect": {
+   "formula": "level",
+   "type": "fixed_damage"
+  }
+ },
  "metal sound": {
   "effect": {
    "duration": 3,
@@ -884,10 +1216,20 @@
    "value": -3
   }
  },
+ "metronome": {
+  "effect": {
+   "type": "variable"
+  }
+ },
  "milk drink": {
   "effect": {
    "amount": "half",
    "type": "heal_self"
+  }
+ },
+ "mimic": {
+  "effect": {
+   "type": "variable"
   }
  },
  "mind reader": {
@@ -904,6 +1246,11 @@
    "stat": "AC",
    "type": "buff_self",
    "value": 3
+  }
+ },
+ "mirror move": {
+  "effect": {
+   "type": "variable"
   }
  },
  "moonlight": {
@@ -923,6 +1270,14 @@
    "chance": 0.3,
    "on": "hit",
    "status": "badly_poisoned"
+  }
+ },
+ "mud sport": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPD",
+   "type": "buff_self",
+   "value": 2
   }
  },
  "mud-slap": {
@@ -951,11 +1306,29 @@
    "value": 4
   }
  },
+ "nature's madness": {
+  "effect": {
+   "formula": "half_target_hp",
+   "type": "fixed_damage"
+  }
+ },
  "needle arm": {
   "on_hit": {
    "chance": 0.3,
    "on": "nat15plus",
    "status": "atordoado"
+  }
+ },
+ "night shade": {
+  "effect": {
+   "formula": "level",
+   "type": "fixed_damage"
+  }
+ },
+ "nightmare": {
+  "effect": {
+   "formula": "half_level",
+   "type": "fixed_damage"
   }
  },
  "noble roar": {
@@ -988,6 +1361,19 @@
    "value": -2
   }
  },
+ "odor sleuth": {
+  "effect": {
+   "duration": 3,
+   "stat": "attack_roll",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
+ "pain split": {
+  "effect": {
+   "type": "pain_split"
+  }
+ },
  "parting shot": {
   "effect": {
    "duration": 2,
@@ -995,6 +1381,13 @@
    "stat": "ATK",
    "type": "debuff_target",
    "value": -2
+  }
+ },
+ "perish song": {
+  "effect": {
+   "formula": "half_level",
+   "self": true,
+   "type": "fixed_damage"
   }
  },
  "play nice": {
@@ -1048,11 +1441,46 @@
    "status": "badly_poisoned"
   }
  },
+ "powder": {
+  "effect": {
+   "duration": 2,
+   "save": "DEX",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
  "powder snow": {
   "on_hit": {
    "chance": 0.1,
    "on": "hit",
    "status": "congelado"
+  }
+ },
+ "power split": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "power swap": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "ATK",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "power trick": {
+  "effect": {
+   "duration": 3,
+   "stat": "ATK",
+   "type": "buff_self",
+   "value": 2
   }
  },
  "protect": {
@@ -1068,10 +1496,37 @@
    "status": "confuso"
   }
  },
+ "psych up": {
+  "effect": {
+   "op": "copy",
+   "type": "stage_op"
+  }
+ },
+ "psycho shift": {
+  "effect": {
+   "save": "WIS",
+   "status": "confuso",
+   "type": "inflict_status"
+  }
+ },
  "purify": {
   "effect": {
    "amount": "half",
    "type": "heal_self"
+  }
+ },
+ "quash": {
+  "effect": {
+   "duration": 2,
+   "save": "CON",
+   "stat": "SPE",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "quick guard": {
+  "effect": {
+   "type": "protect"
   }
  },
  "quiver dance": {
@@ -1082,9 +1537,23 @@
    "value": 2
   }
  },
+ "rage powder": {
+  "effect": {
+   "duration": 1,
+   "stat": "DEF",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
  "recover": {
   "effect": {
    "amount": "half",
+   "type": "heal_self"
+  }
+ },
+ "recycle": {
+  "effect": {
+   "amount": "quarter",
    "type": "heal_self"
   }
  },
@@ -1094,6 +1563,14 @@
    "stat": "DEF",
    "type": "buff_self",
    "value": 3
+  }
+ },
+ "reflect type": {
+  "effect": {
+   "duration": 3,
+   "stat": "AC",
+   "type": "buff_self",
+   "value": 2
   }
  },
  "relic song": {
@@ -1129,6 +1606,12 @@
    "chance": 0.3,
    "on": "nat15plus",
    "status": "atordoado"
+  }
+ },
+ "role play": {
+  "effect": {
+   "op": "copy",
+   "type": "stage_op"
   }
  },
  "rolling kick": {
@@ -1207,6 +1690,12 @@
    "status": "queimado"
   }
  },
+ "seismic toss": {
+  "effect": {
+   "formula": "level",
+   "type": "fixed_damage"
+  }
+ },
  "sharpen": {
   "effect": {
    "duration": 3,
@@ -1244,11 +1733,34 @@
    "status": "confuso"
   }
  },
+ "simple beam": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "SPA",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
  "sing": {
   "effect": {
    "save": "WIS",
    "status": "dormindo",
    "type": "inflict_status"
+  }
+ },
+ "sketch": {
+  "effect": {
+   "type": "variable"
+  }
+ },
+ "skill swap": {
+  "effect": {
+   "duration": 3,
+   "save": "INT",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -2
   }
  },
  "sky attack": {
@@ -1315,10 +1827,25 @@
    "status": "atordoado"
   }
  },
+ "soak": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "DEF",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
  "soft-boiled": {
   "effect": {
    "amount": "half",
    "type": "heal_self"
+  }
+ },
+ "sonic boom": {
+  "effect": {
+   "formula": "half_level",
+   "type": "fixed_damage"
   }
  },
  "spark": {
@@ -1326,6 +1853,30 @@
    "chance": 0.3,
    "on": "hit",
    "status": "paralisado"
+  }
+ },
+ "speed swap": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "SPE",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "spider web": {
+  "effect": {
+   "duration": 3,
+   "save": "DEX",
+   "stat": "SPE",
+   "type": "debuff_target",
+   "value": -3
+  }
+ },
+ "spikes": {
+  "effect": {
+   "formula": "quarter_level",
+   "type": "fixed_damage"
   }
  },
  "spiky shield": {
@@ -1343,11 +1894,32 @@
    "value": -2
   }
  },
+ "splash": {
+  "effect": {
+   "message": "💦 Splash! Nada aconteceu... absolutamente nada!",
+   "type": "utility"
+  }
+ },
  "spore": {
   "effect": {
    "save": "CON",
    "status": "dormindo",
    "type": "inflict_status"
+  }
+ },
+ "spotlight": {
+  "effect": {
+   "duration": 1,
+   "save": "WIS",
+   "stat": "AC",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "stealth rock": {
+  "effect": {
+   "formula": "quarter_level",
+   "type": "fixed_damage"
   }
  },
  "steam eruption": {
@@ -1448,6 +2020,15 @@
    "value": 3
   }
  },
+ "switcheroo": {
+  "effect": {
+   "duration": 2,
+   "save": "WIS",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
  "swords dance": {
   "effect": {
    "duration": 3,
@@ -1504,6 +2085,20 @@
    "type": "inflict_status"
   }
  },
+ "telekinesis": {
+  "effect": {
+   "duration": 3,
+   "save": "CON",
+   "stat": "AC",
+   "type": "debuff_target",
+   "value": -3
+  }
+ },
+ "teleport": {
+  "effect": {
+   "type": "flee"
+  }
+ },
  "thunder": {
   "on_hit": {
    "chance": 0.3,
@@ -1555,6 +2150,12 @@
    "value": -2
   }
  },
+ "topsy-turvy": {
+  "effect": {
+   "op": "invert",
+   "type": "stage_op"
+  }
+ },
  "torment": {
   "effect": {
    "duration": 3,
@@ -1576,6 +2177,39 @@
    "save": "CON",
    "status": "badly_poisoned",
    "type": "inflict_status"
+  }
+ },
+ "transform": {
+  "effect": {
+   "op": "copy",
+   "type": "stage_op"
+  }
+ },
+ "trick": {
+  "effect": {
+   "duration": 2,
+   "save": "WIS",
+   "stat": "attack_roll",
+   "type": "debuff_target",
+   "value": -2
+  }
+ },
+ "trick room": {
+  "effect": {
+   "duration": 3,
+   "save": "INT",
+   "stat": "SPE",
+   "type": "debuff_target",
+   "value": -3
+  }
+ },
+ "trick-or-treat": {
+  "effect": {
+   "duration": 3,
+   "save": "WIS",
+   "stat": "DEF",
+   "type": "debuff_target",
+   "value": -2
   }
  },
  "twineedle": {
@@ -1615,6 +2249,14 @@
    "status": "confuso"
   }
  },
+ "water sport": {
+  "effect": {
+   "duration": 3,
+   "stat": "SPD",
+   "type": "buff_self",
+   "value": 2
+  }
+ },
  "waterfall": {
   "on_hit": {
    "chance": 0.2,
@@ -1641,6 +2283,15 @@
    "stat": "DEF",
    "type": "buff_self",
    "value": 2
+  }
+ },
+ "wonder room": {
+  "effect": {
+   "duration": 3,
+   "save": "INT",
+   "stat": "SPD",
+   "type": "debuff_target",
+   "value": -2
   }
  },
  "work up": {

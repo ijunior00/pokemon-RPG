@@ -533,7 +533,7 @@ async function displayEncounter(encounter) {
         const resp = await fetch('/api/pokemon/stats', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ number: pokemon.number, level: encounter.level })
+            body: JSON.stringify({ number: pokemon.number, level: encounter.level, is_shiny: !!encounter.is_shiny })
         });
         const scaledStats = await resp.json();
         if (!scaledStats.error) {
@@ -646,7 +646,7 @@ async function startBattle() {
             const scaledResp = await fetch('/api/pokemon/stats', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ number: api.number, level: playerPokemon.level || 1 })
+                body: JSON.stringify({ number: api.number, level: playerPokemon.level || 1, is_shiny: !!playerPokemon.is_shiny })
             });
             const scaled = await scaledResp.json();
             if (!scaled.error) {
@@ -704,6 +704,8 @@ async function startBattle() {
     window.wildAccuracyMod           = 0;
     window._postFaintShown           = false;
     window.playerDodging             = false;
+    window.playerDefenseMode         = 1;
+    updateDefenseModeButton();
     window._lastStatusInflicted      = null;
     window._wildStatusApplied        = null;
     clearTurnCountdown();
@@ -738,7 +740,7 @@ async function startBattle() {
     const enemyStats = document.getElementById('battle-enemy-stats');
     if (enemy.stats) {
         enemyStats.innerHTML = Object.entries(enemy.stats).map(([k,v]) => 
-            `<span>${k}: <strong>${v}</strong> (${Math.floor((v-10)/2) >= 0 ? '+' : ''}${Math.floor((v-10)/2)})</span>`
+            `<span>${k} <strong>${v}</strong></span>`
         ).join('');
     }
 
@@ -755,7 +757,7 @@ async function startBattle() {
 
     // Fill player pokemon data
     const pNum = playerPokemon.number || 0;
-    const playerSpriteUrl = pNum ? getPokemonSpriteUrl(pNum) : '';
+    const playerSpriteUrl = pNum ? getPokemonSpriteUrl(pNum, playerPokemon.is_shiny) : '';
     console.log('SPRITE player:', pNum, playerSpriteUrl);
     document.getElementById('battle-player-sprite').src = playerSpriteUrl;
     battleSpriteEnter('battle-player-sprite', 'player');
@@ -774,7 +776,7 @@ async function startBattle() {
     const playerStats = document.getElementById('battle-player-stats');
     if (playerPokemon.stats) {
         playerStats.innerHTML = Object.entries(playerPokemon.stats).map(([k,v]) => 
-            `<span>${k}: <strong>${v}</strong> (${Math.floor((v-10)/2) >= 0 ? '+' : ''}${Math.floor((v-10)/2)})</span>`
+            `<span>${k} <strong>${v}</strong></span>`
         ).join('');
     }
 
@@ -1480,7 +1482,12 @@ function endBattle(result) {
                     maxHp: pokemon.hp, currentHp: capturedHp, ac: pokemon.ac,
                     stats: pokemon.stats, moves: pokemon.startingMoves || [],
                     ability: pokemon.ability ? pokemon.ability.name : '',
-                    speed: pokemon.speed, heldItem: '', notes: ''
+                    speed: pokemon.speed, heldItem: '', notes: '',
+                    // Shiny é PERMANENTE: a flag persiste no save e o bônus de
+                    // +35% nos atributos base é reaplicado em todo recálculo
+                    is_shiny: !!(currentEncounter.is_shiny || pokemon.is_shiny),
+                    // nasce no sistema v2 (stats do encontro já são reais)
+                    sv: 2, training: {}, defense_mode: 1
                 });
                 saveTeam();
                 refreshTeamDisplay();
@@ -1959,7 +1966,12 @@ async function savePokemon() {
         totalXp: existingPoke.totalXp || 0,
         xpToNext: existingPoke.xpToNext || 0,
         statPointsAvailable: existingPoke.statPointsAvailable || 0,
-        baseHp: existingPoke.baseHp || 0
+        baseHp: existingPoke.baseHp || 0,
+        // sistema v2: preserva treino/postura/flag de versão da instância
+        training: existingPoke.training || {},
+        defense_mode: existingPoke.defense_mode || 1,
+        is_shiny: existingPoke.is_shiny || false,
+        sv: 2
     };
     // Auto-fill from API — get level-scaled + nature-adjusted stats
     try {
@@ -1976,7 +1988,7 @@ async function savePokemon() {
                 const scaledRes = await fetch('/api/pokemon/stats', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ number: r.number, level: pokemon.level, nature: pokemon.nature || '' })
+                    body: JSON.stringify({ number: r.number, level: pokemon.level, nature: pokemon.nature || '', is_shiny: !!pokemon.is_shiny })
                 });
                 const scaled = await scaledRes.json();
                 if (!scaled.error) {
@@ -2392,10 +2404,19 @@ const TYPE_COLORS = {
     dark:'#705848',steel:'#b8b8d0',fairy:'#ee99ac'
 };
 
+// Sprites shiny locais (1ª geração). Estes números não têm sprite shiny no
+// pacote — caem no sprite normal como fallback.
+const SHINY_SPRITE_MISSING = new Set([132, 144, 145, 146, 150, 151]);
+
 function getPokemonSpriteUrl(poke, isShiny) {
     const num = typeof poke === 'number' ? poke : (poke?.number || 0);
     if (!num) return '';
+    const shiny = (isShiny !== undefined && isShiny !== null)
+        ? isShiny : (typeof poke === 'object' && (poke?.is_shiny || poke?.isShiny));
     const padded = String(num).padStart(3, '0');
+    if (shiny && num <= 151 && !SHINY_SPRITE_MISSING.has(num)) {
+        return `/static/sprites/shiny/${padded}.gif`;
+    }
     const ext = num <= 649 ? 'gif' : 'png';
     return `/static/sprites/${padded}.${ext}`;
 }
@@ -2432,7 +2453,7 @@ function refreshTeamDisplay() {
             const hpPct     = poke.maxHp > 0 ? Math.max(0, Math.min(100, (poke.currentHp / poke.maxHp) * 100)) : 0;
             const hpClass   = hpBarClass(poke.currentHp, poke.maxHp);
             const spriteUrl = getPokemonSpriteUrl(poke);
-            const isShiny   = poke.isShiny || false;
+            const isShiny   = poke.is_shiny || poke.isShiny || false;
             const isFainted = (poke.currentHp || 0) <= 0;
             const statusCond = poke.status?.condition || null;
             const statusIcon = statusCond ? getStatusIcon(statusCond) : '';
@@ -2544,6 +2565,7 @@ function selectSpecies(pokemon) {
     if (results) results.innerHTML = '';
     if (pokemon.stats) {
         set('poke-str', pokemon.stats.ATK || pokemon.stats.STR || 10);
+        renderStatBars(pokemon);
         set('poke-dex', pokemon.stats.DEF || pokemon.stats.DEX || 10);
         set('poke-con', pokemon.stats.SPA || pokemon.stats.CON || 10);
         set('poke-int', pokemon.stats.SPD || pokemon.stats.INT || 10);
@@ -2608,6 +2630,44 @@ async function saveTrainerData() {
 }
 
 // Attribute modifier calculator
+// Barras de base stats estilo pokemondb (cor por faixa) + treino
+function statBarColor(v) {
+    if (v < 60) return '#f34444';
+    if (v < 90) return '#ff7f0f';
+    if (v < 110) return '#ffdd57';
+    if (v < 130) return '#a0e515';
+    return '#23cd5e';
+}
+
+async function renderStatBars(pokemon) {
+    const box = document.getElementById('poke-stat-bars');
+    if (!box || !pokemon?.name) { if (box) box.innerHTML = ''; return; }
+    try {
+        const resp = await fetch(`/api/pokemon?search=${encodeURIComponent(pokemon.name.toLowerCase())}`);
+        const results = await resp.json();
+        const base = results?.[0]?.base_stats;
+        if (!base) { box.innerHTML = ''; return; }
+        const labels = { HP: 'HP', ATK: 'Attack', DEF: 'Defense', SPA: 'Sp. Atk', SPD: 'Sp. Def', SPE: 'Speed' };
+        const tr = pokemon.training || {};
+        box.innerHTML = `<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.25rem;">
+            Base stats da espécie (pokemondb) — total no Nv.${pokemon.level || 1} inclui natureza${pokemon.is_shiny ? ' e ✨ shiny ×1.35' : ''}${Object.values(tr).some(v => v) ? ' e treino' : ''}</div>` +
+            ['HP', 'ATK', 'DEF', 'SPA', 'SPD', 'SPE'].map(k => {
+                const b = base[k] || 0;
+                const total = k === 'HP' ? (pokemon.maxHp || '?') : (pokemon.stats?.[k] ?? '?');
+                const pct = Math.min(100, (b / 180) * 100);
+                const trained = tr[k] ? ` <span style="color:var(--accent);">+${tr[k]}🏋️</span>` : '';
+                return `<div style="display:flex;align-items:center;gap:0.5rem;margin:2px 0;font-size:0.8rem;">
+                    <span style="width:52px;color:var(--text-muted);">${labels[k]}</span>
+                    <span style="width:30px;text-align:right;font-weight:bold;">${b}</span>
+                    <div style="flex:1;background:var(--darker);border-radius:3px;height:10px;overflow:hidden;">
+                        <div style="width:${pct}%;height:100%;background:${statBarColor(b)};"></div>
+                    </div>
+                    <span style="width:70px;font-size:0.75rem;color:var(--text-muted);">Nv: <strong>${total}</strong>${trained}</span>
+                </div>`;
+            }).join('');
+    } catch (e) { box.innerHTML = ''; }
+}
+
 function updateModifiers() {
     ['str','dex','con','int','wis','cha'].forEach(attr => {
         const val = parseInt(document.getElementById(`trainer-${attr}`).value) || 10;
@@ -2781,7 +2841,7 @@ function megaEvolve() {
     const playerStats = document.getElementById('battle-player-stats');
     if (poke.stats) {
         playerStats.innerHTML = Object.entries(poke.stats).map(([k,v]) => 
-            `<span>${k}: <strong>${v}</strong> (${Math.floor((v-10)/2) >= 0 ? '+' : ''}${Math.floor((v-10)/2)})</span>`
+            `<span>${k} <strong>${v}</strong></span>`
         ).join('');
     }
     
@@ -2865,7 +2925,7 @@ async function confirmSwitch(teamIdx) {
     
     // Update UI
     const pNum = newPoke.number || 0;
-    document.getElementById('battle-player-sprite').src = pNum ? getPokemonSpriteUrl(pNum) : '';
+    document.getElementById('battle-player-sprite').src = pNum ? getPokemonSpriteUrl(pNum, newPoke.is_shiny) : '';
     document.getElementById('battle-player-name-full').textContent = `${newPoke.nickname || newPoke.name} Nv.${newPoke.level}`;
     document.getElementById('battle-player-types').innerHTML = formatTypes(newPoke.types || []);
     const pHp = newPoke.currentHp || newPoke.maxHp || 20;
@@ -2877,7 +2937,7 @@ async function confirmSwitch(teamIdx) {
     
     if (newPoke.stats) {
         document.getElementById('battle-player-stats').innerHTML = Object.entries(newPoke.stats).map(([k,v]) => 
-            `<span>${k}: <strong>${v}</strong> (${Math.floor((v-10)/2) >= 0 ? '+' : ''}${Math.floor((v-10)/2)})</span>`
+            `<span>${k} <strong>${v}</strong></span>`
         ).join('');
     }
     
@@ -3339,7 +3399,7 @@ socket.on('pvp_battle_created', (data) => {
                 ${team.map((p, i) => `
                     <div class="pvp-select-card" onclick="pvpSelectPokemon(${i})" id="pvp-select-${i}" 
                          style="background:var(--darker);border:2px solid var(--card-border);border-radius:var(--radius);padding:0.75rem;text-align:center;cursor:pointer;transition:all 0.2s;">
-                        <img src="${getPokemonSpriteUrl(p.number || 0)}" width="48" height="48" style="image-rendering:pixelated;">
+                        <img src="${getPokemonSpriteUrl(p.number || 0, p.is_shiny)}" width="48" height="48" style="image-rendering:pixelated;">
                         <div style="font-weight:bold;">${p.nickname || p.name}</div>
                         <div style="font-size:0.8rem;color:var(--text-muted);">Nv.${p.level} | HP:${p.currentHp || p.maxHp}/${p.maxHp}</div>
                         <div class="type-badges" style="justify-content:center;">${formatTypes(p.types || [])}</div>
@@ -3453,8 +3513,9 @@ function renderPvpBattle(state) {
             <div class="battle-side-full enemy-side">
                 <h3>🔴 Oponente</h3>
                 <div class="battle-pokemon-full">
-                    <img src="${getPokemonSpriteUrl(opponent.number || 0)}" class="battle-sprite" id="pvp-opp-sprite">
-                    <h4>${opponent.nickname || opponent.name || '???'} Nv.${opponent.level || '?'}</h4>
+                    <img src="${getPokemonSpriteUrl(opponent.number || 0, opponent.is_shiny)}" class="battle-sprite" id="pvp-opp-sprite">
+                    <h4>${opponent.nickname || opponent.name || '???'} Nv.${opponent.level || '?'}
+                        ${(opponent.defense_mode || 1) !== 1 ? `<span style="font-size:0.7rem;background:var(--darker);padding:0.1rem 0.4rem;border-radius:4px;">${BattleMath.DEFENSE_MODES[opponent.defense_mode].label}</span>` : ''}</h4>
                     <div class="type-badges" style="justify-content:center;">${formatTypes(opponent.types || [])}</div>
                     <div class="hp-bar-container" id="pvp-opp-hpbar">
                         <div class="hp-bar enemy-hp ${hpBarClass(opponent.currentHp, opponent.maxHp)}" style="width:${oppHpPct}%"></div>
@@ -3477,7 +3538,7 @@ function renderPvpBattle(state) {
             <div class="battle-side-full player-side">
                 <h3>🟢 Seu Pokémon</h3>
                 <div class="battle-pokemon-full">
-                    <img src="${getPokemonSpriteUrl(myActive.number || 0)}" class="battle-sprite" id="pvp-my-sprite">
+                    <img src="${getPokemonSpriteUrl(myActive.number || 0, myActive.is_shiny)}" class="battle-sprite" id="pvp-my-sprite">
                     <h4>${myActive.nickname || myActive.name || '???'} Nv.${myActive.level || '?'}</h4>
                     <div class="type-badges" style="justify-content:center;">${formatTypes(myActive.types || [])}</div>
                     ${state.your_status ? `<div class="status-badge status-${state.your_status.condition}">${getStatusIcon(state.your_status.condition)} ${state.your_status.condition.toUpperCase()}</div>` : ''}
@@ -3539,6 +3600,7 @@ function renderPvpBattle(state) {
             ${mustSwitch
                 ? `<button class="btn btn-primary btn-lg" style="animation:pulse-border 1.2s infinite;" onclick="pvpSwitchPokemon()">🔄 Trocar Pokémon (obrigatório)</button>`
                 : `${isMyTurn ? `<button class="btn btn-secondary" onclick="pvpSwitchPokemon()">🔄 Trocar Pokémon</button>` : ''}
+                   ${isMyTurn ? `<button class="btn btn-secondary" onclick="pvpCycleDefense()">${BattleMath.DEFENSE_MODES[(state.your_team?.[state.your_active_idx]?.defense_mode) || 1].label}</button>` : ''}
                    ${isMyTurn ? `<button class="btn btn-secondary" onclick="pvpPassTurn()">⏭️ Passar Turno</button>` : ''}`}
             <button class="btn btn-danger" onclick="pvpForfeit()">🏳️ Desistir</button>
         </div>
@@ -3663,6 +3725,16 @@ async function pvpUseMove(moveName) {
         damage: 0,           // server calculates
         message: message,
         status_effect: statusEffect
+    });
+}
+
+function pvpCycleDefense() {
+    const state = window.pvpState?.battleData;
+    if (!state || state.turn !== state.you_are) { alert('Não é seu turno!'); return; }
+    const cur = state.your_team?.[state.your_active_idx]?.defense_mode || 1;
+    const next = (cur % 3) + 1;
+    socket.emit('set_defense_mode', {
+        battle_type: 'pvp', battle_id: window.pvpState.battleId, mode: next
     });
 }
 
@@ -4676,150 +4748,131 @@ async function _executeWildTurn() {
         return;
     }
     
-    // Determine player's AC based on move category and dodge
+    // ══ SISTEMA v2: d20 vs Accuracy do move; dano = dados(Power) × razão ══
     const playerStats = playerPoke?.stats || {};
-    let targetAC;
-    let defLabel;
-    if (window.playerDodging) {
-        targetAC = 8 + Math.floor(((playerStats.SPE || 10) - 10) / 2) + Math.floor(getProficiencyForLevel(playerPoke?.level || 1) / 2);
-        defLabel = '🏃 Esquiva';
-    } else if (moveCategory === 'physical') {
-        targetAC = 8 + Math.floor(((playerStats.DEF || 10) - 10) / 2) + Math.floor(getProficiencyForLevel(playerPoke?.level || 1) / 2);
-        defLabel = '🛡️ DEF';
-    } else {
-        targetAC = 8 + Math.floor(((playerStats.SPD || 10) - 10) / 2) + Math.floor(getProficiencyForLevel(playerPoke?.level || 1) / 2);
-        defLabel = '✨ SPD';
-    }
-    // Stat stages do jogador afetam a CA contra o ataque do selvagem (casa com o servidor)
-    const pStages = window._playerStages || {};
-    targetAC += Math.floor(((moveCategory === 'physical' ? (pStages.DEF || 0) : (pStages.SPD || 0)))) + (pStages.AC || 0);
-    targetAC = Math.max(8, Math.floor(targetAC));
+    const accuracy = moveData.accuracy ?? null;
+    const powerNum = moveData.power_num ?? null;
 
-    // Buff/debuff do selvagem: ATK/SPA no dano, attack_roll no acerto
+    // stages de acerto/evasão deslizam o d20 (flat, escala do dado)
     const wStages = window._wildStages || {};
-    const wildAtkStage = moveCategory === 'physical' ? (wStages.ATK || 0) : (wStages.SPA || 0);
-    moveMod += Math.floor(wildAtkStage / 2);   // stage entra como bônus no modificador de dano
-    // Wild accuracy mod (Smokescreen etc.) + stage de acerto acumulado
-    const wildAccMod = (window.wildAccuracyMod || 0) + (wStages.attack_roll || 0);
+    const pStages = window._playerStages || {};
+    const atkStage = (wStages.attack_roll || 0) + (window.wildAccuracyMod || 0);
+    const evasion = (pStages.AC || 0);
 
-    // Attack roll
     const attackRoll = Math.floor(Math.random() * 20) + 1;
     const isCrit = attackRoll === 20;
-    const isMiss = attackRoll === 1;
-    const totalAttack = attackRoll + moveMod + profBonus + wildAccMod;
-    
+    const hits = BattleMath.rollHits(attackRoll, accuracy, atkStage, evasion);
+    const thr = BattleMath.missThreshold(accuracy);
+    const accLabel = accuracy ? `Acc ${accuracy}%` : 'não erra';
     const categoryLabel = moveCategory === 'physical' ? '⚔️' : '✨';
-    
-    if (isMiss) {
-        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> ${categoryLabel} → d20(${attackRoll}) 💨 Falha Crítica!`);
+
+    if (!hits) {
+        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> ${categoryLabel} → d20(${attackRoll}) ≤ ${thr} (${accLabel}) ❌ Errou!`);
         socket.emit('battle_action', {
             action_by: 'master', action_type: 'attack',
             move_name: moveName, damage: 0,
             wild_status_damage: wildPreTurnStatusDamage,
-            message: 'Nat 1 - Falha'
+            message: `Errou (d20 ${attackRoll} ≤ ${thr})`
         });
-    } else if (totalAttack >= targetAC || isCrit) {
-        // Calculate damage with scaling
-        const scaledDice = getScaledDice(moveData.baseDamage || '1d6', wildLevel, moveData.higherLevels || '');
-        let diceRoll = rollDamageFromString(scaledDice, wildLevel);
-        let damage = diceRoll + moveMod;
-        if (isCrit) {
-            const critExtra = rollDamageFromString(scaledDice, wildLevel);
-            damage = diceRoll + critExtra + moveMod;
-        }
-        
-        // Dodge penalty: 1.25x if player was dodging
-        if (window.playerDodging) {
-            damage = Math.floor(damage * 1.25);
-        }
-        
-        // STAB (Blaze/Overgrow/Torrent/Swarm dobram com HP ≤ 25%)
-        const wildTypes = (enemy?.types || []).map(t => t.toLowerCase());
-        const moveType = (moveData.type || '').toLowerCase();
-        let stab = wildTypes.includes(moveType) ? getStabForLevel(wildLevel) : 0;
-        if (stab > 0) {
-            const abilityName = ((typeof enemy?.ability === 'object' ? enemy.ability?.name : enemy?.ability) || '').toLowerCase();
-            const boostMap = { blaze: 'fogo', overgrow: 'grama', torrent: 'água', swarm: 'inseto' };
-            const wMaxHp = enemy?.maxHp || enemy?.hp || 20;
-            const wCurHp = (enemy?.currentHp !== undefined) ? enemy.currentHp : wMaxHp;
-            if (boostMap[abilityName] === moveType && wCurHp <= wMaxHp * 0.25) {
-                stab *= 2;
-                addBattleLog(`🔥 <strong>${abilityName}</strong>: STAB dobrado (HP baixo)!`);
-            }
-        }
-        damage += stab;
-        
-        // Type effectiveness vs player pokemon (move types in PT, vulnerabilities in EN)
-        const typeMapPtToEn2 = {
-            'fogo':'fire', 'água':'water', 'grama':'grass', 'elétrico':'electric',
-            'gelo':'ice', 'lutador':'fighting', 'venenoso':'poison', 'terra':'ground',
-            'voador':'flying', 'psíquico':'psychic', 'inseto':'bug', 'pedra':'rock',
-            'fantasma':'ghost', 'dragão':'dragon', 'sombrio':'dark', 'aço':'steel',
-            'fada':'fairy', 'normal':'normal'
-        };
-        const wildMoveTypeEn = typeMapPtToEn2[moveType] || moveType;
-        
-        const pVulns = (playerPoke?.vulnerabilities || []).map(t => t.toLowerCase());
-        const pResists = (playerPoke?.resistances || []).map(t => t.toLowerCase());
-        const pImmunities = (playerPoke?.immunities || []).map(t => t.toLowerCase());
-        
-        let effectiveness = 1;
-        let effectLabel = '';
-        if (pImmunities.includes(wildMoveTypeEn)) {
-            effectiveness = 0; effectLabel = '⛔ Imune';
-        } else {
-            if (pVulns.includes(wildMoveTypeEn)) effectiveness *= 2;
-            if (pResists.includes(wildMoveTypeEn)) effectiveness *= 0.5;
-        }
-        damage = Math.floor(damage * effectiveness);
-        if (effectiveness === 0) damage = 0;
-        if (effectiveness > 1) effectLabel = `⚡ Super Efetivo (x${effectiveness})`;
-        else if (effectiveness < 1 && effectiveness > 0) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
-        
-        if (damage < 1 && effectiveness > 0) damage = 1;
-
-        // Check player pokemon ability against wild move
-        const playerAbility = (playerPoke?.ability || '').toLowerCase();
-        if (damage > 0 && playerAbility) {
-            const pAbCheck = checkAbilityVsMove(playerAbility, wildMoveTypeEn, damage,
-                playerPoke.currentHp, playerPoke.maxHp);
-            if (pAbCheck.blocked) {
-                damage = 0;
-                addBattleLog(`🛡️ <strong>${playerAbility}</strong>: ${pAbCheck.message}`);
-                if (pAbCheck.heal) {
-                    const slot = playerTeam.findIndex(p => p.name === playerPoke.name || p.nickname === playerPoke.nickname);
-                    if (slot >= 0) {
-                        playerTeam[slot].currentHp = Math.min(playerTeam[slot].maxHp, (playerTeam[slot].currentHp || 0) + pAbCheck.heal);
-                        refreshTeamDisplay();
-                    }
-                }
-            } else if (pAbCheck.modified_damage !== damage) {
-                addBattleLog(`🛡️ <strong>${playerAbility}</strong>: ${pAbCheck.message}`);
-                damage = pAbCheck.modified_damage;
-            }
-        }
-
-        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> ${categoryLabel} → d20(${attackRoll})+${moveMod}+${profBonus}${wildAccMod ? `+Acc(${wildAccMod})` : ''}=${totalAttack} vs ${defLabel}(${targetAC}) ✅ ${scaledDice}(${diceRoll})+MOD(${moveMod})${stab > 0 ? `+STAB(${stab})` : ''}${window.playerDodging ? ' ×1.25(esquiva)' : ''}${isCrit ? ' CRIT!' : ''}${effectLabel ? ' '+effectLabel : ''} = <strong>${damage} dano</strong>`);
-
-        // Status on-hit do selvagem (veneno/queimadura/paralisia...) é rolado no
-        // SERVIDOR (dados canônicos de 224 moves + independe de statusEffectsData
-        // ter carregado no cliente). Mandamos o attack_roll p/ moves 'nat15plus'.
-        socket.emit('battle_action', {
-            action_by: 'master', action_type: 'attack',
-            move_name: moveName, move_type: wildMoveTypeEn, damage: damage,
-            attack_roll: attackRoll,
-            wild_status_damage: wildPreTurnStatusDamage,
-            message: `${totalAttack} vs AC ${targetAC}${isCrit ? ' Crítico!' : ''}`
-        });
-    } else {
-        addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> ${categoryLabel} → d20(${attackRoll})+${moveMod}+${profBonus}${wildAccMod ? `+Acc(${wildAccMod})` : ''}=${totalAttack} vs ${defLabel}(${targetAC}) ❌ Errou!${window.playerDodging ? ' (esquivou!)' : ''}`);
-        socket.emit('battle_action', {
-            action_by: 'master', action_type: 'attack',
-            move_name: moveName, damage: 0,
-            wild_status_damage: wildPreTurnStatusDamage,
-            message: `Errou (${totalAttack} vs AC ${targetAC})`
-        });
+        return;
     }
+
+    // stats efetivos (stages multiplicativos ×(2+n)/2, paralisia SPE ×0.5)
+    function effStat(stats, stages, key, status) {
+        let v = (stats?.[key] || 10) * BattleMath.stageMult(stages?.[key] || 0);
+        if (status?.condition === 'paralisado' && key === 'SPE') v *= 0.5;
+        return Math.max(1, Math.floor(v));
+    }
+    const atkKey = moveCategory === 'special' ? 'SPA' : 'ATK';
+    const atkEff = effStat(wildStats, wStages, atkKey, window.wildPokemonStatus);
+    // postura defensiva do JOGADOR define o denominador + taxa
+    const pMode = window.playerDefenseMode || 1;
+    const defKey = BattleMath.defenseStatKey(moveCategory, pMode);
+    const defEff = effStat(playerStats, pStages, defKey, window.playerPokemonStatus);
+    const tax = BattleMath.defenseTax(pMode);
+    const modeLabel = pMode !== 1 ? ` [${BattleMath.DEFENSE_MODES[pMode].label} ×${tax}]` : '';
+
+    // dados do Power (escala por nível) — crítico rola 2×
+    const dice = BattleMath.diceForPower(powerNum || 40, wildLevel);
+    let diceTotal = rollDamageFromString(dice, wildLevel);
+    if (isCrit) diceTotal += rollDamageFromString(dice, wildLevel);
+
+    // STAB ×1.5 (Blaze/Overgrow/Torrent/Swarm com HP ≤ 25% → ×2)
+    const wildTypes = (enemy?.types || []).map(t => t.toLowerCase());
+    const moveType = (moveData.type || '').toLowerCase();
+    const isStab = wildTypes.includes(moveType);
+    let stabMult = null;
+    if (isStab) {
+        const abilityName = ((typeof enemy?.ability === 'object' ? enemy.ability?.name : enemy?.ability) || '').toLowerCase();
+        const boostMap = { blaze: 'fogo', overgrow: 'grama', torrent: 'água', swarm: 'inseto' };
+        const wMaxHp = enemy?.maxHp || enemy?.hp || 20;
+        const wCurHp = (enemy?.currentHp !== undefined) ? enemy.currentHp : wMaxHp;
+        if (boostMap[abilityName] === moveType && wCurHp <= wMaxHp * 0.25) {
+            stabMult = 2.0;
+            addBattleLog(`🔥 <strong>${abilityName}</strong>: STAB dobrado (HP baixo)!`);
+        }
+    }
+
+    // queimado corta dano físico do selvagem pela metade
+    const wildBurned = moveCategory === 'physical' && window.wildPokemonStatus?.condition === 'queimado';
+
+    // efetividade de tipo
+    const typeMapPtToEn2 = {
+        'fogo':'fire', 'água':'water', 'grama':'grass', 'elétrico':'electric',
+        'gelo':'ice', 'lutador':'fighting', 'venenoso':'poison', 'terra':'ground',
+        'voador':'flying', 'psíquico':'psychic', 'inseto':'bug', 'pedra':'rock',
+        'fantasma':'ghost', 'dragão':'dragon', 'sombrio':'dark', 'aço':'steel',
+        'fada':'fairy', 'normal':'normal'
+    };
+    const wildMoveTypeEn = typeMapPtToEn2[moveType] || moveType;
+    const pVulns = (playerPoke?.vulnerabilities || []).map(t => t.toLowerCase());
+    const pResists = (playerPoke?.resistances || []).map(t => t.toLowerCase());
+    const pImmunities = (playerPoke?.immunities || []).map(t => t.toLowerCase());
+    let effectiveness = 1;
+    let effectLabel = '';
+    if (pImmunities.includes(wildMoveTypeEn)) {
+        effectiveness = 0; effectLabel = '⛔ Imune';
+    } else {
+        if (pVulns.includes(wildMoveTypeEn)) effectiveness *= 2;
+        if (pResists.includes(wildMoveTypeEn)) effectiveness *= 0.5;
+    }
+    if (effectiveness > 1) effectLabel = `⚡ Super Efetivo (x${effectiveness})`;
+    else if (effectiveness < 1 && effectiveness > 0) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
+
+    let damage = BattleMath.damage(diceTotal, atkEff, defEff, isStab, effectiveness, tax, wildBurned, stabMult);
+    const ratio = Math.max(0.5, Math.min(2, atkEff / Math.max(1, defEff)));
+
+    // Check player pokemon ability against wild move
+    const playerAbility = (playerPoke?.ability || '').toLowerCase();
+    if (damage > 0 && playerAbility) {
+        const pAbCheck = checkAbilityVsMove(playerAbility, wildMoveTypeEn, damage,
+            playerPoke.currentHp, playerPoke.maxHp);
+        if (pAbCheck.blocked) {
+            damage = 0;
+            addBattleLog(`🛡️ <strong>${playerAbility}</strong>: ${pAbCheck.message}`);
+            if (pAbCheck.heal) {
+                const slot = playerTeam.findIndex(p => p.name === playerPoke.name || p.nickname === playerPoke.nickname);
+                if (slot >= 0) {
+                    playerTeam[slot].currentHp = Math.min(playerTeam[slot].maxHp, (playerTeam[slot].currentHp || 0) + pAbCheck.heal);
+                    refreshTeamDisplay();
+                }
+            }
+        } else if (pAbCheck.modified_damage !== damage) {
+            addBattleLog(`🛡️ <strong>${playerAbility}</strong>: ${pAbCheck.message}`);
+            damage = pAbCheck.modified_damage;
+        }
+    }
+
+    addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> ${categoryLabel} → d20(${attackRoll}) vs ${accLabel} ✅ ${dice}(${diceTotal}) ×${ratio.toFixed(2)}(${atkKey} ${atkEff}/${defKey} ${defEff})${modeLabel}${isStab ? (stabMult ? ' ×2 STAB🔥' : ' ×1.5 STAB') : ''}${isCrit ? ' ×2 CRIT!' : ''}${wildBurned ? ' ×0.5(queimado)' : ''}${effectLabel ? ' ' + effectLabel : ''} = <strong>${damage} dano</strong>`);
+
+    // Status on-hit do selvagem é rolado no SERVIDOR (dados canônicos)
+    socket.emit('battle_action', {
+        action_by: 'master', action_type: 'attack',
+        move_name: moveName, move_type: wildMoveTypeEn, damage: damage,
+        attack_roll: attackRoll,
+        wild_status_damage: wildPreTurnStatusDamage,
+        message: `d20(${attackRoll}) vs ${accLabel}${isCrit ? ' Crítico!' : ''}`
+    });
 }
 
 // checkWildStatusOnHit foi removida: o status on-hit do selvagem agora é rolado
@@ -4900,13 +4953,11 @@ function checkPokemonLevelUp(poke) {
     if (totalXp >= xpForNext) {
         const oldLevel = currentLevel;
         poke.level = currentLevel + 1;
-        // Gain stat points on level up
-        poke.statPointsAvailable = (poke.statPointsAvailable || 0) + 1;
-        // Every 5 levels, gain extra stat point
-        if (poke.level % 5 === 0) poke.statPointsAvailable += 1;
-        // Recalculate HP for new level (HP stat bonus)
-        const hpMod = Math.floor(((poke.stats?.HP || poke.stats?.CON || 10) - 10) / 2);
-        poke.maxHp = (poke.baseHp || 20) + (hpMod * poke.level) + (poke.level * 2);
+        // Sistema v2: +4 pontos de treino por nível (saldo derivado do budget)
+        const spent = Object.values(poke.training || {}).reduce((a, b) => a + (b || 0), 0);
+        poke.statPointsAvailable = Math.max(0, BattleMath.trainingBudget(poke.level) - spent);
+        // Stats/HP recalculados pela fórmula v2 no refresh via /api/pokemon/stats
+        // (updatePokemonInSheet); aqui só o full heal de level-up
         poke.currentHp = poke.maxHp; // Full heal on level up
 
         playSound('levelup');
@@ -5394,20 +5445,28 @@ function distributeStat(stat) {
         alert('Sem pontos disponíveis!');
         return;
     }
-    
-    // Apply +1 to the stat
-    if (!poke.stats) poke.stats = {};
-    poke.stats[stat] = (poke.stats[stat] || 10) + 1;
+
+    // Sistema v2: ponto vai para o TREINO (stat final = espécie + nível +
+    // natureza + treino), com teto por stat — nunca edita o stat direto
+    if (!poke.training) poke.training = {};
+    const cap = BattleMath.trainingCap(poke.level || 1);
+    if ((poke.training[stat] || 0) >= cap) {
+        alert(`Teto de treino de ${stat} neste nível: ${cap} pontos.`);
+        return;
+    }
+    poke.training[stat] = (poke.training[stat] || 0) + 1;
     poke.statPointsAvailable = available - 1;
-    
-    // If HP stat changed, recalculate max HP
+
+    // aplica o efeito imediato no stat exibido (+1) — o valor oficial vem do
+    // recálculo do servidor no próximo load/save
+    if (!poke.stats) poke.stats = {};
     if (stat === 'HP') {
-        const hpMod = Math.floor((poke.stats.HP - 10) / 2);
-        const baseHp = poke.baseHp || 20;
-        poke.maxHp = baseHp + (hpMod * poke.level) + (poke.level * 2);
-        poke.currentHp = Math.min(poke.currentHp || poke.maxHp, poke.maxHp);
+        poke.maxHp = (poke.maxHp || 20) + 1;
+        poke.currentHp = Math.min((poke.currentHp || poke.maxHp) + 1, poke.maxHp);
         document.getElementById('poke-max-hp').value = poke.maxHp;
         document.getElementById('poke-current-hp').value = poke.currentHp;
+    } else {
+        poke.stats[stat] = (poke.stats[stat] || 10) + 1;
     }
     
     // Map new stat names to input IDs (inputs still use old IDs)
@@ -5524,25 +5583,47 @@ function distributeTrainerStat(statKey, label) {
 
 
 // ============================================
-// DODGE SYSTEM
+// POSTURA DEFENSIVA (substitui o sistema de esquiva)
+// 1 Padrão (Def/Sp.Def ×1.0) · 2 Velocidade (SPE ×1.25) · 3 Contra-ataque (Atk/Sp.Atk ×1.5)
 // ============================================
-window.playerDodging = false;
+window.playerDefenseMode = 1;
+window.playerDodging = false;   // legado — não usado no sistema v2
 
-function toggleDodge() {
-    window.playerDodging = !window.playerDodging;
+function cycleDefenseMode(battleType, battleId) {
+    // só no próprio turno (o servidor também valida)
+    const next = (window.playerDefenseMode % 3) + 1;
+    window.playerDefenseMode = next;
+    updateDefenseModeButton();
+    const info = BattleMath.DEFENSE_MODES[next];
+    addBattleLog(`${info.label}: defende com ${next === 1 ? 'Def/Sp.Def' : (next === 2 ? 'Velocidade' : 'Atk/Sp.Atk')}${info.tax > 1 ? ` — se atingido, dano ×${info.tax}` : ''}.`);
+    socket.emit('set_defense_mode', {
+        battle_type: battleType || 'wild',
+        battle_id: battleId || window.pvpState?.battleId || null,
+        mode: next
+    });
+}
+
+function updateDefenseModeButton() {
     const btn = document.getElementById('btn-dodge');
-    if (window.playerDodging) {
-        btn.textContent = '🏃 Esquiva: ON';
+    if (!btn) return;
+    const info = BattleMath.DEFENSE_MODES[window.playerDefenseMode || 1];
+    btn.textContent = info.label + (info.tax > 1 ? ` ×${info.tax}` : '');
+    btn.title = 'Postura defensiva: clique para alternar (não gasta a ação)';
+    if ((window.playerDefenseMode || 1) !== 1) {
         btn.style.background = 'var(--accent)';
         btn.style.color = 'var(--dark)';
-        addBattleLog('🏃 Modo Esquiva ATIVADO! AC usa SPE. Se acertado: ×1.25 dano.');
     } else {
-        btn.textContent = '🏃 Esquiva: OFF';
         btn.style.background = '';
         btn.style.color = '';
-        addBattleLog('🛡️ Modo Defesa normal. AC usa DEF/SPD.');
     }
 }
+
+socket.on('defense_mode_set', (d) => {
+    if (d.side === 'player') {
+        window.playerDefenseMode = d.mode;
+        updateDefenseModeButton();
+    }
+});
 
 // ============================================
 // STAT MIGRATION HELPER (convert old STR/DEX/CON/INT/WIS/CHA to ATK/DEF/SPA/SPD/SPE/HP)
@@ -5836,7 +5917,7 @@ function pcPokemonCard(p, idx, source) {
         : '';
 
     return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0.75rem;background:var(--darker);border-radius:var(--radius);">
-        <img src="${getPokemonSpriteUrl(p.number||0)}" style="width:40px;height:40px;object-fit:contain;">
+        <img src="${getPokemonSpriteUrl(p.number||0, p.is_shiny)}" style="width:40px;height:40px;object-fit:contain;">
         <div style="flex:1;min-width:0;">
             <div style="font-weight:bold;font-size:0.9rem;">${name} <span style="color:var(--muted);font-size:0.8rem;">Nv.${p.level}</span></div>
             <div style="display:flex;gap:0.25rem;flex-wrap:wrap;margin:0.1rem 0;">${typeHtml}</div>

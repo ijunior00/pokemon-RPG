@@ -215,7 +215,7 @@
                         <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;">
                             <button class="btn btn-primary hidden" id="btn-pass-turn" onclick="passTurn()">⏭️ Passar</button>
                             <button class="btn btn-accent hidden" id="btn-mega-evolve" onclick="megaEvolve()">🔮 Mega</button>
-                            <button class="btn btn-secondary" id="btn-dodge" onclick="toggleDodge()">🏃 Esquiva: OFF</button>
+                            <button class="btn btn-secondary" id="btn-dodge" onclick="cycleDefenseMode('wild')" title="Postura defensiva (não gasta a ação)">🛡️ Padrão</button>
                             <button class="btn btn-success" onclick="endBattle('defeated')">🏁 Finalizar (só XP)</button>
                             <button class="btn btn-secondary" onclick="registerBattlePokedex()" style="font-size:0.8rem;">📖 +Pokédex</button>
                             <!-- Pokeball row -->
@@ -433,6 +433,8 @@
                         <div class="form-group"><label>SPE</label><input type="number" id="poke-wis" value="10" readonly></div>
                         <div class="form-group"><label>HP</label><input type="number" id="poke-cha" value="10" readonly></div>
                     </div>
+                    <!-- Barras de base stats (estilo pokemondb) + treino -->
+                    <div id="poke-stat-bars" style="margin:0.5rem 0;"></div>
                     <div class="form-row">
                         <div class="form-group">
                             <label>Velocidade</label>

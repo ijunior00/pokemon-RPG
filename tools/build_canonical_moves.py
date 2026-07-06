@@ -109,6 +109,7 @@ def build_canonical():
         canonical[r['identifier']] = {
             'category': DAMAGE_CLASS.get(_int(r['damage_class_id']), 'physical'),
             'power': _int(r['power'], None) if r['power'] else None,
+            'accuracy': _int(r['accuracy'], None) if r['accuracy'] else None,
             'priority': _int(r['priority']),
             'effect_chance': _int(r['effect_chance'], None) if r['effect_chance'] else None,
             'ailment': ail_name if ail_name not in ('none', 'unknown') else None,

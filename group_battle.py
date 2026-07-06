@@ -18,9 +18,11 @@ def _poke_hp(p):
 
 
 def _init_roll(pokemon):
-    stats = pokemon.get('stats', {}) if isinstance(pokemon, dict) else {}
-    spe = stats.get('SPE') or stats.get('DEX') or 10
-    return random.randint(1, 20) + (int(spe) - 10) // 2
+    # Iniciativa v2: d20 + SPE_efetivo//10 (Speed real, escala 1-255)
+    import battle_math as bm
+    import status_effects as effects
+    spe = effects.effective_stat(pokemon, 'SPE') if isinstance(pokemon, dict) else 10
+    return random.randint(1, 20) + bm.initiative_bonus(spe)
 
 
 def build_battle(allies, wilds, hunt_mode='normal', route_id=None, table_id=None):
@@ -215,6 +217,7 @@ def state_view(battle):
             'fainted': c['fainted'], 'init': c['init'],
             'moves': c['moves'], 'is_shiny': bool(p.get('is_shiny')),
             'stat_stages': p.get('stat_stages'),
+            'defense_mode': p.get('defense_mode', 1),
         })
     return {
         'id': battle['id'], 'mode': battle['mode'], 'phase': battle['phase'],
