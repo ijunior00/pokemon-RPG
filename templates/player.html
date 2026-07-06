@@ -68,7 +68,7 @@
                         <div id="wild-pokemon-types" class="type-badges"></div>
                         <p><strong>Nível:</strong> <span id="wild-pokemon-level"></span></p>
                         <p><strong>HP:</strong> <span id="wild-pokemon-hp"></span></p>
-                        <p><strong>AC:</strong> <span id="wild-pokemon-ac"></span></p>
+                        <p><strong>Speed:</strong> <span id="wild-pokemon-spe"></span></p>
                     </div>
                 </div>
                 <div class="encounter-actions">
@@ -261,8 +261,8 @@
                     <summary>📋 Detalhes do inimigo</summary>
                     <div style="display:flex;gap:1rem;flex-wrap:wrap;padding:0.5rem 0;">
                         <div>
-                            <strong>AC:</strong> <span id="battle-enemy-ac"></span> &nbsp;
-                            <strong>SPD:</strong> <span id="battle-enemy-speed"></span>
+                            <strong>Speed (stat):</strong> <span id="battle-enemy-ac"></span> &nbsp;
+                            <strong>Deslocamento:</strong> <span id="battle-enemy-speed"></span>
                         </div>
                         <div class="mini-stats" id="battle-enemy-stats"></div>
                     </div>
@@ -416,14 +416,6 @@
                             <label>HP Máximo</label>
                             <input type="number" id="poke-max-hp" value="0" readonly>
                         </div>
-                        <div class="form-group">
-                            <label>AC</label>
-                            <input type="number" id="poke-ac" value="10" readonly>
-                        </div>
-                        <div class="form-group">
-                            <label>Hit Dice</label>
-                            <input type="text" id="poke-hit-dice" placeholder="d6" readonly>
-                        </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group"><label>ATK</label><input type="number" id="poke-str" value="10" readonly></div>
@@ -437,12 +429,8 @@
                     <div id="poke-stat-bars" style="margin:0.5rem 0;"></div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Velocidade</label>
+                            <label>Velocidade (deslocamento)</label>
                             <input type="text" id="poke-speed" placeholder="30ft. walking">
-                        </div>
-                        <div class="form-group">
-                            <label>Saving Throws</label>
-                            <input type="text" id="poke-saves" placeholder="Dexterity, Charisma">
                         </div>
                     </div>
                     <div class="form-group">
@@ -515,7 +503,7 @@
                     <!-- Stat Point Distribution -->
                     <div id="poke-stat-points-section" class="hidden" style="background:var(--card-bg);padding:1rem;border-radius:var(--radius);margin:1rem 0;border:2px solid var(--accent);">
                         <h4 style="color:var(--accent);margin-bottom:0.5rem;">⬆️ Pontos de Atributo Disponíveis: <span id="poke-stat-points-available">0</span></h4>
-                        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;">A cada nível seu Pokémon ganha 1 ponto (bônus a cada 5 níveis). Distribua entre os stats para especializar.</p>
+                        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;">A cada nível seu Pokémon ganha <strong>4 pontos de treino</strong> (estilo EV). Cada ponto soma +1 no stat final, com teto por stat que cresce com o nível.</p>
                         <div class="form-row" id="poke-stat-distribute">
                             <div class="form-group" style="text-align:center;flex:0 0 70px;">
                                 <label>ATK</label>
@@ -589,41 +577,51 @@
                 </div>
             </div>
 
-            <!-- Trainer Stats (D&D 5e style) -->
+            <!-- Os 6 Atributos do Treinador -->
             <div class="trainer-attributes">
-                <h4>Atributos do Treinador</h4>
+                <h4>Os 6 Atributos do Treinador</h4>
                 <div class="attributes-grid">
-                    <div class="attr-box">
-                        <label>FOR</label>
-                        <input type="number" id="trainer-str" value="{{ trainer.str or 10 }}" class="attr-input" readonly>
-                        <span class="attr-mod" id="mod-str"></span>
+                    <div class="attr-box" title="A verdadeira força de um treinador nasce da confiança construída com seus Pokémon. Afeta: captura, obediência, evoluções por amizade, Mega Evolução, Anima.">
+                        <label>❤️ VÍNCULO</label>
+                        <input type="number" id="trainer-vinculo" value="{{ trainer.vinculo or trainer.wis or 10 }}" class="attr-input" readonly>
+                        <span class="attr-mod" id="mod-vinculo"></span>
                     </div>
-                    <div class="attr-box">
-                        <label>DES</label>
-                        <input type="number" id="trainer-dex" value="{{ trainer.dex or 10 }}" class="attr-input" readonly>
-                        <span class="attr-mod" id="mod-dex"></span>
+                    <div class="attr-box" title="Vencer nem sempre depende do Pokémon mais forte, mas da decisão mais inteligente. Afeta: iniciativa, leitura do adversário, combos, trocas estratégicas.">
+                        <label>♟️ TÁTICA</label>
+                        <input type="number" id="trainer-tatica" value="{{ trainer.tatica or trainer.str or 10 }}" class="attr-input" readonly>
+                        <span class="attr-mod" id="mod-tatica"></span>
                     </div>
-                    <div class="attr-box">
-                        <label>CON</label>
-                        <input type="number" id="trainer-con" value="{{ trainer.con or 10 }}" class="attr-input" readonly>
-                        <span class="attr-mod" id="mod-con"></span>
+                    <div class="attr-box" title="Conhecer o mundo Pokémon é compreender como sobreviver nele. Afeta: identificar espécies/tipos/fraquezas, medicina Pokémon, pesquisa, ruínas.">
+                        <label>📖 CONHEC.</label>
+                        <input type="number" id="trainer-conhecimento" value="{{ trainer.conhecimento or trainer.int or 10 }}" class="attr-input" readonly>
+                        <span class="attr-mod" id="mod-conhecimento"></span>
                     </div>
-                    <div class="attr-box">
-                        <label>INT</label>
-                        <input type="number" id="trainer-int" value="{{ trainer.int or 10 }}" class="attr-input" readonly>
-                        <span class="attr-mod" id="mod-int"></span>
+                    <div class="attr-box" title="Nem toda batalha é vencida atacando. Algumas são vencidas chegando primeiro. Afeta: corrida, escalada, esquivas, fugas, exploração.">
+                        <label>🏃 AGILIDADE</label>
+                        <input type="number" id="trainer-agilidade" value="{{ trainer.agilidade or trainer.dex or 10 }}" class="attr-input" readonly>
+                        <span class="attr-mod" id="mod-agilidade"></span>
                     </div>
-                    <div class="attr-box">
-                        <label>SAB</label>
-                        <input type="number" id="trainer-wis" value="{{ trainer.wis or 10 }}" class="attr-input" readonly>
-                        <span class="attr-mod" id="mod-wis"></span>
+                    <div class="attr-box" title="Grandes treinadores inspiram pessoas e Pokémon a darem o seu melhor. Afeta: persuasão, negociação, liderança, competições, preços da loja.">
+                        <label>👑 INFLUÊNCIA</label>
+                        <input type="number" id="trainer-influencia" value="{{ trainer.influencia or trainer.cha or 10 }}" class="attr-input" readonly>
+                        <span class="attr-mod" id="mod-influencia"></span>
                     </div>
-                    <div class="attr-box">
-                        <label>CAR</label>
-                        <input type="number" id="trainer-cha" value="{{ trainer.cha or 10 }}" class="attr-input" readonly>
-                        <span class="attr-mod" id="mod-cha"></span>
+                    <div class="attr-box" title="Quando tudo parece perdido, a determinação mantém um treinador de pé. Afeta: medo, resistência mental, situações extremas, Anima — e a Sorte (½ mod).">
+                        <label>🔥 DETERM.</label>
+                        <input type="number" id="trainer-determinacao" value="{{ trainer.determinacao or trainer.con or 10 }}" class="attr-input" readonly>
+                        <span class="attr-mod" id="mod-determinacao"></span>
                     </div>
                 </div>
+            </div>
+
+            <!-- Perícias (13) — roláveis, com proficiência -->
+            <div class="trainer-attributes" style="margin-top:0.75rem;">
+                <h4>🎲 Perícias <span id="skill-prof-counter" style="font-size:0.75rem;color:var(--text-muted);font-weight:normal;"></span></h4>
+                <p style="font-size:0.78rem;color:var(--text-muted);margin:0.25rem 0 0.5rem;">
+                    Teste = d20 + modificador do atributo (+ proficiência se marcada).
+                    🍀 <strong>Sorte</strong> usa <strong>metade</strong> do mod de Determinação — o destino não se treina fácil.
+                    O resultado vai direto para o Mestre.</p>
+                <div id="trainer-skills-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:0.4rem;"></div>
             </div>
 
             <!-- Class Info -->
@@ -679,10 +677,10 @@
                 <div class="trainer-section">
                     <h4>📊 Proficiências</h4>
                     <div class="form-group">
-                        <label>Teste de Resistência: Carisma + escolhido</label>
-                        <input type="text" id="trainer-proficiencies" 
-                               value="{{ trainer.proficiencies or 'Adestrar Animais' }}" 
-                               placeholder="Adestrar Animais, Percepção...">
+                        <label>Anotações de proficiências (as perícias oficiais ficam nos checkboxes acima)</label>
+                        <input type="text" id="trainer-proficiencies"
+                               value="{{ trainer.proficiencies or '' }}"
+                               placeholder="Ex: ferramentas, instrumentos, idiomas...">
                     </div>
                     <div class="form-group">
                         <label>Pokéslots</label>

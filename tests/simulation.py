@@ -123,7 +123,7 @@ def wild_battle(http, sio, uid, username, battle_no):
     check(roll.status_code == 200, f'hunt/roll falhou: {roll.status_code}')
     rj = roll.get_json()
     check(1 <= rj.get('roll', 0) <= 20, 'd20 fora do intervalo')
-    check(rj.get('total') == rj['roll'] + rj['wis_mod'] + rj['prof'], 'total do teste inconsistente')
+    check(rj.get('total') == rj['roll'] + rj['skill_mod'], 'total do teste inconsistente')
 
     # invariante do gate: contador dentro do limite
     state = db.get_game_state(TABLE_ID)

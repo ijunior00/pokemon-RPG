@@ -18,11 +18,12 @@ def _poke_hp(p):
 
 
 def _init_roll(pokemon):
-    # Iniciativa v2: d20 + SPE_efetivo//10 (Speed real, escala 1-255)
+    # Iniciativa v2: d20 + SPE_efetivo//10 + mod(Tática)//2 do treinador
     import battle_math as bm
     import status_effects as effects
     spe = effects.effective_stat(pokemon, 'SPE') if isinstance(pokemon, dict) else 10
-    return random.randint(1, 20) + bm.initiative_bonus(spe)
+    tatica = int(pokemon.get('trainer_init_bonus') or 0) if isinstance(pokemon, dict) else 0
+    return random.randint(1, 20) + bm.initiative_bonus(spe) + tatica
 
 
 def build_battle(allies, wilds, hunt_mode='normal', route_id=None, table_id=None):

@@ -519,7 +519,7 @@ async function rollHuntTest() {
     if (failBox) {
         failBox.style.background = 'rgba(102,187,106,0.12)';
         failBox.style.borderColor = 'rgba(102,187,106,0.4)';
-        failBox.innerHTML = `🎲 Teste: d20(<strong>${res.roll}</strong>) + SAB(${res.wis_mod >= 0 ? '+' : ''}${res.wis_mod}) + Prof(+${res.prof}) = <strong>${res.total}</strong> ` +
+        failBox.innerHTML = `🎲 Teste de 🧭 Exploração: d20(<strong>${res.roll}</strong>) ${res.skill_mod >= 0 ? '+' : ''}${res.skill_mod}${res.proficient ? ' (prof.)' : ''} = <strong>${res.total}</strong> ` +
             `— 📨 enviado ao Mestre. Aguarde ele liberar a caçada. (${res.used}/${res.limit} usadas hoje)`;
         failBox.classList.remove('hidden');
     }
@@ -578,7 +578,8 @@ async function displayEncounter(encounter) {
     document.getElementById('wild-pokemon-name').textContent = `${pokemon.name} #${String(pokemon.number).padStart(3, '0')}`;
     document.getElementById('wild-pokemon-level').textContent = encounter.level;
     document.getElementById('wild-pokemon-hp').textContent = pokemon.hp;
-    document.getElementById('wild-pokemon-ac').textContent = pokemon.ac;
+    const wSpe = document.getElementById('wild-pokemon-spe');
+    if (wSpe) wSpe.textContent = pokemon.stats?.SPE ?? '?';
     document.getElementById('wild-pokemon-types').innerHTML = formatTypes(pokemon.types);
     const sprite = document.getElementById('wild-pokemon-sprite');
     sprite.src = getPokemonSpriteUrl(pokemon.number, encounter.is_shiny);
@@ -733,7 +734,7 @@ async function startBattle() {
     document.getElementById('battle-enemy-types').innerHTML = formatTypes(enemy.types);
     document.getElementById('battle-enemy-hp-text-full').textContent = `${enemy.hp}/${enemy.hp} HP`;
     document.getElementById('battle-enemy-hp-bar-full').style.width = '100%';
-    const eac = document.getElementById('battle-enemy-ac'); if (eac) eac.textContent = enemy.ac;
+    const eac = document.getElementById('battle-enemy-ac'); if (eac) eac.textContent = enemy.stats?.SPE ?? '?';
     const espd = document.getElementById('battle-enemy-speed'); if (espd) espd.textContent = enemy.speed || '30ft';
 
     // Enemy stats
@@ -1290,11 +1291,12 @@ function throwPokeball() {
     const hpComponent = Math.floor(currentHp / 10);
     const captureDC = enemyFainted ? Math.max(5, 5 + srVal) : 10 + srVal + pokeLevel + hpComponent;
     
-    // Trainer's Animal Handling bonus (WIS mod + proficiency)
-    const trainerWis = TRAINER_DATA.wis || 10;
-    const wisMod = Math.floor((trainerWis - 10) / 2);
+    // Captura = 💞 Afinidade (❤️ Vínculo): mod + proficiência se tiver
+    const trainerVinculo = TRAINER_DATA.vinculo ?? TRAINER_DATA.wis ?? 10;
+    const vinculoMod = Math.floor((trainerVinculo - 10) / 2);
     const profBonus = trainerLevel >= 17 ? 6 : trainerLevel >= 13 ? 5 : trainerLevel >= 9 ? 4 : trainerLevel >= 5 ? 3 : 2;
-    const animalHandlingBonus = wisMod + profBonus;
+    const afinidadeProf = (TRAINER_DATA.skill_profs || []).includes('Afinidade');
+    const animalHandlingBonus = vinculoMod + (afinidadeProf ? profBonus : 0);
     
     // Roll d20 (or 2d20 take highest if advantage)
     let roll1 = Math.floor(Math.random() * 20) + 1;
@@ -1367,7 +1369,7 @@ function throwPokeball() {
     }
 
     addBattleLog(`  CD de Captura: ${enemyFainted ? `5 + SR(${srVal})` : `10 + SR(${srVal}) + Nível(${pokeLevel}) + HP÷10(${hpComponent})`} = <strong>${captureDC}</strong>`);
-    addBattleLog(`  Adestrar Animais: d20(${finalRoll})${advantageText} + SAB(${wisMod}) + Prof(${profBonus})${bonus > 0 ? ` + Bola(${bonus})` : ''} = <strong>${totalRoll}</strong>`);
+    addBattleLog(`  💞 Afinidade (Vínculo): d20(${finalRoll})${advantageText} + VÍN(${vinculoMod >= 0 ? '+' : ''}${vinculoMod})${afinidadeProf ? ` + Prof(+${profBonus})` : ''}${bonus > 0 ? ` + Bola(${bonus})` : ''} = <strong>${totalRoll}</strong>`);
 
     animateDice(finalRoll, 'd20');
 
@@ -1479,7 +1481,7 @@ function endBattle(result) {
                 playerTeam.push({
                     name: pokemon.name, nickname: '', number: pokemon.number,
                     types: pokemon.types, level: pokeLevel,
-                    maxHp: pokemon.hp, currentHp: capturedHp, ac: pokemon.ac,
+                    maxHp: pokemon.hp, currentHp: capturedHp,
                     stats: pokemon.stats, moves: pokemon.startingMoves || [],
                     ability: pokemon.ability ? pokemon.ability.name : '',
                     speed: pokemon.speed, heldItem: '', notes: '',
@@ -1662,7 +1664,7 @@ async function showPokedexDetail(number) {
                 <p style="color:var(--muted);font-size:0.85rem;margin:0 0 0.5rem;">${p.description||''}</p>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.25rem;font-size:0.85rem;margin-bottom:0.5rem;">
                     <span>HP: <strong>${p.hp||'—'}</strong></span>
-                    <span>AC: <strong>${p.ac||'—'}</strong></span>
+                    <span>Speed: <strong>${p.base_stats?.SPE ?? p.stats?.SPE ?? '—'}</strong></span>
                     <span>Vel: <strong>${p.speed||'—'}</strong></span>
                     <span>SR: <strong>${p.sr||'—'}</strong></span>
                 </div>
@@ -1867,10 +1869,8 @@ function editPokemon(slot) {
     document.getElementById('poke-level').value = pokemon.level || 1;
     document.getElementById('poke-current-hp').value = pokemon.currentHp || 0;
     document.getElementById('poke-max-hp').value = pokemon.maxHp || 0;
-    document.getElementById('poke-ac').value = pokemon.ac || 10;
-    document.getElementById('poke-hit-dice').value = pokemon.hitDice || '';
     document.getElementById('poke-speed').value = pokemon.speed || '';
-    document.getElementById('poke-saves').value = pokemon.savingThrows || '';
+    renderStatBars(pokemon);
     if (pokemon.stats) {
         const s = pokemon.stats;
         document.getElementById('poke-str').value = s.ATK || s.STR || 10;
@@ -1916,14 +1916,15 @@ function editPokemon(slot) {
 }
 
 function clearPokemonForm() {
-    ['poke-nickname','poke-species','poke-hit-dice','poke-speed','poke-saves',
+    ['poke-nickname','poke-species','poke-speed',
      'poke-held-item','poke-vulnerabilities',
      'poke-resistances','poke-notes'].forEach(id => document.getElementById(id).value = '');
     clearAbilityDropdowns();
     ['poke-level'].forEach(id => document.getElementById(id).value = 1);
     ['poke-current-hp','poke-max-hp'].forEach(id => document.getElementById(id).value = 0);
-    ['poke-ac'].forEach(id => document.getElementById(id).value = 10);
     ['poke-str','poke-dex','poke-con','poke-int','poke-wis','poke-cha'].forEach(id => document.getElementById(id).value = 10);
+    const bars = document.getElementById('poke-stat-bars');
+    if (bars) bars.innerHTML = '';
     clearMoveDropdowns();
     document.getElementById('poke-nature').value = '';
 }
@@ -1940,10 +1941,7 @@ async function savePokemon() {
         level: parseInt(document.getElementById('poke-level').value),
         currentHp: parseInt(document.getElementById('poke-current-hp').value),
         maxHp: parseInt(document.getElementById('poke-max-hp').value),
-        ac: parseInt(document.getElementById('poke-ac').value),
-        hitDice: document.getElementById('poke-hit-dice').value,
         speed: document.getElementById('poke-speed').value,
-        savingThrows: document.getElementById('poke-saves').value,
         stats: {
             ATK: parseInt(document.getElementById('poke-str').value),
             DEF: parseInt(document.getElementById('poke-dex').value),
@@ -1988,13 +1986,12 @@ async function savePokemon() {
                 const scaledRes = await fetch('/api/pokemon/stats', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ number: r.number, level: pokemon.level, nature: pokemon.nature || '', is_shiny: !!pokemon.is_shiny })
+                    body: JSON.stringify({ number: r.number, level: pokemon.level, nature: pokemon.nature || '', is_shiny: !!pokemon.is_shiny, training: pokemon.training || {} })
                 });
                 const scaled = await scaledRes.json();
                 if (!scaled.error) {
                     pokemon.maxHp     = scaled.maxHp || scaled.hp || r.hp;
                     pokemon.currentHp = pokemon.currentHp || pokemon.maxHp;
-                    pokemon.ac        = scaled.ac || r.ac;
                     // Overwrite stats with nature-scaled values (ATK/DEF/SPA/SPD/SPE)
                     pokemon.stats = Object.assign(pokemon.stats || {}, scaled.stats || {});
                     pokemon.proficiency = scaled.proficiency;
@@ -2004,9 +2001,11 @@ async function savePokemon() {
                     pokemon.natureLower = scaled.nature_lower || null;
                 }
             } catch(e2) {
-                // Fallback: use raw base stats
-                if (!pokemon.maxHp || pokemon.maxHp === 0) { pokemon.maxHp = r.hp; pokemon.currentHp = r.hp; }
-                if (pokemon.ac === 10) pokemon.ac = r.ac;
+                // Fallback: mantém os valores calculados no cliente (BattleMath)
+                if (!pokemon.maxHp || pokemon.maxHp === 0) {
+                    pokemon.maxHp = BattleMath.hpAtLevel(r.base_stats?.HP || 50, pokemon.level || 1);
+                    pokemon.currentHp = pokemon.maxHp;
+                }
             }
         }
     } catch(e) {}
@@ -2505,7 +2504,7 @@ function refreshTeamDisplay() {
 
                         <!-- Extras: AC, nature, stat points, evo -->
                         <div class="pkcard__meta">
-                            <span>AC ${poke.ac || '?'}</span>
+                            <span>SPE ${poke.stats?.SPE ?? '?'}</span>
                             ${getNatureLabel(poke)}
                             ${hasPoints ? `<span style="color:var(--accent);">⬆️ ${poke.statPointsAvailable}pts</span>` : ''}
                         </div>
@@ -2563,26 +2562,28 @@ function selectSpecies(pokemon) {
     set('poke-species', pokemon.name);
     const results = document.getElementById('poke-species-results');
     if (results) results.innerHTML = '';
-    if (pokemon.stats) {
-        set('poke-str', pokemon.stats.ATK || pokemon.stats.STR || 10);
-        renderStatBars(pokemon);
-        set('poke-dex', pokemon.stats.DEF || pokemon.stats.DEX || 10);
-        set('poke-con', pokemon.stats.SPA || pokemon.stats.CON || 10);
-        set('poke-int', pokemon.stats.SPD || pokemon.stats.INT || 10);
-        set('poke-wis', pokemon.stats.SPE || pokemon.stats.WIS || 10);
-        set('poke-cha', pokemon.stats.HP  || pokemon.stats.CHA  || 10);
-    }
-    set('poke-max-hp', pokemon.hp || 0);
-    set('poke-current-hp', pokemon.hp || 0);
-    set('poke-ac', pokemon.ac || 10);
-    set('poke-hit-dice', pokemon.hitDice || '');
-    set('poke-speed', pokemon.speed || '');
+    // Sistema v2: stats DERIVADOS dos base stats reais (pokemondb) no nível
     const curLevel = parseInt(document.getElementById('poke-level')?.value) || 1;
+    const base = pokemon.base_stats || {};
+    const v2 = {};
+    if (Object.keys(base).length) {
+        ['ATK', 'DEF', 'SPA', 'SPD', 'SPE', 'HP'].forEach(k => {
+            v2[k] = BattleMath.statAtLevel(base[k] || 50, curLevel);
+        });
+        set('poke-str', v2.ATK); set('poke-dex', v2.DEF);
+        set('poke-con', v2.SPA); set('poke-int', v2.SPD);
+        set('poke-wis', v2.SPE); set('poke-cha', v2.HP);
+        const hp = BattleMath.hpAtLevel(base.HP || 50, curLevel);
+        set('poke-max-hp', hp);
+        set('poke-current-hp', hp);
+        renderStatBars({ name: pokemon.name, level: curLevel, stats: v2,
+                         maxHp: hp, training: {} });
+    }
+    set('poke-speed', pokemon.speed || '');
     loadMoveDropdowns(pokemon.name, curLevel, pokemon.startingMoves || []);
     loadAbilityDropdowns(pokemon.name, pokemon.ability?.name || '', pokemon.hiddenAbility?.name || '');
     if (pokemon.vulnerabilities) set('poke-vulnerabilities', pokemon.vulnerabilities.join(', '));
     if (pokemon.resistances)     set('poke-resistances', pokemon.resistances.join(', '));
-    if (pokemon.savingThrows)    set('poke-saves', pokemon.savingThrows.join(', '));
 }
 
 // ============================================
@@ -2602,12 +2603,13 @@ async function saveBag() {
 async function saveTrainerData() {
     const data = {
         name: document.getElementById('trainer-name-input').value,
-        str: parseInt(document.getElementById('trainer-str').value) || 10,
-        dex: parseInt(document.getElementById('trainer-dex').value) || 10,
-        con: parseInt(document.getElementById('trainer-con').value) || 10,
-        int: parseInt(document.getElementById('trainer-int').value) || 10,
-        wis: parseInt(document.getElementById('trainer-wis').value) || 10,
-        cha: parseInt(document.getElementById('trainer-cha').value) || 10,
+        vinculo: parseInt(document.getElementById('trainer-vinculo').value) || 10,
+        tatica: parseInt(document.getElementById('trainer-tatica').value) || 10,
+        conhecimento: parseInt(document.getElementById('trainer-conhecimento').value) || 10,
+        agilidade: parseInt(document.getElementById('trainer-agilidade').value) || 10,
+        influencia: parseInt(document.getElementById('trainer-influencia').value) || 10,
+        determinacao: parseInt(document.getElementById('trainer-determinacao').value) || 10,
+        skill_profs: TRAINER_DATA.skill_profs || [],
         hp_max: parseInt(document.getElementById('trainer-hp-max').value) || 8,
         hp_current: parseInt(document.getElementById('trainer-hp-current').value) || 8,
         race: document.getElementById('trainer-race').value,
@@ -2668,9 +2670,86 @@ async function renderStatBars(pokemon) {
     } catch (e) { box.innerHTML = ''; }
 }
 
+// ============================================
+// PERÍCIAS DO TREINADOR (13) — teste = d20 + mod (+prof); Sorte = ½ mod DET
+// ============================================
+async function renderTrainerSkills() {
+    const grid = document.getElementById('trainer-skills-grid');
+    if (!grid) return;
+    try {
+        const resp = await fetch('/api/skill/list');
+        const data = await resp.json();
+        window._skillData = data;
+        const counter = document.getElementById('skill-prof-counter');
+        if (counter) counter.textContent =
+            `— proficiências: ${data.used_profs}/${data.max_profs} (prof. +${data.prof_bonus})`;
+        grid.innerHTML = data.skills.map(s => {
+            const sign = s.bonus >= 0 ? '+' : '';
+            return `
+            <div style="display:flex;align-items:center;gap:0.45rem;background:var(--darker);border-radius:var(--radius);padding:0.4rem 0.55rem;" title="${s.attribute_label} — ${s.description}">
+                <input type="checkbox" ${s.proficient ? 'checked' : ''}
+                       onchange="toggleSkillProf('${s.skill}')" title="Proficiência em ${s.skill}"
+                       style="accent-color:var(--accent);cursor:pointer;">
+                <span style="flex:1;font-size:0.85rem;">${s.emoji} ${s.skill}${s.half_mod ? ' <small style="opacity:0.6">(½ DET)</small>' : ''}</span>
+                <strong style="min-width:34px;text-align:right;color:${s.bonus >= 0 ? 'var(--success,#4caf50)' : '#e53935'};">${sign}${s.bonus}</strong>
+                <button type="button" class="btn btn-sm btn-dice" onclick="rollSkill('${s.skill}')" title="Rolar d20 ${sign}${s.bonus} e enviar ao Mestre">🎲</button>
+            </div>`;
+        }).join('') + `<div id="skill-roll-result" style="grid-column:1/-1;font-size:0.85rem;min-height:1.2rem;"></div>`;
+    } catch(e) { console.error('renderTrainerSkills', e); }
+}
+
+async function toggleSkillProf(skill) {
+    const profs = new Set(TRAINER_DATA.skill_profs || []);
+    if (profs.has(skill)) {
+        profs.delete(skill);
+    } else {
+        const max = window._skillData?.max_profs ?? 2;
+        if (profs.size >= max) {
+            alert(`Você só pode ter ${max} proficiências no seu nível (ganha +1 nos níveis 5, 9, 13 e 17).`);
+            renderTrainerSkills();
+            return;
+        }
+        profs.add(skill);
+    }
+    TRAINER_DATA.skill_profs = [...profs];
+    try {
+        await fetch('/player/trainer', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ skill_profs: TRAINER_DATA.skill_profs })
+        });
+    } catch(e) {}
+    renderTrainerSkills();
+}
+
+async function rollSkill(skill) {
+    const box = document.getElementById('skill-roll-result');
+    try {
+        const resp = await fetch('/api/skill/roll', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ skill })
+        });
+        const res = await resp.json();
+        if (res.error) { if (box) box.innerHTML = `⚠️ ${res.error}`; return; }
+        try { playSound && playSound('dice'); } catch(e) {}
+        const sign = res.bonus >= 0 ? '+' : '';
+        const flair = res.nat20 ? ' 🌟 <strong>NAT 20!</strong>' : res.nat1 ? ' 💀 <strong>NAT 1!</strong>' : '';
+        if (box) box.innerHTML =
+            `${res.skill_emoji} <strong>${res.skill}</strong> (${res.attribute_emoji} ${res.attribute}): ` +
+            `d20(<strong>${res.roll}</strong>) ${sign}${res.bonus}${res.proficient ? ' (prof.)' : ''} = ` +
+            `<strong style="color:var(--accent);">${res.total}</strong>${flair} — 📨 enviado ao Mestre.`;
+    } catch(e) {
+        if (box) box.innerHTML = '⚠️ Erro ao rolar. Tente de novo.';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', renderTrainerSkills);
+
+const TRAINER_ATTRS = ['vinculo','tatica','conhecimento','agilidade','influencia','determinacao'];
 function updateModifiers() {
-    ['str','dex','con','int','wis','cha'].forEach(attr => {
-        const val = parseInt(document.getElementById(`trainer-${attr}`).value) || 10;
+    TRAINER_ATTRS.forEach(attr => {
+        const input = document.getElementById(`trainer-${attr}`);
+        if (!input) return;
+        const val = parseInt(input.value) || 10;
         const mod = Math.floor((val - 10) / 2);
         const el = document.getElementById(`mod-${attr}`);
         if (el) el.textContent = `(${mod >= 0 ? '+' : ''}${mod})`;
@@ -2752,8 +2831,8 @@ document.addEventListener('DOMContentLoaded', () => {
     updateModifiers();
     renderMapRoutes();
     // Listen for attribute changes
-    ['str','dex','con','int','wis','cha'].forEach(attr => {
-        document.getElementById(`trainer-${attr}`).addEventListener('input', updateModifiers);
+    TRAINER_ATTRS.forEach(attr => {
+        document.getElementById(`trainer-${attr}`)?.addEventListener('input', updateModifiers);
     });
 });
 
@@ -2816,25 +2895,18 @@ function megaEvolve() {
     // Apply bonuses visually
     const bonuses = chosen.bonuses || {};
     const poke = window.currentBattleData.playerPokemon;
-    
-    // Update displayed stats
-    if (poke.stats) {
-        if (bonuses.STR) poke.stats.STR += bonuses.STR;
-        if (bonuses.DEX) poke.stats.DEX += bonuses.DEX;
-        if (bonuses.CON) poke.stats.CON += bonuses.CON;
-        if (bonuses.INT) poke.stats.INT += bonuses.INT;
-        if (bonuses.WIS) poke.stats.WIS += bonuses.WIS;
-        if (bonuses.CHA) poke.stats.CHA += bonuses.CHA;
-    }
-    if (bonuses.ac) poke.ac = (poke.ac || 13) + bonuses.ac;
+
+    // v2: cada ponto de bônus antigo vira +8% no stat real correspondente
+    // (chaves legadas do mega_stones.json: STR→ATK, DEX→SPE, CON→DEF,
+    //  INT→SPA, WIS→SPD; 'ac' vira defesa geral: DEF e SPD)
+    if (poke.stats) applyMegaBonusesV2(poke.stats, bonuses);
     if (chosen.newTypes) poke.types = chosen.newTypes;
-    
+
     // Update UI
     const nameEl = document.getElementById('battle-player-name-full');
     nameEl.textContent = `🔮 ${chosen.megaName} Nv.${poke.level}`;
     nameEl.style.color = 'var(--accent)';
-    
-    document.getElementById('battle-player-ac').textContent = poke.ac;
+
     if (chosen.newTypes) {
         document.getElementById('battle-player-types').innerHTML = formatTypes(chosen.newTypes);
     }
@@ -2846,10 +2918,33 @@ function megaEvolve() {
     }
     
     addBattleLog(`🔮 <strong>MEGA EVOLUÇÃO!</strong> ${poke.nickname || poke.name} → ${chosen.megaName}!`);
-    addBattleLog(`  Habilidade: ${chosen.ability || '-'} | Bônus: AC+${bonuses.ac||0}, STR+${bonuses.STR||0}, DEX+${bonuses.DEX||0}`);
-    
+    addBattleLog(`  Habilidade: ${chosen.ability || '-'} | ${megaBonusLabel(bonuses)}`);
+
     // Notify server/master
     socket.emit('mega_evolve', { side: 'player', stone_name: chosen.stone });
+}
+
+// Converte os bônus legados do mega_stones.json em multiplicadores v2
+const MEGA_KEY_MAP = { STR: 'ATK', DEX: 'SPE', CON: 'DEF', INT: 'SPA', WIS: 'SPD' };
+function applyMegaBonusesV2(stats, bonuses) {
+    for (const [oldKey, newKey] of Object.entries(MEGA_KEY_MAP)) {
+        const pts = bonuses[oldKey] || 0;
+        if (pts && stats[newKey]) stats[newKey] = Math.round(stats[newKey] * (1 + 0.08 * pts));
+    }
+    const acPts = bonuses.ac || 0;
+    if (acPts) {
+        ['DEF', 'SPD'].forEach(k => {
+            if (stats[k]) stats[k] = Math.round(stats[k] * (1 + 0.04 * acPts));
+        });
+    }
+}
+function megaBonusLabel(bonuses) {
+    const parts = [];
+    for (const [oldKey, newKey] of Object.entries(MEGA_KEY_MAP)) {
+        if (bonuses[oldKey]) parts.push(`${newKey} +${bonuses[oldKey] * 8}%`);
+    }
+    if (bonuses.ac) parts.push(`DEF/SPD +${bonuses.ac * 4}%`);
+    return parts.length ? `Bônus: ${parts.join(', ')}` : 'Bônus: —';
 }
 
 // Listen for wild mega (master triggered)
@@ -2860,10 +2955,10 @@ socket.on('mega_evolved', (data) => {
         nameEl.textContent = `🔮 ${data.mega_name} (MEGA!)`;
         nameEl.style.color = '#ff6b9d';
         addBattleLog(`🔮 <strong>O Pokémon Selvagem MEGA EVOLUIU!</strong> → ${data.mega_name}!`);
-        addBattleLog(`  Nova habilidade: ${data.ability} | Bônus: AC+${bonuses.ac||0}, STR+${bonuses.STR||0}, DEX+${bonuses.DEX||0}`);
-        // Update enemy AC display
-        const acEl = document.getElementById('battle-enemy-ac');
-        if (acEl && bonuses.ac) acEl.textContent = parseInt(acEl.textContent) + bonuses.ac;
+        addBattleLog(`  Nova habilidade: ${data.ability} | ${megaBonusLabel(bonuses)}`);
+        // Reflete o boost nos stats do inimigo em memória (dano recebido/causado)
+        const enemyPoke = window.currentBattleData?.enemy;
+        if (enemyPoke?.stats) applyMegaBonusesV2(enemyPoke.stats, bonuses);
     }
 });
 
@@ -3523,8 +3618,8 @@ function renderPvpBattle(state) {
                     <span class="hp-text">${opponent.currentHp || '?'}/${opponent.maxHp || '?'} HP</span>
                     <div style="text-align:center;">${renderStageBadges(opponent.stat_stages)}</div>
                     <div class="battle-stats-mini">
-                        <span>AC: ${opponent.ac || '?'}</span>
-                        <span>SPD: ${opponent.speed || '?'}</span>
+                        <span>SPE: ${opponent.stats?.SPE ?? '?'}</span>
+                        <span>${BattleMath.DEFENSE_MODES[opponent.defense_mode || 1]?.label || '🛡️ Padrão'}</span>
                     </div>
                     ${opponent.stats ? `<div class="mini-stats" style="justify-content:center;margin-top:0.3rem;">${Object.entries(opponent.stats).map(([k,v]) => `<span>${k}:${v}</span>`).join('')}</div>` : ''}
                 </div>
@@ -3548,8 +3643,8 @@ function renderPvpBattle(state) {
                     <span class="hp-text">${myActive.currentHp || 0}/${myActive.maxHp || 0} HP</span>
                     <div style="text-align:center;">${renderStageBadges(state.your_stat_stages)}</div>
                     <div class="battle-stats-mini">
-                        <span>AC: ${myActive.ac || 10}</span>
-                        <span>SPD: ${myActive.speed || '30ft'}</span>
+                        <span>SPE: ${myActive.stats?.SPE ?? '?'}</span>
+                        <span>${BattleMath.DEFENSE_MODES[myActive.defense_mode || 1]?.label || '🛡️ Padrão'}</span>
                     </div>
                 </div>
             </div>
@@ -5527,7 +5622,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add +1 buttons to trainer attributes
             document.querySelectorAll('.attr-box').forEach(box => {
                 const label = box.querySelector('label')?.textContent?.trim();
-                const statMap = { 'FOR': 'str', 'DES': 'dex', 'CON': 'con', 'INT': 'int', 'SAB': 'wis', 'CAR': 'cha' };
+                const statMap = {
+                    '❤️ VÍNCULO': 'vinculo', '♟️ TÁTICA': 'tatica',
+                    '📖 CONHEC.': 'conhecimento', '🏃 AGILIDADE': 'agilidade',
+                    '👑 INFLUÊNCIA': 'influencia', '🔥 DETERM.': 'determinacao'
+                };
                 const statKey = statMap[label];
                 if (statKey && !box.querySelector('.trainer-stat-btn')) {
                     const btn = document.createElement('button');
@@ -6095,7 +6194,7 @@ function _chaModifier(cha) {
 }
 
 function _chaPrice(basePrice, mode) {
-    const cha = TRAINER_DATA.cha || 10;
+    const cha = TRAINER_DATA.influencia ?? TRAINER_DATA.cha ?? 10;
     const { buyMult, sellMult } = _chaModifier(cha);
     if (mode === 'buy')  return Math.max(1, Math.round(basePrice * buyMult));
     if (mode === 'sell') return Math.max(1, Math.round(basePrice * sellMult));
@@ -6131,7 +6230,7 @@ function renderShop() {
     const moneyEl = document.getElementById('shop-money-display');
     if (moneyEl) moneyEl.textContent = (TRAINER_DATA.money || 0).toLocaleString('pt-BR');
 
-    const cha = TRAINER_DATA.cha || 10;
+    const cha = TRAINER_DATA.influencia ?? TRAINER_DATA.cha ?? 10;
     const { buyMult, sellMult } = _chaModifier(cha);
     const chaEl = document.getElementById('shop-cha-info');
     if (chaEl) {
@@ -6140,7 +6239,7 @@ function renderShop() {
         const buyTxt  = buyPct > 0 ? `<span style="color:#4caf50">-${buyPct}% compra</span>` :
                         buyPct < 0 ? `<span style="color:#e53935">+${Math.abs(buyPct)}% compra</span>` : 'preço normal';
         const sellTxt = `vende a <span style="color:${sellPct > 50 ? '#4caf50' : '#e53935'}">${sellPct}%</span> do valor`;
-        chaEl.innerHTML = `✨ CHA ${cha} — ${buyTxt}, ${sellTxt}`;
+        chaEl.innerHTML = `👑 Influência ${cha} — ${buyTxt}, ${sellTxt}`;
     }
 
     const grid = document.getElementById('shop-grid');

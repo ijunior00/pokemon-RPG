@@ -570,6 +570,110 @@ def main():
     _dr = appmod._calc_pvp_attack(make_poke('Charmander', 20), make_poke('Rattata', 20), 'Dragon Rage', 15)
     check(S, 'Dragon Rage = dano fixo (15 + nível//4)', _dr['damage'] == 15 + 20 // 4, str(_dr['damage']))
 
+    # ══════════ 4a-quater. ATRIBUTOS DO TREINADOR (6 novos + perícias) ══════════
+    section('4a-quater. Atributos do treinador (Vínculo/Tática/... + perícias)')
+    S = 'Atributos Treinador'
+    import trainer_attrs as ta
+
+    # migração automática old→new preservando o investimento
+    users = db.get_users()
+    _tr = users[u1]['trainer_data']
+    import copy as _cp2
+    _orig_level = _tr.get('level', 1)
+    _orig_team = _cp2.deepcopy(_tr.get('team', []))
+    for k in list(ta.ATTRIBUTES) + ['av', 'skill_profs']:
+        _tr.pop(k, None)
+    _tr.update({'str': 8, 'dex': 14, 'con': 18, 'int': 12, 'wis': 16, 'cha': 15, 'level': 5})
+    db.save_users(users)
+    r = p1.post('/player/trainer', json={})
+    users = db.get_users(); _tr = users[u1]['trainer_data']
+    check(S, 'migração old→new (wis→vinculo, cha→influencia, ...)',
+          _tr.get('vinculo') == 16 and _tr.get('influencia') == 15 and
+          _tr.get('determinacao') == 18 and _tr.get('agilidade') == 14 and
+          _tr.get('tatica') == 8 and _tr.get('conhecimento') == 12 and _tr.get('av') == 2)
+
+    # /api/skill/list: 13 perícias e Sorte com metade do mod de Determinação
+    r = p1.get('/api/skill/list')
+    d = r.get_json() or {}
+    _sk = {s['skill']: s for s in d.get('skills', [])}
+    check(S, '13 perícias definidas', len(_sk) == 13, str(len(_sk)))
+    check(S, 'Sorte = ½ mod DET (18→+4→+2)',
+          _sk.get('Sorte', {}).get('bonus') == 2 and _sk.get('Sorte', {}).get('half_mod') is True)
+    check(S, 'Afinidade usa Vínculo (16→+3)', _sk.get('Afinidade', {}).get('bonus') == 3)
+
+    # proficiências: teto por nível (nível 5 → 3)
+    r = p1.post('/player/trainer', json={'skill_profs':
+        ['Sorte', 'Afinidade', 'Exploração', 'Coragem', 'Diplomacia']})
+    users = db.get_users()
+    check(S, 'teto de proficiências no nível 5 = 3',
+          len(users[u1]['trainer_data']['skill_profs']) == 3)
+
+    # teste de perícia: manual, com proficiência, chega ao mestre
+    appmod._rate_store.clear()
+    msio.get_received()
+    r = p1.post('/api/skill/roll', json={'skill': 'Sorte', 'manual_roll': 12})
+    d = r.get_json() or {}
+    # Sorte proficiente no nível 5: ½ mod (2) + prof (3) = +5
+    check(S, 'teste de Sorte: d20(12) + 2 + prof(3) = 17',
+          d.get('total') == 17 and d.get('proficient') is True, str(d))
+    check(S, 'perícia inválida rejeitada',
+          p1.post('/api/skill/roll', json={'skill': 'Hackear'}).status_code == 400)
+    _skr = recv(msio, 'skill_roll')
+    check(S, 'mestre recebe o teste na caixa de rolagens',
+          bool(_skr) and _skr[0]['args'][0].get('skill') == 'Sorte')
+
+    # caçada agora usa 🧭 Exploração (Agilidade 14 → +2, proficiente → +5)
+    m.post('/master/hunts', json={'player_id': u1, 'action': 'reset'})
+    appmod._rate_store.clear()
+    r = p1.post('/api/hunt/roll', json={'manual_roll': 10})
+    d = r.get_json() or {}
+    check(S, 'caçada = Exploração: d20(10) + 2 + prof(3) = 15',
+          d.get('total') == 15 and d.get('skill') == 'Exploração', str(d))
+
+    # loja usa 👑 Influência (15 → -10% compra)
+    users = db.get_users(); users[u1]['trainer_data']['money'] = 5000; db.save_users(users)
+    r = p1.post('/api/shop/buy', json={'item_id': 'poke-ball', 'qty': 1})
+    d = r.get_json() or {}
+    check(S, 'loja desconta pela Influência (200 → 180)',
+          d.get('unit_price') == 180, str(d.get('unit_price')))
+
+    # iniciativa: mod(♟️ Tática)//2 estampado nos Pokémon do treinador
+    _poke_i = make_poke('Pikachu', 10)
+    _b = appmod._stamp_tatica([_poke_i], {'tatica': 18, 'av': 2, 'level': 5})
+    check(S, 'Tática 18 (+4) → +2 de iniciativa estampado',
+          _b == 2 and _poke_i['trainer_init_bonus'] == 2)
+    check(S, 'sem treinador (NPC/selvagem) → sem bônus',
+          appmod._stamp_tatica([make_poke('Rattata', 5)], None) == 0)
+    _rolls = [appmod.pvp.roll_initiative(_poke_i) for _ in range(40)]
+    _spe_b = bmm.initiative_bonus(_poke_i['stats']['SPE'])
+    check(S, 'roll_initiative soma SPE//10 + Tática',
+          min(_rolls) >= 1 + _spe_b + 2 and max(_rolls) <= 20 + _spe_b + 2)
+
+    # ficha 100% v2: save do time recalcula stats e some com chaves D&D
+    users = db.get_users()
+    _team_junk = [{'name': 'Pikachu', 'number': 25, 'level': 10, 'sv': 2,
+                   'stats': {'ATK': 999, 'DEF': 1, 'SPA': 999, 'SPD': 1, 'SPE': 999, 'HP': 999},
+                   'maxHp': 9999, 'currentHp': 9999, 'training': {'ATK': 5},
+                   'ac': 13, 'hitDice': 'd6', 'savingThrows': 'Dexterity',
+                   'moves': ['Thunder Shock']}]
+    r = p1.post('/player/team', json={'team': _team_junk})
+    users = db.get_users()
+    _saved = users[u1]['trainer_data']['team'][0]
+    _ref = scaling.calculate_pokemon_stats(appmod.POKEMON_BY_NAME['pikachu'], 10,
+                                           training=_saved['training'])
+    check(S, 'save do time: stats recalculados no servidor (cliente não manda)',
+          _saved['stats'] == _ref['stats'] and _saved['maxHp'] == _ref['maxHp'])
+    check(S, 'save do time: currentHp clampado ao máximo',
+          _saved['currentHp'] == _saved['maxHp'])
+    check(S, 'save do time: chaves D&D (ac/hitDice/savingThrows) removidas',
+          all(k not in _saved for k in ('ac', 'hitDice', 'savingThrows')))
+
+    # restaura o estado do u1 para as seções seguintes
+    users = db.get_users()
+    users[u1]['trainer_data']['team'] = _orig_team
+    users[u1]['trainer_data']['level'] = _orig_level
+    db.save_users(users)
+
     # ══════════ 4b. BATALHA EM DUPLA (2v1 / 2v2) ══════════
     section('4b. Batalha em dupla (grupo)')
     S = 'Batalha em Dupla'

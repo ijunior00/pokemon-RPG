@@ -81,10 +81,12 @@ def select_pokemon(battle, player_key, pokemon_idx):
 
 
 def roll_initiative(pokemon):
-    """Iniciativa v2: d20 + SPE_efetivo//10 (Speed real, escala 1-255)."""
+    """Iniciativa v2: d20 + SPE_efetivo//10 + mod(Tática)//2 do treinador
+    (estampado em trainer_init_bonus; NPC/selvagem não tem → 0)."""
     import battle_math as bm
     spe = effects.effective_stat(pokemon, 'SPE') if isinstance(pokemon, dict) else 10
-    return random.randint(1, 20) + bm.initiative_bonus(spe)
+    tatica = int(pokemon.get('trainer_init_bonus') or 0) if isinstance(pokemon, dict) else 0
+    return random.randint(1, 20) + bm.initiative_bonus(spe) + tatica
 
 
 def _poke_hp(p):
