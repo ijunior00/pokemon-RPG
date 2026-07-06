@@ -17,6 +17,7 @@ import group_battle as gb
 import status_effects as effects
 import pokemon_scaling as scaling
 import abilities as ab
+import migrations
 
 # ============================================================
 # APP SETUP
@@ -83,6 +84,41 @@ ROUTES_DATA = load_json(ROUTES_FILE)
 MOVES_FILE = os.path.join(DATA_DIR, 'moves.json')
 MOVES_DB = load_json(MOVES_FILE)
 MOVES_BY_NAME = {k.lower(): v for k, v in MOVES_DB.items()}
+
+# Dados canônicos (PokeAPI): power/accuracy/priority reais por move.
+# Indexados pelo NOME LOCAL minúsculo para lookup direto no combate.
+CANONICAL_FILE = os.path.join(DATA_DIR, 'canonical_moves.json')
+_CANONICAL_RAW = load_json(CANONICAL_FILE)
+_CANON_MANUAL = {'vise grip': 'vice-grip'}   # espelha a tool de build
+
+def _canon_ident(name):
+    """'King's Shield' → 'kings-shield' (regra do identifier do PokeAPI)."""
+    n = (name or '').lower().replace("'", '').replace('’', '')
+    n = n.replace('.', '').replace(' ', '-')
+    while '--' in n:
+        n = n.replace('--', '-')
+    return _CANON_MANUAL.get((name or '').lower(), n)
+
+CANON_BY_LOCAL_NAME = {}
+for _mn in MOVES_DB:
+    _c = _CANONICAL_RAW.get(_canon_ident(_mn))
+    if _c:
+        CANON_BY_LOCAL_NAME[_mn.lower()] = _c
+
+def canon_move(move_name):
+    """Registro canônico (power/accuracy/priority) de um move local, ou {}."""
+    return (CANON_BY_LOCAL_NAME.get((move_name or '').lower())
+            or _CANONICAL_RAW.get(_canon_ident(move_name)) or {})
+
+# Validação ruidosa no startup: o sistema v2 depende dos datasets novos
+assert _CANONICAL_RAW, 'canonical_moves.json ausente — rode tools/build_canonical_moves.py'
+_no_bs = [p['name'] for p in POKEMON_DB if not p.get('base_stats')]
+assert not _no_bs, f'{len(_no_bs)} espécies sem base_stats — rode tools/build_pokemon_stats.py: {_no_bs[:5]}'
+for _p in POKEMON_DB:
+    assert all(1 <= v <= 255 for v in _p['base_stats'].values()), \
+        f"base_stats fora de 1-255: {_p['name']}"
+
+import battle_math as bm_core
 
 # ============================================================
 # BATTLE HELPERS — server-side damage calculation
@@ -225,233 +261,154 @@ def _resolve_metronome(move_name):
     return pick, f'{emoji} {move_name} → {pick}'
 
 
-def _calc_player_attack(encounter, move_name, attack_roll=None):
-    """Calculate player attack fully server-side. Returns result dict."""
-    player_poke = encounter.get('player_pokemon') or {}
-    wild_poke   = encounter.get('pokemon') or {}
+def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
+                      attacker_status=None, defender_status=None,
+                      atk_hp=None, atk_max_hp=None, def_hp=None):
+    """Núcleo ÚNICO do cálculo de ataque (sistema v2 — base stats reais).
+
+    Acerto: d20 vs Accuracy do move (canônico). Dano: dados do Power ×
+    clamp(Atk_ef/DefStat_postura) × taxa da postura × STAB ×1.5 × tipo.
+    Retorna {'hit','damage','message','attack_roll','move_type_en','is_crit','log'}.
+    """
     move_name, metronome_became = _resolve_metronome(move_name)
     move = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name) or {}
-
-    level  = int(player_poke.get('level') or 1)
-    stats  = player_poke.get('stats') or {}
+    level = int(attacker_poke.get('level') or 1)
     category = move.get('category', 'physical')
 
-    # Move de status NUNCA rola ataque nem causa dano — é roteado pelo
-    # motor de efeitos (effects.process_status_move). Guarda defensiva.
+    # Move de status NUNCA rola ataque nem causa dano — roteado pelo motor
+    # de efeitos (effects.process_status_move). Guarda defensiva.
     if _is_status_move(move):
         return {'hit': False, 'damage': 0, 'is_status': True,
                 'message': 'Move de status — sem dano',
-                'attack_roll': 0, 'move_type_en': '',
-                'log': ''}
+                'attack_roll': 0, 'move_type_en': '', 'log': ''}
 
-    # stat efetivo = base + stat_stages acumulados + modificador de condição
-    if category == 'physical':
-        stat_val = effects.effective_stat(player_poke, 'ATK')
-    elif category == 'special':
-        stat_val = effects.effective_stat(player_poke, 'SPA')
-    else:
-        stat_val = 10
-    mod          = _mod_dano(stat_val)       # usado no DANO (sem teto)
-    mod_precisao = _mod_precisao(stat_val)   # usado no ACERTO (com teto)
-    prof = int(player_poke.get('proficiency') or _prof_for_level(level))
-
-    wild_level  = int(wild_poke.get('level') or encounter.get('level') or 5)
-    wild_prof_h = _prof_for_level(wild_level) // 2
-
-    # CA usa mod_dano (sem teto) — a assimetria contra o mod_precisao (com
-    # teto) do atacante evita acerto automático/erro impossível nos extremos.
-    # DEF/SPD do defensor incluem stat_stages; 'AC' entra direto via ac_bonus.
-    if category == 'physical':
-        enemy_ac = 8 + _mod_dano(effects.effective_stat(wild_poke, 'DEF')) + wild_prof_h
-    else:
-        enemy_ac = 8 + _mod_dano(effects.effective_stat(wild_poke, 'SPD')) + wild_prof_h
-    enemy_ac = max(8, int(enemy_ac) + effects.ac_bonus(wild_poke))
-
-    if attack_roll is None:
-        attack_roll = random.randint(1, 20)
-    attack_roll = int(attack_roll)
-    is_crit  = attack_roll == 20
-    is_nat1  = attack_roll == 1
-    total    = attack_roll + mod_precisao + prof + effects.attack_roll_bonus(player_poke)
+    canon = canon_move(move_name)
+    power = canon.get('power')
+    accuracy = canon.get('accuracy')
 
     move_type_raw = (move.get('type') or '').lower()
-    move_type_en  = _TYPE_MAP_PT.get(move_type_raw, move_type_raw)
+    move_type_en = _TYPE_MAP_PT.get(move_type_raw, move_type_raw)
     met = f'<strong>{metronome_became}</strong>! ' if metronome_became else ''
 
-    if is_nat1:
-        return {'hit': False, 'damage': 0, 'message': 'Nat 1 - Falha',
-                'attack_roll': attack_roll, 'move_type_en': move_type_en,
-                'log': f'{met}❌ Falha crítica! (Nat 1)'}
+    # ── Acerto: d20 vs Accuracy (stages de acerto/evasão deslizam o d20) ──
+    if attack_roll is None:
+        attack_roll = random.randint(1, 20)
+    d20 = int(attack_roll)
+    is_crit = d20 == 20
+    atk_stage = effects.attack_roll_bonus(attacker_poke)
+    evasion = effects.ac_bonus(defender_poke)
+    thr = bm_core.miss_threshold(accuracy)
+    acc_label = f'Acc {accuracy}%' if accuracy else 'não erra'
 
-    hit = (total >= enemy_ac) or is_crit
-    if not hit:
+    if not bm_core.roll_hits(d20, accuracy, atk_stage, evasion):
+        shift = (f'{atk_stage:+d}' if atk_stage else '') + (f'−{evasion}' if evasion else '')
         return {'hit': False, 'damage': 0,
-                'message': f'Errou ({total} vs AC {enemy_ac})',
-                'attack_roll': attack_roll, 'move_type_en': move_type_en,
-                'log': f'{met}❌ Errou! ({total} < AC {enemy_ac})'}
+                'message': f'{met}Errou (d20 {d20}{shift} ≤ {thr} | {acc_label})',
+                'attack_roll': d20, 'move_type_en': move_type_en,
+                'log': f'{met}❌ Errou! d20({d20}){shift} ≤ limiar {thr} ({acc_label})'}
 
-    # sem default '1d6': a auditoria canônica garante dados p/ moves de dano;
-    # os poucos de dano variável (Seismic Toss etc.) ficam p/ o mestre adjudicar
-    base_dmg = move.get('baseDamage')
-    if not base_dmg:
+    # ── Dano: dados do Power × razão de stats × postura ──
+    if not power:
+        # moves de DANO FIXO (Dragon Rage, Sonic Boom, Seismic Toss...) têm
+        # power None no canônico — resolvidos pela tabela do battle_math
+        fixed = bm_core.fixed_damage_for(move_name.lower(), level, def_hp)
+        if fixed is not None:
+            return {'hit': True, 'damage': fixed,
+                    'message': f'{met}d20({d20}) vs {acc_label} — dano fixo {fixed}',
+                    'attack_roll': d20, 'move_type_en': move_type_en, 'is_crit': is_crit,
+                    'log': f'{met}✅ d20({d20}) vs {acc_label} → dano FIXO = <strong>{fixed}</strong>'}
+        # sem Power e sem fórmula fixa (Counter, Bide...) → mestre adjudica
         return {'hit': True, 'damage': 0,
-                'message': f'{total} vs AC {enemy_ac} — dano variável (mestre adjudica)',
-                'attack_roll': attack_roll, 'move_type_en': move_type_en,
-                'is_crit': is_crit, 'log': f'{met}✅ Acertou! ({total} vs AC {enemy_ac}) — dano variável, mestre adjudica.'}
-    higher_lvs  = move.get('higherLevels', '') or ''
-    scaled_dice = _get_scaled_dice(base_dmg, level, higher_lvs)
-    roll1   = _roll_dice(scaled_dice)
-    damage  = roll1 + mod
-    if is_crit:
-        roll2   = _roll_dice(scaled_dice)
-        damage  = roll1 + roll2 + mod
+                'message': f'{met}Acertou (d20 {d20} | {acc_label}) — dano variável (mestre adjudica)',
+                'attack_roll': d20, 'move_type_en': move_type_en, 'is_crit': is_crit,
+                'log': f'{met}✅ Acertou! d20({d20}) — dano variável, mestre adjudica.'}
 
-    # STAB (Blaze/Overgrow/Torrent/Swarm dobram com HP ≤ 25%)
-    poke_types = [t.lower() for t in (player_poke.get('types') or [])]
-    if move_type_raw in poke_types or move_type_en in poke_types:
-        stab = int(player_poke.get('stab') or _stab_for_level(level))
-        bs = encounter.get('battle_state') or {}
-        stab *= ab.stab_multiplier(player_poke.get('ability'), move_type_en,
-                                   bs.get('player_hp_current'), bs.get('player_hp_max'))
-        damage += stab
-    else:
-        stab = 0
+    dice = bm_core.dice_for_power(power, level)
+    roll1 = _roll_dice(dice)
+    dice_total = roll1 + (_roll_dice(dice) if is_crit else 0)
 
-    # Sinergia de veneno: Venoshock dobra o dano se o alvo está envenenado.
-    venoshock_x2 = False
-    if move_name.lower() == 'venoshock':
-        _wst = (encounter.get('battle_state') or {}).get('wild_status') or {}
-        if _wst.get('condition') == 'badly_poisoned':
-            damage *= 2
-            venoshock_x2 = True
+    atk_key = 'SPA' if category == 'special' else 'ATK'
+    atk_eff = effects.effective_stat(attacker_poke, atk_key)
+    dmode = int(defender_poke.get('defense_mode') or 1)
+    def_key = bm_core.defense_stat_key(category, dmode)
+    def_eff = effects.effective_stat(defender_poke, def_key)
+    tax = bm_core.defense_tax(dmode)
 
-    # Type effectiveness (com fallback nos dados da espécie p/ listas vazias)
-    vulns, resists, immunities = _type_lists(wild_poke)
+    # STAB ×1.5 (Blaze/Overgrow/Torrent/Swarm com HP ≤ 25% dobram → ×2.0)
+    poke_types = [t.lower() for t in (attacker_poke.get('types') or [])]
+    stab = move_type_raw in poke_types or move_type_en in poke_types
+    stab_mult = None
+    if stab and ab.stab_multiplier(attacker_poke.get('ability'), move_type_en,
+                                   atk_hp, atk_max_hp) > 1:
+        stab_mult = 2.0
+
+    # Queimado corta dano físico pela metade
+    burned = (category == 'physical'
+              and (attacker_status or {}).get('condition') == 'queimado')
+
+    # Efetividade de tipo (fallback nos dados da espécie p/ listas vazias)
+    vulns, resists, immunities = _type_lists(defender_poke)
     eff = 1.0
     if move_type_en in immunities:
         eff = 0.0
     else:
         if move_type_en in vulns:   eff *= 2
         if move_type_en in resists: eff *= 0.5
-    damage = max(0, int(damage * eff))
-    if damage < 1 and eff > 0:
-        damage = 1
 
-    cat_label = '⚔️ Físico' if category == 'physical' else '✨ Especial'
-    stat_lbl  = 'ATK' if category == 'physical' else 'SPA'
+    dmg = bm_core.damage(dice_total, atk_eff, def_eff, stab=stab,
+                         effectiveness=eff, tax=tax, burned=burned,
+                         stab_mult=stab_mult)
+
+    # Sinergia de veneno: Venoshock dobra contra alvo envenenado
+    venoshock_x2 = False
+    if (move_name.lower() == 'venoshock' and dmg > 0
+            and (defender_status or {}).get('condition') == 'badly_poisoned'):
+        dmg *= 2
+        venoshock_x2 = True
+
+    lo, hi = bm_core.RATIO_CLAMP
+    ratio = max(lo, min(hi, atk_eff / max(1, def_eff)))
     eff_label = ''
     if eff == 0:   eff_label = ' ⛔ IMUNE (0x)'
     elif eff > 1:  eff_label = f' ⚡ Super Efetivo (x{eff:.0f})'
     elif eff < 1:  eff_label = f' 🛡️ Não Efetivo (x{eff})'
+    mode_label = f' [{bm_core.DEFENSE_MODES[dmode]["label"]} ×{tax}]' if dmode != 1 else ''
 
-    log = (f'{met}✅ Acertou! ({total} vs AC {enemy_ac}) → '
-           f'{scaled_dice}({roll1}) + {stat_lbl}({mod})'
-           f'{f" + STAB({stab})" if stab else ""}'
-           f'{" ×2 CRIT" if is_crit else ""}'
+    log = (f'{met}✅ d20({d20}) vs {acc_label} → {dice}({dice_total})'
+           f' ×{ratio:.2f}({atk_key} {atk_eff}/{def_key} {def_eff}){mode_label}'
+           f'{" ×1.5 STAB" if stab and not stab_mult else ""}'
+           f'{" ×2 STAB🔥" if stab_mult else ""}'
+           f'{" ×2 CRIT!" if is_crit else ""}'
+           f'{" ×0.5 (queimado)" if burned else ""}'
            f'{" ☠️×2 (alvo envenenado)" if venoshock_x2 else ""}'
-           f'{eff_label} = <strong>{damage} dano {move.get("type","")}</strong>')
+           f'{eff_label} = <strong>{dmg} dano {move.get("type", "")}</strong>')
 
-    return {'hit': True, 'damage': damage,
-            'message': f'{total} vs AC {enemy_ac}{"  Crítico!" if is_crit else ""}',
-            'attack_roll': attack_roll, 'move_type_en': move_type_en,
+    return {'hit': True, 'damage': dmg,
+            'message': f'{met}d20({d20}) vs {acc_label}{"  Crítico!" if is_crit else ""}{eff_label}',
+            'attack_roll': d20, 'move_type_en': move_type_en,
             'is_crit': is_crit, 'log': log}
 
 
+def _calc_player_attack(encounter, move_name, attack_roll=None):
+    """Ataque do JOGADOR contra o selvagem (estado vive no battle_state)."""
+    bs = encounter.get('battle_state') or {}
+    return _calc_attack_core(
+        encounter.get('player_pokemon') or {}, encounter.get('pokemon') or {},
+        move_name, attack_roll,
+        attacker_status=bs.get('player_status'),
+        defender_status=bs.get('wild_status'),
+        atk_hp=bs.get('player_hp_current'), atk_max_hp=bs.get('player_hp_max'),
+        def_hp=bs.get('wild_hp_current'))
+
+
 def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
-    """Server-side damage for PVP: attacker_poke vs defender_poke (both full pokemon dicts)."""
-    move_name, metronome_became = _resolve_metronome(move_name)
-    move = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name) or {}
-
-    level    = int(attacker_poke.get('level') or 1)
-    stats    = attacker_poke.get('stats') or {}
-    category = move.get('category', 'physical')
-
-    # Guarda defensiva: status nunca rola ataque nem causa dano
-    if _is_status_move(move):
-        return {'hit': False, 'damage': 0, 'is_status': True,
-                'message': 'Move de status — sem dano', 'move_type_en': ''}
-
-    # stat efetivo = base + stat_stages + modificador de condição ativa
-    if category == 'physical':
-        stat_val = effects.effective_stat(attacker_poke, 'ATK')
-    elif category == 'special':
-        stat_val = effects.effective_stat(attacker_poke, 'SPA')
-    else:
-        stat_val = 10
-    mod          = _mod_dano(stat_val)       # usado no DANO (sem teto)
-    mod_precisao = _mod_precisao(stat_val)   # usado no ACERTO (com teto)
-    prof = int(attacker_poke.get('proficiency') or _prof_for_level(level))
-
-    def_level   = int(defender_poke.get('level') or 1)
-    def_prof_h  = _prof_for_level(def_level) // 2
-
-    # CA usa mod_dano (sem teto) — mesma assimetria de _calc_player_attack.
-    # DEF/SPD incluem stat_stages; 'AC' entra direto via ac_bonus.
-    if category == 'physical':
-        enemy_ac = 8 + _mod_dano(effects.effective_stat(defender_poke, 'DEF')) + def_prof_h
-    else:
-        enemy_ac = 8 + _mod_dano(effects.effective_stat(defender_poke, 'SPD')) + def_prof_h
-    enemy_ac = max(8, int(enemy_ac) + effects.ac_bonus(defender_poke))
-
-    if attack_roll is None:
-        attack_roll = random.randint(1, 20)
-    attack_roll = int(attack_roll)
-    is_crit = attack_roll == 20
-    is_nat1 = attack_roll == 1
-    total   = attack_roll + mod_precisao + prof + effects.attack_roll_bonus(attacker_poke)
-
-    move_type_raw = (move.get('type') or '').lower()
-    move_type_en  = _TYPE_MAP_PT.get(move_type_raw, move_type_raw)
-    met = f'{metronome_became}! ' if metronome_became else ''
-
-    if is_nat1:
-        return {'hit': False, 'damage': 0, 'message': f'{met}Nat 1 - Falha', 'move_type_en': move_type_en}
-
-    hit = (total >= enemy_ac) or is_crit
-    if not hit:
-        return {'hit': False, 'damage': 0, 'message': f'{met}Errou ({total} vs AC {enemy_ac})', 'move_type_en': move_type_en}
-
-    # sem default '1d6': a auditoria canônica garante dados p/ moves de dano
-    base_dmg = move.get('baseDamage')
-    if not base_dmg:
-        return {'hit': True, 'damage': 0,
-                'message': f'{met}{total} vs AC {enemy_ac} — dano variável (mestre adjudica)',
-                'move_type_en': move_type_en}
-    higher_lvs  = move.get('higherLevels', '') or ''
-    scaled_dice = _get_scaled_dice(base_dmg, level, higher_lvs)
-    roll1   = _roll_dice(scaled_dice)
-    damage  = roll1 + mod
-    if is_crit:
-        damage = roll1 + _roll_dice(scaled_dice) + mod
-
-    # STAB (Blaze/Overgrow/Torrent/Swarm dobram com HP ≤ 25%)
-    poke_types = [t.lower() for t in (attacker_poke.get('types') or [])]
-    if move_type_raw in poke_types or move_type_en in poke_types:
-        stab = int(attacker_poke.get('stab') or _stab_for_level(level))
-        stab *= ab.stab_multiplier(attacker_poke.get('ability'), move_type_en,
-                                   attacker_poke.get('currentHp'), attacker_poke.get('maxHp'))
-        damage += stab
-
-    # Sinergia de veneno: Venoshock dobra o dano se o defensor está envenenado.
-    if move_name.lower() == 'venoshock' and (defender_poke.get('status') or {}).get('condition') == 'badly_poisoned':
-        damage *= 2
-
-    # Type effectiveness (com fallback nos dados da espécie p/ listas vazias —
-    # pokémon salvos pela ficha não trazem 'immunities': Ghost tomava Normal)
-    vulns, resists, immunities = _type_lists(defender_poke)
-    eff = 1.0
-    if move_type_en in immunities:
-        eff = 0.0
-    else:
-        if move_type_en in vulns:    eff *= 2
-        if move_type_en in resists:  eff *= 0.5
-    damage = max(0, int(damage * eff))
-    if damage < 1 and eff > 0: damage = 1
-
-    eff_label = ' ⛔ IMUNE!' if eff == 0 else (' ⚡ Super Efetivo!' if eff > 1 else (' 🛡️ Não Efetivo' if eff < 1 else ''))
-    return {'hit': True, 'damage': damage,
-            'message': f'{met}{total} vs AC {enemy_ac}{"  Crítico!" if is_crit else ""}{eff_label}',
-            'move_type_en': move_type_en}
+    """Ataque em PvP/NPC/grupo (estado vive nos dicts dos Pokémon)."""
+    return _calc_attack_core(
+        attacker_poke, defender_poke, move_name, attack_roll,
+        attacker_status=attacker_poke.get('status'),
+        defender_status=defender_poke.get('status'),
+        atk_hp=attacker_poke.get('currentHp'), atk_max_hp=attacker_poke.get('maxHp'),
+        def_hp=defender_poke.get('currentHp'))
 
 # ============================================================
 # XP TABLE (trainer levels 1-20)
@@ -1771,7 +1728,11 @@ def master_force_end_pvp(battle_id):
 def list_npcs():
     if current_user.role != 'master':
         return jsonify({'error': 'Unauthorized'}), 403
-    return jsonify(db.get_npcs())
+    npcs = db.get_npcs()
+    for npc in npcs:
+        if _mig(npc.get('team', [])):
+            db.save_npc(npc)
+    return jsonify(npcs)
 
 @app.route('/master/npcs', methods=['POST'])
 @login_required
@@ -1960,7 +1921,8 @@ def generate_npc():
             'ability': poke.get('ability', {}).get('name', '') if poke.get('ability') else '',
             'vulnerabilities': poke.get('vulnerabilities', []),
             'resistances': poke.get('resistances', []),
-            'immunities': poke.get('immunities', [])
+            'immunities': poke.get('immunities', []),
+            'sv': migrations.STATS_VERSION
         })
     
     # Create NPC
@@ -2013,7 +1975,8 @@ def check_and_evolve_pokemon(pokemon, trainer_level=None):
 
     # Build evolved pokemon, preserving player-specific data
     scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'),
-                                             is_shiny=pokemon.get('is_shiny', False))
+                                             is_shiny=pokemon.get('is_shiny', False),
+                                             training=pokemon.get('training'))
     evolved = {
         'name': evolved_base['name'],
         'number': evolved_base['number'],
@@ -2037,6 +2000,8 @@ def check_and_evolve_pokemon(pokemon, trainer_level=None):
         'evolutionStage': evolved_base.get('evolutionStage', ''),
         # Preserve player-specific fields
         'is_shiny': pokemon.get('is_shiny', False),
+        'training': pokemon.get('training'),
+        'sv': migrations.STATS_VERSION,
         'nickname': pokemon.get('nickname', ''),
         'nature': pokemon.get('nature', ''),
         'moves': pokemon.get('moves', []),
@@ -2075,7 +2040,8 @@ def give_xp():
                 base_poke = POKEMON_BY_NAME.get((pokemon.get('name') or '').lower())
                 if base_poke:
                     scaled = scaling.calculate_pokemon_stats(base_poke, pokemon['level'], pokemon.get('nature'),
-                                                             is_shiny=pokemon.get('is_shiny', False))
+                                                             is_shiny=pokemon.get('is_shiny', False),
+                                                             training=pokemon.get('training'))
                     old_ratio = pokemon.get('currentHp', scaled['hp']) / max(1, pokemon.get('maxHp', scaled['hp']))
                     pokemon['stats'] = scaled['stats']
                     pokemon['maxHp'] = scaled['hp']
@@ -2172,7 +2138,8 @@ def give_pokemon_xp():
         base_poke = POKEMON_BY_NAME.get((pokemon.get('name') or '').lower())
         if base_poke:
             scaled = scaling.calculate_pokemon_stats(base_poke, new_level, pokemon.get('nature'),
-                                                     is_shiny=pokemon.get('is_shiny', False))
+                                                     is_shiny=pokemon.get('is_shiny', False),
+                                                     training=pokemon.get('training'))
             old_ratio = pokemon.get('currentHp', scaled['hp']) / max(1, pokemon.get('maxHp', scaled['hp']))
             pokemon['stats'] = scaled['stats']
             pokemon['maxHp'] = scaled['hp']
@@ -2376,6 +2343,16 @@ def api_pokemon_learnset(number):
     })
 
 
+def _move_with_canon(name, move):
+    """Move local + power/accuracy/priority canônicos (sistema v2)."""
+    canon = canon_move(name)
+    out = dict(move)
+    out['power_num'] = canon.get('power')
+    out['accuracy'] = canon.get('accuracy')
+    out['priority'] = canon.get('priority', 0)
+    return out
+
+
 @app.route('/api/moves')
 @login_required
 def api_moves():
@@ -2384,9 +2361,9 @@ def api_moves():
     if name:
         move = MOVES_BY_NAME.get(name.lower()) or MOVES_DB.get(name)
         if move:
-            return jsonify(move)
+            return jsonify(_move_with_canon(name, move))
         # Fuzzy search
-        results = [v for k, v in MOVES_DB.items() if name.lower() in k.lower()]
+        results = [_move_with_canon(k, v) for k, v in MOVES_DB.items() if name.lower() in k.lower()]
         if results:
             return jsonify(results[:10])
     return jsonify({}), 404
@@ -2401,7 +2378,7 @@ def api_moves_batch():
     for name in move_names:
         move = MOVES_BY_NAME.get(name.lower()) or MOVES_DB.get(name)
         if move:
-            results[name] = move
+            results[name] = _move_with_canon(name, move)
     return jsonify(results)
 
 @app.route('/api/mega/<pokemon_name>')
@@ -2605,6 +2582,8 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     pokemon_data['proficiency'] = scaled['proficiency']
     pokemon_data['stab'] = scaled['stab']
     pokemon_data['is_shiny'] = is_shiny
+    # postura defensiva escolhida pela IA (melhor stat líquido ÷ taxa)
+    pokemon_data['defense_mode'] = _ai_defense_mode(pokemon_data)
 
     return {
         'pokemon': pokemon_data,
@@ -2871,6 +2850,7 @@ def master_group_hunt():
         name, poke = _group_active_pokemon(pid)
         if not poke:
             return jsonify({'error': f'Jogador {pid} não tem Pokémon disponível'}), 400
+        _mig([poke])
         allies.append({'player_id': pid, 'name': name or 'Treinador', 'pokemon': poke})
 
     # Nível-base do encontro = maior nível entre os ativos dos dois jogadores
@@ -2893,6 +2873,7 @@ def master_group_hunt():
                          'ac': scaled['ac'], 'stats': scaled['stats'],
                          'proficiency': scaled['proficiency'], 'stab': scaled['stab']})
         poke['level'] = level
+        poke.setdefault('defense_mode', _ai_defense_mode(poke))
         wilds.append({'pokemon': poke, 'level': level, 'moves': enc['wild_moves']})
 
     battle = gb.build_battle(allies, wilds, hunt_mode, route_id, _tid())
@@ -3003,6 +2984,8 @@ def get_pc():
     """Get player's PC box."""
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    if _mig(trainer.get('pc', [])):
+        save_users(users)
     return jsonify(trainer.get('pc', []))
 
 
@@ -3127,7 +3110,8 @@ def use_evolution_stone():
     # Build evolved Pokémon
     current_level = pokemon.get('level', 1)
     scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'),
-                                             is_shiny=pokemon.get('is_shiny', False))
+                                             is_shiny=pokemon.get('is_shiny', False),
+                                             training=pokemon.get('training'))
     evolved = {
         'name': evolved_base['name'],
         'number': evolved_base['number'],
@@ -3144,6 +3128,8 @@ def use_evolution_stone():
         'evolutionInfo': evolved_base.get('evolutionInfo', ''),
         'evolutionStage': evolved_base.get('evolutionStage', ''),
         'is_shiny': pokemon.get('is_shiny', False),
+        'training': pokemon.get('training'),
+        'sv': migrations.STATS_VERSION,
         'nickname': pokemon.get('nickname', ''),
         'nature': pokemon.get('nature', ''),
         'moves': pokemon.get('moves', []),
@@ -3218,7 +3204,8 @@ def friendship_evolve():
 
     current_level = pokemon.get('level', 1)
     scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'),
-                                             is_shiny=pokemon.get('is_shiny', False))
+                                             is_shiny=pokemon.get('is_shiny', False),
+                                             training=pokemon.get('training'))
     evolved = {
         'name': evolved_base['name'], 'number': evolved_base['number'],
         'types': evolved_base.get('types', pokemon.get('types', [])),
@@ -3234,6 +3221,8 @@ def friendship_evolve():
         'evolutionInfo': evolved_base.get('evolutionInfo', ''),
         'evolutionStage': evolved_base.get('evolutionStage', ''),
         'is_shiny': pokemon.get('is_shiny', False),
+        'training': pokemon.get('training'),
+        'sv': migrations.STATS_VERSION,
         'nickname': pokemon.get('nickname', ''),
         'nature': pokemon.get('nature', ''),
         'moves': pokemon.get('moves', []),
@@ -3336,8 +3325,14 @@ def level_evolve():
     })
 
 
+def _mig(pokes):
+    """Migra dicts de Pokémon v1→v2 in-place (idempotente). Retorna changed."""
+    return migrations.ensure_v2(pokes, POKEMON_BY_NAME, POKEMON_BY_NUMBER)
+
+
 def _enrich_team(team):
     """Fill in missing evolutionInfo / type matchups from base pokemon data."""
+    _mig(team)
     for poke in team:
         if not poke:
             continue
@@ -3370,7 +3365,21 @@ def update_team():
     data = request.json
     users = get_users()
     if current_user.id in users:
-        users[current_user.id]['trainer_data']['team'] = data.get('team', [])
+        team = data.get('team', [])
+        _mig(team)
+        # valida treino no servidor: budget por nível e teto por stat
+        for p in team:
+            tr = p.get('training') or {}
+            level = max(1, int(p.get('level') or 1))
+            cap = bm_core.training_cap(level)
+            tr = {k: max(0, min(cap, int(v or 0))) for k, v in tr.items()}
+            budget = bm_core.training_budget(level)
+            total = sum(tr.values())
+            if total > budget and total > 0:
+                tr = {k: (v * budget) // total for k, v in tr.items()}
+            p['training'] = tr
+            p['statPointsAvailable'] = max(0, budget - sum(tr.values()))
+        users[current_user.id]['trainer_data']['team'] = team
         save_users(users)
         return jsonify({'success': True})
     return jsonify({'error': 'User not found'}), 404
@@ -3961,6 +3970,9 @@ def handle_encounter(data):
         
         # Find the player's active pokemon
         player_pokemon_idx = data.get('player_pokemon_idx', 0)
+        if _mig(team):
+            users[current_user.id]['trainer_data']['team'] = team
+            save_users(users)
         player_pokemon = team[player_pokemon_idx] if player_pokemon_idx < len(team) else None
         
         encounter_data = {
@@ -3982,6 +3994,8 @@ def handle_encounter(data):
                 'player_hp_max': player_pokemon.get('maxHp', 20) if player_pokemon else 20,
                 'wild_status': None,
                 'player_status': None,
+                'wild_defense_mode': int((data.get('pokemon') or {}).get('defense_mode') or 1),
+                'player_defense_mode': 1,
                 'initiative_rolled': False
             }
         }
@@ -4029,12 +4043,11 @@ def handle_initiative(data):
     
     # Initiative = d20 + Speed/DEX modifier (support both stat formats)
     wild_stats = wild_pokemon.get('stats', {})
-    wild_dex = wild_stats.get('DEX', wild_stats.get('SPE', 10))
-    wild_mod = (wild_dex - 10) // 2
+    wild_mod = bm_core.initiative_bonus(effects.effective_stat(wild_pokemon, 'SPE'))
     
     player_stats = player_pokemon.get('stats', {}) if player_pokemon else {}
-    player_dex = player_stats.get('DEX', player_stats.get('SPE', 10))
-    player_mod = (player_dex - 10) // 2
+    player_mod = bm_core.initiative_bonus(
+        effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10)
     
     wild_init = random.randint(1, 20) + wild_mod
     player_init = random.randint(1, 20) + player_mod
@@ -4088,6 +4101,83 @@ def handle_initiative(data):
     emit('initiative_result', result, room=f'master_{_tid()}')
     emit('initiative_result', result, room=player_id)
 
+def _ai_defense_mode(poke):
+    """Melhor postura líquida p/ IA: maior média dos denominadores ÷ taxa."""
+    stats = (poke.get('stats') or {}) if isinstance(poke, dict) else {}
+    best_mode, best_net = 1, 0.0
+    for mode, info in bm_core.DEFENSE_MODES.items():
+        phys = stats.get(info['physical'], 10) or 10
+        spec = stats.get(info['special'], 10) or 10
+        net = ((phys + spec) / 2.0) / info['tax']
+        if net > best_net:
+            best_net, best_mode = net, mode
+    return best_mode
+
+
+@socketio.on('set_defense_mode')
+def handle_set_defense_mode(data):
+    """Troca a POSTURA DEFENSIVA do Pokémon ativo (não gasta a ação).
+
+    Só no PRÓPRIO turno; persiste até trocar de novo; reseta na troca de
+    Pokémon. payload: {battle_type: 'wild'|'pvp'|'group', battle_id?, mode: 1|2|3}
+    """
+    if not current_user.is_authenticated:
+        return
+    mode = int(data.get('mode') or 1)
+    if mode not in bm_core.DEFENSE_MODES:
+        return
+    btype = data.get('battle_type', 'wild')
+    label = bm_core.DEFENSE_MODES[mode]['label']
+
+    if btype == 'wild':
+        game_state = get_game_state()
+        pid = str(current_user.id)
+        encounter = game_state.get('active_encounters', {}).get(pid)
+        if not encounter:
+            return
+        bs = encounter.get('battle_state') or {}
+        if bs.get('turn') and bs.get('turn') != 'player':
+            emit('pvp_error', {'message': 'Só pode mudar a postura no seu turno!'})
+            return
+        ppoke = encounter.get('player_pokemon') or {}
+        ppoke['defense_mode'] = mode
+        bs['player_defense_mode'] = mode
+        encounter['battle_state'] = bs
+        game_state['active_encounters'][pid] = encounter
+        save_game_state(game_state)
+        payload = {'side': 'player', 'mode': mode, 'label': label}
+        emit('defense_mode_set', payload, room=pid)
+        emit('defense_mode_set', dict(payload, player_id=pid), room=f'master_{_tid()}')
+
+    elif btype == 'pvp':
+        battle = ACTIVE_PVP.get(data.get('battle_id'))
+        if not battle or battle['phase'] != 'battle':
+            return
+        player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
+        if battle['turn'] != player_key:
+            emit('pvp_error', {'message': 'Só pode mudar a postura no seu turno!'})
+            return
+        side = battle[player_key]
+        poke = side['team'][side['active_idx']]
+        poke['defense_mode'] = mode
+        battle['log'].append({'type': 'info',
+                              'message': f"{poke.get('nickname') or poke.get('name','?')} assumiu a postura {label}!"})
+        _broadcast_pvp_state(battle)
+
+    elif btype == 'group':
+        battle = ACTIVE_GROUP_BATTLES.get(data.get('battle_id'))
+        if not battle or battle.get('phase') != 'active':
+            return
+        cur = gb.current_combatant(battle)
+        if not cur or cur.get('player_id') != str(current_user.id):
+            emit('pvp_error', {'message': 'Só pode mudar a postura no seu turno!'})
+            return
+        cur['pokemon']['defense_mode'] = mode
+        battle['log'].append({'type': 'info',
+                              'message': f"{cur['name']} assumiu a postura {label}!"})
+        _group_broadcast(battle)
+
+
 @socketio.on('battle_action')
 def handle_battle_action(data):
     """Handle a battle action (attack, status move, etc.)."""
@@ -4115,6 +4205,17 @@ def handle_battle_action(data):
             return
         
         battle_state = encounter['battle_state']
+
+        # Batalha iniciada ANTES da migração v2 (stats na escala antiga):
+        # encerra com aviso — snapshot v1 não é migrável com segurança.
+        ppk = encounter.get('player_pokemon') or {}
+        if ppk and ppk.get('sv') != migrations.STATS_VERSION:
+            del game_state['active_encounters'][player_id]
+            save_game_state(game_state)
+            emit('battle_ended_by_update', {
+                'message': '⚙️ Batalha reiniciada pela atualização do sistema de stats. Inicie um novo encontro.'
+            }, room=player_id)
+            return
 
         # Validate turn ownership — ignore out-of-turn actions to prevent race conditions.
         # 'apply_status' events never switch turn so they are always allowed.
@@ -4230,7 +4331,9 @@ def handle_battle_action(data):
             ppoke_sw = encounter.get('player_pokemon')
             if isinstance(ppoke_sw, dict):
                 effects.reset_stat_stages(ppoke_sw)
+                ppoke_sw['defense_mode'] = 1   # postura reseta na troca
             battle_state['player_stat_stages'] = None
+            battle_state['player_defense_mode'] = 1
 
         # Apply damage — allow negative down to -30 for permadeath detection
         PERMADEATH_FLOOR = -30
@@ -4376,12 +4479,11 @@ def _auto_roll_initiative(player_id, game_state):
     player_pokemon = encounter.get('player_pokemon') or {}
     
     wild_stats = wild_pokemon.get('stats', {})
-    wild_dex = wild_stats.get('DEX', wild_stats.get('SPE', 10))
-    wild_mod = (wild_dex - 10) // 2
+    wild_mod = bm_core.initiative_bonus(effects.effective_stat(wild_pokemon, 'SPE'))
     
     player_stats = player_pokemon.get('stats', {}) if player_pokemon else {}
-    player_dex = player_stats.get('DEX', player_stats.get('SPE', 10))
-    player_mod = (player_dex - 10) // 2
+    player_mod = bm_core.initiative_bonus(
+        effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10)
     
     wild_init = random.randint(1, 20) + wild_mod
     player_init = random.randint(1, 20) + player_mod
@@ -4594,7 +4696,9 @@ def handle_master_pvp_challenge(data):
 
     battle = pvp.create_pvp_battle(mode, npc_id, target_id)
     battle['extra'] = {'initiated_by_master': True}
+    _mig(npc.get('team', []))
     pvp.set_team(battle, 'player1', npc.get('team', []))
+    _mig(target_team)
     pvp.set_team(battle, 'player2', target_team)
     battle['player1']['is_npc'] = True
     if npc.get('team'):
@@ -4642,7 +4746,9 @@ def handle_pvp_challenge(data):
                 return
 
             battle = pvp.create_pvp_battle(mode, current_user.id, npc['id'])
+            _mig(my_team)
             pvp.set_team(battle, 'player1', my_team)
+            _mig(npc.get('team', []))
             pvp.set_team(battle, 'player2', npc.get('team', []))
             battle['player2']['is_npc'] = True
             ACTIVE_PVP[battle['id']] = battle
@@ -4698,7 +4804,9 @@ def handle_pvp_accept(data):
         users = get_users()
         p1_team = users.get(challenger_id, {}).get('trainer_data', {}).get('team', [])
         p2_team = users.get(current_user.id, {}).get('trainer_data', {}).get('team', [])
+        _mig(p1_team)
         pvp.set_team(battle, 'player1', p1_team)
+        _mig(p2_team)
         pvp.set_team(battle, 'player2', p2_team)
         
         ACTIVE_PVP[battle['id']] = battle
@@ -5044,7 +5152,9 @@ def handle_tournament_start_match(data):
     # Load teams (NPC participants store team directly on participant dict)
     p1_team = p1.get('team') or users.get(p1['id'], {}).get('trainer_data', {}).get('team', [])
     p2_team = p2.get('team') or users.get(p2['id'], {}).get('trainer_data', {}).get('team', [])
+    _mig(p1_team)
     pvp.set_team(battle, 'player1', p1_team)
+    _mig(p2_team)
     pvp.set_team(battle, 'player2', p2_team)
 
     # Mark NPC players
@@ -5412,6 +5522,7 @@ def handle_npc_turn(battle, npc_key):
 
     npc_side  = battle[npc_key]
     npc_poke  = npc_side['team'][npc_side['active_idx']]
+    npc_poke.setdefault('defense_mode', _ai_defense_mode(npc_poke))
     def_poke  = battle[defender_key]['team'][battle[defender_key]['active_idx']]
 
     # Status do próprio NPC no início do turno (dano de veneno/queimadura,
@@ -6166,7 +6277,9 @@ def handle_gym_challenge(data):
     battle['gym_badge'] = gym['badge_name']
     battle['gym_icon']  = gym.get('badge_icon', '🏅')
     battle['extra']     = {'gym_id': gym_id, 'gym_badge': gym['badge_name'], 'gym_icon': gym.get('badge_icon', '🏅')}
+    _mig(trainer.get('team', []))
     pvp.set_team(battle, 'player1', trainer.get('team', []))
+    _mig(npc.get('team', []))
     pvp.set_team(battle, 'player2', npc.get('team', []))
     battle['player2']['is_npc'] = True
     if npc.get('team'):
@@ -6375,6 +6488,7 @@ def _start_league_battle(player_id, slot_index):
         'slot_title':   slot.get('title', f'Membro {slot_index+1}'),
         'is_champion':  slot.get('is_champion', False)
     }
+    _mig(trainer.get('team', []))
     pvp.set_team(battle, 'player1', trainer.get('team', []))
     pvp.set_team(battle, 'player2', leader_team)
     if is_npc_battle:

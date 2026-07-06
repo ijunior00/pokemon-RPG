@@ -81,12 +81,10 @@ def select_pokemon(battle, player_key, pokemon_idx):
 
 
 def roll_initiative(pokemon):
-    """Roll d20 + Speed modifier for initiative (SPE novo / DEX legado)."""
-    stats = pokemon.get('stats', {}) if isinstance(pokemon, dict) else {}
-    spe = stats.get('SPE') or stats.get('DEX') or 10
-    mod = (spe - 10) // 2
-    roll = random.randint(1, 20)
-    return roll + mod
+    """Iniciativa v2: d20 + SPE_efetivo//10 (Speed real, escala 1-255)."""
+    import battle_math as bm
+    spe = effects.effective_stat(pokemon, 'SPE') if isinstance(pokemon, dict) else 10
+    return random.randint(1, 20) + bm.initiative_bonus(spe)
 
 
 def _poke_hp(p):
@@ -120,7 +118,9 @@ def switch_pokemon(battle, player_key, new_idx):
     # Pokémon que sai perde os buffs/debuffs acumulados; o que entra vem limpo
     if old_idx is not None:
         effects.reset_stat_stages(player['team'][old_idx])
+        player['team'][old_idx]['defense_mode'] = 1
     effects.reset_stat_stages(new_poke)
+    new_poke['defense_mode'] = 1   # postura reseta na troca
     player['active_idx'] = new_idx
 
     # Street mode: switching costs a turn
@@ -253,6 +253,7 @@ def get_battle_state_for_player(battle, player_key):
             'speed': active.get('speed', '30ft'),
             'stat_stages': active.get('stat_stages'),
             'is_shiny': active.get('is_shiny', False),
+            'defense_mode': active.get('defense_mode', 1),
         }
 
     return state

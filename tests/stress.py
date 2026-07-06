@@ -374,15 +374,14 @@ def main():
                   if md.get('category') == 'status' and appmod.effects.auto_detect_move_effect(md) is None]
     check(S, 'nenhum move de status sem efeito', len(_no_effect) == 0, f'{len(_no_effect)} sem efeito')
 
-    # Escalada de dano: com higherLevels o dado cresce entre os degraus (25/50/85)
-    _hl = 'muda para 2d6 no nível 5, 3d6 no nível 10 e 4d6 no nível 17'
+    # Escalada de dano v2: dados do Power crescem com o nível (monotônico)
+    import battle_math as bmm
     def _avg(ds):
         c, s = map(int, ds.split('d')); return c * (s + 1) / 2
-    _avgs = [_avg(appmod._get_scaled_dice('1d6', lv, _hl)) for lv in (5, 15, 25, 35, 45, 55, 65, 75, 85)]
+    _avgs = [_avg(bmm.dice_for_power(80, lv)) for lv in (5, 15, 25, 35, 45, 55, 65, 75, 85)]
     check(S, 'dano escala monotônico com o nível', all(b >= a for a, b in zip(_avgs, _avgs[1:])),
           f'médias={_avgs}')
-    check(S, 'dano cresce entre degraus do texto (25→45)',
-          _avg(appmod._get_scaled_dice('1d6', 45, _hl)) > _avg(appmod._get_scaled_dice('1d6', 25, _hl)))
+    check(S, 'Power maior = mais dados', _avg(bmm.dice_for_power(120, 30)) > _avg(bmm.dice_for_power(40, 30)))
 
     # Novas mecânicas: Pain Split, OHKO, stage_op, Endeavor, Nature's Madness
     _att_hp = dict(_att_stats, currentHp=20)
@@ -416,15 +415,17 @@ def main():
     _base = appmod.POKEMON_BY_NAME['bulbasaur']
     _norm = scaling.calculate_pokemon_stats(_base, 30)
     _shin = scaling.calculate_pokemon_stats(_base, 30, is_shiny=True)
-    # cada stat escalado parte do atributo base ×1.35 (arredondado)
+    # v2: cada stat escalado parte do BASE STAT REAL ×1.35 (arredondado)
+    import battle_math as bmm
     _ok_stats = all(
-        _shin['stats'][k] == scaling.calculate_stat(int(round(_base['stats'].get(k, 10) * 1.35)), 30)
-        for k in ('ATK', 'DEF', 'SPA', 'SPD', 'SPE', 'HP'))
-    check(S, 'shiny: stats = escala(base ×1.35)', _ok_stats,
+        _shin['stats'][k] == bmm.stat_at_level(int(round(_base['base_stats'][k] * 1.35)), 30)
+        for k in ('ATK', 'DEF', 'SPA', 'SPD', 'SPE'))
+    check(S, 'shiny: stats = escala(base_stats ×1.35)', _ok_stats,
           f"norm={_norm['stats']} shiny={_shin['stats']}")
     check(S, 'shiny: HP máximo derivado maior', _shin['maxHp'] > _norm['maxHp'],
           f"{_norm['maxHp']} → {_shin['maxHp']}")
-    check(S, 'shiny: CA física derivada maior (DEF maior)', _shin['phys_ac'] >= _norm['phys_ac'])
+    check(S, 'shiny: dano recebido cai (DEF maior no denominador)',
+          _shin['stats']['DEF'] > _norm['stats']['DEF'])
     # flag no próprio dict também ativa o bônus (dicts de instância)
     _auto = scaling.calculate_pokemon_stats(dict(_base, is_shiny=True), 30)
     check(S, 'shiny: flag no dict ativa o bônus', _auto['stats'] == _shin['stats'])
@@ -479,6 +480,95 @@ def main():
     check(S, '145 sprites shiny gen1 instalados', len(_spr) == 145, f'{len(_spr)} arquivos')
     check(S, 'sprite shiny acessível via rota estática',
           p1.get('/static/sprites/shiny/001.gif').status_code == 200)
+
+    # ══════════ 4a-ter. SISTEMA v2: paridade, posturas, migração ══════════
+    section('4a-ter. Sistema v2 (base stats reais)')
+    S = 'Sistema v2'
+    import battle_math as bmm
+    import migrations as mig
+    import statistics as _st
+
+    # Paridade battle_math × referência independente (50 amostras)
+    def _ref_stat(base, lv, tr=0):
+        return (2 * base * lv) // 100 + 5 + tr
+    def _ref_dmg(dice_total, atk, dfn, stab, eff, tax):
+        import math as _m
+        r = max(0.5, min(2.0, atk / max(1, dfn)))
+        d = dice_total * r * tax * (1.5 if stab else 1.0) * eff
+        return max(1, int(d)) if eff > 0 else 0
+    _par_ok = True
+    random.seed(99)
+    for _ in range(50):
+        b_, lv_ = random.randint(20, 160), random.randint(1, 100)
+        if bmm.stat_at_level(b_, lv_) != _ref_stat(b_, lv_):
+            _par_ok = False
+        dt, a_, d_ = random.randint(2, 60), random.randint(10, 200), random.randint(10, 200)
+        st_, ef_, tx_ = random.random() < 0.5, random.choice([0, 0.5, 1, 2]), random.choice([1.0, 1.25, 1.5])
+        if bmm.damage(dt, a_, d_, stab=st_, effectiveness=ef_, tax=tx_) != _ref_dmg(dt, a_, d_, st_, ef_, tx_):
+            _par_ok = False
+    check(S, 'paridade battle_math × referência (50 amostras)', _par_ok)
+
+    # Stats v2 batem com os jogos (Pikachu Nv50 sem IV/EV = 60/45/55/55/95)
+    _pk50 = scaling.calculate_pokemon_stats(appmod.POKEMON_BY_NAME['pikachu'], 50)
+    check(S, 'Pikachu Nv50 = jogos sem IV/EV',
+          _pk50['stats'] == {'ATK': 60, 'DEF': 45, 'SPA': 55, 'SPD': 55, 'SPE': 95, 'HP': 40}
+          and _pk50['maxHp'] == 95, str(_pk50['stats']))
+
+    # Taxa de acerto observada ≈ accuracy (Hydro Pump 80%)
+    _hp_atk = make_poke('Blastoise', 50)
+    _hp_def = make_poke('Charizard', 50)
+    _hits = sum(1 for _ in range(600) if appmod._calc_pvp_attack(_hp_atk, _hp_def, 'Hydro Pump')['hit'])
+    check(S, 'hit rate ≈ accuracy (Hydro Pump 80%)', 0.65 <= _hits / 600 <= 0.92, f'{_hits/6:.1f}%')
+
+    # Posturas defensivas: 2 (Velocidade ×1.25) reduz dano p/ mon rápido;
+    # 3 (Contra-ataque ×1.5) usa ATK/SPA como denominador
+    _fast = make_poke('Pikachu', 30)              # SPE >> DEF
+    _fast2 = dict(make_poke('Pikachu', 30), defense_mode=2)
+    _att30 = make_poke('Rattata', 30)
+    _d1 = _st.mean(appmod._calc_pvp_attack(_att30, _fast, 'Tackle', 15)['damage'] for _ in range(300))
+    _d2 = _st.mean(appmod._calc_pvp_attack(_att30, _fast2, 'Tackle', 15)['damage'] for _ in range(300))
+    check(S, 'postura Velocidade reduz dano do mon rápido', _d2 < _d1, f'{_d1:.1f}→{_d2:.1f}')
+    _tank = dict(make_poke('Onix', 30), defense_mode=3)   # ATK << DEF → postura 3 piora
+    _d3 = _st.mean(appmod._calc_pvp_attack(_att30, _tank, 'Tackle', 15)['damage'] for _ in range(300))
+    _d0 = _st.mean(appmod._calc_pvp_attack(_att30, make_poke('Onix', 30), 'Tackle', 15)['damage'] for _ in range(300))
+    check(S, 'postura Contra-ataque pune quem tem ATK baixo', _d3 > _d0, f'{_d0:.1f}→{_d3:.1f}')
+    check(S, 'IA escolhe postura ótima', appmod._ai_defense_mode(make_poke('Pikachu', 30)) == 2
+          and appmod._ai_defense_mode(make_poke('Onix', 30)) == 1)
+    # troca de Pokémon reseta a postura
+    _bt = appmod.pvp.create_pvp_battle('street', 'a', 'b')
+    appmod.pvp.set_team(_bt, 'player1', [dict(make_poke('Pikachu', 20), defense_mode=2),
+                                         make_poke('Rattata', 20)])
+    appmod.pvp.set_team(_bt, 'player2', [make_poke('Onix', 20)])
+    appmod.pvp.select_pokemon(_bt, 'player1', 0); appmod.pvp.select_pokemon(_bt, 'player2', 0)
+    appmod.pvp.switch_pokemon(_bt, 'player1', 1)
+    check(S, 'troca reseta a postura p/ padrão',
+          _bt['player1']['team'][0]['defense_mode'] == 1 and _bt['player1']['team'][1]['defense_mode'] == 1)
+
+    # ── Migração v1→v2 ──
+    _sp = appmod.POKEMON_BY_NAME['pikachu']
+    _exp_v1 = mig._expected_v1_stats(_sp, 20, None, False)
+    _v1 = {'name': 'Pikachu', 'number': 25, 'level': 20,
+           'stats': dict(_exp_v1, SPE=_exp_v1['SPE'] + 3),   # 3 pontos antigos em SPE
+           'maxHp': 60, 'currentHp': 30, 'hp': 60, 'is_shiny': False,
+           'moves': ['Thunderbolt'], 'nickname': 'Zé'}
+    check(S, 'migração v1→v2 roda', mig.migrate_pokemon_v2(_v1, appmod.POKEMON_BY_NAME, appmod.POKEMON_BY_NUMBER))
+    check(S, 'migração: sv=2 e pontos antigos ×3 no mesmo stat',
+          _v1['sv'] == 2 and _v1['training']['SPE'] == 9)
+    check(S, 'migração: HP mantém a % (50%)', abs(_v1['currentHp'] - _v1['maxHp'] * 0.5) <= 1)
+    check(S, 'migração: saldo derivado do budget',
+          _v1['statPointsAvailable'] == bmm.training_budget(20) - 9)
+    import copy as _cp
+    _snap = _cp.deepcopy(_v1)
+    check(S, 'migração idempotente', not mig.migrate_pokemon_v2(_v1, appmod.POKEMON_BY_NAME) and _v1 == _snap)
+    _v1s = {'name': 'Pikachu', 'number': 25, 'level': 20, 'stats': {}, 'maxHp': 70,
+            'currentHp': 70, 'is_shiny': True}
+    mig.migrate_pokemon_v2(_v1s, appmod.POKEMON_BY_NAME)
+    _refs = scaling.calculate_pokemon_stats(_sp, 20, is_shiny=True, training=_v1s['training'])
+    check(S, 'migração preserva shiny ×1.35', _v1s['stats'] == _refs['stats'])
+
+    # dano fixo v2 no calc (Dragon Rage nunca fica 0)
+    _dr = appmod._calc_pvp_attack(make_poke('Charmander', 20), make_poke('Rattata', 20), 'Dragon Rage', 15)
+    check(S, 'Dragon Rage = dano fixo (15 + nível//4)', _dr['damage'] == 15 + 20 // 4, str(_dr['damage']))
 
     # ══════════ 4b. BATALHA EM DUPLA (2v1 / 2v2) ══════════
     section('4b. Batalha em dupla (grupo)')
@@ -582,7 +672,9 @@ def main():
         'move_name': 'Thunder Wave',
         'attacker_stats': {'ATK': 16, 'SPA': 14, 'level': 20, 'proficiency': 3, 'maxHp': 50},
         'target_stats': {'DEF': 10, 'SPD': 10, 'SPE': 10, 'level': 20}})
-    check(S, 'status move processado com CD', 'CD' in (r.get_json() or {}).get('message', ''))
+    _twmsg = (r.get_json() or {}).get('message', '')
+    check(S, 'status move processado por accuracy (v2)',
+          'Acc' in _twmsg or 'não erra' in _twmsg, _twmsg)
     r = p1.post('/api/check-status', json={'action': 'turn_start',
                                            'pokemon_status': {'condition': 'badly_poisoned', 'turns_active': 0},
                                            'max_hp': 40})
@@ -673,6 +765,11 @@ def main():
     npc = r.get_json()
     check(S, 'NPC gerado com time/stats/moves',
           all(q.get('moves') and q.get('stats', {}).get('ATK') for q in npc['team']))
+    # Determinístico: NPC só com move de dano (espécie sorteada pode vir com
+    # apenas Harden/Recover — DEF ×4 + dano mínimo = batalha interminável)
+    for q in npc['team']:
+        q['moves'] = ['Tackle']
+    db.save_npc(npc, TID)
     s1.emit('pvp_join_arena', {})
     lst = recv(s1, 'pvp_arena_players')[0]['args'][0]
     check(S, 'NPC aparece na arena p/ desafio', any(x.get('is_npc') and x['id'] == npc['id'] for x in lst))
@@ -746,10 +843,17 @@ def main():
                                        dict(poke_d, stats={'DEF': 8}), 'Tackle', 15)
     check(S, 'move de dano ainda dá dano', calc_hit['damage'] > 0)
 
-    # Duas curvas de modificador: acerto com teto, dano sem teto
-    check(S, 'mod_precisao com teto (+4) e piso (-2)',
-          appmod._mod_precisao(30) == 4 and appmod._mod_precisao(6) == -1 and appmod._mod_precisao(2) == -2)
-    check(S, 'mod_dano sem teto', appmod._mod_dano(30) == 10 and appmod._mod_dano(6) == -2)
+    # v2: acerto é FIXO por move (d20 vs Accuracy) — não existe mais CA
+    import battle_math as bmm
+    check(S, 'accuracy 100 erra só no nat 1',
+          bmm.roll_hits(2, 100) and not bmm.roll_hits(1, 100))
+    check(S, 'accuracy 80 erra com d20 ≤ 4',
+          not bmm.roll_hits(4, 80) and bmm.roll_hits(5, 80))
+    check(S, 'move que não erra (Swift) acerta até no nat 1',
+          bmm.roll_hits(1, None))
+    check(S, 'nat 20 sempre acerta (mesmo Fissure 30%)', bmm.roll_hits(20, 30))
+    check(S, 'limiar: 90→2, 70→6, 55→9, 30→14',
+          [bmm.miss_threshold(a) for a in (90, 70, 55, 30)] == [2, 6, 9, 14])
 
     # Batalha PvP vs NPC nova para os testes de status/troca
     give_team(u1, [('Charmander', 20), ('Squirtle', 18)])
@@ -837,46 +941,36 @@ def main():
     check(S, 'Scald mapeia queimado on-hit (dados canônicos)',
           scald_hit.get('status') == 'queimado')
 
-    # ── Stat stages entram nos cálculos (buffs/debuffs acumulados) ──
+    # ── Stat stages v2: MULTIPLICATIVOS (regra oficial ±6) ──
     fx = appmod.effects
-    att = {'level': 20, 'stats': {'ATK': 16}, 'types': ['Normal'], 'proficiency': 3}
-    dfn = {'level': 18, 'stats': {'DEF': 14}, 'proficiency': 3}
-    import re as _restage
-    def _ac_of(msg):
-        mo = _restage.search(r'AC (\d+)', msg or '')
-        return int(mo.group(1)) if mo else None
-    ac0 = _ac_of(appmod._calc_pvp_attack(att, dict(dfn), 'Tackle', 10)['message'])
+    import battle_math as bmm
+    import statistics as _st
+    att = {'level': 20, 'stats': {'ATK': 40}, 'types': ['Normal']}
+    dfn = {'level': 18, 'stats': {'DEF': 40, 'SPD': 40, 'SPE': 40}}
     fx.apply_stat_changes(dfn, {'DEF': -2}); fx.apply_stat_changes(dfn, {'DEF': -2})
     check(S, 'DEF-2 empilha (stage -4)', dfn['stat_stages']['DEF'] == -4)
-    ac1 = _ac_of(appmod._calc_pvp_attack(att, dfn, 'Tackle', 10)['message'])
-    check(S, 'DEF-down baixa a CA do inimigo (bug reportado)',
-          ac0 is not None and ac1 is not None and ac1 < ac0, f'{ac0}→{ac1}')
-    # clamp em -6
+    check(S, 'stage -4 = DEF efetiva ×1/3', fx.effective_stat(dfn, 'DEF') == max(1, int(40 * 2 / 6)))
+    d_clean = _st.mean(appmod._calc_pvp_attack(att, {'level': 18, 'stats': {'DEF': 40}}, 'Tackle', 15)['damage'] for _ in range(200))
+    d_deb = _st.mean(appmod._calc_pvp_attack(att, dfn, 'Tackle', 15)['damage'] for _ in range(200))
+    check(S, 'DEF-down AUMENTA o dano recebido (v2)', d_deb > d_clean, f'{d_clean:.1f}→{d_deb:.1f}')
     for _ in range(3):
         fx.apply_stat_changes(dfn, {'DEF': -4})
     check(S, 'stage limita em -6', dfn['stat_stages']['DEF'] == -6)
-    # ATK-up sobe o modificador de dano (determinístico via _mod_dano do stat efetivo)
-    ab_ = {'stats': {'ATK': 16}}
-    m0 = appmod._mod_dano(fx.effective_stat(ab_, 'ATK'))
-    fx.apply_stat_changes(ab_, {'ATK': 4})
-    m1 = appmod._mod_dano(fx.effective_stat(ab_, 'ATK'))
-    check(S, 'ATK+4 aumenta o modificador de dano', m1 > m0, f'mod {m0}→{m1}')
-    # attack_roll stage baixa o acerto (via _calc_player_attack total no message)
-    enc = {'player_pokemon': {'level': 20, 'stats': {'ATK': 16}, 'types': [], 'proficiency': 3,
-                              'stat_stages': {'attack_roll': -3, 'ATK': 0, 'DEF': 0, 'SPA': 0,
-                                              'SPD': 0, 'SPE': 0, 'AC': 0}},
-           'pokemon': {'level': 18, 'stats': {'DEF': 10}}, 'level': 18}
-    def _tot(msg):
-        mo = _restage.search(r'(\d+)\s+vs AC', msg or '')
-        return int(mo.group(1)) if mo else None
-    c_base = appmod._calc_player_attack({'player_pokemon': {'level': 20, 'stats': {'ATK': 16}, 'types': [], 'proficiency': 3},
-                                         'pokemon': {'level': 18, 'stats': {'DEF': 10}}, 'level': 18}, 'Tackle', 12)
-    c_deb = appmod._calc_player_attack(enc, 'Tackle', 12)
-    tb, td = _tot(c_base.get('message', '')), _tot(c_deb.get('message', ''))
-    check(S, 'attack_roll -3 baixa o total de acerto', tb is not None and td == tb - 3, f'{tb}→{td}')
-    # queimadura reduz o ATK efetivo (condição ativa)
-    burned = {'stats': {'ATK': 16}, 'status': {'condition': 'queimado'}}
-    check(S, 'queimadura reduz ATK efetivo (-2)', fx.effective_stat(burned, 'ATK') == 14)
+    # ATK+2 dobra o stat efetivo (×2 oficial)
+    ab_ = {'stats': {'ATK': 40}}
+    fx.apply_stat_changes(ab_, {'ATK': 2})
+    check(S, 'ATK+2 = stat efetivo ×2', fx.effective_stat(ab_, 'ATK') == 80)
+    # attack_roll stage desloca o d20 no acerto
+    check(S, 'attack_roll -3 transforma acerto em erro (Acc 80, d20 7)',
+          bmm.roll_hits(7, 80, 0, 0) and not bmm.roll_hits(7, 80, -3, 0))
+    check(S, 'evasão +3 do alvo também', not bmm.roll_hits(7, 80, 0, 3))
+    # queimadura corta o dano FÍSICO pela metade (v2)
+    burned_att = dict(att, status={'condition': 'queimado'})
+    d_burn = _st.mean(appmod._calc_pvp_attack(burned_att, {'level': 18, 'stats': {'DEF': 40}}, 'Tackle', 15)['damage'] for _ in range(300))
+    check(S, 'queimado corta dano físico ~metade', d_burn < d_clean * 0.65, f'{d_clean:.1f}→{d_burn:.1f}')
+    # paralisia corta SPE efetiva pela metade
+    para = {'stats': {'SPE': 60}, 'status': {'condition': 'paralisado'}}
+    check(S, 'paralisado: SPE efetiva ×0.5', fx.effective_stat(para, 'SPE') == 30)
 
     # restaura o time do u1 para as seções seguintes (PC etc.)
     give_team(u1, [('Charmander', 20), ('Squirtle', 18), ('Pidgey', 15)])
