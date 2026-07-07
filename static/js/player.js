@@ -988,14 +988,16 @@ socket.on('battle_update', (data) => {
         if (teamIdx >= 0) playerTeam[teamIdx].currentHp = Math.max(0, bs.player_hp_current);
     }
 
-    // Log action (only if not already logged locally by wild auto-attack)
-    if (!window._wildIsActing || data.action_by === 'player') {
-        if (data.action_by === 'player' && data.action_log) {
-            // Server-calculated result for player attacks — show full detail line
-            addBattleLog(`🟢 <strong>${data.move_name}</strong>: ${data.action_log}`);
+    // Log da ação — o SERVIDOR é a fonte única (recalcula dano do selvagem).
+    // O cliente não loga mais o próprio dano do selvagem (evita número duplo
+    // e divergente); mostramos o log detalhado autoritativo do servidor.
+    if (data.action_by === 'player' && data.action_log) {
+        addBattleLog(`🟢 <strong>${data.move_name}</strong>: ${data.action_log}`);
+    } else if (data.action_by !== 'player') {
+        if (data.action_log) {
+            addBattleLog(`🔴 Selvagem usou <strong>${data.move_name}</strong>: ${data.action_log}`);
         } else {
-            const who = data.action_by === 'player' ? '🟢 Seu Pokémon' : '🔴 Selvagem';
-            let msg = `${who} usou <strong>${data.move_name}</strong>`;
+            let msg = `🔴 Selvagem usou <strong>${data.move_name}</strong>`;
             if (data.damage > 0) msg += ` → ${data.damage} de dano!`;
             if (data.heal > 0) msg += ` → curou ${data.heal} HP!`;
             if (data.status_effect) msg += ` → ${data.status_effect}!`;
@@ -5292,7 +5294,9 @@ async function _executeWildTurn() {
         }
     }
 
-    addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> ${categoryLabel} → d20(${attackRoll}) vs ${accLabel} ✅ ${dice}(${diceTotal}) ×${ratio.toFixed(2)}(${atkKey} ${atkEff}/${defKey} ${defEff})${modeLabel}${isStab ? (stabMult ? ' ×2 STAB🔥' : ' ×1.5 STAB') : ''}${isCrit ? ' ×2 CRIT!' : ''}${wildBurned ? ' ×0.5(queimado)' : ''}${effectLabel ? ' ' + effectLabel : ''} = <strong>${damage} dano</strong>`);
+    // NÃO logamos o dano aqui: o servidor recalcula o ataque do selvagem
+    // (autoritativo) e devolve o log detalhado — quem loga é o handler de
+    // battle_update. Evita mostrar dois números diferentes para o mesmo golpe.
 
     // Status on-hit do selvagem é rolado no SERVIDOR (dados canônicos)
     socket.emit('battle_action', {
