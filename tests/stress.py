@@ -688,35 +688,47 @@ def main():
           _pk50['stats'] == {'ATK': 60, 'DEF': 45, 'SPA': 55, 'SPD': 55, 'SPE': 95, 'HP': 40}
           and _pk50['maxHp'] == 95, str(_pk50['stats']))
 
-    # Taxa de acerto observada ≈ accuracy (Hydro Pump 80%)
-    _hp_atk = make_poke('Blastoise', 50)
+    # v3: taxa de conexão observada ≈ ACC (Hydro Pump 80%) — poke fresco por
+    # rolagem (senão o cooldown do POW 110 bloqueia as repetições)
     _hp_def = make_poke('Charizard', 50)
-    _hits = sum(1 for _ in range(600) if appmod._calc_pvp_attack(_hp_atk, _hp_def, 'Hydro Pump')['hit'])
-    check(S, 'hit rate ≈ accuracy (Hydro Pump 80%)', 0.65 <= _hits / 600 <= 0.92, f'{_hits/6:.1f}%')
+    _hits = 0
+    for _ in range(600):
+        _hp_atk = make_poke('Blastoise', 50)
+        if appmod._calc_pvp_attack(_hp_atk, _hp_def, 'Hydro Pump')['hit']:
+            _hits += 1
+    check(S, 'v3: taxa de conexão ≈ ACC (Hydro Pump 80%)',
+          0.72 <= _hits / 600 <= 0.88, f'{_hits/6:.1f}%')
 
-    # Posturas defensivas: 2 (Velocidade ×1.25) reduz dano p/ mon rápido;
-    # 3 (Contra-ataque ×1.5) usa ATK/SPA como denominador
-    _fast = make_poke('Pikachu', 30)              # SPE >> DEF
-    _fast2 = dict(make_poke('Pikachu', 30), defense_mode=2)
+    # v3: Resistência do defensor — DEF alta reduz o dano médio sentido e as
+    # três faixas (cheio/metade/anulação) aparecem
     _att30 = make_poke('Rattata', 30)
-    _d1 = _st.mean(appmod._calc_pvp_attack(_att30, _fast, 'Tackle', 15)['damage'] for _ in range(300))
-    _d2 = _st.mean(appmod._calc_pvp_attack(_att30, _fast2, 'Tackle', 15)['damage'] for _ in range(300))
-    check(S, 'postura Velocidade reduz dano do mon rápido', _d2 < _d1, f'{_d1:.1f}→{_d2:.1f}')
-    _tank = dict(make_poke('Onix', 30), defense_mode=3)   # ATK << DEF → postura 3 piora
-    _d3 = _st.mean(appmod._calc_pvp_attack(_att30, _tank, 'Tackle', 15)['damage'] for _ in range(300))
-    _d0 = _st.mean(appmod._calc_pvp_attack(_att30, make_poke('Onix', 30), 'Tackle', 15)['damage'] for _ in range(300))
-    check(S, 'postura Contra-ataque pune quem tem ATK baixo', _d3 > _d0, f'{_d0:.1f}→{_d3:.1f}')
-    check(S, 'IA escolhe postura ótima', appmod._ai_defense_mode(make_poke('Pikachu', 30)) == 2
-          and appmod._ai_defense_mode(make_poke('Onix', 30)) == 1)
-    # troca de Pokémon reseta a postura
+    _frail, _wall = make_poke('Pikachu', 30), make_poke('Onix', 30)
+    _dmg_frail, _dmg_wall, _outs = [], [], set()
+    for _ in range(400):
+        _a = dict(_att30)
+        _r1 = appmod._calc_pvp_attack(_a, _frail, 'Tackle')
+        _a2 = dict(_att30)
+        _r2 = appmod._calc_pvp_attack(_a2, _wall, 'Tackle')
+        _dmg_frail.append(_r1['damage']); _dmg_wall.append(_r2['damage'])
+        _outs.add(_r1.get('outcome')); _outs.add(_r2.get('outcome'))
+    check(S, 'v3: DEF alta reduz o dano médio sentido (Onix < Pikachu)',
+          _st.mean(_dmg_wall) < _st.mean(_dmg_frail),
+          f'{_st.mean(_dmg_frail):.1f}→{_st.mean(_dmg_wall):.1f}')
+    check(S, 'v3: as 3 faixas da Resistência aparecem (cheio/metade/anulação)',
+          {'full', 'half', 'negate'} <= _outs, str(_outs))
+    # troca de Pokémon zera momentum/adaptação (cooldowns ficam)
     _bt = appmod.pvp.create_pvp_battle('street', 'a', 'b')
-    appmod.pvp.set_team(_bt, 'player1', [dict(make_poke('Pikachu', 20), defense_mode=2),
-                                         make_poke('Rattata', 20)])
+    _pk_sw = make_poke('Pikachu', 20)
+    _pk_sw['_v3'] = {'cooldowns': {'hydro pump': 2}, 'last_move': 'tackle',
+                     'streak': 3, 'momentum': 2}
+    appmod.pvp.set_team(_bt, 'player1', [_pk_sw, make_poke('Rattata', 20)])
     appmod.pvp.set_team(_bt, 'player2', [make_poke('Onix', 20)])
     appmod.pvp.select_pokemon(_bt, 'player1', 0); appmod.pvp.select_pokemon(_bt, 'player2', 0)
     appmod.pvp.switch_pokemon(_bt, 'player1', 1)
-    check(S, 'troca reseta a postura p/ padrão',
-          _bt['player1']['team'][0]['defense_mode'] == 1 and _bt['player1']['team'][1]['defense_mode'] == 1)
+    _stv3 = _bt['player1']['team'][0]['_v3']
+    check(S, 'troca zera momentum/adaptação e MANTÉM cooldowns',
+          _stv3['momentum'] == 0 and _stv3['streak'] == 0
+          and _stv3['cooldowns'].get('hydro pump') == 2)
 
     # ── Migração v1→v2 ──
     _sp = appmod.POKEMON_BY_NAME['pikachu']
@@ -740,28 +752,37 @@ def main():
     _refs = scaling.calculate_pokemon_stats(_sp, 20, is_shiny=True, training=_v1s['training'])
     check(S, 'migração preserva shiny ×1.35', _v1s['stats'] == _refs['stats'])
 
-    # dano fixo v2 no calc (Dragon Rage nunca fica 0)
+    # v3: dano fixo (Dragon Rage = 15+nível//4 bruto) passa pela Resistência
+    # → cheio (20), metade (10) ou anulado (0) no Nv20
     _dr = appmod._calc_pvp_attack(make_poke('Charmander', 20), make_poke('Rattata', 20), 'Dragon Rage', 15)
-    _dr_exp = max(1, int((15 + 20 // 4) * bmm.damage_scale(20)))
-    check(S, 'Dragon Rage = dano fixo escalado ((15+nível//4) × escala)',
-          _dr['damage'] == _dr_exp, f"{_dr['damage']} (esperado {_dr_exp})")
+    _dr_gross = 15 + 20 // 4
+    check(S, 'v3: Dragon Rage fixo (bruto 20) resolve pela Resistência',
+          _dr['hit'] and _dr['damage'] in (0, _dr_gross // 2, _dr_gross),
+          f"{_dr['damage']} (esperado 0/{_dr_gross // 2}/{_dr_gross})")
 
     # ── Revisão de combate: potência variável, crítico por estágios, categoria ──
     # Return (potência variável) agora dá dano em vez de "mestre adjudica"
     _rt = appmod._calc_pvp_attack(make_poke('Pikachu', 30), make_poke('Rattata', 30), 'Return', 15)
     check(S, 'Return (potência variável) causa dano (não fica adjudicado)',
           _rt['hit'] and _rt['damage'] > 0, str(_rt.get('damage')))
-    # crítico por estágios: Super Luck baixa o limiar; Night Slash + Super Luck = 18
-    check(S, 'crit_threshold: nat 20 base, Super Luck 19, Night Slash+SL 18',
-          bmm.crit_threshold(0) == 20 and
-          bmm.crit_threshold(bmm.crit_stage_for('X', 'Super Luck')) == 19 and
-          bmm.crit_threshold(bmm.crit_stage_for('Night Slash', 'Super Luck')) == 18)
-    # d20=19: com Super Luck é crítico; sem, não (Mega Punch NÃO é alta-taxa)
-    _p = make_poke('Machamp', 40); _p['ability'] = 'Super Luck'
-    _c19 = appmod._calc_pvp_attack(_p, make_poke('Snorlax', 40), 'Mega Punch', 19)
-    _n19 = appmod._calc_pvp_attack(make_poke('Machamp', 40), make_poke('Snorlax', 40), 'Mega Punch', 19)
-    check(S, 'Super Luck: d20=19 vira crítico (só com a habilidade)',
-          _c19.get('is_crit') is True and _n19.get('is_crit') is not True)
+    # v3: crítico por estágios no d100 — base 5%, Super Luck 15%, Night Slash
+    # + Super Luck 25%, Focus Energy +2 estágios
+    check(S, 'v3: chance de crítico por estágios (5/15/25%)',
+          bmm.v3_crit_chance(0) == 5 and
+          bmm.v3_crit_chance(bmm.crit_stage_for('X', 'Super Luck')) == 15 and
+          bmm.v3_crit_chance(bmm.crit_stage_for('Night Slash', 'Super Luck')) == 25)
+    # estatístico: Super Luck crita ~3× mais que o normal (N=800)
+    _crits_sl, _crits_base = 0, 0
+    for _ in range(800):
+        _p = make_poke('Machamp', 40); _p['ability'] = 'Super Luck'
+        if appmod._calc_pvp_attack(_p, make_poke('Snorlax', 40), 'Mega Punch').get('is_crit'):
+            _crits_sl += 1
+        if appmod._calc_pvp_attack(make_poke('Machamp', 40), make_poke('Snorlax', 40), 'Mega Punch').get('is_crit'):
+            _crits_base += 1
+    check(S, 'v3: Super Luck crita mais que o normal (~15% vs ~5%)',
+          _crits_sl > _crits_base and 0.08 <= _crits_sl / 800 <= 0.22
+          and _crits_base / 800 <= 0.10,
+          f'{_crits_sl/8:.1f}% vs {_crits_base/8:.1f}%')
     # Magnitude recategorizado p/ físico (usa ATK, não SPA)
     check(S, 'Magnitude é físico (categoria corrigida)',
           (appmod.MOVES_BY_NAME.get('magnitude') or {}).get('category') == 'physical')
@@ -1161,8 +1182,8 @@ def main():
         'attacker_stats': {'ATK': 16, 'SPA': 14, 'level': 20, 'proficiency': 3, 'maxHp': 50},
         'target_stats': {'DEF': 10, 'SPD': 10, 'SPE': 10, 'level': 20}})
     _twmsg = (r.get_json() or {}).get('message', '')
-    check(S, 'status move processado por accuracy (v2)',
-          'Acc' in _twmsg or 'não erra' in _twmsg, _twmsg)
+    check(S, 'status move processado por ACC no d100 (v3)',
+          'd100' in _twmsg and ('ACC' in _twmsg or 'certeiro' in _twmsg), _twmsg)
     r = p1.post('/api/check-status', json={'action': 'turn_start',
                                            'pokemon_status': {'condition': 'badly_poisoned', 'turns_active': 0},
                                            'max_hp': 40})
@@ -1191,12 +1212,17 @@ def main():
           appmod.effects.effective_stat({'ability': 'Huge Power', 'stats': {'ATK': 100}, 'stat_stages': {}}, 'ATK') == 200)
     check(S, 'Fur Coat dobra a DEF efetiva',
           appmod.effects.effective_stat({'ability': 'Fur Coat', 'stats': {'DEF': 80}, 'stat_stages': {}}, 'DEF') == 160)
-    # damage-mult no cálculo real (Iron Fist em soco)
-    _pi = make_poke('Hitmonchan', 40); _pi['ability'] = 'Iron Fist'
-    _di = appmod._calc_pvp_attack(_pi, make_poke('Snorlax', 40), 'Fire Punch', 20)
-    _dn = appmod._calc_pvp_attack(make_poke('Hitmonchan', 40), make_poke('Snorlax', 40), 'Fire Punch', 20)
-    check(S, 'Iron Fist aumenta o dano de socos', _di['damage'] > _dn['damage'],
-          f"{_di['damage']} vs {_dn['damage']}")
+    # damage-mult no cálculo real (Iron Fist em soco) — estatístico (v3 tem
+    # variância de dados + faixas de Resistência)
+    import statistics as _stif
+    _di_l, _dn_l = [], []
+    for _ in range(300):
+        _pi = make_poke('Hitmonchan', 40); _pi['ability'] = 'Iron Fist'
+        _di_l.append(appmod._calc_pvp_attack(_pi, make_poke('Snorlax', 40), 'Fire Punch', 20)['damage'])
+        _dn_l.append(appmod._calc_pvp_attack(make_poke('Hitmonchan', 40), make_poke('Snorlax', 40), 'Fire Punch', 20)['damage'])
+    check(S, 'Iron Fist aumenta o dano médio de socos',
+          _stif.mean(_di_l) > _stif.mean(_dn_l),
+          f"{_stif.mean(_di_l):.1f} vs {_stif.mean(_dn_l):.1f}")
     # imunidade de status (Limber ignora paralisia; Water Veil ignora queimadura)
     check(S, 'Limber é imune a paralisia',
           ab.is_status_immune({'ability': 'Limber'}, 'paralisado') and
@@ -1274,9 +1300,14 @@ def main():
             tk = battle['turn']
             tsio = s1 if battle[tk]['id'] == u1 else s2
             poke = battle[tk]['team'][battle[tk]['active_idx']]
-            tsio.emit('pvp_attack', {'battle_id': bid,
-                                     'move_name': dmg_move(poke),
-                                     'attack_roll': random.randint(1, 20)})
+            # v3: escolhe um golpe de DANO fora de cooldown (senão o handler
+            # recusa sem consumir o turno e o loop travaria)
+            _mv = dmg_move(poke)
+            if appmod._v3_cooldown_left(poke, _mv) > 0:
+                _avail = [mv for mv in (poke.get('moves') or [])
+                          if appmod._v3_cooldown_left(poke, mv) <= 0]
+                _mv = (_avail or ['Tackle'])[0]
+            tsio.emit('pvp_attack', {'battle_id': bid, 'move_name': _mv})
             recv(s1); recv(s2)
         check(S, 'batalha P2P termina com vencedor',
               battle['phase'] == 'finished' and battle.get('winner'), f"fase={battle['phase']}")
@@ -1489,10 +1520,15 @@ def main():
     check(S, 'attack_roll -3 transforma acerto em erro (Acc 80, d20 7)',
           bmm.roll_hits(7, 80, 0, 0) and not bmm.roll_hits(7, 80, -3, 0))
     check(S, 'evasão +3 do alvo também', not bmm.roll_hits(7, 80, 0, 3))
-    # queimadura corta o dano FÍSICO pela metade (v2)
-    burned_att = dict(att, status={'condition': 'queimado'})
-    d_burn = _st.mean(appmod._calc_pvp_attack(burned_att, {'level': 18, 'stats': {'DEF': 40}}, 'Tackle', 15)['damage'] for _ in range(300))
-    check(S, 'queimado corta dano físico ~metade', d_burn < d_clean * 0.65, f'{d_clean:.1f}→{d_burn:.1f}')
+    # v3: queimadura corta o COMPONENTE físico pela metade — visível com um
+    # atacante de ATK alto (componente domina o bruto)
+    _big = {'level': 40, 'stats': {'ATK': 400, 'SPE': 50}, 'types': []}
+    _tgt = {'level': 40, 'stats': {'DEF': 40, 'SPE': 40}}
+    d_hot = _st.mean(appmod._calc_pvp_attack(dict(_big), _tgt, 'Tackle')['damage'] for _ in range(300))
+    d_burn = _st.mean(appmod._calc_pvp_attack(
+        dict(_big, status={'condition': 'queimado'}), _tgt, 'Tackle')['damage'] for _ in range(300))
+    check(S, 'v3: queimado corta o Componente físico (dano cai forte)',
+          d_burn < d_hot * 0.75, f'{d_hot:.1f}→{d_burn:.1f}')
     # paralisia corta SPE efetiva pela metade
     para = {'stats': {'SPE': 60}, 'status': {'condition': 'paralisado'}}
     check(S, 'paralisado: SPE efetiva ×0.5', fx.effective_stat(para, 'SPE') == 30)
@@ -1663,6 +1699,163 @@ def main():
     check(S, 'busca de pokémon', any(x['name'] == 'Pikachu' for x in (r.get_json() or [])))
     r = m.get('/health')
     check(S, 'healthcheck', (r.get_json() or {}).get('status') == 'ok')
+
+    section('17. Sistema v3 — cooldown/momentum/clima/casos especiais')
+    S = 'Sistema v3'
+    import battle_math as bm
+    import status_effects as se
+
+    def fresh(species, level, **kw):
+        p = make_poke(species, level, **kw)
+        p.pop('_v3', None)
+        return p
+
+    # Cooldown: POW 110 (Fire Blast, degrau 96-110) → 2 rodadas; 2º uso
+    # imediato é bloqueado sem gastar o turno
+    char = fresh('Charizard', 50)
+    blast = fresh('Blastoise', 50)
+    r1 = appmod._calc_attack_core(char, blast, 'Fire Blast', attack_roll=10, field={})
+    check(S, 'Fire Blast (POW 110) entra em cooldown 2', r1.get('cooldown') == 2
+          and appmod._v3_cooldown_left(char, 'Fire Blast') == 2, f"{r1.get('cooldown')}")
+    r2 = appmod._calc_attack_core(char, blast, 'Fire Blast', attack_roll=10, field={})
+    check(S, 'golpe em cooldown é bloqueado sem gastar turno',
+          r2.get('blocked') and r2.get('cooldown_left') == 2)
+    appmod._calc_attack_core(char, blast, 'Ember', attack_roll=10, field={})
+    check(S, 'cooldown decrementa por ação própria',
+          appmod._v3_cooldown_left(char, 'Fire Blast') == 1,
+          f"{appmod._v3_cooldown_left(char, 'Fire Blast')}")
+
+    # Momentum: variar +1 (máx 3); repetir zera
+    c2, b2 = fresh('Charizard', 50), fresh('Blastoise', 50)
+    for mv in ('Ember', 'Wing Attack', 'Slash', 'Ember', 'Wing Attack', 'Slash'):
+        appmod._calc_attack_core(c2, b2, mv, attack_roll=10, field={})
+    check(S, 'momentum acumula variando (máx 3)', c2['_v3']['momentum'] == 3,
+          f"{c2['_v3']['momentum']}")
+    appmod._calc_attack_core(c2, b2, 'Slash', attack_roll=10, field={})
+    check(S, 'repetir o golpe zera o momentum', c2['_v3']['momentum'] == 0)
+
+    # Adaptação: 3ª repetição consecutiva → defensor +2 na Resistência
+    c3, b3 = fresh('Charizard', 50), fresh('Blastoise', 50)
+    appmod._calc_attack_core(c3, b3, 'Ember', attack_roll=10, field={})
+    appmod._calc_attack_core(c3, b3, 'Ember', attack_roll=10, field={})
+    r3 = appmod._calc_attack_core(c3, b3, 'Ember', attack_roll=10, field={})
+    check(S, 'adaptação na 3ª repetição (+2 defensor)',
+          'adaptação +2' in (r3.get('log') or ''), (r3.get('log') or '')[:90])
+
+    # Clima: Sol → Thunder ACC 50; Chuva → Surf +1 dado; Névoa −10
+    c4, b4 = fresh('Charizard', 50), fresh('Blastoise', 50)
+    r4 = appmod._calc_attack_core(c4, b4, 'Thunder', attack_roll=51,
+                                  field={'weather': 'sun'})
+    check(S, 'Thunder no Sol tem ACC 50 (erra com 51)', not r4.get('hit'))
+    b5 = fresh('Blastoise', 50)
+    r5 = appmod._calc_attack_core(b5, fresh('Charizard', 50), 'Surf',
+                                  attack_roll=95, field={'weather': 'rain'})
+    check(S, 'Surf na chuva ganha +1 dado', 'clima +1d' in (r5.get('log') or ''))
+    check(S, 'ACC de clima: Névoa −10',
+          bm.v3_weather_acc('fog', 'Ember', 100) == 90)
+
+    # Chip de clima: areia fere Charizard, poupa Pedra/Terra/Aço
+    chip, _ = appmod._field_chip({'field': {'weather': 'sandstorm', 'terrain': None}},
+                                 c4, 120, 'X')
+    chip_onix, _ = appmod._field_chip({'field': {'weather': 'sandstorm', 'terrain': None}},
+                                      fresh('Onix', 30), 120, 'X')
+    check(S, 'chip de areia: ⌊120/16⌋=7 e Onix imune', chip == -7 and chip_onix == 0,
+          f'{chip}/{chip_onix}')
+
+    # Terreno: Psychic bloqueia prioridade; Grassy amortece Earthquake
+    c6 = fresh('Charizard', 50)
+    c6['types'] = ['fire']   # sem flying: alvo no chão fica protegido
+    r6 = appmod._calc_attack_core(fresh('Blastoise', 50), c6, 'Quick Attack',
+                                  attack_roll=10, field={'terrain': 'psychic'})
+    check(S, 'Psychic Terrain bloqueia golpe de prioridade',
+          'Psychic Terrain' in (r6.get('log') or ''))
+    check(S, 'Grassy Terrain amortece Earthquake',
+          bm.v3_terrain_dice_delta('grassy', 'ground', 'earthquake') == -1)
+
+    # Protect: bloqueia e a corrente decai 100→50
+    b7 = fresh('Blastoise', 50)
+    st7 = appmod._v3_side_state(b7)
+    sres = se.process_status_move({'name': 'Protect', 'category': 'status'},
+                                  dict(b7['stats'], level=50, maxHp=120,
+                                       currentHp=120, _v3=st7),
+                                  dict(c4['stats'], level=50, currentHp=120))
+    check(S, 'Protect ativa a proteção', sres['effect_type'] == 'protect'
+          and st7.get('protected') is True)
+    r7 = appmod._calc_attack_core(fresh('Charizard', 50), b7, 'Ember',
+                                  attack_roll=10, field={})
+    check(S, 'golpe é bloqueado pelo Protect (consome a proteção)',
+          r7.get('protected') and st7.get('protected') is False)
+    check(S, 'corrente do Protect decai 100→50→25',
+          bm.v3_protect_chance(0) == 100 and bm.v3_protect_chance(1) == 50
+          and bm.v3_protect_chance(2) == 25)
+
+    # Multi-hit: Double Kick = 2 hits, 1 Resistência
+    r8 = appmod._calc_attack_core(fresh('Blastoise', 50), fresh('Snorlax', 50),
+                                  'Double Kick', attack_roll=10, field={})
+    check(S, 'Double Kick rola 2 hits', '2 hits' in (r8.get('log') or ''),
+          (r8.get('log') or '')[:80])
+
+    # Recoil e dreno derivados do dano final
+    ok_rec = ok_drn = False
+    for _ in range(20):
+        rr = appmod._calc_attack_core(fresh('Blastoise', 50), fresh('Snorlax', 50),
+                                      'Take Down', attack_roll=10, field={})
+        if rr.get('damage', 0) > 0:
+            ok_rec = rr.get('recoil') == max(1, rr['damage'] // 3)
+            break
+    for _ in range(20):
+        rd = appmod._calc_attack_core(fresh('Venusaur', 50), fresh('Blastoise', 50),
+                                      'Giga Drain', attack_roll=10, field={})
+        if rd.get('damage', 0) > 0:
+            ok_drn = rd.get('drain_heal') == max(1, rd['damage'] // 2)
+            break
+    check(S, 'recoil = ⌊dano/3⌋ (Take Down)', ok_rec)
+    check(S, 'dreno = ⌊dano/2⌋ (Giga Drain)', ok_drn)
+
+    # Carga: Solar Beam carrega 1 rodada; no Sol dispara direto
+    v9 = fresh('Venusaur', 50)
+    r9 = appmod._calc_attack_core(v9, fresh('Blastoise', 50), 'Solar Beam',
+                                  attack_roll=10, field={})
+    r9b = appmod._calc_attack_core(v9, fresh('Blastoise', 50), 'Solar Beam',
+                                   attack_roll=10, field={})
+    check(S, 'Solar Beam: carrega e dispara na 2ª rodada',
+          r9.get('charging') and not r9b.get('charging') and r9b.get('hit') is not None)
+    v9c = fresh('Venusaur', 50)
+    r9c = appmod._calc_attack_core(v9c, fresh('Blastoise', 50), 'Solar Beam',
+                                   attack_roll=10, field={'weather': 'sun'})
+    check(S, 'Solar Beam no Sol dispara direto', not r9c.get('charging'))
+
+    # OHKO: ACC 30 + Resistência TN 22 (nunca vira certeza)
+    ko = resisted = 0
+    for _ in range(200):
+        ro = se.process_status_move({'name': 'Fissure', 'category': 'status'},
+                                    dict(c4['stats'], level=50, currentHp=120),
+                                    dict(fresh('Blastoise', 50)['stats'],
+                                         level=50, currentHp=120))
+        if ro.get('effect_type') == 'fixed_damage':
+            ko += 1
+        elif 'RESISTE' in (ro.get('message') or ''):
+            resisted += 1
+    check(S, 'OHKO: raro e resistível (ACC30 × TN22)',
+          0 < ko < 70 and resisted > 0, f'ko={ko} resist={resisted}')
+
+    # Campo expira quando a duração zera
+    fbox = {'field': {'weather': 'rain', 'weather_left': 1,
+                      'terrain': None, 'terrain_left': 0}}
+    msgs = appmod._field_tick(fbox)
+    check(S, 'clima expira (tick zera e avisa)',
+          fbox['field']['weather'] is None and bool(msgs))
+
+    # Rain Dance / Grassy Terrain → effect_type 'field'
+    rw = se.process_status_move({'name': 'Rain Dance', 'category': 'status'},
+                                dict(c4['stats'], level=50, maxHp=120, currentHp=120),
+                                dict(b4['stats'], level=50, currentHp=120))
+    rt = se.process_status_move({'name': 'Grassy Terrain', 'category': 'status'},
+                                dict(c4['stats'], level=50, maxHp=120, currentHp=120),
+                                dict(b4['stats'], level=50, currentHp=120))
+    check(S, 'Rain Dance/Grassy Terrain viram efeito de campo',
+          rw.get('effect_type') == 'field' and rw.get('field_value') == 'rain'
+          and rt.get('effect_type') == 'field' and rt.get('field_value') == 'grassy')
 
     # ────────────────────────── RELATÓRIO ──────────────────────────
     print('\n' + '═' * 62)

@@ -11,6 +11,7 @@
 #  - Stats derivam SEMPRE dos base stats da espécie (+ shiny ×1.35 aplicado
 #    antes, + treino) — nunca aplicar bônus direto em estatística derivada.
 import math
+import random as _random
 
 # ── Constantes de balanceamento (ajustáveis em playtest) ──────────────────
 RATIO_CLAMP = (0.5, 2.0)      # limites da razão Atk_ef / Def_ef
@@ -308,3 +309,340 @@ def fixed_damage_for(move_name_lower, level, target_current_hp=None):
     if move_name_lower == 'super fang':
         return max(1, int(raw))
     return max(1, int(raw * damage_scale(level)))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SISTEMA v3 — "d100/ACC": Precisão (d100) → Dano (Status+POW) → Resistência
+# (d20 do defensor). Documento de design: docs/sistema-combate-d100.md.
+# As funções v2 acima permanecem até o cutover completo do motor.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Alavancas de calibração (alvo: batalhas de 5-10 turnos — battle_sweep_v3)
+V3_STATUS_DIVISOR = 8     # Componente de Status = stat // divisor
+V3_TN_SHIFT = 0           # desloca a coluna de TN inteira
+V3_DEF_BONUS_CAP = 12     # teto do bônus de Defesa na Resistência: ⌊def/10⌋
+                          # chega a +20 no Nv100 e dominaria o d20 (anulação
+                          # eterna, batalhas de 13+ rodadas)
+V3_STAB_DIE_LEVEL = 25    # STAB: +1 dado a partir do 1º marco; antes disso
+                          # +2 fixo no bruto (dobrar dados no early game
+                          # derrubava o L15 para 4 rodadas)
+V3_STAB_FLAT = 2
+V3_ACC_CAP, V3_ACC_FLOOR = 100, 5
+V3_CRIT_BASE, V3_CRIT_PER_STAGE, V3_CRIT_CAP = 5, 10, 50
+V3_MOMENTUM_MAX = 3
+V3_CERTEIRO_COMPONENT_PCT = 60   # % do Componente para golpes certeiros
+
+# TABELA MESTRA: (pow_máx, nº dados, lados, TN, cooldown em rodadas)
+V3_MASTER_TABLE = (
+    (35,        1, 6,  10, 0),
+    (50,        1, 8,  12, 0),
+    (65,        1, 10, 14, 0),
+    (80,        2, 6,  16, 0),
+    (95,        2, 8,  18, 1),
+    (110,       3, 6,  20, 2),
+    (125,       3, 8,  22, 3),
+    (10 ** 9,   3, 10, 24, 3),
+)
+
+
+def v3_tier(power):
+    """Índice do degrau da Tabela Mestra para um POW."""
+    p = max(1, int(power or 40))
+    for i, row in enumerate(V3_MASTER_TABLE):
+        if p <= row[0]:
+            return i
+    return len(V3_MASTER_TABLE) - 1
+
+
+def v3_dice_base(power):
+    """(n, lados) do degrau do POW."""
+    row = V3_MASTER_TABLE[v3_tier(power)]
+    return row[1], row[2]
+
+
+def v3_tn(power, attacker_level=1):
+    """TN Efetiva = TN da tabela + ⌊nível do atacante/10⌋ + shift de calibração.
+    O termo do atacante cancela o ⌊nível/10⌋ do defensor em níveis iguais —
+    sem ele, em nível alto o defensor anularia tudo."""
+    return (V3_MASTER_TABLE[v3_tier(power)][3] + V3_TN_SHIFT
+            + max(1, int(attacker_level or 1)) // 10)
+
+
+def v3_cooldown(power):
+    """Rodadas de espera após usar o golpe (0 = sem cooldown)."""
+    return V3_MASTER_TABLE[v3_tier(power)][4]
+
+
+def v3_milestone_dice(level):
+    """Dados extras acumulados pelos marcos 25/50/75/100."""
+    return max(0, min(4, int(level or 1) // 25))
+
+
+def v3_status_component(stat, atk_stages=0, certeiro=False):
+    """Componente de Status: ⌊stat/divisor⌋ ± 2 por estágio de ATK/SpA (mín 1).
+    Certeiro usa 60% do componente."""
+    comp = int(stat or 10) // V3_STATUS_DIVISOR + 2 * int(atk_stages or 0)
+    if certeiro:
+        comp = comp * V3_CERTEIRO_COMPONENT_PCT // 100
+    return max(1, comp)
+
+
+def v3_level_bonus(level):
+    return max(1, int(level or 1)) // 10
+
+
+def v3_effectiveness_dice_delta(effectiveness):
+    """×2→+1 dado, ×4→+2, ×½→−1, ×¼→−2, neutro→0. Imune é tratado fora."""
+    e = float(effectiveness if effectiveness is not None else 1.0)
+    if e >= 4:   return 2
+    if e >= 2:   return 1
+    if e <= 0.25: return -2
+    if e <= 0.5: return -1
+    return 0
+
+
+def v3_build_dice(power, level, certeiro=False, stab=False,
+                  effectiveness=1.0, field_delta=0):
+    """Constrói a rolagem final: (n, lados, halve).
+    Ordem: degrau → certeiro (−1 degrau) → marcos → STAB (+1) → efetividade →
+    clima/terreno. Se n cair abaixo de 1: rola 1 dado e divide por 2."""
+    tier = v3_tier(power)
+    if certeiro:
+        tier = max(0, tier - 1)
+    n, sides = V3_MASTER_TABLE[tier][1], V3_MASTER_TABLE[tier][2]
+    n += v3_milestone_dice(level)
+    if stab and int(level or 1) >= V3_STAB_DIE_LEVEL:
+        n += 1
+    n += v3_effectiveness_dice_delta(effectiveness)
+    n += int(field_delta or 0)
+    halve = n < 1
+    return max(1, n), sides, halve
+
+
+def v3_stab_flat(stab, level):
+    """STAB antes do 1º marco (Nv < 25): +2 fixo no bruto em vez do dado."""
+    return V3_STAB_FLAT if stab and int(level or 1) < V3_STAB_DIE_LEVEL else 0
+
+
+def v3_acc_effective(acc_base, acc_stages=0, eva_stages=0, weather_mod=0):
+    """ACC Efetivo com teto 100 / piso 5. acc_base None = certeiro (retorna
+    None: sempre conecta, ignora evasão)."""
+    if acc_base is None:
+        return None
+    acc = (int(acc_base) + 10 * int(acc_stages or 0)
+           - 10 * int(eva_stages or 0) + int(weather_mod or 0))
+    return max(V3_ACC_FLOOR, min(V3_ACC_CAP, acc))
+
+
+def v3_connects(d100, acc_effective):
+    """True se o golpe conecta (certeiro conecta sempre)."""
+    if acc_effective is None:
+        return True
+    return int(d100) <= int(acc_effective)
+
+
+def v3_crit_chance(crit_stages=0):
+    return min(V3_CRIT_CAP, V3_CRIT_BASE + V3_CRIT_PER_STAGE * int(crit_stages or 0))
+
+
+def v3_resistance_total(d20, defense_stat, level, def_stages=0,
+                        crit=False, extra=0, crit_zeroes_defense=False):
+    """Total da Resistência do defensor. Crítico FURA a defesa: o bônus de
+    Defesa (⌊def/10⌋ + estágios positivos) conta pela metade (Sniper: zero)."""
+    bonus = min(V3_DEF_BONUS_CAP, int(defense_stat or 10) // 10) + int(def_stages or 0)
+    if crit:
+        bonus = 0 if crit_zeroes_defense else (bonus // 2 if bonus > 0 else bonus)
+    return int(d20) + bonus + v3_level_bonus(level) + int(extra or 0)
+
+
+def v3_resist_outcome(result, tn, defender_faster=False):
+    """'full' | 'half' | 'negate'. Empate técnico: a exatamente 1 ponto da
+    faixa superior (TN−1 ou TN+9), defensor mais rápido sobe de faixa."""
+    result, tn = int(result), int(tn)
+    if result >= tn + 10:
+        return 'negate'
+    if result >= tn:
+        if defender_faster and result == tn + 9:
+            return 'negate'
+        return 'half'
+    if defender_faster and result == tn - 1:
+        return 'half'
+    return 'full'
+
+
+def v3_apply_outcome(gross, outcome):
+    """Aplica a faixa da Resistência ao Dano Bruto (mín. 1 se não anulado)."""
+    if outcome == 'negate':
+        return 0
+    if outcome == 'half':
+        return max(1, int(gross) // 2)
+    return max(1, int(gross))
+
+
+def v3_gross_damage(component, level, dice_total, momentum=0, halve_dice=False,
+                    flat=0):
+    """Dano Bruto = Componente + ⌊nível/10⌋ + dados + Momentum + flats
+    (ex.: STAB pré-Nv25)."""
+    dice = int(dice_total) // 2 if halve_dice else int(dice_total)
+    return max(1, int(component) + v3_level_bonus(level) + max(1, dice)
+               + max(0, min(V3_MOMENTUM_MAX, int(momentum or 0)))
+               + int(flat or 0))
+
+
+# ── v3 F5: Clima, Terreno, Prioridade e Casos Especiais ────────────────────
+# Doc: docs/sistema-combate-d100.md seções 7, 12, 13 e 17.
+
+V3_FIELD_ROUNDS = 5          # duração padrão de clima e terreno
+V3_WEATHER_CHIP_DIV = 16     # areia/granizo: ⌊HPmáx/16⌋ por rodada
+V3_PROTECT_FLOOR = 5         # a corrente 100→50→25… nunca cai abaixo de 5%
+
+# tipos poupados pelo chip de cada clima
+_V3_SAND_IMMUNE = ('rock', 'ground', 'steel')
+_V3_HAIL_IMMUNE = ('ice',)
+
+
+def v3_weather_dice_delta(weather, move_type):
+    """Clima → ±1 dado por tipo (Sol: Fogo+1/Água−1; Chuva: Água+1/Fogo−1)."""
+    w, t = (weather or '').lower(), (move_type or '').lower()
+    if w == 'sun':
+        return 1 if t == 'fire' else (-1 if t == 'water' else 0)
+    if w == 'rain':
+        return 1 if t == 'water' else (-1 if t == 'fire' else 0)
+    return 0
+
+
+# golpes que golpeiam o CHÃO — Grassy Terrain amortece (−1 dado)
+_V3_GROUND_SLAMS = ('earthquake', 'bulldoze', 'magnitude')
+
+
+def v3_terrain_dice_delta(terrain, move_type, move_name=''):
+    """Terreno → ±1 dado (Grassy/Electric/Psychic +1 no tipo; Misty: Dragão −1;
+    Grassy amortece Earthquake/Bulldoze/Magnitude)."""
+    tr, t = (terrain or '').lower(), (move_type or '').lower()
+    ml = (move_name or '').lower()
+    if tr == 'grassy':
+        if ml in _V3_GROUND_SLAMS:
+            return -1
+        return 1 if t == 'grass' else 0
+    if tr == 'electric':
+        return 1 if t == 'electric' else 0
+    if tr == 'psychic':
+        return 1 if t == 'psychic' else 0
+    if tr == 'misty':
+        return -1 if t == 'dragon' else 0
+    return 0
+
+
+def v3_weather_acc(weather, move_name, accuracy):
+    """ACC base ajustado pelo clima: Thunder/Hurricane (Sol 50 / Chuva 100),
+    Blizzard (Granizo 100), Névoa −10 global. Retorna o ACC base final."""
+    w, ml = (weather or '').lower(), (move_name or '').lower()
+    if ml in ('thunder', 'hurricane'):
+        if w == 'sun':
+            accuracy = 50
+        elif w == 'rain':
+            accuracy = 100
+    elif ml == 'blizzard' and w in ('hail', 'snow'):
+        accuracy = 100
+    if w == 'fog' and accuracy is not None:
+        accuracy = max(V3_ACC_FLOOR, int(accuracy) - 10)
+    return accuracy
+
+
+def v3_weather_resist_bonus(weather, defender_types, category):
+    """Areia: Pedra +2 na Resistência ESPECIAL; Granizo/Neve: Gelo +2 na
+    FÍSICA."""
+    w = (weather or '').lower()
+    types = [str(t).lower() for t in (defender_types or [])]
+    if w == 'sandstorm' and 'rock' in types and category == 'special':
+        return 2
+    if w in ('hail', 'snow') and 'ice' in types and category == 'physical':
+        return 2
+    return 0
+
+
+def v3_weather_chip(weather, max_hp, defender_types):
+    """Dano de clima por rodada (0 se o tipo é poupado). Habilidades imunes
+    (Magic Guard, Overcoat, Sand Veil...) são checadas pelo caller."""
+    w = (weather or '').lower()
+    types = [str(t).lower() for t in (defender_types or [])]
+    if w == 'sandstorm' and not any(t in _V3_SAND_IMMUNE for t in types):
+        return max(1, int(max_hp or 1) // V3_WEATHER_CHIP_DIV)
+    if w in ('hail', 'snow') and not any(t in _V3_HAIL_IMMUNE for t in types):
+        return max(1, int(max_hp or 1) // V3_WEATHER_CHIP_DIV)
+    return 0
+
+
+def v3_terrain_heal(terrain, max_hp):
+    """Grassy Terrain cura ⌊HPmáx/16⌋ por rodada."""
+    if (terrain or '').lower() == 'grassy':
+        return max(1, int(max_hp or 1) // V3_WEATHER_CHIP_DIV)
+    return 0
+
+
+# Multi-hit: nome → (mín, máx) de hits. 1 ACC, 1 Componente, 1 Resistência;
+# só os DADOS rolam por hit (doc §17). 2-5 hits = 1d4+1.
+V3_MULTI_HIT = {
+    'double kick': (2, 2), 'double hit': (2, 2), 'dual chop': (2, 2),
+    'bonemerang': (2, 2), 'double iron bash': (2, 2), 'dragon darts': (2, 2),
+    'twineedle': (2, 2), 'gear grind': (2, 2), 'dual wingbeat': (2, 2),
+    'triple kick': (3, 3), 'triple axel': (3, 3), 'surging strikes': (3, 3),
+    'double slap': (2, 5), 'fury attack': (2, 5), 'fury swipes': (2, 5),
+    'pin missile': (2, 5), 'rock blast': (2, 5), 'bullet seed': (2, 5),
+    'icicle spear': (2, 5), 'spike cannon': (2, 5), 'comet punch': (2, 5),
+    'barrage': (2, 5), 'arm thrust': (2, 5), 'tail slap': (2, 5),
+    'water shuriken': (2, 5), 'bone rush': (2, 5), 'scale shot': (2, 5),
+}
+
+
+def v3_multi_hits(move_name, rng=None):
+    """Nº de hits do golpe (None se não é multi-hit). 2-5 → 1d4+1."""
+    span = V3_MULTI_HIT.get((move_name or '').lower())
+    if not span:
+        return None
+    lo, hi = span
+    if lo == hi:
+        return lo
+    roll = (rng or _random).randint(1, 4)
+    return 1 + roll
+
+
+# Carga: 1 rodada carregando antes de disparar (doc §17).
+V3_CHARGE_MOVES = ('solar beam', 'solar blade', 'sky attack', 'skull bash',
+                   'razor wind', 'freeze shock', 'ice burn', 'meteor beam')
+
+
+def v3_needs_charge(move_name, weather=None):
+    """True se o golpe precisa carregar 1 rodada (Solar Beam/Blade dispara
+    direto no Sol)."""
+    ml = (move_name or '').lower()
+    if ml not in V3_CHARGE_MOVES:
+        return False
+    if ml in ('solar beam', 'solar blade') and (weather or '').lower() == 'sun':
+        return False
+    return True
+
+
+def v3_recoil(final_damage, canon_drain):
+    """Recoil (drain canônico < 0): usuário sofre ⌊dano final ÷ 3⌋."""
+    if int(canon_drain or 0) < 0 and int(final_damage or 0) > 0:
+        return max(1, int(final_damage) // 3)
+    return 0
+
+
+def v3_drain_heal(final_damage, canon_drain):
+    """Dreno (drain canônico > 0): usuário cura ⌊dano final ÷ 2⌋."""
+    if int(canon_drain or 0) > 0 and int(final_damage or 0) > 0:
+        return max(1, int(final_damage) // 2)
+    return 0
+
+
+def v3_protect_chance(chain):
+    """Protect/Detect: usos consecutivos caem pela metade (100→50→25…)."""
+    return max(V3_PROTECT_FLOOR, 100 >> max(0, int(chain or 0)))
+
+
+def v3_ohko_resist_tn():
+    """OHKO (Fissure/Guillotine): Resistência vs TN 22 — qualquer sucesso
+    anula o golpe inteiro."""
+    return 22

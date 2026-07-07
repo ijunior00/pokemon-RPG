@@ -280,6 +280,17 @@ def get_passive(ability) -> str | None:
     return ABILITY_PASSIVES.get(normalize_ability(ability))
 
 
+def ability_blocks_weather_damage(pokemon) -> bool:
+    """True se a habilidade impede o dano de clima (areia/granizo): Magic
+    Guard (sem dano indireto), Overcoat, Sand Veil/Force/Rush, Ice Body/
+    Snow Cloak/Slush Rush."""
+    key = get_ability_key(pokemon or {})
+    if ABILITY_PASSIVES.get(key) in ('no_indirect', 'immune_weather',
+                                     'evasion_sand', 'evasion_hail'):
+        return True
+    return key in ('sand force', 'sand rush', 'ice body', 'slush rush')
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # HABILIDADES PASSIVAS — expansão (multiplicadores de stat/dano, imunidades de
 # status, crítico). Aplicadas em chokepoints únicos: effective_stat (stats) e
