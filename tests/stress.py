@@ -1700,6 +1700,163 @@ def main():
     r = m.get('/health')
     check(S, 'healthcheck', (r.get_json() or {}).get('status') == 'ok')
 
+    section('17. Sistema v3 — cooldown/momentum/clima/casos especiais')
+    S = 'Sistema v3'
+    import battle_math as bm
+    import status_effects as se
+
+    def fresh(species, level, **kw):
+        p = make_poke(species, level, **kw)
+        p.pop('_v3', None)
+        return p
+
+    # Cooldown: POW 110 (Fire Blast, degrau 96-110) → 2 rodadas; 2º uso
+    # imediato é bloqueado sem gastar o turno
+    char = fresh('Charizard', 50)
+    blast = fresh('Blastoise', 50)
+    r1 = appmod._calc_attack_core(char, blast, 'Fire Blast', attack_roll=10, field={})
+    check(S, 'Fire Blast (POW 110) entra em cooldown 2', r1.get('cooldown') == 2
+          and appmod._v3_cooldown_left(char, 'Fire Blast') == 2, f"{r1.get('cooldown')}")
+    r2 = appmod._calc_attack_core(char, blast, 'Fire Blast', attack_roll=10, field={})
+    check(S, 'golpe em cooldown é bloqueado sem gastar turno',
+          r2.get('blocked') and r2.get('cooldown_left') == 2)
+    appmod._calc_attack_core(char, blast, 'Ember', attack_roll=10, field={})
+    check(S, 'cooldown decrementa por ação própria',
+          appmod._v3_cooldown_left(char, 'Fire Blast') == 1,
+          f"{appmod._v3_cooldown_left(char, 'Fire Blast')}")
+
+    # Momentum: variar +1 (máx 3); repetir zera
+    c2, b2 = fresh('Charizard', 50), fresh('Blastoise', 50)
+    for mv in ('Ember', 'Wing Attack', 'Slash', 'Ember', 'Wing Attack', 'Slash'):
+        appmod._calc_attack_core(c2, b2, mv, attack_roll=10, field={})
+    check(S, 'momentum acumula variando (máx 3)', c2['_v3']['momentum'] == 3,
+          f"{c2['_v3']['momentum']}")
+    appmod._calc_attack_core(c2, b2, 'Slash', attack_roll=10, field={})
+    check(S, 'repetir o golpe zera o momentum', c2['_v3']['momentum'] == 0)
+
+    # Adaptação: 3ª repetição consecutiva → defensor +2 na Resistência
+    c3, b3 = fresh('Charizard', 50), fresh('Blastoise', 50)
+    appmod._calc_attack_core(c3, b3, 'Ember', attack_roll=10, field={})
+    appmod._calc_attack_core(c3, b3, 'Ember', attack_roll=10, field={})
+    r3 = appmod._calc_attack_core(c3, b3, 'Ember', attack_roll=10, field={})
+    check(S, 'adaptação na 3ª repetição (+2 defensor)',
+          'adaptação +2' in (r3.get('log') or ''), (r3.get('log') or '')[:90])
+
+    # Clima: Sol → Thunder ACC 50; Chuva → Surf +1 dado; Névoa −10
+    c4, b4 = fresh('Charizard', 50), fresh('Blastoise', 50)
+    r4 = appmod._calc_attack_core(c4, b4, 'Thunder', attack_roll=51,
+                                  field={'weather': 'sun'})
+    check(S, 'Thunder no Sol tem ACC 50 (erra com 51)', not r4.get('hit'))
+    b5 = fresh('Blastoise', 50)
+    r5 = appmod._calc_attack_core(b5, fresh('Charizard', 50), 'Surf',
+                                  attack_roll=95, field={'weather': 'rain'})
+    check(S, 'Surf na chuva ganha +1 dado', 'clima +1d' in (r5.get('log') or ''))
+    check(S, 'ACC de clima: Névoa −10',
+          bm.v3_weather_acc('fog', 'Ember', 100) == 90)
+
+    # Chip de clima: areia fere Charizard, poupa Pedra/Terra/Aço
+    chip, _ = appmod._field_chip({'field': {'weather': 'sandstorm', 'terrain': None}},
+                                 c4, 120, 'X')
+    chip_onix, _ = appmod._field_chip({'field': {'weather': 'sandstorm', 'terrain': None}},
+                                      fresh('Onix', 30), 120, 'X')
+    check(S, 'chip de areia: ⌊120/16⌋=7 e Onix imune', chip == -7 and chip_onix == 0,
+          f'{chip}/{chip_onix}')
+
+    # Terreno: Psychic bloqueia prioridade; Grassy amortece Earthquake
+    c6 = fresh('Charizard', 50)
+    c6['types'] = ['fire']   # sem flying: alvo no chão fica protegido
+    r6 = appmod._calc_attack_core(fresh('Blastoise', 50), c6, 'Quick Attack',
+                                  attack_roll=10, field={'terrain': 'psychic'})
+    check(S, 'Psychic Terrain bloqueia golpe de prioridade',
+          'Psychic Terrain' in (r6.get('log') or ''))
+    check(S, 'Grassy Terrain amortece Earthquake',
+          bm.v3_terrain_dice_delta('grassy', 'ground', 'earthquake') == -1)
+
+    # Protect: bloqueia e a corrente decai 100→50
+    b7 = fresh('Blastoise', 50)
+    st7 = appmod._v3_side_state(b7)
+    sres = se.process_status_move({'name': 'Protect', 'category': 'status'},
+                                  dict(b7['stats'], level=50, maxHp=120,
+                                       currentHp=120, _v3=st7),
+                                  dict(c4['stats'], level=50, currentHp=120))
+    check(S, 'Protect ativa a proteção', sres['effect_type'] == 'protect'
+          and st7.get('protected') is True)
+    r7 = appmod._calc_attack_core(fresh('Charizard', 50), b7, 'Ember',
+                                  attack_roll=10, field={})
+    check(S, 'golpe é bloqueado pelo Protect (consome a proteção)',
+          r7.get('protected') and st7.get('protected') is False)
+    check(S, 'corrente do Protect decai 100→50→25',
+          bm.v3_protect_chance(0) == 100 and bm.v3_protect_chance(1) == 50
+          and bm.v3_protect_chance(2) == 25)
+
+    # Multi-hit: Double Kick = 2 hits, 1 Resistência
+    r8 = appmod._calc_attack_core(fresh('Blastoise', 50), fresh('Snorlax', 50),
+                                  'Double Kick', attack_roll=10, field={})
+    check(S, 'Double Kick rola 2 hits', '2 hits' in (r8.get('log') or ''),
+          (r8.get('log') or '')[:80])
+
+    # Recoil e dreno derivados do dano final
+    ok_rec = ok_drn = False
+    for _ in range(20):
+        rr = appmod._calc_attack_core(fresh('Blastoise', 50), fresh('Snorlax', 50),
+                                      'Take Down', attack_roll=10, field={})
+        if rr.get('damage', 0) > 0:
+            ok_rec = rr.get('recoil') == max(1, rr['damage'] // 3)
+            break
+    for _ in range(20):
+        rd = appmod._calc_attack_core(fresh('Venusaur', 50), fresh('Blastoise', 50),
+                                      'Giga Drain', attack_roll=10, field={})
+        if rd.get('damage', 0) > 0:
+            ok_drn = rd.get('drain_heal') == max(1, rd['damage'] // 2)
+            break
+    check(S, 'recoil = ⌊dano/3⌋ (Take Down)', ok_rec)
+    check(S, 'dreno = ⌊dano/2⌋ (Giga Drain)', ok_drn)
+
+    # Carga: Solar Beam carrega 1 rodada; no Sol dispara direto
+    v9 = fresh('Venusaur', 50)
+    r9 = appmod._calc_attack_core(v9, fresh('Blastoise', 50), 'Solar Beam',
+                                  attack_roll=10, field={})
+    r9b = appmod._calc_attack_core(v9, fresh('Blastoise', 50), 'Solar Beam',
+                                   attack_roll=10, field={})
+    check(S, 'Solar Beam: carrega e dispara na 2ª rodada',
+          r9.get('charging') and not r9b.get('charging') and r9b.get('hit') is not None)
+    v9c = fresh('Venusaur', 50)
+    r9c = appmod._calc_attack_core(v9c, fresh('Blastoise', 50), 'Solar Beam',
+                                   attack_roll=10, field={'weather': 'sun'})
+    check(S, 'Solar Beam no Sol dispara direto', not r9c.get('charging'))
+
+    # OHKO: ACC 30 + Resistência TN 22 (nunca vira certeza)
+    ko = resisted = 0
+    for _ in range(200):
+        ro = se.process_status_move({'name': 'Fissure', 'category': 'status'},
+                                    dict(c4['stats'], level=50, currentHp=120),
+                                    dict(fresh('Blastoise', 50)['stats'],
+                                         level=50, currentHp=120))
+        if ro.get('effect_type') == 'fixed_damage':
+            ko += 1
+        elif 'RESISTE' in (ro.get('message') or ''):
+            resisted += 1
+    check(S, 'OHKO: raro e resistível (ACC30 × TN22)',
+          0 < ko < 70 and resisted > 0, f'ko={ko} resist={resisted}')
+
+    # Campo expira quando a duração zera
+    fbox = {'field': {'weather': 'rain', 'weather_left': 1,
+                      'terrain': None, 'terrain_left': 0}}
+    msgs = appmod._field_tick(fbox)
+    check(S, 'clima expira (tick zera e avisa)',
+          fbox['field']['weather'] is None and bool(msgs))
+
+    # Rain Dance / Grassy Terrain → effect_type 'field'
+    rw = se.process_status_move({'name': 'Rain Dance', 'category': 'status'},
+                                dict(c4['stats'], level=50, maxHp=120, currentHp=120),
+                                dict(b4['stats'], level=50, currentHp=120))
+    rt = se.process_status_move({'name': 'Grassy Terrain', 'category': 'status'},
+                                dict(c4['stats'], level=50, maxHp=120, currentHp=120),
+                                dict(b4['stats'], level=50, currentHp=120))
+    check(S, 'Rain Dance/Grassy Terrain viram efeito de campo',
+          rw.get('effect_type') == 'field' and rw.get('field_value') == 'rain'
+          and rt.get('effect_type') == 'field' and rt.get('field_value') == 'grassy')
+
     # ────────────────────────── RELATÓRIO ──────────────────────────
     print('\n' + '═' * 62)
     print('📊 SCORECARD FINAL')
