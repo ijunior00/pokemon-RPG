@@ -460,14 +460,16 @@ def _cond_stat_mult(pokemon, stat):
     return _COND_STAT_MULT.get(cond, {}).get(stat, 1.0)
 
 
-def effective_stat(pokemon, stat):
-    """Stat efetivo v2 = stat no nível × stage_mult(±6, oficial) × condição.
-    Stages são MULTIPLICATIVOS na escala 1-255 (+2 = ×2, −2 = ×0.5)."""
+def effective_stat(pokemon, stat, include_stages=True):
+    """Stat efetivo = stat no nível × condição × habilidade (Huge Power...).
+    include_stages=True (v2): stages multiplicativos (+2 = ×2).
+    include_stages=False (v3): os estágios entram FORA daqui, na gramática
+    v3 (±2 no Componente / ±1 na Resistência) — aqui só condição+habilidade."""
     import battle_math as bm
     if not isinstance(pokemon, dict):
         return 10
     base = int((pokemon.get('stats') or {}).get(stat, 10) or 10)
-    stage = int((pokemon.get('stat_stages') or {}).get(stat, 0))
+    stage = int((pokemon.get('stat_stages') or {}).get(stat, 0)) if include_stages else 0
     # multiplicador de habilidade (Huge Power, Fur Coat, Guts, Defeatist...)
     try:
         import abilities as _ab
@@ -475,6 +477,14 @@ def effective_stat(pokemon, stat):
     except Exception:
         abil_mult = 1.0
     return max(1, int(base * bm.stage_mult(stage) * _cond_stat_mult(pokemon, stat) * abil_mult))
+
+
+def stat_stage(pokemon, stat):
+    """Estágio bruto (−6..+6) de um stat — consumido pela gramática v3."""
+    if not isinstance(pokemon, dict):
+        return 0
+    return max(-STAGE_CLAMP, min(STAGE_CLAMP,
+               int((pokemon.get('stat_stages') or {}).get(stat, 0))))
 
 
 def attack_roll_bonus(pokemon):
@@ -494,9 +504,17 @@ def ac_bonus(pokemon):
 
 
 def reset_stat_stages(pokemon):
-    """Zera as stages (troca de pokémon / fim de batalha)."""
-    if isinstance(pokemon, dict) and pokemon.get('stat_stages'):
+    """Zera as stages (troca de pokémon / fim de batalha). Também zera o fluxo
+    v3 (momentum/adaptação) — cooldowns FICAM (trocar não zera cooldown)."""
+    if not isinstance(pokemon, dict):
+        return
+    if pokemon.get('stat_stages'):
         pokemon['stat_stages'] = init_stat_stages()
+    st = pokemon.get('_v3')
+    if isinstance(st, dict):
+        st['momentum'] = 0
+        st['streak'] = 0
+        st['last_move'] = None
 
 
 
@@ -905,11 +923,14 @@ def process_status_move(move_data, attacker_stats, target_stats):
     import battle_math as _bm
 
     def _accuracy_roll():
+        """v3: d100 vs ACC do move de status (Thunder Wave 90, Sing 55...).
+        Retorna (ok, roll, acc_efetivo, label). O 3º campo é o ACC (era o
+        limiar do d20 no v2 — mantido na tupla p/ compatibilidade dos logs)."""
         acc = move_accuracy(move_name)
-        roll = random.randint(1, 20)
-        thr = _bm.miss_threshold(acc)
-        acc_label = f'Acc {acc}%' if acc else 'não erra'
-        return _bm.roll_hits(roll, acc), roll, thr, acc_label
+        acc_eff = _bm.v3_acc_effective(acc)
+        roll = random.randint(1, 100)
+        acc_label = 'certeiro' if acc_eff is None else f'ACC {acc_eff}%'
+        return _bm.v3_connects(roll, acc_eff), roll, (acc_eff or 100), acc_label
 
     if effect['type'] == 'inflict_status':
         ok, roll, thr, acc_label = _accuracy_roll()
@@ -917,14 +938,14 @@ def process_status_move(move_data, attacker_stats, target_stats):
             return {
                 'success': True,
                 'effect_type': 'status',
-                'message': f"{move_name}! d20({roll}) > {thr} ({acc_label}) → Status aplicado!",
+                'message': f"{move_name}! d100({roll}) ≤ {thr} ({acc_label}) → Status aplicado!",
                 'status_applied': effect['status'],
                 'stat_changes': None
             }
         return {
             'success': False,
             'effect_type': 'resisted',
-            'message': f"{move_name}! d20({roll}) ≤ {thr} ({acc_label}) → Errou!",
+            'message': f"{move_name}! d100({roll}) > {thr} ({acc_label}) → Errou!",
             'status_applied': None,
             'stat_changes': None
         }
@@ -935,14 +956,14 @@ def process_status_move(move_data, attacker_stats, target_stats):
             return {
                 'success': True,
                 'effect_type': 'debuff',
-                'message': f"{move_name}! d20({roll}) > {thr} ({acc_label}) → {effect['stat']} {effect['value']:+d}!",
+                'message': f"{move_name}! d100({roll}) ≤ {thr} ({acc_label}) → {effect['stat']} {effect['value']:+d}!",
                 'status_applied': None,
                 'stat_changes': {effect['stat']: effect['value']}
             }
         return {
             'success': False,
             'effect_type': 'resisted',
-            'message': f"{move_name}! d20({roll}) ≤ {thr} ({acc_label}) → Errou!",
+            'message': f"{move_name}! d100({roll}) > {thr} ({acc_label}) → Errou!",
             'status_applied': None,
             'stat_changes': None
         }
@@ -1039,14 +1060,14 @@ def process_status_move(move_data, attacker_stats, target_stats):
                 'effect_type': 'fixed_damage',
                 'damage': tgt_hp,
                 'self_damage': 0,
-                'message': f"{move_name}! d20({roll}) > {thr} ({acc_label}) → 💀 GOLPE FATAL! {tgt_hp} de dano!",
+                'message': f"{move_name}! d100({roll}) ≤ {thr} ({acc_label}) → 💀 GOLPE FATAL! {tgt_hp} de dano!",
                 'status_applied': None,
                 'stat_changes': None
             }
         return {
             'success': False,
             'effect_type': 'resisted',
-            'message': f"{move_name}! d20({roll}) ≤ {thr} ({acc_label}) → Errou o golpe fatal!",
+            'message': f"{move_name}! d100({roll}) > {thr} ({acc_label}) → Errou o golpe fatal!",
             'status_applied': None,
             'stat_changes': None
         }

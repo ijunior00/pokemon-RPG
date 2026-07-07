@@ -270,18 +270,77 @@ def _resolve_metronome(move_name):
     return pick, f'{emoji} {move_name} → {pick}'
 
 
+def _v3_side_state(poke):
+    """Estado v3 do lado (vive no dict do Pokémon em batalha — morre com ela):
+    cooldowns por move, último golpe, streak (adaptação) e momentum."""
+    st = poke.setdefault('_v3', {})
+    st.setdefault('cooldowns', {})
+    st.setdefault('last_move', None)
+    st.setdefault('streak', 0)
+    st.setdefault('momentum', 0)
+    return st
+
+
+def _v3_cooldown_left(poke, move_name):
+    """Rodadas restantes de cooldown de um move (0 = livre)."""
+    st = poke.get('_v3') or {}
+    return int((st.get('cooldowns') or {}).get((move_name or '').lower(), 0))
+
+
+def _v3_register_use(st, move_lower, power):
+    """Registra o uso de um golpe: decrementa cooldowns (1 ação = 1 rodada do
+    lado), atualiza momentum (+1 se variou, zera se repetiu; 1º golpe = 0) e
+    streak (adaptação: 3ª repetição consecutiva → defensor +2). Retorna
+    (momentum_deste_ataque, adapt_bonus_contra_este_ataque)."""
+    cds = st['cooldowns']
+    for k in list(cds):
+        cds[k] -= 1
+        if cds[k] <= 0:
+            del cds[k]
+    if st['last_move'] == move_lower:
+        st['streak'] += 1
+        st['momentum'] = 0
+    elif st['last_move'] is None:
+        st['streak'] = 1
+        st['momentum'] = 0
+    else:
+        st['streak'] = 1
+        st['momentum'] = min(bm_core.V3_MOMENTUM_MAX, st['momentum'] + 1)
+    st['last_move'] = move_lower
+    adapt = 2 if st['streak'] >= 3 else 0
+    cd = bm_core.v3_cooldown(power) if power else 0
+    if cd:
+        cds[move_lower] = cd
+    return st['momentum'], adapt
+
+
+def _v3_reset_battle_flow(poke):
+    """Troca de Pokémon: momentum e adaptação zeram; cooldowns FICAM
+    (trocar não zera cooldown — regra do doc)."""
+    st = poke.get('_v3')
+    if isinstance(st, dict):
+        st['momentum'] = 0
+        st['streak'] = 0
+        st['last_move'] = None
+
+
 def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
                       attacker_status=None, defender_status=None,
-                      atk_hp=None, atk_max_hp=None, def_hp=None):
-    """Núcleo ÚNICO do cálculo de ataque (sistema v2 — base stats reais).
+                      atk_hp=None, atk_max_hp=None, def_hp=None,
+                      momentum=None, adapt_bonus=None):
+    """Núcleo ÚNICO do cálculo de ataque (SISTEMA v3 — d100/ACC).
 
-    Acerto: d20 vs Accuracy do move (canônico). Dano: dados do Power ×
-    clamp(Atk_ef/DefStat_postura) × taxa da postura × STAB ×1.5 × tipo.
-    Retorna {'hit','damage','message','attack_roll','move_type_en','is_crit','log'}.
+    Camadas: Precisão (d100 vs ACC efetivo) → Dano (Componente + nível +
+    dados da Tabela Mestra + Momentum) → Resistência (d20 do defensor vs TN
+    Efetiva → cheio/metade/anulação). Doc: docs/sistema-combate-d100.md.
+    `attack_roll` é o d100 do atacante (None = servidor rola).
+    Retorna {'hit','damage','message','attack_roll','move_type_en','is_crit',
+    'log','outcome','cooldown'}.
     """
     move_name, metronome_became = _resolve_metronome(move_name)
     move = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name) or {}
     level = int(attacker_poke.get('level') or 1)
+    def_level = int(defender_poke.get('level') or level)
     category = move.get('category', 'physical')
 
     # Move de status NUNCA rola ataque nem causa dano — roteado pelo motor
@@ -292,85 +351,117 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
                 'attack_roll': 0, 'move_type_en': '', 'log': ''}
 
     canon = canon_move(move_name)
-    power = canon.get('power')
+    power = canon.get('power') or bm_core.VARIABLE_POWER.get(move_name.lower())
     accuracy = canon.get('accuracy')
+    certeiro = accuracy is None   # Aerial Ace, Swift... conectam sempre
 
     move_type_raw = (move.get('type') or '').lower()
     move_type_en = _TYPE_MAP_PT.get(move_type_raw, move_type_raw)
     met = f'<strong>{metronome_became}</strong>! ' if metronome_became else ''
 
-    # ── Acerto: d20 vs Accuracy (stages de acerto/evasão deslizam o d20) ──
-    if attack_roll is None:
-        attack_roll = random.randint(1, 20)
-    d20 = int(attack_roll)
-    # Crítico por estágios (v2): nat 20 sempre; moves de alta taxa / Super Luck
-    # / Focus Energy abaixam o limiar (17-20 no máximo)
-    _crit_stage = bm_core.crit_stage_for(
+    # ── Cooldown / Momentum / Adaptação (estado por lado, vive na batalha) ──
+    st = _v3_side_state(attacker_poke)
+    ml = move_name.lower()
+    _cd_left = int(st['cooldowns'].get(ml, 0))
+    if _cd_left > 0:
+        return {'hit': False, 'damage': 0, 'blocked': True, 'cooldown_left': _cd_left,
+                'message': f'⏳ {move_name} em cooldown ({_cd_left} rodada(s))',
+                'attack_roll': 0, 'move_type_en': move_type_en,
+                'log': f'⏳ <strong>{move_name}</strong> está em cooldown '
+                       f'({_cd_left} rodada(s) restante(s)) — escolha outro golpe!'}
+    _mom, _adapt = _v3_register_use(st, ml, power)
+    if momentum is None:
+        momentum = _mom
+    if adapt_bonus is None:
+        adapt_bonus = _adapt
+
+    # ── Camada 1: PRECISÃO (d100 vs ACC efetivo; certeiro conecta sempre) ──
+    # estágios legados 'attack_roll'/'AC' viram estágios de Precisão/Evasão
+    acc_stages = effects.attack_roll_bonus(attacker_poke)
+    eva_stages = effects.ac_bonus(defender_poke)
+    acc_eff = bm_core.v3_acc_effective(accuracy, acc_stages, eva_stages)
+    d100 = int(attack_roll) if attack_roll is not None else random.randint(1, 100)
+    acc_label = 'certeiro' if certeiro else f'ACC {acc_eff}%'
+
+    if not bm_core.v3_connects(d100, acc_eff):
+        return {'hit': False, 'damage': 0,
+                'message': f'{met}Errou (d100 {d100} > {acc_eff})',
+                'attack_roll': d100, 'move_type_en': move_type_en,
+                'log': f'{met}❌ d100({d100}) > {acc_eff} ({acc_label}) → Errou!'}
+
+    # ── Crítico (d100 próprio: 5% + 10 p.p./estágio; fura a defesa) ──
+    _crit_stages = bm_core.crit_stage_for(
         move_name, attacker_poke.get('ability'),
         bool(attacker_poke.get('focus_energy')))
-    is_crit = d20 >= bm_core.crit_threshold(_crit_stage)
-    # Habilidades de crítico: Merciless garante crítico em alvo envenenado;
-    # Battle Armor / Shell Armor bloqueiam crítico contra o defensor
+    is_crit = random.randint(1, 100) <= bm_core.v3_crit_chance(_crit_stages)
     if ab.ability_forces_crit(attacker_poke, defender_poke):
         is_crit = True
     if ab.ability_prevents_crit(defender_poke.get('ability')):
         is_crit = False
-    atk_stage = effects.attack_roll_bonus(attacker_poke)
-    evasion = effects.ac_bonus(defender_poke)
-    thr = bm_core.miss_threshold(accuracy)
-    acc_label = f'Acc {accuracy}%' if accuracy else 'não erra'
+    sniper = ab.normalize_ability(attacker_poke.get('ability')) == 'sniper'
 
-    if not bm_core.roll_hits(d20, accuracy, atk_stage, evasion):
-        shift = (f'{atk_stage:+d}' if atk_stage else '') + (f'−{evasion}' if evasion else '')
-        return {'hit': False, 'damage': 0,
-                'message': f'{met}Errou (d20 {d20}{shift} ≤ {thr} | {acc_label})',
-                'attack_roll': d20, 'move_type_en': move_type_en,
-                'log': f'{met}❌ Errou! d20({d20}){shift} ≤ limiar {thr} ({acc_label})'}
+    # ── Preparação da Resistência (defensor) ──
+    def_key = 'SPD' if category == 'special' else 'DEF'
+    def_stat = effects.effective_stat(defender_poke, def_key, include_stages=False)
+    def_stages = effects.stat_stage(defender_poke, def_key)
+    def_spe = effects.effective_stat(defender_poke, 'SPE', include_stages=False)
+    atk_spe = effects.effective_stat(attacker_poke, 'SPE', include_stages=False)
 
-    # ── Dano: dados do Power × razão de stats × postura ──
+    def _resist(gross, pw):
+        """Camada 3: Resistência do defensor → (dano_final, linha de log)."""
+        d20 = random.randint(1, 20)
+        total = bm_core.v3_resistance_total(
+            d20, def_stat, def_level, def_stages,
+            crit=is_crit, extra=adapt_bonus, crit_zeroes_defense=sniper)
+        tn = bm_core.v3_tn(pw, level)
+        outcome = bm_core.v3_resist_outcome(total, tn, defender_faster=def_spe > atk_spe)
+        final = bm_core.v3_apply_outcome(gross, outcome)
+        tag = {'full': '💥 dano CHEIO', 'half': '🛡️ resistiu (metade)',
+               'negate': '💨 ANULOU'}[outcome]
+        line = (f' · resistência d20({d20})+{total - d20} = {total} vs TN {tn}'
+                f'{" (adaptação +2)" if adapt_bonus else ""} → {tag}')
+        return final, outcome, line
+
     if not power:
-        # potência VARIÁVEL (Return, Low Kick, Gyro Ball...) ganha um Power
-        # representativo p/ dar dano em vez de "mestre adjudica"
-        power = bm_core.VARIABLE_POWER.get(move_name.lower())
-    if not power:
-        # moves de DANO FIXO (Dragon Rage, Sonic Boom, Seismic Toss...) têm
-        # power None no canônico — resolvidos pela tabela do battle_math
-        fixed = bm_core.fixed_damage_for(move_name.lower(), level, def_hp)
+        fixed = bm_core.FIXED_DAMAGE_FORMULAS.get(move_name.lower())
         if fixed is not None:
-            return {'hit': True, 'damage': fixed,
-                    'message': f'{met}d20({d20}) vs {acc_label} — dano fixo {fixed}',
-                    'attack_roll': d20, 'move_type_en': move_type_en, 'is_crit': is_crit,
-                    'log': f'{met}✅ d20({d20}) vs {acc_label} → dano FIXO = <strong>{fixed}</strong>'}
-        # sem Power e sem fórmula fixa (Counter, Bide...) → mestre adjudica
+            gross = max(1, int(fixed(level, def_hp)))
+            dmg, outcome, rline = _resist(gross, 40)   # dano fixo resiste como POW fraco
+            return {'hit': True, 'damage': dmg, 'is_crit': is_crit,
+                    'message': f'{met}d100({d100}) conecta — dano fixo {gross}',
+                    'attack_roll': d100, 'move_type_en': move_type_en,
+                    'outcome': outcome, 'cooldown': 0,
+                    'log': f'{met}✅ d100({d100}) ({acc_label}) → FIXO {gross}{rline}'
+                           f' = <strong>{dmg} dano</strong>'}
+        # sem Power e sem fórmula fixa (Counter, Mirror Coat...) → mestre adjudica
         return {'hit': True, 'damage': 0,
-                'message': f'{met}Acertou (d20 {d20} | {acc_label}) — dano variável (mestre adjudica)',
-                'attack_roll': d20, 'move_type_en': move_type_en, 'is_crit': is_crit,
-                'log': f'{met}✅ Acertou! d20({d20}) — dano variável, mestre adjudica.'}
+                'message': f'{met}Conectou (d100 {d100}) — dano variável (mestre adjudica)',
+                'attack_roll': d100, 'move_type_en': move_type_en, 'is_crit': is_crit,
+                'log': f'{met}✅ d100({d100}) conecta — dano variável, mestre adjudica.'}
 
-    dice = bm_core.dice_for_power(power, level)
-    roll1 = _roll_dice(dice)
-    dice_total = roll1 + (_roll_dice(dice) if is_crit else 0)
-
+    # ── Camada 2: DANO BRUTO = Componente + ⌊nível/10⌋ + dados + Momentum ──
     atk_key = 'SPA' if category == 'special' else 'ATK'
-    atk_eff = effects.effective_stat(attacker_poke, atk_key)
-    dmode = int(defender_poke.get('defense_mode') or 1)
-    def_key = bm_core.defense_stat_key(category, dmode)
-    def_eff = effects.effective_stat(defender_poke, def_key)
-    tax = bm_core.defense_tax(dmode)
+    atk_stat = effects.effective_stat(attacker_poke, atk_key, include_stages=False)
+    atk_stages = effects.stat_stage(attacker_poke, atk_key)
+    component = bm_core.v3_status_component(atk_stat, atk_stages, certeiro=certeiro)
 
-    # STAB ×1.5 (Blaze/Overgrow/Torrent/Swarm com HP ≤ 25% dobram → ×2.0)
+    # Queimado corta o Componente físico pela metade (Guts ignora)
+    burned = (category == 'physical'
+              and (attacker_status or {}).get('condition') == 'queimado'
+              and ab.normalize_ability(attacker_poke.get('ability')) != 'guts')
+    if burned:
+        component = max(1, component // 2)
+
+    # STAB: +1 dado a partir do Nv25 (antes: +2 fixo). Blaze/Torrent/Overgrow/
+    # Swarm com HP ≤ 25%: +1 dado extra do tipo.
     poke_types = [t.lower() for t in (attacker_poke.get('types') or [])]
     stab = move_type_raw in poke_types or move_type_en in poke_types
-    stab_mult = None
+    field_delta = 0
     if stab and ab.stab_multiplier(attacker_poke.get('ability'), move_type_en,
                                    atk_hp, atk_max_hp) > 1:
-        stab_mult = 2.0
+        field_delta += 1
 
-    # Queimado corta dano físico pela metade
-    burned = (category == 'physical'
-              and (attacker_status or {}).get('condition') == 'queimado')
-
-    # Efetividade de tipo (fallback nos dados da espécie p/ listas vazias)
+    # Efetividade de tipo → ±dados (imune = 0 de dano)
     vulns, resists, immunities = _type_lists(defender_poke)
     eff = 1.0
     if move_type_en in immunities:
@@ -378,48 +469,58 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     else:
         if move_type_en in vulns:   eff *= 2
         if move_type_en in resists: eff *= 0.5
+    if eff == 0:
+        return {'hit': True, 'damage': 0, 'is_crit': False,
+                'message': f'{met}Conectou, mas o alvo é IMUNE (0x)',
+                'attack_roll': d100, 'move_type_en': move_type_en,
+                'outcome': 'immune', 'cooldown': bm_core.v3_cooldown(power),
+                'log': f'{met}✅ d100({d100}) ({acc_label}) ⛔ IMUNE (0x) = <strong>0 dano</strong>'}
 
-    dmg = bm_core.damage(dice_total, atk_eff, def_eff, stab=stab,
-                         effectiveness=eff, tax=tax, burned=burned,
-                         stab_mult=stab_mult, level=level)
+    n_dice, sides, halve = bm_core.v3_build_dice(
+        power, level, certeiro=certeiro, stab=stab,
+        effectiveness=eff, field_delta=field_delta)
+    dice_total = sum(random.randint(1, sides) for _ in range(n_dice))
+    stab_flat = bm_core.v3_stab_flat(stab, level)
+    gross = bm_core.v3_gross_damage(component, level, dice_total,
+                                    momentum=momentum, halve_dice=halve,
+                                    flat=stab_flat)
 
-    # Multiplicador de dano da habilidade do ATACANTE (Iron Fist, Technician,
-    # Tough Claws, Strong Jaw, Mega Launcher, Steelworker, Reckless, Sniper,
-    # Tinted Lens, Adaptability, Sheer Force...)
+    # Habilidades de dano do atacante (Iron Fist, Technician, Tinted Lens...)
     abil_dmg_mult = ab.ability_damage_mult(
         attacker_poke, move_name, move_type_en, category, power,
         is_crit=is_crit, effectiveness=eff, attacker_types=attacker_poke.get('types'))
     if abil_dmg_mult != 1.0:
-        dmg = max(1, int(dmg * abil_dmg_mult))
+        gross = max(1, int(gross * abil_dmg_mult))
 
     # Sinergia de veneno: Venoshock dobra contra alvo envenenado
     venoshock_x2 = False
-    if (move_name.lower() == 'venoshock' and dmg > 0
+    if (move_name.lower() == 'venoshock'
             and (defender_status or {}).get('condition') == 'badly_poisoned'):
-        dmg *= 2
+        gross *= 2
         venoshock_x2 = True
 
-    lo, hi = bm_core.RATIO_CLAMP
-    ratio = max(lo, min(hi, atk_eff / max(1, def_eff)))
-    eff_label = ''
-    if eff == 0:   eff_label = ' ⛔ IMUNE (0x)'
-    elif eff > 1:  eff_label = f' ⚡ Super Efetivo (x{eff:.0f})'
-    elif eff < 1:  eff_label = f' 🛡️ Não Efetivo (x{eff})'
-    mode_label = f' [{bm_core.DEFENSE_MODES[dmode]["label"]} ×{tax}]' if dmode != 1 else ''
+    # ── Camada 3: RESISTÊNCIA do defensor ──
+    dmg, outcome, rline = _resist(gross, power)
 
-    log = (f'{met}✅ d20({d20}) vs {acc_label} → {dice}({dice_total})'
-           f' ×{ratio:.2f}({atk_key} {atk_eff}/{def_key} {def_eff}){mode_label}'
-           f'{" ×1.5 STAB" if stab and not stab_mult else ""}'
-           f'{" ×2 STAB🔥" if stab_mult else ""}'
-           f'{" ×2 CRIT!" if is_crit else ""}'
-           f'{" ×0.5 (queimado)" if burned else ""}'
+    eff_label = ''
+    if eff > 1:   eff_label = f' ⚡ Super Efetivo (+{bm_core.v3_effectiveness_dice_delta(eff)} dado)'
+    elif eff < 1: eff_label = f' 🛡️ Não Efetivo ({bm_core.v3_effectiveness_dice_delta(eff)} dado)'
+
+    log = (f'{met}✅ d100({d100}) ({acc_label})'
+           f'{" 🎯 CRIT fura defesa!" if is_crit else ""}'
+           f' → {n_dice}d{sides}({dice_total}) + comp {component} + nv {bm_core.v3_level_bonus(level)}'
+           f'{f" + STAB {stab_flat}" if stab_flat else (" +1d STAB" if stab and level >= bm_core.V3_STAB_DIE_LEVEL else "")}'
+           f'{f" + momentum {momentum}" if momentum else ""}'
+           f'{" ×½ (queimado)" if burned else ""}'
            f'{" ☠️×2 (alvo envenenado)" if venoshock_x2 else ""}'
-           f'{eff_label} = <strong>{dmg} dano {move.get("type", "")}</strong>')
+           f'{eff_label} = bruto {gross}{rline}'
+           f' = <strong>{dmg} dano {move.get("type", "")}</strong>')
 
     return {'hit': True, 'damage': dmg,
-            'message': f'{met}d20({d20}) vs {acc_label}{"  Crítico!" if is_crit else ""}{eff_label}',
-            'attack_roll': d20, 'move_type_en': move_type_en,
-            'is_crit': is_crit, 'log': log}
+            'message': f'{met}d100({d100}) vs {acc_label}{" Crítico!" if is_crit else ""}{eff_label}',
+            'attack_roll': d100, 'move_type_en': move_type_en,
+            'is_crit': is_crit, 'log': log, 'outcome': outcome,
+            'cooldown': bm_core.v3_cooldown(power)}
 
 
 def _calc_player_attack(encounter, move_name, attack_roll=None):
@@ -439,8 +540,15 @@ def _calc_wild_attack(encounter, move_name, attack_roll=None):
     turno do selvagem no modo AUTO (senão o cliente do jogador podia mandar
     o inimigo bater de graça)."""
     bs = encounter.get('battle_state') or {}
+    wpoke = encounter.get('pokemon') or {}
+    # v3: se o golpe escolhido (pelo cliente) está em cooldown, o servidor
+    # substitui pelo primeiro disponível do moveset — o selvagem não perde turno
+    if _v3_cooldown_left(wpoke, move_name) > 0:
+        pool = encounter.get('wild_moves') or wpoke.get('moves') or ['Tackle']
+        avail = [m for m in pool if _v3_cooldown_left(wpoke, m) <= 0]
+        move_name = (avail or ['Tackle'])[0]
     return _calc_attack_core(
-        encounter.get('pokemon') or {}, encounter.get('player_pokemon') or {},
+        wpoke, encounter.get('player_pokemon') or {},
         move_name, attack_roll,
         attacker_status=bs.get('wild_status'),
         defender_status=bs.get('player_status'),
@@ -3376,6 +3484,8 @@ def _group_run_wild_turns(battle):
         wild_poke['maxHp'] = cur['maxHp']
         wild_poke['moves'] = cur['moves']
         wild_poke['level'] = cur.get('level') or wild_poke.get('level', 1)
+        _v3_side_state(cur['pokemon'])
+        wild_poke['_v3'] = cur['pokemon']['_v3']   # estado v3 persiste entre turnos
         tgt_poke = dict(target['pokemon'])
         tgt_poke['currentHp'] = target['hp']
         move_name, move_data, is_status = _npc_pick_move(wild_poke, tgt_poke)
@@ -3485,11 +3595,15 @@ def handle_group_battle_action(data):
         # Move de status: sem dano, aplica efeito no alvo/atacante
         _group_apply_status_move(battle, cur['cid'], target_cid, move_name, move_data)
     else:
-        att_poke = dict(cur['pokemon'])
+        _v3_side_state(cur['pokemon'])   # garante o estado ANTES da cópia rasa
+        att_poke = dict(cur['pokemon'])   # cópia compartilha o dict _v3 (persistência)
         att_poke['currentHp'] = cur['hp']; att_poke['maxHp'] = cur['maxHp']
         att_poke['moves'] = cur['moves']
         tgt_poke = dict(target['pokemon']); tgt_poke['currentHp'] = target['hp']
-        calc = _calc_pvp_attack(att_poke, tgt_poke, move_name, data.get('attack_roll'))
+        calc = _calc_pvp_attack(att_poke, tgt_poke, move_name, None)   # v3: servidor rola o d100
+        if calc.get('blocked'):
+            emit('group_battle_error', {'message': calc.get('message')})
+            return
         msg = f"{cur['name']} usou {move_name} em {target['name']} — {calc.get('message','')}"
         gb.apply_damage(battle, cur['cid'], target_cid, calc.get('damage', 0),
                         move_name, msg, hit=calc.get('hit', True))
@@ -5066,8 +5180,15 @@ def handle_battle_action(data):
         # Server-side damage calculation for player attacks — prevents client from
         # reporting arbitrary damage values against wild Pokémon.
         if action_type == 'attack' and action_by == 'player' and move_name:
-            attack_roll = data.get('attack_roll')
-            server_calc = _calc_player_attack(encounter, move_name, attack_roll)
+            # v3: o servidor rola o d100 (rolagem do cliente não é aceita —
+            # senão dava para mandar sempre 1 e nunca errar)
+            server_calc = _calc_player_attack(encounter, move_name, None)
+            if server_calc.get('blocked'):
+                # golpe em cooldown: NÃO consome o turno — o jogador escolhe outro
+                emit('action_blocked', {'message': server_calc.get('message'),
+                                        'move_name': move_name,
+                                        'cooldown_left': server_calc.get('cooldown_left')})
+                return
             damage = server_calc.get('damage', 0)
             move_type = server_calc.get('move_type_en', move_type)
             # Backstop: move de status nunca causa dano no selvagem. Processa
@@ -5120,7 +5241,7 @@ def handle_battle_action(data):
         # Se o MESTRE conduz manualmente, mantém o valor enviado por ele.
         if (action_type == 'attack' and action_by == 'master' and move_name
                 and current_user.role != 'master'):
-            wild_calc = _calc_wild_attack(encounter, move_name, data.get('attack_roll'))
+            wild_calc = _calc_wild_attack(encounter, move_name, None)   # v3: servidor rola o d100
             if not wild_calc.get('is_status'):
                 damage = wild_calc.get('damage', 0)
                 move_type = wild_calc.get('move_type_en', move_type)
@@ -5830,7 +5951,11 @@ def handle_pvp_attack(data):
         if pvp._poke_hp(def_poke) <= 0:
             emit('pvp_error', {'message': 'Oponente está trocando de Pokémon — aguarde.'})
             return
-        calc = _calc_pvp_attack(att_poke, def_poke, move_name, data.get('attack_roll'))
+        calc = _calc_pvp_attack(att_poke, def_poke, move_name, None)   # v3: servidor rola o d100
+        if calc.get('blocked'):
+            # golpe em cooldown: não consome o turno — escolha outro
+            emit('pvp_error', {'message': calc.get('message')})
+            return
         damage   = calc['damage']
         message  = calc['message']
         move_type = calc.get('move_type_en', move_type)
@@ -6270,6 +6395,9 @@ def _npc_pick_move(attacker_poke, defender_poke, defender_has_status=False):
 
     scored = []
     for name in moves:
+        # v3: golpes em cooldown ficam fora da escolha da IA
+        if _v3_cooldown_left(attacker_poke, name) > 0:
+            continue
         md = MOVES_BY_NAME.get(name.lower()) or MOVES_DB.get(name) or {}
         if not md:
             continue
