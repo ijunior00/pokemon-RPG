@@ -308,3 +308,181 @@ def fixed_damage_for(move_name_lower, level, target_current_hp=None):
     if move_name_lower == 'super fang':
         return max(1, int(raw))
     return max(1, int(raw * damage_scale(level)))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SISTEMA v3 — "d100/ACC": Precisão (d100) → Dano (Status+POW) → Resistência
+# (d20 do defensor). Documento de design: docs/sistema-combate-d100.md.
+# As funções v2 acima permanecem até o cutover completo do motor.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Alavancas de calibração (alvo: batalhas de 5-10 turnos — battle_sweep_v3)
+V3_STATUS_DIVISOR = 8     # Componente de Status = stat // divisor
+V3_TN_SHIFT = 0           # desloca a coluna de TN inteira
+V3_DEF_BONUS_CAP = 12     # teto do bônus de Defesa na Resistência: ⌊def/10⌋
+                          # chega a +20 no Nv100 e dominaria o d20 (anulação
+                          # eterna, batalhas de 13+ rodadas)
+V3_STAB_DIE_LEVEL = 25    # STAB: +1 dado a partir do 1º marco; antes disso
+                          # +2 fixo no bruto (dobrar dados no early game
+                          # derrubava o L15 para 4 rodadas)
+V3_STAB_FLAT = 2
+V3_ACC_CAP, V3_ACC_FLOOR = 100, 5
+V3_CRIT_BASE, V3_CRIT_PER_STAGE, V3_CRIT_CAP = 5, 10, 50
+V3_MOMENTUM_MAX = 3
+V3_CERTEIRO_COMPONENT_PCT = 60   # % do Componente para golpes certeiros
+
+# TABELA MESTRA: (pow_máx, nº dados, lados, TN, cooldown em rodadas)
+V3_MASTER_TABLE = (
+    (35,        1, 6,  10, 0),
+    (50,        1, 8,  12, 0),
+    (65,        1, 10, 14, 0),
+    (80,        2, 6,  16, 0),
+    (95,        2, 8,  18, 1),
+    (110,       3, 6,  20, 2),
+    (125,       3, 8,  22, 3),
+    (10 ** 9,   3, 10, 24, 3),
+)
+
+
+def v3_tier(power):
+    """Índice do degrau da Tabela Mestra para um POW."""
+    p = max(1, int(power or 40))
+    for i, row in enumerate(V3_MASTER_TABLE):
+        if p <= row[0]:
+            return i
+    return len(V3_MASTER_TABLE) - 1
+
+
+def v3_dice_base(power):
+    """(n, lados) do degrau do POW."""
+    row = V3_MASTER_TABLE[v3_tier(power)]
+    return row[1], row[2]
+
+
+def v3_tn(power, attacker_level=1):
+    """TN Efetiva = TN da tabela + ⌊nível do atacante/10⌋ + shift de calibração.
+    O termo do atacante cancela o ⌊nível/10⌋ do defensor em níveis iguais —
+    sem ele, em nível alto o defensor anularia tudo."""
+    return (V3_MASTER_TABLE[v3_tier(power)][3] + V3_TN_SHIFT
+            + max(1, int(attacker_level or 1)) // 10)
+
+
+def v3_cooldown(power):
+    """Rodadas de espera após usar o golpe (0 = sem cooldown)."""
+    return V3_MASTER_TABLE[v3_tier(power)][4]
+
+
+def v3_milestone_dice(level):
+    """Dados extras acumulados pelos marcos 25/50/75/100."""
+    return max(0, min(4, int(level or 1) // 25))
+
+
+def v3_status_component(stat, atk_stages=0, certeiro=False):
+    """Componente de Status: ⌊stat/divisor⌋ ± 2 por estágio de ATK/SpA (mín 1).
+    Certeiro usa 60% do componente."""
+    comp = int(stat or 10) // V3_STATUS_DIVISOR + 2 * int(atk_stages or 0)
+    if certeiro:
+        comp = comp * V3_CERTEIRO_COMPONENT_PCT // 100
+    return max(1, comp)
+
+
+def v3_level_bonus(level):
+    return max(1, int(level or 1)) // 10
+
+
+def v3_effectiveness_dice_delta(effectiveness):
+    """×2→+1 dado, ×4→+2, ×½→−1, ×¼→−2, neutro→0. Imune é tratado fora."""
+    e = float(effectiveness if effectiveness is not None else 1.0)
+    if e >= 4:   return 2
+    if e >= 2:   return 1
+    if e <= 0.25: return -2
+    if e <= 0.5: return -1
+    return 0
+
+
+def v3_build_dice(power, level, certeiro=False, stab=False,
+                  effectiveness=1.0, field_delta=0):
+    """Constrói a rolagem final: (n, lados, halve).
+    Ordem: degrau → certeiro (−1 degrau) → marcos → STAB (+1) → efetividade →
+    clima/terreno. Se n cair abaixo de 1: rola 1 dado e divide por 2."""
+    tier = v3_tier(power)
+    if certeiro:
+        tier = max(0, tier - 1)
+    n, sides = V3_MASTER_TABLE[tier][1], V3_MASTER_TABLE[tier][2]
+    n += v3_milestone_dice(level)
+    if stab and int(level or 1) >= V3_STAB_DIE_LEVEL:
+        n += 1
+    n += v3_effectiveness_dice_delta(effectiveness)
+    n += int(field_delta or 0)
+    halve = n < 1
+    return max(1, n), sides, halve
+
+
+def v3_stab_flat(stab, level):
+    """STAB antes do 1º marco (Nv < 25): +2 fixo no bruto em vez do dado."""
+    return V3_STAB_FLAT if stab and int(level or 1) < V3_STAB_DIE_LEVEL else 0
+
+
+def v3_acc_effective(acc_base, acc_stages=0, eva_stages=0, weather_mod=0):
+    """ACC Efetivo com teto 100 / piso 5. acc_base None = certeiro (retorna
+    None: sempre conecta, ignora evasão)."""
+    if acc_base is None:
+        return None
+    acc = (int(acc_base) + 10 * int(acc_stages or 0)
+           - 10 * int(eva_stages or 0) + int(weather_mod or 0))
+    return max(V3_ACC_FLOOR, min(V3_ACC_CAP, acc))
+
+
+def v3_connects(d100, acc_effective):
+    """True se o golpe conecta (certeiro conecta sempre)."""
+    if acc_effective is None:
+        return True
+    return int(d100) <= int(acc_effective)
+
+
+def v3_crit_chance(crit_stages=0):
+    return min(V3_CRIT_CAP, V3_CRIT_BASE + V3_CRIT_PER_STAGE * int(crit_stages or 0))
+
+
+def v3_resistance_total(d20, defense_stat, level, def_stages=0,
+                        crit=False, extra=0, crit_zeroes_defense=False):
+    """Total da Resistência do defensor. Crítico FURA a defesa: o bônus de
+    Defesa (⌊def/10⌋ + estágios positivos) conta pela metade (Sniper: zero)."""
+    bonus = min(V3_DEF_BONUS_CAP, int(defense_stat or 10) // 10) + int(def_stages or 0)
+    if crit:
+        bonus = 0 if crit_zeroes_defense else (bonus // 2 if bonus > 0 else bonus)
+    return int(d20) + bonus + v3_level_bonus(level) + int(extra or 0)
+
+
+def v3_resist_outcome(result, tn, defender_faster=False):
+    """'full' | 'half' | 'negate'. Empate técnico: a exatamente 1 ponto da
+    faixa superior (TN−1 ou TN+9), defensor mais rápido sobe de faixa."""
+    result, tn = int(result), int(tn)
+    if result >= tn + 10:
+        return 'negate'
+    if result >= tn:
+        if defender_faster and result == tn + 9:
+            return 'negate'
+        return 'half'
+    if defender_faster and result == tn - 1:
+        return 'half'
+    return 'full'
+
+
+def v3_apply_outcome(gross, outcome):
+    """Aplica a faixa da Resistência ao Dano Bruto (mín. 1 se não anulado)."""
+    if outcome == 'negate':
+        return 0
+    if outcome == 'half':
+        return max(1, int(gross) // 2)
+    return max(1, int(gross))
+
+
+def v3_gross_damage(component, level, dice_total, momentum=0, halve_dice=False,
+                    flat=0):
+    """Dano Bruto = Componente + ⌊nível/10⌋ + dados + Momentum + flats
+    (ex.: STAB pré-Nv25)."""
+    dice = int(dice_total) // 2 if halve_dice else int(dice_total)
+    return max(1, int(component) + v3_level_bonus(level) + max(1, dice)
+               + max(0, min(V3_MOMENTUM_MAX, int(momentum or 0)))
+               + int(flat or 0))

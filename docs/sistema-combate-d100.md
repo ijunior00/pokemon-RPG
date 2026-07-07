@@ -94,7 +94,10 @@ Dados-base pela **Tabela Mestra** + modificadores, nesta ordem:
 
 1. **Certeiro?** rebaixa 1 degrau (Seção 8)
 2. **Marcos de nível** (acumulativo): Nv 25 → +1 dado · Nv 50 → +2 · Nv 75 → +3 · Nv 100 → +4
-3. **STAB** (tipo do golpe = tipo do usuário): **+1 dado**
+3. **STAB** (tipo do golpe = tipo do usuário): **+1 dado a partir do Nv 25**
+   (1º marco). Antes do Nv 25, STAB = **+2 fixo no Dano Bruto** — dobrar os
+   dados no early game derrubava as batalhas de nível baixo para ~4 rodadas
+   (validado por simulação).
 4. **Efetividade de tipo**: ×2 → **+1 dado** · ×4 → **+2 dados** · ×½ → **−1 dado** · ×¼ → **−2 dados** · **Imune → dano 0** (conecta, mas não afeta)
 5. **Clima/Terreno** (Seções 12–13): ±1 dado conforme a tabela
 
@@ -116,7 +119,12 @@ Todo golpe que conecta ainda passa pelo teste do defensor:
 Resultado = 1d20 + ⌊Defesa relevante ÷ 10⌋ + ⌊Nível ÷ 10⌋ + estágios de DEF/SpD ± modificadores
 ```
 - **Defesa** contra golpes físicos; **Defesa Especial** contra especiais.
-- TN vem da **Tabela Mestra** (coluna do POW do golpe).
+- **TN Efetiva = TN da Tabela Mestra + ⌊Nível do ATACANTE ÷ 10⌋.**
+  Sem este termo, o bônus do defensor (Defesa+Nível) cresce com o nível
+  enquanto a TN fica parada — em nível alto TUDO viraria anulação e as
+  batalhas nunca terminariam. Com ele, os termos de nível dos dois lados se
+  cancelam em confrontos de nível igual, e a Resistência continua relevante
+  do Nv 5 ao Nv 100.
 
 | Resultado vs TN | Efeito |
 |---|---|
@@ -124,10 +132,11 @@ Resultado = 1d20 + ⌊Defesa relevante ÷ 10⌋ + ⌊Nível ÷ 10⌋ + estágios
 | ≥ TN (até +9) | **Resistência parcial** — dano ÷ 2 (arred. p/ baixo) |
 | < TN | **Falha** — dano cheio |
 
-**Empate técnico (Speed importa):** se o resultado cair **exatamente** na TN ou
-exatamente na TN+10, compara-se Speed: **defensor mais rápido** que o atacante →
-sobe uma faixa (parcial → anulação; cheio → parcial). Caso contrário, vale a
-faixa normal.
+**Empate técnico (Speed importa):** se o resultado ficar a **exatamente 1 ponto
+da faixa superior** (TN−1, quase-parcial; ou TN+9, quase-anulação), compara-se
+Speed: **defensor mais rápido** que o atacante → sobe para a faixa superior.
+Caso contrário, vale a faixa normal. *(Corrigido: a versão anterior falava em
+"cair na TN", que tornaria o empate melhor que passar com folga.)*
 
 **Dano mínimo:** se a faixa for "cheio" ou "parcial", o dano final nunca é
 menor que 1.
@@ -396,7 +405,8 @@ qualquer fórmula.
   - Momentum: **+1**
   - Bruto = 13 + 5 + 22 + 1 = **41**
 - **Resistência do Snorlax:** d20(12) + ⌊65/10⌋=6 + ⌊50/10⌋=5 = **23**
-  vs TN 18 (POW 81–95) → faixa 18–27 → **parcial: dano ÷ 2**
+  vs TN Efetiva 18 + ⌊50/10⌋ = **23** (POW 81–95, atacante Nv 50)
+  → faixa 23–32 → **parcial: dano ÷ 2**
 - **Dano final: 20.** Flamethrower entra em **cooldown de 1 rodada**.
 
 Mesmo um golpe ACC 100 / POW alto foi sentido pela metade graças à Sp.DEF e ao
@@ -409,10 +419,28 @@ nível do Snorlax — exatamente o equilíbrio pedido.
 1. **Divisor 8** do Componente de Status (Seção 3.1).
 2. **Coluna de TN** da Tabela Mestra (deslocá-la inteira ±2).
 
-Ajuste **as duas juntas** após alguns combates de teste. Projeção com o HP atual
-do sistema (fórmula da ficha): confrontos neutros ≈ **8–10 rodadas**. Se a mesa
-preferir o ritmo atual (~6–8), comece testando **divisor 6** *ou* **TN −2 em
-todas as faixas** — nunca os dois ao mesmo tempo.
+**Alvo oficial da mesa: batalhas de 5 a 10 turnos** (mediana por faixa de
+nível, validada por `tools/battle_sweep_v3.py` — 500 batalhas completas por
+cenário, com precisão, crítico e resistência dos dois lados):
+
+| Cenário | Mediana | p10–p90 |
+|---|---|---|
+| Nv 15 iniciais (POW 60) | 5,0 | 4–6 |
+| Nv 40 equilibrados (POW 90) | 5,0 | 4–6 |
+| Nv 40 sweeper vs tanque | 6,0 | 5–7 |
+| Nv 60 fortes (POW 100) | 6,0 | 5–7 |
+| Nv 80 endgame (POW 110, ACC 85) | 8,0 | 6–10 |
+| Nv 100 lendários (POW 120, ACC 90) | 6,0 | 5–8 |
+
+Calibrações que fizeram a janela fechar (documentadas nas seções 3.3 e 4):
+- **Teto de +12 no bônus de Defesa** da Resistência — ⌊def/10⌋ chegava a +20
+  no Nv 100 e dominava o d20 (anulação eterna, batalhas de 13+ rodadas).
+- **STAB pré-Nv 25 = +2 fixo** (o dado extra chega no 1º marco) — dobrar dados
+  no early game derrubava o Nv 15 para 4 rodadas.
+
+Ajuste **uma alavanca por vez** (V3_STATUS_DIVISOR, V3_TN_SHIFT,
+V3_DEF_BONUS_CAP) e re-rode o sweep até a mediana de todos os cenários cair
+na janela.
 
 Regras de ouro do balanceamento:
 - Nenhum efeito cria matemática própria: tudo passa por **estágios, dados, ACC,

@@ -174,6 +174,86 @@ const BattleMath = (() => {
         return Math.max(1, Math.floor(raw * damageScale(level)));
     }
 
+    // ═════════════════════════════════════════════════════════════════════
+    // SISTEMA v3 — d100/ACC → Dano → Resistência d20 (espelho de battle_math.py)
+    // ═════════════════════════════════════════════════════════════════════
+    const V3_STATUS_DIVISOR = 8, V3_TN_SHIFT = 0;
+    const V3_DEF_BONUS_CAP = 12, V3_STAB_DIE_LEVEL = 25, V3_STAB_FLAT = 2;
+    const V3_ACC_CAP = 100, V3_ACC_FLOOR = 5;
+    const V3_CRIT_BASE = 5, V3_CRIT_PER_STAGE = 10, V3_CRIT_CAP = 50;
+    const V3_MOMENTUM_MAX = 3, V3_CERTEIRO_COMPONENT_PCT = 60;
+    // (pow_máx, nº dados, lados, TN, cooldown)
+    const V3_MASTER_TABLE = [
+        [35, 1, 6, 10, 0], [50, 1, 8, 12, 0], [65, 1, 10, 14, 0], [80, 2, 6, 16, 0],
+        [95, 2, 8, 18, 1], [110, 3, 6, 20, 2], [125, 3, 8, 22, 3], [1e9, 3, 10, 24, 3],
+    ];
+    function v3Tier(power) {
+        const p = Math.max(1, power | 0 || 40);
+        for (let i = 0; i < V3_MASTER_TABLE.length; i++)
+            if (p <= V3_MASTER_TABLE[i][0]) return i;
+        return V3_MASTER_TABLE.length - 1;
+    }
+    function v3DiceBase(power) { const r = V3_MASTER_TABLE[v3Tier(power)]; return [r[1], r[2]]; }
+    function v3Tn(power, attackerLevel = 1) {
+        return V3_MASTER_TABLE[v3Tier(power)][3] + V3_TN_SHIFT
+            + Math.floor(Math.max(1, attackerLevel | 0) / 10);
+    }
+    function v3Cooldown(power) { return V3_MASTER_TABLE[v3Tier(power)][4]; }
+    function v3MilestoneDice(level) { return Math.max(0, Math.min(4, Math.floor((level || 1) / 25))); }
+    function v3StatusComponent(stat, atkStages = 0, certeiro = false) {
+        let c = Math.floor((stat || 10) / V3_STATUS_DIVISOR) + 2 * (atkStages | 0);
+        if (certeiro) c = Math.floor(c * V3_CERTEIRO_COMPONENT_PCT / 100);
+        return Math.max(1, c);
+    }
+    function v3LevelBonus(level) { return Math.floor(Math.max(1, level | 0) / 10); }
+    function v3EffectivenessDiceDelta(e) {
+        e = (e == null) ? 1 : +e;
+        if (e >= 4) return 2; if (e >= 2) return 1;
+        if (e <= 0.25) return -2; if (e <= 0.5) return -1;
+        return 0;
+    }
+    function v3BuildDice(power, level, certeiro = false, stab = false, effectiveness = 1, fieldDelta = 0) {
+        let tier = v3Tier(power);
+        if (certeiro) tier = Math.max(0, tier - 1);
+        let n = V3_MASTER_TABLE[tier][1];
+        const sides = V3_MASTER_TABLE[tier][2];
+        n += v3MilestoneDice(level) + ((stab && (level | 0) >= V3_STAB_DIE_LEVEL) ? 1 : 0)
+           + v3EffectivenessDiceDelta(effectiveness) + (fieldDelta | 0);
+        return [Math.max(1, n), sides, n < 1];
+    }
+    function v3StabFlat(stab, level) {
+        return (stab && (level | 0) < V3_STAB_DIE_LEVEL) ? V3_STAB_FLAT : 0;
+    }
+    function v3AccEffective(accBase, accStages = 0, evaStages = 0, weatherMod = 0) {
+        if (accBase == null) return null;
+        const acc = (accBase | 0) + 10 * (accStages | 0) - 10 * (evaStages | 0) + (weatherMod | 0);
+        return Math.max(V3_ACC_FLOOR, Math.min(V3_ACC_CAP, acc));
+    }
+    function v3Connects(d100, accEff) { return accEff == null || (d100 | 0) <= accEff; }
+    function v3CritChance(stages = 0) { return Math.min(V3_CRIT_CAP, V3_CRIT_BASE + V3_CRIT_PER_STAGE * (stages | 0)); }
+    function v3ResistanceTotal(d20, defenseStat, level, defStages = 0, crit = false, extra = 0, critZeroes = false) {
+        let bonus = Math.min(V3_DEF_BONUS_CAP, Math.floor((defenseStat || 10) / 10)) + (defStages | 0);
+        if (crit) bonus = critZeroes ? 0 : (bonus > 0 ? Math.floor(bonus / 2) : bonus);
+        return (d20 | 0) + bonus + v3LevelBonus(level) + (extra | 0);
+    }
+    function v3ResistOutcome(result, tn, defenderFaster = false) {
+        result |= 0; tn |= 0;
+        if (result >= tn + 10) return 'negate';
+        if (result >= tn) return (defenderFaster && result === tn + 9) ? 'negate' : 'half';
+        return (defenderFaster && result === tn - 1) ? 'half' : 'full';
+    }
+    function v3ApplyOutcome(gross, outcome) {
+        if (outcome === 'negate') return 0;
+        if (outcome === 'half') return Math.max(1, Math.floor(gross / 2));
+        return Math.max(1, gross | 0);
+    }
+    function v3GrossDamage(component, level, diceTotal, momentum = 0, halveDice = false, flat = 0) {
+        const dice = halveDice ? Math.floor(diceTotal / 2) : (diceTotal | 0);
+        return Math.max(1, (component | 0) + v3LevelBonus(level)
+            + Math.max(1, dice) + Math.max(0, Math.min(V3_MOMENTUM_MAX, momentum | 0))
+            + (flat | 0));
+    }
+
     return {
         RATIO_CLAMP, STAB_MULT, damageScale, TRAINING_POINTS_PER_LEVEL, TRAINING_CAP,
         DEFENSE_MODES, statAtLevel, hpAtLevel, trainingBudget, trainingCap,
@@ -182,5 +262,9 @@ const BattleMath = (() => {
         TRAINING_STATS, parseEvolutionStage, statCost, nextPointCost, trainingSpent,
         potentialPoints, trainingPoints, pointsBudget, statTierLocked,
         HIGH_CRIT_MOVES, critThreshold, critStageFor, VARIABLE_POWER,
+        V3_MASTER_TABLE, V3_MOMENTUM_MAX, v3Tier, v3DiceBase, v3Tn, v3Cooldown,
+        v3MilestoneDice, v3StatusComponent, v3LevelBonus, v3EffectivenessDiceDelta,
+        v3BuildDice, v3StabFlat, v3AccEffective, v3Connects, v3CritChance,
+        v3ResistanceTotal, v3ResistOutcome, v3ApplyOutcome, v3GrossDamage,
     };
 })();
