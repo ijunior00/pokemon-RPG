@@ -674,6 +674,71 @@ socket.on('skill_roll', (r) => {
     inbox.insertBefore(card, inbox.firstChild);
 });
 
+// Rolagem de mesa (livre ou a pedido do Mestre) — mesma Caixa de Rolagens
+socket.on('free_roll', (r) => {
+    const inbox = document.getElementById('hunt-rolls-inbox');
+    if (!inbox) return;
+    const empty = inbox.querySelector('.empty-state');
+    if (empty) empty.remove();
+    const when = new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+    const nat = r.nat20 ? ' 🌟NAT20' : r.nat1 ? ' 💀NAT1' : '';
+    const sign = r.bonus >= 0 ? '+' : '';
+    const src = r.manual ? '🎲 dado real' : '🖥️ virtual';
+    const rollStr = r.kind === 'die' ? `d${r.sides}(${r.roll})`
+        : `d20(${r.roll})${nat} ${sign}${r.bonus}${r.proficient ? ' (prof.)' : ''}`;
+    const cdStr = (r.cd != null) ? ` <strong>${r.success ? '✅' : '❌'} vs CD ${r.cd}</strong>` : '';
+    const noteStr = r.note ? ` <em style="opacity:0.85;">— ${r.note}</em>` : '';
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:0.45rem 0.6rem;border-radius:8px;background:rgba(120,220,150,0.12);border:1px solid rgba(120,220,150,0.4);font-size:0.88rem;';
+    card.innerHTML = `<strong>${r.player_name || 'Jogador'}</strong> — ${r.emoji || '🎲'} ` +
+        `<strong>${r.label}</strong>: ${rollStr} = <strong>${r.total}</strong>${cdStr}${noteStr} ` +
+        `<span style="opacity:0.7;">· ${src} · ${when}</span>`;
+    inbox.insertBefore(card, inbox.firstChild);
+});
+
+// Mestre pede um teste a um jogador (atributo/perícia/dado) com motivo e CD
+async function requestRoll() {
+    const playerId = document.getElementById('reqroll-player')?.value;
+    const raw = document.getElementById('reqroll-target')?.value || 'attr:determinacao';
+    const [kind, target] = raw.split(':');
+    const note = document.getElementById('reqroll-note')?.value || '';
+    const cdRaw = document.getElementById('reqroll-cd')?.value;
+    if (!playerId) { alert('Selecione um jogador.'); return; }
+    const body = { player_id: playerId, kind, target, note };
+    if (cdRaw !== '' && cdRaw != null) body.cd = parseInt(cdRaw);
+    const resp = await fetch('/master/request-roll', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    const r = await resp.json();
+    if (r.ok) {
+        const note2 = document.getElementById('reqroll-note');
+        if (note2) note2.value = '';
+        alert('📨 Pedido de teste enviado ao jogador.');
+    } else {
+        alert('❌ ' + (r.error || 'Falha'));
+    }
+}
+
+function _populateReqRollTargets() {
+    const sel = document.getElementById('reqroll-target');
+    if (!sel || sel.dataset.ready) return;
+    const attrs = [['vinculo','❤️ Vínculo'],['tatica','♟️ Tática'],['conhecimento','📖 Conhecimento'],
+        ['agilidade','🏃 Agilidade'],['influencia','👑 Influência'],['determinacao','🔥 Determinação']];
+    const skills = ['Afinidade','Ressonância','Análise','Comando','Pesquisa','Cuidados','Atletismo',
+        'Exploração','Diplomacia','Presença','Coragem','Resiliência','Sorte'];
+    let html = '<optgroup label="Atributo">';
+    attrs.forEach(([k,l]) => html += `<option value="attr:${k}">${l}</option>`);
+    html += '</optgroup><optgroup label="Perícia">';
+    skills.forEach(s => html += `<option value="skill:${s}">🎲 ${s}</option>`);
+    html += '</optgroup><optgroup label="Dado">';
+    [4,6,8,10,12,20,100].forEach(d => html += `<option value="die:${d}">🎲 d${d}</option>`);
+    html += '</optgroup>';
+    sel.innerHTML = html;
+    sel.dataset.ready = '1';
+}
+document.addEventListener('DOMContentLoaded', _populateReqRollTargets);
+
 // ============================================
 // BATALHA EM DUPLA (caçada em grupo) — 2v1 / 2v2
 // ============================================

@@ -139,6 +139,35 @@
                 <button class="btn btn-success" onclick="sendRandomHunt()">🎯 Liberar Caçada</button>
             </div>
             <p id="random-hunt-result" style="font-size:0.85rem;margin:0.3rem 0;"></p>
+
+            <!-- Pedir teste a um jogador (situações de mesa fora do sistema) -->
+            <div style="margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid var(--card-border,#333);">
+                <strong style="font-size:0.9rem;">🎲 Pedir teste a um jogador</strong>
+                <div class="form-row" style="align-items:flex-end;margin-top:0.4rem;gap:0.4rem;flex-wrap:wrap;">
+                    <div class="form-group">
+                        <label>Jogador</label>
+                        <select id="reqroll-player">
+                            {% for uid, player in players.items() %}
+                            <option value="{{ uid }}">{{ player.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Teste</label>
+                        <select id="reqroll-target"></select>
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:150px;">
+                        <label>Motivo</label>
+                        <input type="text" id="reqroll-note" placeholder="ex.: convencer o guarda" maxlength="120">
+                    </div>
+                    <div class="form-group" style="max-width:5.5rem;">
+                        <label>CD (opc.)</label>
+                        <input type="number" id="reqroll-cd" placeholder="12" min="1">
+                    </div>
+                    <button class="btn btn-primary" onclick="requestRoll()">Pedir</button>
+                </div>
+            </div>
+
             <div style="margin-top:0.6rem;">
                 <strong style="font-size:0.9rem;">📨 Rolagens recebidas</strong>
                 <div id="hunt-rolls-inbox" style="margin-top:0.4rem;display:flex;flex-direction:column;gap:0.35rem;max-height:220px;overflow-y:auto;">

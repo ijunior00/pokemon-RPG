@@ -691,6 +691,11 @@ h1, h2 {
 .path-option { text-align: left; background: var(--darker); border: 1px solid var(--card-border); border-radius: 4px; padding: 0.5rem; cursor: pointer; color: var(--text); font-size: 0.82rem; transition: border-color 0.15s; }
 .path-option:hover { border-color: var(--accent); }
 .path-option small { color: var(--text-muted); }
+/* Rolagem de mesa */
+.freeroll-row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.freeroll-row select, .freeroll-row input[type="text"] { padding: 0.35rem 0.5rem; border-radius: 6px; border: 1px solid var(--card-border); background: var(--darker); color: var(--text); }
+.freeroll-row input[type="text"] { flex: 1; min-width: 140px; }
+.freeroll-phys { font-size: 0.78rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.25rem; cursor: pointer; }
 .trainer-name-input { background: transparent; border: none; border-bottom: 2px solid var(--accent); color: var(--accent); font-size: 1.5rem; font-weight: 800; padding: 0.3rem; width: 250px; }
 .trainer-name-input:focus { outline: none; border-color: var(--primary); }
 

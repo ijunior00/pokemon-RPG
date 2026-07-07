@@ -642,6 +642,24 @@
                 <div id="trainer-skills-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:0.4rem;"></div>
             </div>
 
+            <!-- Rolagem livre de mesa (situações fora do sistema) -->
+            <div class="trainer-attributes" style="margin-top:0.75rem;">
+                <h4>🎲 Rolagem de Mesa</h4>
+                <p style="font-size:0.78rem;color:var(--text-muted);margin:0.25rem 0 0.5rem;">
+                    Para situações que o sistema não cobre. Escolha um dado ou um atributo/perícia,
+                    diga o motivo e role — o resultado vai para o Mestre.</p>
+                <div class="freeroll-row">
+                    <select id="freeroll-target" title="Dado, atributo ou perícia"></select>
+                    <input type="text" id="freeroll-note" placeholder="Motivo (ex.: escalar o penhasco)" maxlength="120">
+                    <label class="freeroll-phys" title="Marque para digitar o valor de um dado físico">
+                        <input type="checkbox" id="freeroll-physical"> dado físico
+                    </label>
+                    <input type="number" id="freeroll-manual" class="hidden" min="1" placeholder="valor" style="width:5rem;">
+                    <button type="button" class="btn btn-primary btn-small" onclick="doFreeRoll()">Rolar</button>
+                </div>
+                <div id="freeroll-result" style="font-size:0.85rem;margin-top:0.4rem;min-height:1.1rem;"></div>
+            </div>
+
             <!-- Class Info -->
             <div class="trainer-sections">
                 <div class="trainer-section">

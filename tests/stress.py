@@ -667,7 +667,7 @@ def main():
         r = max(0.5, min(2.0, atk / max(1, dfn)))
         d = dice_total * r * tax * (1.5 if stab else 1.0) * eff
         # escala global de dano crescente com o nível: batalhas de 8-15 turnos
-        scale = 0.20 + 0.0003 * max(1, lv)
+        scale = bmm.DAMAGE_SCALE_BASE + bmm.DAMAGE_SCALE_PER_LEVEL * max(1, lv)
         return max(1, int(d * scale)) if eff > 0 else 0
     _par_ok = True
     random.seed(99)
@@ -895,6 +895,37 @@ def main():
     _skr = recv(msio, 'skill_roll')
     check(S, 'mestre recebe o teste na caixa de rolagens',
           bool(_skr) and _skr[0]['args'][0].get('skill') == 'Sorte')
+
+    # ── Rolagem de mesa (livre + a pedido do Mestre) ──
+    appmod._rate_store.clear(); msio.get_received()
+    # dado puro d20 físico (valor 17) sem bônus
+    r = p1.post('/api/roll', json={'kind': 'die', 'die': 20, 'manual_roll': 17,
+                                   'note': 'escalar o penhasco'})
+    d = r.get_json() or {}
+    check(S, 'rolagem livre de dado (d20 físico 17, sem bônus)',
+          d.get('total') == 17 and d.get('bonus') == 0 and d.get('kind') == 'die')
+    _fr = recv(msio, 'free_roll')
+    check(S, 'mestre recebe a rolagem livre com a nota',
+          bool(_fr) and _fr[0]['args'][0].get('note') == 'escalar o penhasco')
+    # atributo com CD → marca sucesso/falha
+    appmod._rate_store.clear()
+    r = p1.post('/api/roll', json={'kind': 'attr', 'attr': 'determinacao',
+                                   'manual_roll': 20, 'cd': 15})
+    d = r.get_json() or {}
+    check(S, 'rolagem de atributo com CD marca sucesso',
+          d.get('cd') == 15 and d.get('success') is True and d.get('total') >= 20)
+    check(S, 'rolagem com tipo inválido rejeitada',
+          p1.post('/api/roll', json={'kind': 'xyz'}).status_code == 400)
+    # Mestre pede um teste ao jogador (chega via roll_request no socket do p1)
+    s1.get_received()
+    r = m.post('/master/request-roll', json={'player_id': u1, 'kind': 'skill',
+                                             'target': 'Coragem', 'note': 'enfrentar o medo', 'cd': 12})
+    check(S, 'mestre pede teste (200)', r.status_code == 200)
+    _rr = recv(s1, 'roll_request')
+    check(S, 'jogador recebe o pedido de teste do mestre',
+          bool(_rr) and _rr[0]['args'][0].get('target') == 'Coragem' and _rr[0]['args'][0].get('cd') == 12)
+    check(S, 'pedir teste com perícia inválida rejeitado',
+          m.post('/master/request-roll', json={'player_id': u1, 'kind': 'skill', 'target': 'Nope'}).status_code == 400)
 
     # caçada agora usa 🧭 Exploração (Agilidade 14 → +2, proficiente → +5)
     m.post('/master/hunts', json={'player_id': u1, 'action': 'reset'})

@@ -367,8 +367,8 @@ def process_turn_start(pokemon_status, max_hp):
         if random.random() < skip_chance:
             can_act = False
             messages.append(f"{condition['icon']} {condition['name']}: Corpo paralisado! Não conseguiu agir.")
-        else:
-            messages.append(f"{condition['icon']} {condition['name']}: Superou a paralisia!")
+        # superar a paralisia é SILENCIOSO (age normalmente) — evita poluir o log
+        # com "Superou a paralisia!" todo turno
     
     elif turn_effect == 'self_damage_chance':
         self_chance = condition.get('self_damage_chance', 0.33)
@@ -770,7 +770,9 @@ def auto_detect_move_effect(move_data):
         'eerie impulse': {'type': 'debuff_target', 'stat': 'SPA', 'value': -3, 'save': 'CON', 'duration': 3},
         'memento': {'type': 'debuff_target', 'stat': 'ATK', 'value': -4, 'save': 'WIS', 'duration': 3},
         'parting shot': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'WIS', 'duration': 2},
-        'curse': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'save': 'WIS', 'duration': 3},
+        # Curse (não-Ghost): auto-buff (+Atk/+Def, -Spe). Aproximado como +Atk no
+        # usuário — antes debuffava a Velocidade do ALVO, o que estava errado.
+        'curse': {'type': 'buff_self', 'stat': 'ATK', 'value': 2, 'duration': 3},
         'spite': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 2},
     }
     
