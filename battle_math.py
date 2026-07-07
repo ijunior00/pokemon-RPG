@@ -11,6 +11,7 @@
 #  - Stats derivam SEMPRE dos base stats da espécie (+ shiny ×1.35 aplicado
 #    antes, + treino) — nunca aplicar bônus direto em estatística derivada.
 import math
+import random as _random
 
 # ── Constantes de balanceamento (ajustáveis em playtest) ──────────────────
 RATIO_CLAMP = (0.5, 2.0)      # limites da razão Atk_ef / Def_ef
@@ -486,3 +487,162 @@ def v3_gross_damage(component, level, dice_total, momentum=0, halve_dice=False,
     return max(1, int(component) + v3_level_bonus(level) + max(1, dice)
                + max(0, min(V3_MOMENTUM_MAX, int(momentum or 0)))
                + int(flat or 0))
+
+
+# ── v3 F5: Clima, Terreno, Prioridade e Casos Especiais ────────────────────
+# Doc: docs/sistema-combate-d100.md seções 7, 12, 13 e 17.
+
+V3_FIELD_ROUNDS = 5          # duração padrão de clima e terreno
+V3_WEATHER_CHIP_DIV = 16     # areia/granizo: ⌊HPmáx/16⌋ por rodada
+V3_PROTECT_FLOOR = 5         # a corrente 100→50→25… nunca cai abaixo de 5%
+
+# tipos poupados pelo chip de cada clima
+_V3_SAND_IMMUNE = ('rock', 'ground', 'steel')
+_V3_HAIL_IMMUNE = ('ice',)
+
+
+def v3_weather_dice_delta(weather, move_type):
+    """Clima → ±1 dado por tipo (Sol: Fogo+1/Água−1; Chuva: Água+1/Fogo−1)."""
+    w, t = (weather or '').lower(), (move_type or '').lower()
+    if w == 'sun':
+        return 1 if t == 'fire' else (-1 if t == 'water' else 0)
+    if w == 'rain':
+        return 1 if t == 'water' else (-1 if t == 'fire' else 0)
+    return 0
+
+
+# golpes que golpeiam o CHÃO — Grassy Terrain amortece (−1 dado)
+_V3_GROUND_SLAMS = ('earthquake', 'bulldoze', 'magnitude')
+
+
+def v3_terrain_dice_delta(terrain, move_type, move_name=''):
+    """Terreno → ±1 dado (Grassy/Electric/Psychic +1 no tipo; Misty: Dragão −1;
+    Grassy amortece Earthquake/Bulldoze/Magnitude)."""
+    tr, t = (terrain or '').lower(), (move_type or '').lower()
+    ml = (move_name or '').lower()
+    if tr == 'grassy':
+        if ml in _V3_GROUND_SLAMS:
+            return -1
+        return 1 if t == 'grass' else 0
+    if tr == 'electric':
+        return 1 if t == 'electric' else 0
+    if tr == 'psychic':
+        return 1 if t == 'psychic' else 0
+    if tr == 'misty':
+        return -1 if t == 'dragon' else 0
+    return 0
+
+
+def v3_weather_acc(weather, move_name, accuracy):
+    """ACC base ajustado pelo clima: Thunder/Hurricane (Sol 50 / Chuva 100),
+    Blizzard (Granizo 100), Névoa −10 global. Retorna o ACC base final."""
+    w, ml = (weather or '').lower(), (move_name or '').lower()
+    if ml in ('thunder', 'hurricane'):
+        if w == 'sun':
+            accuracy = 50
+        elif w == 'rain':
+            accuracy = 100
+    elif ml == 'blizzard' and w in ('hail', 'snow'):
+        accuracy = 100
+    if w == 'fog' and accuracy is not None:
+        accuracy = max(V3_ACC_FLOOR, int(accuracy) - 10)
+    return accuracy
+
+
+def v3_weather_resist_bonus(weather, defender_types, category):
+    """Areia: Pedra +2 na Resistência ESPECIAL; Granizo/Neve: Gelo +2 na
+    FÍSICA."""
+    w = (weather or '').lower()
+    types = [str(t).lower() for t in (defender_types or [])]
+    if w == 'sandstorm' and 'rock' in types and category == 'special':
+        return 2
+    if w in ('hail', 'snow') and 'ice' in types and category == 'physical':
+        return 2
+    return 0
+
+
+def v3_weather_chip(weather, max_hp, defender_types):
+    """Dano de clima por rodada (0 se o tipo é poupado). Habilidades imunes
+    (Magic Guard, Overcoat, Sand Veil...) são checadas pelo caller."""
+    w = (weather or '').lower()
+    types = [str(t).lower() for t in (defender_types or [])]
+    if w == 'sandstorm' and not any(t in _V3_SAND_IMMUNE for t in types):
+        return max(1, int(max_hp or 1) // V3_WEATHER_CHIP_DIV)
+    if w in ('hail', 'snow') and not any(t in _V3_HAIL_IMMUNE for t in types):
+        return max(1, int(max_hp or 1) // V3_WEATHER_CHIP_DIV)
+    return 0
+
+
+def v3_terrain_heal(terrain, max_hp):
+    """Grassy Terrain cura ⌊HPmáx/16⌋ por rodada."""
+    if (terrain or '').lower() == 'grassy':
+        return max(1, int(max_hp or 1) // V3_WEATHER_CHIP_DIV)
+    return 0
+
+
+# Multi-hit: nome → (mín, máx) de hits. 1 ACC, 1 Componente, 1 Resistência;
+# só os DADOS rolam por hit (doc §17). 2-5 hits = 1d4+1.
+V3_MULTI_HIT = {
+    'double kick': (2, 2), 'double hit': (2, 2), 'dual chop': (2, 2),
+    'bonemerang': (2, 2), 'double iron bash': (2, 2), 'dragon darts': (2, 2),
+    'twineedle': (2, 2), 'gear grind': (2, 2), 'dual wingbeat': (2, 2),
+    'triple kick': (3, 3), 'triple axel': (3, 3), 'surging strikes': (3, 3),
+    'double slap': (2, 5), 'fury attack': (2, 5), 'fury swipes': (2, 5),
+    'pin missile': (2, 5), 'rock blast': (2, 5), 'bullet seed': (2, 5),
+    'icicle spear': (2, 5), 'spike cannon': (2, 5), 'comet punch': (2, 5),
+    'barrage': (2, 5), 'arm thrust': (2, 5), 'tail slap': (2, 5),
+    'water shuriken': (2, 5), 'bone rush': (2, 5), 'scale shot': (2, 5),
+}
+
+
+def v3_multi_hits(move_name, rng=None):
+    """Nº de hits do golpe (None se não é multi-hit). 2-5 → 1d4+1."""
+    span = V3_MULTI_HIT.get((move_name or '').lower())
+    if not span:
+        return None
+    lo, hi = span
+    if lo == hi:
+        return lo
+    roll = (rng or _random).randint(1, 4)
+    return 1 + roll
+
+
+# Carga: 1 rodada carregando antes de disparar (doc §17).
+V3_CHARGE_MOVES = ('solar beam', 'solar blade', 'sky attack', 'skull bash',
+                   'razor wind', 'freeze shock', 'ice burn', 'meteor beam')
+
+
+def v3_needs_charge(move_name, weather=None):
+    """True se o golpe precisa carregar 1 rodada (Solar Beam/Blade dispara
+    direto no Sol)."""
+    ml = (move_name or '').lower()
+    if ml not in V3_CHARGE_MOVES:
+        return False
+    if ml in ('solar beam', 'solar blade') and (weather or '').lower() == 'sun':
+        return False
+    return True
+
+
+def v3_recoil(final_damage, canon_drain):
+    """Recoil (drain canônico < 0): usuário sofre ⌊dano final ÷ 3⌋."""
+    if int(canon_drain or 0) < 0 and int(final_damage or 0) > 0:
+        return max(1, int(final_damage) // 3)
+    return 0
+
+
+def v3_drain_heal(final_damage, canon_drain):
+    """Dreno (drain canônico > 0): usuário cura ⌊dano final ÷ 2⌋."""
+    if int(canon_drain or 0) > 0 and int(final_damage or 0) > 0:
+        return max(1, int(final_damage) // 2)
+    return 0
+
+
+def v3_protect_chance(chain):
+    """Protect/Detect: usos consecutivos caem pela metade (100→50→25…)."""
+    return max(V3_PROTECT_FLOOR, 100 >> max(0, int(chain or 0)))
+
+
+def v3_ohko_resist_tn():
+    """OHKO (Fissure/Guillotine): Resistência vs TN 22 — qualquer sucesso
+    anula o golpe inteiro."""
+    return 22

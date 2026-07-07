@@ -366,6 +366,22 @@ qualquer fórmula.
 | **Carga** (Solar Beam, Sky Attack…) | 1 rodada carregando (salvo exceção: Solar Beam no Sol dispara direto) |
 | **Future Sight** | resolve 2 rodadas depois com os dados/TN do POW 120; entra em cooldown normalmente ao declarar |
 
+**Notas de implementação (F5, motor digital):**
+- **Recoil e chip de clima nunca nocauteiam**: deixam o usuário/alvo em 1 HP —
+  quem decide o nocaute é sempre um golpe. Regra de mesa (evita anticlímax de
+  morrer para a própria Take Down ou para a areia).
+- **Future Sight (simplificado)**: no motor resolve imediato como ataque POW
+  120 com cooldown 3. A versão "2 rodadas depois" fica como regra narrada pelo
+  mestre na mesa até a F7.
+- **Prioridade no motor**: como os turnos alternam (não são simultâneos), a
+  prioridade atua onde a Speed decidiria: (a) desempates da Resistência
+  (§4 — o golpe de prioridade conta como "mais rápido"; prioridade negativa
+  conta como "mais lento"), (b) Psychic Terrain bloqueia golpes de prioridade
+  contra alvos no chão, (c) Protect/Detect com a corrente 100%→50%→25%…
+  A ordem completa da tabela (§7) vale na adjudicação manual do mestre.
+- **IA**: selvagens/NPCs nunca desperdiçam a carga (disparam o golpe carregado
+  na rodada seguinte) e não escolhem golpes em cooldown.
+
 ---
 
 ## 18. Fluxo completo de uma rodada

@@ -254,6 +254,100 @@ const BattleMath = (() => {
             + (flat | 0));
     }
 
+    // ── v3 F5: Clima, Terreno, Prioridade e Casos Especiais ──────────────
+    const V3_FIELD_ROUNDS = 5;
+    const V3_WEATHER_CHIP_DIV = 16;
+    const V3_PROTECT_FLOOR = 5;
+    const V3_SAND_IMMUNE = ['rock', 'ground', 'steel'];
+    const V3_HAIL_IMMUNE = ['ice'];
+    const V3_GROUND_SLAMS = ['earthquake', 'bulldoze', 'magnitude'];
+    function v3WeatherDiceDelta(weather, moveType) {
+        const w = (weather || '').toLowerCase(), t = (moveType || '').toLowerCase();
+        if (w === 'sun') return t === 'fire' ? 1 : (t === 'water' ? -1 : 0);
+        if (w === 'rain') return t === 'water' ? 1 : (t === 'fire' ? -1 : 0);
+        return 0;
+    }
+    function v3TerrainDiceDelta(terrain, moveType, moveName = '') {
+        const tr = (terrain || '').toLowerCase(), t = (moveType || '').toLowerCase();
+        const ml = (moveName || '').toLowerCase();
+        if (tr === 'grassy') {
+            if (V3_GROUND_SLAMS.includes(ml)) return -1;
+            return t === 'grass' ? 1 : 0;
+        }
+        if (tr === 'electric') return t === 'electric' ? 1 : 0;
+        if (tr === 'psychic') return t === 'psychic' ? 1 : 0;
+        if (tr === 'misty') return t === 'dragon' ? -1 : 0;
+        return 0;
+    }
+    function v3WeatherAcc(weather, moveName, accuracy) {
+        const w = (weather || '').toLowerCase(), ml = (moveName || '').toLowerCase();
+        if (ml === 'thunder' || ml === 'hurricane') {
+            if (w === 'sun') accuracy = 50;
+            else if (w === 'rain') accuracy = 100;
+        } else if (ml === 'blizzard' && (w === 'hail' || w === 'snow')) {
+            accuracy = 100;
+        }
+        if (w === 'fog' && accuracy != null) accuracy = Math.max(V3_ACC_FLOOR, (accuracy | 0) - 10);
+        return accuracy;
+    }
+    function v3WeatherResistBonus(weather, defenderTypes, category) {
+        const w = (weather || '').toLowerCase();
+        const types = (defenderTypes || []).map(t => String(t).toLowerCase());
+        if (w === 'sandstorm' && types.includes('rock') && category === 'special') return 2;
+        if ((w === 'hail' || w === 'snow') && types.includes('ice') && category === 'physical') return 2;
+        return 0;
+    }
+    function v3WeatherChip(weather, maxHp, defenderTypes) {
+        const w = (weather || '').toLowerCase();
+        const types = (defenderTypes || []).map(t => String(t).toLowerCase());
+        if (w === 'sandstorm' && !types.some(t => V3_SAND_IMMUNE.includes(t)))
+            return Math.max(1, Math.floor((maxHp || 1) / V3_WEATHER_CHIP_DIV));
+        if ((w === 'hail' || w === 'snow') && !types.some(t => V3_HAIL_IMMUNE.includes(t)))
+            return Math.max(1, Math.floor((maxHp || 1) / V3_WEATHER_CHIP_DIV));
+        return 0;
+    }
+    function v3TerrainHeal(terrain, maxHp) {
+        if ((terrain || '').toLowerCase() === 'grassy')
+            return Math.max(1, Math.floor((maxHp || 1) / V3_WEATHER_CHIP_DIV));
+        return 0;
+    }
+    const V3_MULTI_HIT = {
+        'double kick': [2, 2], 'double hit': [2, 2], 'dual chop': [2, 2],
+        'bonemerang': [2, 2], 'double iron bash': [2, 2], 'dragon darts': [2, 2],
+        'twineedle': [2, 2], 'gear grind': [2, 2], 'dual wingbeat': [2, 2],
+        'triple kick': [3, 3], 'triple axel': [3, 3], 'surging strikes': [3, 3],
+        'double slap': [2, 5], 'fury attack': [2, 5], 'fury swipes': [2, 5],
+        'pin missile': [2, 5], 'rock blast': [2, 5], 'bullet seed': [2, 5],
+        'icicle spear': [2, 5], 'spike cannon': [2, 5], 'comet punch': [2, 5],
+        'barrage': [2, 5], 'arm thrust': [2, 5], 'tail slap': [2, 5],
+        'water shuriken': [2, 5], 'bone rush': [2, 5], 'scale shot': [2, 5],
+    };
+    function v3MultiHits(moveName) {
+        const span = V3_MULTI_HIT[(moveName || '').toLowerCase()];
+        if (!span) return null;
+        if (span[0] === span[1]) return span[0];
+        return 1 + (1 + Math.floor(Math.random() * 4));
+    }
+    const V3_CHARGE_MOVES = ['solar beam', 'solar blade', 'sky attack', 'skull bash',
+                             'razor wind', 'freeze shock', 'ice burn', 'meteor beam'];
+    function v3NeedsCharge(moveName, weather) {
+        const ml = (moveName || '').toLowerCase();
+        if (!V3_CHARGE_MOVES.includes(ml)) return false;
+        if ((ml === 'solar beam' || ml === 'solar blade') && (weather || '').toLowerCase() === 'sun') return false;
+        return true;
+    }
+    function v3Recoil(finalDamage, canonDrain) {
+        if ((canonDrain | 0) < 0 && (finalDamage | 0) > 0) return Math.max(1, Math.floor(finalDamage / 3));
+        return 0;
+    }
+    function v3DrainHeal(finalDamage, canonDrain) {
+        if ((canonDrain | 0) > 0 && (finalDamage | 0) > 0) return Math.max(1, Math.floor(finalDamage / 2));
+        return 0;
+    }
+    function v3ProtectChance(chain) {
+        return Math.max(V3_PROTECT_FLOOR, 100 >> Math.max(0, chain | 0));
+    }
+
     return {
         RATIO_CLAMP, STAB_MULT, damageScale, TRAINING_POINTS_PER_LEVEL, TRAINING_CAP,
         DEFENSE_MODES, statAtLevel, hpAtLevel, trainingBudget, trainingCap,
@@ -266,5 +360,9 @@ const BattleMath = (() => {
         v3MilestoneDice, v3StatusComponent, v3LevelBonus, v3EffectivenessDiceDelta,
         v3BuildDice, v3StabFlat, v3AccEffective, v3Connects, v3CritChance,
         v3ResistanceTotal, v3ResistOutcome, v3ApplyOutcome, v3GrossDamage,
+        V3_FIELD_ROUNDS, V3_MULTI_HIT, V3_CHARGE_MOVES,
+        v3WeatherDiceDelta, v3TerrainDiceDelta, v3WeatherAcc,
+        v3WeatherResistBonus, v3WeatherChip, v3TerrainHeal, v3MultiHits,
+        v3NeedsCharge, v3Recoil, v3DrainHeal, v3ProtectChance,
     };
 })();

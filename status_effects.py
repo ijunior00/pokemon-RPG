@@ -663,6 +663,13 @@ def auto_detect_move_effect(move_data):
         'sunny day': {'type': 'weather', 'weather': 'sun', 'duration': 5},
         'sandstorm': {'type': 'weather', 'weather': 'sandstorm', 'duration': 5},
         'hail': {'type': 'weather', 'weather': 'hail', 'duration': 5},
+        'snowscape': {'type': 'weather', 'weather': 'hail', 'duration': 5},
+        'defog': {'type': 'weather', 'weather': None, 'duration': 0},  # limpa o campo
+        # Terreno (v3 F5: ±dados por tipo, cura/bloqueios — doc §13)
+        'grassy terrain': {'type': 'terrain', 'terrain': 'grassy', 'duration': 5},
+        'electric terrain': {'type': 'terrain', 'terrain': 'electric', 'duration': 5},
+        'psychic terrain': {'type': 'terrain', 'terrain': 'psychic', 'duration': 5},
+        'misty terrain': {'type': 'terrain', 'terrain': 'misty', 'duration': 5},
         # Taunt/Encore
         'taunt': {'type': 'debuff_target', 'stat': 'no_status_moves', 'value': -1, 'save': 'WIS', 'duration': 3},
         'encore': {'type': 'debuff_target', 'stat': 'locked_move', 'value': -1, 'save': 'WIS', 'duration': 3},
@@ -995,10 +1002,53 @@ def process_status_move(move_data, attacker_stats, target_stats):
         }
     
     elif effect['type'] == 'protect':
+        # v3 F5: usos CONSECUTIVOS caem pela metade (100→50→25…). A corrente
+        # (protect_chain) vive no _v3 do Pokémon — o caller passa o dict real.
+        st = attacker_stats.get('_v3') if isinstance(attacker_stats.get('_v3'), dict) else None
+        chain = int((st or {}).get('protect_chain', 0))
+        chance = _bm.v3_protect_chance(chain)
+        roll = random.randint(1, 100)
+        if roll <= chance:
+            if st is not None:
+                st['protect_chain'] = chain + 1
+                st['protected'] = True
+            return {
+                'success': True,
+                'effect_type': 'protect',
+                'message': f"{move_name}! d100({roll}) ≤ {chance}% → Protegido contra o próximo ataque!",
+                'status_applied': None,
+                'stat_changes': None
+            }
+        if st is not None:
+            st['protect_chain'] = 0
+            st['protected'] = False
+        return {
+            'success': False,
+            'effect_type': 'resisted',
+            'message': f"{move_name}! d100({roll}) > {chance}% (usos consecutivos) → Falhou! A corrente reinicia.",
+            'status_applied': None,
+            'stat_changes': None
+        }
+
+    elif effect['type'] in ('weather', 'terrain'):
+        # v3 F5: clima/terreno de campo (5 rodadas). O caller grava no
+        # field da batalha (effect_type 'field').
+        kind = effect['type']
+        val = effect.get('weather') if kind == 'weather' else effect.get('terrain')
+        labels = {'rain': '🌧️ Chuva', 'sun': '☀️ Sol forte',
+                  'sandstorm': '🌪️ Tempestade de areia', 'hail': '❄️ Granizo',
+                  'grassy': '🌿 Grassy Terrain', 'electric': '⚡ Electric Terrain',
+                  'psychic': '🔮 Psychic Terrain', 'misty': '🌫️ Misty Terrain'}
+        dur = int(effect.get('duration', _bm.V3_FIELD_ROUNDS))
+        msg = (f"{move_name}! {labels.get(val, val)} por {dur} rodadas!"
+               if val else f"{move_name}! O campo foi limpo — clima e terreno dissipados!")
         return {
             'success': True,
-            'effect_type': 'protect',
-            'message': f"{move_name}! Protegido contra o próximo ataque!",
+            'effect_type': 'field',
+            'field_kind': kind,
+            'field_value': val,
+            'duration': dur,
+            'message': msg,
             'status_applied': None,
             'stat_changes': None
         }
@@ -1050,17 +1100,33 @@ def process_status_move(move_data, attacker_stats, target_stats):
         }
 
     elif effect['type'] == 'ohko':
-        # OHKO (Fissure/Guillotine/Horn Drill) — accuracy canônica (30%):
-        # d20 vs limiar; acertou → desmaia (dano = HP atual). Igual aos jogos.
+        # OHKO (Fissure/Guillotine/Horn Drill) — v3: ACC 30 fixo (ignora
+        # estágios); se conectar, o alvo rola Resistência vs TN 22 — QUALQUER
+        # sucesso anula o golpe inteiro; falha total = nocaute (doc §17).
         ok, roll, thr, acc_label = _accuracy_roll()
         if ok:
+            d20 = random.randint(1, 20)
+            tgt_def = int(target_stats.get('DEF') or target_stats.get('def') or 10)
+            tgt_level = int(target_stats.get('level') or 1)
+            total = _bm.v3_resistance_total(d20, tgt_def, tgt_level)
+            tn = _bm.v3_ohko_resist_tn()
+            if total >= tn:
+                return {
+                    'success': False,
+                    'effect_type': 'resisted',
+                    'message': f"{move_name}! d100({roll}) conecta, mas o alvo RESISTE ao "
+                               f"golpe fatal: d20({d20})+{total - d20} = {total} ≥ TN {tn} → anulado!",
+                    'status_applied': None,
+                    'stat_changes': None
+                }
             tgt_hp = int(target_stats.get('currentHp') or 0) or (2 * int(attacker_stats.get('level', 1) or 1))
             return {
                 'success': True,
                 'effect_type': 'fixed_damage',
                 'damage': tgt_hp,
                 'self_damage': 0,
-                'message': f"{move_name}! d100({roll}) ≤ {thr} ({acc_label}) → 💀 GOLPE FATAL! {tgt_hp} de dano!",
+                'message': f"{move_name}! d100({roll}) ≤ {thr} ({acc_label}) · resistência "
+                           f"{total} < TN {tn} → 💀 GOLPE FATAL! {tgt_hp} de dano!",
                 'status_applied': None,
                 'stat_changes': None
             }

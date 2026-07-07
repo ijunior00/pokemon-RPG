@@ -297,6 +297,10 @@ def _v3_register_use(st, move_lower, power):
         cds[k] -= 1
         if cds[k] <= 0:
             del cds[k]
+    # F5: atacar expira a própria proteção (valia só a rodada) e quebra a
+    # corrente de Protects consecutivos
+    st.pop('protected', None)
+    st['protect_chain'] = 0
     if st['last_move'] == move_lower:
         st['streak'] += 1
         st['momentum'] = 0
@@ -327,15 +331,16 @@ def _v3_reset_battle_flow(poke):
 def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
                       attacker_status=None, defender_status=None,
                       atk_hp=None, atk_max_hp=None, def_hp=None,
-                      momentum=None, adapt_bonus=None):
+                      momentum=None, adapt_bonus=None, field=None):
     """Núcleo ÚNICO do cálculo de ataque (SISTEMA v3 — d100/ACC).
 
     Camadas: Precisão (d100 vs ACC efetivo) → Dano (Componente + nível +
     dados da Tabela Mestra + Momentum) → Resistência (d20 do defensor vs TN
     Efetiva → cheio/metade/anulação). Doc: docs/sistema-combate-d100.md.
     `attack_roll` é o d100 do atacante (None = servidor rola).
+    `field` é o estado de campo da batalha: {'weather','terrain',...} (F5).
     Retorna {'hit','damage','message','attack_roll','move_type_en','is_crit',
-    'log','outcome','cooldown'}.
+    'log','outcome','cooldown','recoil','drain_heal'}.
     """
     move_name, metronome_became = _resolve_metronome(move_name)
     move = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name) or {}
@@ -353,6 +358,12 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     canon = canon_move(move_name)
     power = canon.get('power') or bm_core.VARIABLE_POWER.get(move_name.lower())
     accuracy = canon.get('accuracy')
+
+    # ── F5: clima/terreno da batalha ajustam ACC e dados ──
+    fld = field or {}
+    weather = fld.get('weather')
+    terrain = fld.get('terrain')
+    accuracy = bm_core.v3_weather_acc(weather, move_name, accuracy)
     certeiro = accuracy is None   # Aerial Ace, Swift... conectam sempre
 
     move_type_raw = (move.get('type') or '').lower()
@@ -369,11 +380,53 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
                 'attack_roll': 0, 'move_type_en': move_type_en,
                 'log': f'⏳ <strong>{move_name}</strong> está em cooldown '
                        f'({_cd_left} rodada(s) restante(s)) — escolha outro golpe!'}
+
+    # ── F5: golpes de CARGA (Solar Beam, Sky Attack...) gastam 1 rodada
+    # carregando (Solar Beam no Sol dispara direto — doc §17) ──
+    charging_released = False
+    if bm_core.v3_needs_charge(ml, weather):
+        if st.get('charging') != ml:
+            st['charging'] = ml
+            return {'hit': True, 'damage': 0, 'charging': True,
+                    'message': f'{met}{move_name} está carregando energia...',
+                    'attack_roll': 0, 'move_type_en': move_type_en, 'cooldown': 0,
+                    'log': f'{met}🔆 <strong>{move_name}</strong> carrega energia — '
+                           f'dispara na próxima rodada!'}
+        st.pop('charging', None)
+        charging_released = True
+    elif st.get('charging'):
+        st.pop('charging', None)   # trocou de golpe — perde a carga
+
     _mom, _adapt = _v3_register_use(st, ml, power)
     if momentum is None:
         momentum = _mom
     if adapt_bonus is None:
         adapt_bonus = _adapt
+
+    # ── F5: Protect/Detect do DEFENSOR bloqueia o golpe da rodada ──
+    dst = defender_poke.get('_v3') if isinstance(defender_poke.get('_v3'), dict) else None
+    if dst and dst.get('protected'):
+        dst['protected'] = False   # a proteção é consumida pelo golpe
+        dname = defender_poke.get('nickname') or defender_poke.get('name', 'O alvo')
+        return {'hit': False, 'damage': 0, 'protected': True,
+                'message': f'{met}{dname} se protegeu!',
+                'attack_roll': 0, 'move_type_en': move_type_en,
+                'cooldown': bm_core.v3_cooldown(power) if power else 0,
+                'log': f'{met}🛡️ <strong>{dname}</strong> se PROTEGEU — o golpe foi bloqueado!'}
+
+    # ── F5: Psychic Terrain bloqueia golpes de PRIORIDADE (+1 ou mais)
+    # contra alvos no terreno (voadores/Levitate não tocam o chão) ──
+    move_priority = int(canon.get('priority') or 0)
+    if terrain == 'psychic' and move_priority > 0:
+        d_types = [str(t).lower() for t in (defender_poke.get('types') or [])]
+        d_levitates = ab.normalize_ability(defender_poke.get('ability')) == 'levitate'
+        if 'flying' not in d_types and not d_levitates:
+            return {'hit': False, 'damage': 0,
+                    'message': f'{met}O Psychic Terrain bloqueou o golpe de prioridade!',
+                    'attack_roll': 0, 'move_type_en': move_type_en,
+                    'cooldown': bm_core.v3_cooldown(power) if power else 0,
+                    'log': f'{met}🔮 <strong>Psychic Terrain</strong> protege o alvo '
+                           f'contra golpes de prioridade — {move_name} falhou!'}
 
     # ── Camada 1: PRECISÃO (d100 vs ACC efetivo; certeiro conecta sempre) ──
     # estágios legados 'attack_roll'/'AC' viram estágios de Precisão/Evasão
@@ -406,20 +459,33 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     def_stages = effects.stat_stage(defender_poke, def_key)
     def_spe = effects.effective_stat(defender_poke, 'SPE', include_stages=False)
     atk_spe = effects.effective_stat(attacker_poke, 'SPE', include_stages=False)
+    # F5: Areia protege Pedra (especial) / Granizo protege Gelo (físico)
+    weather_resist = bm_core.v3_weather_resist_bonus(
+        weather, defender_poke.get('types'), category)
+    # F5: prioridade quebra a regra da Speed nos desempates (doc §7):
+    # golpe de prioridade age "antes" → o atacante conta como mais rápido
+    if move_priority > 0:
+        defender_faster_tie = False
+    elif move_priority < 0:
+        defender_faster_tie = True
+    else:
+        defender_faster_tie = def_spe > atk_spe
 
     def _resist(gross, pw):
         """Camada 3: Resistência do defensor → (dano_final, linha de log)."""
         d20 = random.randint(1, 20)
         total = bm_core.v3_resistance_total(
             d20, def_stat, def_level, def_stages,
-            crit=is_crit, extra=adapt_bonus, crit_zeroes_defense=sniper)
+            crit=is_crit, extra=adapt_bonus + weather_resist,
+            crit_zeroes_defense=sniper)
         tn = bm_core.v3_tn(pw, level)
-        outcome = bm_core.v3_resist_outcome(total, tn, defender_faster=def_spe > atk_spe)
+        outcome = bm_core.v3_resist_outcome(total, tn, defender_faster=defender_faster_tie)
         final = bm_core.v3_apply_outcome(gross, outcome)
         tag = {'full': '💥 dano CHEIO', 'half': '🛡️ resistiu (metade)',
                'negate': '💨 ANULOU'}[outcome]
         line = (f' · resistência d20({d20})+{total - d20} = {total} vs TN {tn}'
-                f'{" (adaptação +2)" if adapt_bonus else ""} → {tag}')
+                f'{" (adaptação +2)" if adapt_bonus else ""}'
+                f'{" (clima +2)" if weather_resist else ""} → {tag}')
         return final, outcome, line
 
     if not power:
@@ -460,6 +526,10 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     if stab and ab.stab_multiplier(attacker_poke.get('ability'), move_type_en,
                                    atk_hp, atk_max_hp) > 1:
         field_delta += 1
+    # F5: clima e terreno somam/tiram dados por tipo (Sol: Fogo+1/Água−1...)
+    w_delta = bm_core.v3_weather_dice_delta(weather, move_type_en)
+    t_delta = bm_core.v3_terrain_dice_delta(terrain, move_type_en, ml)
+    field_delta += w_delta + t_delta
 
     # Efetividade de tipo → ±dados (imune = 0 de dano)
     vulns, resists, immunities = _type_lists(defender_poke)
@@ -480,6 +550,13 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
         power, level, certeiro=certeiro, stab=stab,
         effectiveness=eff, field_delta=field_delta)
     dice_total = sum(random.randint(1, sides) for _ in range(n_dice))
+    # F5: MULTI-HIT (Double Kick, Rock Blast...): 1 ACC, 1 Componente e
+    # 1 Resistência; cada hit EXTRA rola só os dados-base do degrau (doc §17)
+    hits = bm_core.v3_multi_hits(ml) or 1
+    if hits > 1:
+        base_n, base_sides = bm_core.v3_dice_base(power)
+        dice_total += sum(random.randint(1, base_sides)
+                          for _ in range(base_n * (hits - 1)))
     stab_flat = bm_core.v3_stab_flat(stab, level)
     gross = bm_core.v3_gross_damage(component, level, dice_total,
                                     momentum=momentum, halve_dice=halve,
@@ -502,25 +579,103 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     # ── Camada 3: RESISTÊNCIA do defensor ──
     dmg, outcome, rline = _resist(gross, power)
 
+    # ── F5: recoil (⌊dano÷3⌋) e dreno (⌊dano÷2⌋) — o handler aplica no HP ──
+    canon_drain = int(canon.get('drain') or 0)
+    recoil = bm_core.v3_recoil(dmg, canon_drain)
+    drain_heal = bm_core.v3_drain_heal(dmg, canon_drain)
+
     eff_label = ''
     if eff > 1:   eff_label = f' ⚡ Super Efetivo (+{bm_core.v3_effectiveness_dice_delta(eff)} dado)'
     elif eff < 1: eff_label = f' 🛡️ Não Efetivo ({bm_core.v3_effectiveness_dice_delta(eff)} dado)'
 
-    log = (f'{met}✅ d100({d100}) ({acc_label})'
+    field_label = ''
+    if w_delta or t_delta:
+        parts = []
+        if w_delta: parts.append(f'clima {w_delta:+d}d')
+        if t_delta: parts.append(f'terreno {t_delta:+d}d')
+        field_label = f' 🌦️ {" ".join(parts)}'
+
+    log = (f'{met}{"🔆 " if charging_released else ""}✅ d100({d100}) ({acc_label})'
            f'{" 🎯 CRIT fura defesa!" if is_crit else ""}'
-           f' → {n_dice}d{sides}({dice_total}) + comp {component} + nv {bm_core.v3_level_bonus(level)}'
+           f'{f" ✊ {hits} hits!" if hits > 1 else ""}'
+           f' → {n_dice}d{sides}{f"+{hits - 1}×hit" if hits > 1 else ""}({dice_total})'
+           f' + comp {component} + nv {bm_core.v3_level_bonus(level)}'
            f'{f" + STAB {stab_flat}" if stab_flat else (" +1d STAB" if stab and level >= bm_core.V3_STAB_DIE_LEVEL else "")}'
            f'{f" + momentum {momentum}" if momentum else ""}'
            f'{" ×½ (queimado)" if burned else ""}'
            f'{" ☠️×2 (alvo envenenado)" if venoshock_x2 else ""}'
-           f'{eff_label} = bruto {gross}{rline}'
-           f' = <strong>{dmg} dano {move.get("type", "")}</strong>')
+           f'{eff_label}{field_label} = bruto {gross}{rline}'
+           f' = <strong>{dmg} dano {move.get("type", "")}</strong>'
+           f'{f" · 💢 recoil {recoil}" if recoil else ""}'
+           f'{f" · 💚 drena {drain_heal}" if drain_heal else ""}')
 
     return {'hit': True, 'damage': dmg,
             'message': f'{met}d100({d100}) vs {acc_label}{" Crítico!" if is_crit else ""}{eff_label}',
             'attack_roll': d100, 'move_type_en': move_type_en,
             'is_crit': is_crit, 'log': log, 'outcome': outcome,
+            'recoil': recoil, 'drain_heal': drain_heal,
             'cooldown': bm_core.v3_cooldown(power)}
+
+
+def _field_of(container):
+    """Estado de CAMPO da batalha (clima/terreno, F5) — vive no battle_state
+    (selvagem) ou no dict da batalha (PvP/grupo). Cria se não existe."""
+    if not isinstance(container, dict):
+        return {}
+    fld = container.setdefault('field', {})
+    fld.setdefault('weather', None)
+    fld.setdefault('weather_left', 0)
+    fld.setdefault('terrain', None)
+    fld.setdefault('terrain_left', 0)
+    return fld
+
+
+def _field_apply(container, kind, value, duration):
+    """Grava clima/terreno no campo. value None = limpa o campo (Defog)."""
+    fld = _field_of(container)
+    if value is None:
+        fld.update(weather=None, weather_left=0, terrain=None, terrain_left=0)
+        return fld
+    if kind == 'terrain':
+        fld['terrain'], fld['terrain_left'] = value, int(duration or bm_core.V3_FIELD_ROUNDS)
+    else:
+        fld['weather'], fld['weather_left'] = value, int(duration or bm_core.V3_FIELD_ROUNDS)
+    return fld
+
+
+def _field_tick(container):
+    """Fim de rodada: decrementa as durações; devolve mensagens de expiração."""
+    fld = _field_of(container)
+    msgs = []
+    if fld.get('weather'):
+        fld['weather_left'] = int(fld.get('weather_left') or 0) - 1
+        if fld['weather_left'] <= 0:
+            msgs.append(f"🌤️ O clima ({fld['weather']}) se dissipou.")
+            fld['weather'], fld['weather_left'] = None, 0
+    if fld.get('terrain'):
+        fld['terrain_left'] = int(fld.get('terrain_left') or 0) - 1
+        if fld['terrain_left'] <= 0:
+            msgs.append(f"🍃 O terreno ({fld['terrain']}) se desfez.")
+            fld['terrain'], fld['terrain_left'] = None, 0
+    return msgs
+
+
+def _field_chip(container, poke, max_hp, label):
+    """Dano/cura de campo por rodada para um lado: (delta_hp, msg|None).
+    Delta negativo = dano de clima; positivo = cura de Grassy Terrain.
+    Habilidades imunes a dano indireto/clima são respeitadas."""
+    fld = _field_of(container)
+    delta, msg = 0, None
+    chip = bm_core.v3_weather_chip(fld.get('weather'), max_hp, (poke or {}).get('types'))
+    if chip and not ab.ability_blocks_weather_damage(poke):
+        delta -= chip
+        icon = '🌪️' if fld.get('weather') == 'sandstorm' else '❄️'
+        msg = f'{icon} {label} sofre {chip} de dano do clima!'
+    heal = bm_core.v3_terrain_heal(fld.get('terrain'), max_hp)
+    if heal and delta == 0:
+        delta += heal
+        msg = f'🌿 {label} recupera {heal} HP do Grassy Terrain!'
+    return delta, msg
 
 
 def _calc_player_attack(encounter, move_name, attack_roll=None):
@@ -532,7 +687,7 @@ def _calc_player_attack(encounter, move_name, attack_roll=None):
         attacker_status=bs.get('player_status'),
         defender_status=bs.get('wild_status'),
         atk_hp=bs.get('player_hp_current'), atk_max_hp=bs.get('player_hp_max'),
-        def_hp=bs.get('wild_hp_current'))
+        def_hp=bs.get('wild_hp_current'), field=_field_of(bs))
 
 
 def _calc_wild_attack(encounter, move_name, attack_roll=None):
@@ -553,17 +708,19 @@ def _calc_wild_attack(encounter, move_name, attack_roll=None):
         attacker_status=bs.get('wild_status'),
         defender_status=bs.get('player_status'),
         atk_hp=bs.get('wild_hp_current'), atk_max_hp=bs.get('wild_hp_max'),
-        def_hp=bs.get('player_hp_current'))
+        def_hp=bs.get('player_hp_current'), field=_field_of(bs))
 
 
-def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None):
-    """Ataque em PvP/NPC/grupo (estado vive nos dicts dos Pokémon)."""
+def _calc_pvp_attack(attacker_poke, defender_poke, move_name, attack_roll=None,
+                     field=None):
+    """Ataque em PvP/NPC/grupo (estado vive nos dicts dos Pokémon; o campo
+    clima/terreno vive no dict da batalha — o caller passa)."""
     return _calc_attack_core(
         attacker_poke, defender_poke, move_name, attack_roll,
         attacker_status=attacker_poke.get('status'),
         defender_status=defender_poke.get('status'),
         atk_hp=attacker_poke.get('currentHp'), atk_max_hp=attacker_poke.get('maxHp'),
-        def_hp=defender_poke.get('currentHp'))
+        def_hp=defender_poke.get('currentHp'), field=field)
 
 # ============================================================
 # XP TABLE (trainer levels 1-20)
@@ -3404,9 +3561,18 @@ def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data
         dict(actor['pokemon'].get('stats', {}), level=actor['pokemon'].get('level', 1),
              proficiency=actor['pokemon'].get('proficiency',
                                               _prof_for_level(actor['pokemon'].get('level', 1))),
-             maxHp=actor['maxHp'], currentHp=max(0, actor['hp'])),
+             maxHp=actor['maxHp'], currentHp=max(0, actor['hp']),
+             _v3=_v3_side_state(actor['pokemon'])),   # Protect: corrente/flag no dict real
         dict(target['pokemon'].get('stats', {}), level=target['pokemon'].get('level', 1),
              currentHp=max(0, target['hp'])))
+    # F5: clima/terreno de campo (Rain Dance, Grassy Terrain...)
+    if result.get('effect_type') == 'field':
+        _field_apply(battle, result.get('field_kind'), result.get('field_value'),
+                     result.get('duration'))
+        battle['log'].append({'type': 'status_move', 'actor': actor_cid,
+                              'message': f"{actor['name']} usou {move_name} — {result.get('message','')}"})
+        gb.advance_turn(battle)
+        return
     # Dano fixo (Night Shade/Pain Split/OHKO...): ignora CA — heal cura o
     # atacante, self_damage o fere; dano via gb.apply_damage (log + turno)
     if result.get('effect_type') == 'fixed_damage' and (result.get('damage') or result.get('self_damage')):
@@ -3467,6 +3633,47 @@ def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data
     gb.advance_turn(battle)
 
 
+def _group_apply_recoil_drain(battle, combatant, calc):
+    """F5: aplica recoil/dreno do golpe no HP do combatente. Recoil deixa em
+    1 HP no mínimo (não nocauteia o usuário). Retorna sufixo p/ a mensagem."""
+    suffix = ''
+    recoil = int(calc.get('recoil') or 0)
+    heal = int(calc.get('drain_heal') or 0)
+    if recoil:
+        combatant['hp'] = max(1, combatant['hp'] - recoil)
+        combatant['pokemon']['currentHp'] = combatant['hp']
+        suffix += f' 💢 Recoil: {recoil} de dano em si!'
+    if heal and combatant['hp'] > 0:
+        combatant['hp'] = min(combatant['maxHp'], combatant['hp'] + heal)
+        combatant['pokemon']['currentHp'] = combatant['hp']
+        suffix += f' 💚 Drenou {heal} HP!'
+    return suffix
+
+
+def _group_field_round_hook(battle):
+    """F5: uma vez por rodada — chip de clima (areia/granizo), cura de Grassy
+    Terrain e decremento das durações do campo."""
+    rnd = int(battle.get('round') or 0)
+    if rnd <= int(battle.get('_field_round_done') or 0):
+        return
+    battle['_field_round_done'] = rnd
+    fld = _field_of(battle)
+    if not (fld.get('weather') or fld.get('terrain')):
+        return
+    for c in battle['combatants'].values():
+        if c.get('fainted') or c['hp'] <= 0:
+            continue
+        delta, msg = _field_chip(battle, c.get('pokemon'), c['maxHp'], c['name'])
+        if delta:
+            # chip nunca nocauteia (deixa em 1 HP) — o golpe é que decide
+            c['hp'] = max(1, min(c['maxHp'], c['hp'] + delta))
+            c['pokemon']['currentHp'] = c['hp']
+        if msg:
+            battle['log'].append({'type': 'field', 'message': msg})
+    for m in _field_tick(battle):
+        battle['log'].append({'type': 'field', 'message': m})
+
+
 def _group_run_wild_turns(battle):
     """Executa as jogadas automáticas dos selvagens enquanto for a vez deles."""
     guard = 0
@@ -3492,8 +3699,10 @@ def _group_run_wild_turns(battle):
         if is_status and move_name.lower() not in VARIABLE_DAMAGE_MOVES:
             _group_apply_status_move(battle, cur['cid'], target_cid, move_name, move_data)
             continue
-        calc = _calc_pvp_attack(wild_poke, tgt_poke, move_name)
+        calc = _calc_pvp_attack(wild_poke, tgt_poke, move_name,
+                                field=_field_of(battle))
         msg = f"{cur['name']} usou {move_name} em {target['name']} — {calc.get('message','')}"
+        msg += _group_apply_recoil_drain(battle, cur, calc)
         gb.apply_damage(battle, cur['cid'], target_cid, calc.get('damage', 0),
                         move_name, msg, hit=calc.get('hit', True))
 
@@ -3600,11 +3809,13 @@ def handle_group_battle_action(data):
         att_poke['currentHp'] = cur['hp']; att_poke['maxHp'] = cur['maxHp']
         att_poke['moves'] = cur['moves']
         tgt_poke = dict(target['pokemon']); tgt_poke['currentHp'] = target['hp']
-        calc = _calc_pvp_attack(att_poke, tgt_poke, move_name, None)   # v3: servidor rola o d100
+        calc = _calc_pvp_attack(att_poke, tgt_poke, move_name, None,
+                                field=_field_of(battle))   # v3: servidor rola o d100
         if calc.get('blocked'):
             emit('group_battle_error', {'message': calc.get('message')})
             return
         msg = f"{cur['name']} usou {move_name} em {target['name']} — {calc.get('message','')}"
+        msg += _group_apply_recoil_drain(battle, cur, calc)
         gb.apply_damage(battle, cur['cid'], target_cid, calc.get('damage', 0),
                         move_name, msg, hit=calc.get('hit', True))
 
@@ -3612,6 +3823,7 @@ def handle_group_battle_action(data):
     if _wild_auto_mode():
         _group_run_wild_turns(battle)
 
+    _group_field_round_hook(battle)   # F5: chip/cura + duração do campo
     if battle['phase'] == 'finished':
         _group_broadcast(battle, 'group_battle_end')
         ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
@@ -3631,6 +3843,7 @@ def handle_group_wild_turn(data):
     if not cur or cur['side'] != 'wild':
         return
     _group_run_wild_turns(battle)
+    _group_field_round_hook(battle)   # F5: chip/cura + duração do campo
     if battle['phase'] == 'finished':
         _group_broadcast(battle, 'group_battle_end')
         ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
@@ -5025,9 +5238,11 @@ def handle_initiative(data):
                     encounter['battle_state']['player_atk_mod'] = encounter['battle_state'].get('player_atk_mod', 0) + entry['mod']
                 else:
                     encounter['battle_state']['wild_atk_mod'] = encounter['battle_state'].get('wild_atk_mod', 0) + entry['mod']
-            # Weather abilities set the field
+            # Weather abilities set the field (Drought/Drizzle/Sand Stream...)
             if entry.get('weather'):
                 encounter['battle_state']['weather'] = entry['weather']
+                _field_apply(encounter['battle_state'], 'weather',
+                             entry['weather'], bm_core.V3_FIELD_ROUNDS)
 
     game_state['active_encounters'][player_id] = encounter
     save_game_state(game_state)
@@ -5202,10 +5417,15 @@ def handle_battle_action(data):
                     move_data or {'name': move_name},
                     dict(ppoke.get('stats', {}), level=ppoke.get('level', 1),
                          proficiency=ppoke.get('proficiency', _prof_for_level(ppoke.get('level', 1))),
-                         maxHp=ppoke.get('maxHp', 20)),
+                         maxHp=ppoke.get('maxHp', 20),
+                         _v3=_v3_side_state(ppoke)),   # Protect: corrente/flag no dict real
                     dict(wpoke.get('stats', {}), level=wpoke.get('level', encounter.get('level', 5))))
                 action_log = sres.get('message', '')
                 message = sres.get('message', message)
+                # F5: clima/terreno de campo (Rain Dance, Grassy Terrain...)
+                if sres.get('effect_type') == 'field':
+                    _field_apply(battle_state, sres.get('field_kind'),
+                                 sres.get('field_value'), sres.get('duration'))
                 if sres.get('status_applied') and not status_effect and not battle_state.get('wild_status'):
                     status_effect = {'condition': sres['status_applied'], 'turns_active': 0}
                 if sres.get('heal'):
@@ -5234,6 +5454,14 @@ def handle_battle_action(data):
                     server_calc['status_inflicted'] = skey
                     server_calc['log'] = (server_calc.get('log', '') +
                         f" {cond.get('icon','')} Selvagem ficou <strong>{cond.get('name', skey)}</strong>!")
+            # F5: recoil (fere o usuário, nunca nocauteia) e dreno (cura)
+            if server_calc.get('recoil'):
+                battle_state['player_hp_current'] = max(
+                    1, battle_state['player_hp_current'] - int(server_calc['recoil']))
+            if server_calc.get('drain_heal'):
+                battle_state['player_hp_current'] = min(
+                    battle_state['player_hp_max'],
+                    battle_state['player_hp_current'] + int(server_calc['drain_heal']))
 
         # Turno do SELVAGEM conduzido pelo cliente do jogador (modo AUTO):
         # recalcula o dano no servidor — o cliente não é autoridade sobre o
@@ -5246,6 +5474,14 @@ def handle_battle_action(data):
                 damage = wild_calc.get('damage', 0)
                 move_type = wild_calc.get('move_type_en', move_type)
                 server_calc = wild_calc
+                # F5: recoil/dreno do golpe do selvagem
+                if wild_calc.get('recoil'):
+                    battle_state['wild_hp_current'] = max(
+                        1, battle_state['wild_hp_current'] - int(wild_calc['recoil']))
+                if wild_calc.get('drain_heal'):
+                    battle_state['wild_hp_current'] = min(
+                        battle_state['wild_hp_max'],
+                        battle_state['wild_hp_current'] + int(wild_calc['drain_heal']))
 
         if server_calc:
             action_log = server_calc.get('log')
@@ -5419,9 +5655,30 @@ def handle_battle_action(data):
         
         # Switch turn
         battle_state['turn'] = 'wild' if battle_state['turn'] == 'player' else 'player'
+        field_events = []
         if battle_state['turn'] == 'player':
             battle_state['round'] += 1
-        
+            # F5: fim da rodada — chip de clima, cura de terreno e durações
+            fld = _field_of(battle_state)
+            if fld.get('weather') or fld.get('terrain'):
+                for side, poke, hp_key, max_key, label in (
+                        ('player', encounter.get('player_pokemon'), 'player_hp_current',
+                         'player_hp_max', 'Seu Pokémon'),
+                        ('wild', encounter.get('pokemon'), 'wild_hp_current',
+                         'wild_hp_max', 'O selvagem')):
+                    if int(battle_state.get(hp_key) or 0) <= 0:
+                        continue
+                    delta, fmsg = _field_chip(battle_state, poke,
+                                              battle_state.get(max_key), label)
+                    if delta:
+                        # chip nunca nocauteia (deixa em 1 HP)
+                        battle_state[hp_key] = max(1, min(
+                            int(battle_state.get(max_key) or 1),
+                            int(battle_state[hp_key]) + delta))
+                    if fmsg:
+                        field_events.append(fmsg)
+                field_events.extend(_field_tick(battle_state))
+
         encounter['battle_state'] = battle_state
         game_state['active_encounters'][player_id] = encounter
         save_game_state(game_state)
@@ -5441,6 +5698,8 @@ def handle_battle_action(data):
             'contact_trigger': contact_trigger,
             'action_log': action_log,
             'server_calc': server_calc,  # full server-side calc details for client log
+            'field_events': field_events,   # F5: chip de clima/cura/expiração
+            'field': _field_of(battle_state),
         }
         
         # Notify both sides
@@ -5951,7 +6210,8 @@ def handle_pvp_attack(data):
         if pvp._poke_hp(def_poke) <= 0:
             emit('pvp_error', {'message': 'Oponente está trocando de Pokémon — aguarde.'})
             return
-        calc = _calc_pvp_attack(att_poke, def_poke, move_name, None)   # v3: servidor rola o d100
+        calc = _calc_pvp_attack(att_poke, def_poke, move_name, None,
+                                field=_field_of(battle))   # v3: servidor rola o d100
         if calc.get('blocked'):
             # golpe em cooldown: não consome o turno — escolha outro
             emit('pvp_error', {'message': calc.get('message')})
@@ -5959,6 +6219,16 @@ def handle_pvp_attack(data):
         damage   = calc['damage']
         message  = calc['message']
         move_type = calc.get('move_type_en', move_type)
+        # F5: recoil (nunca nocauteia o usuário) e dreno
+        if calc.get('recoil'):
+            att_poke['currentHp'] = max(1, att_poke.get('currentHp', 1) - int(calc['recoil']))
+            battle['log'].append({'type': 'info',
+                                  'message': f"💢 Recoil: {calc['recoil']} de dano em si!"})
+        if calc.get('drain_heal'):
+            att_poke['currentHp'] = min(att_poke.get('maxHp', 20),
+                                        att_poke.get('currentHp', 0) + int(calc['drain_heal']))
+            battle['log'].append({'type': 'info',
+                                  'message': f"💚 Drenou {calc['drain_heal']} HP!"})
 
         # Process attacker's own status damage before acting
         status_dmg, status_info, can_act, status_msgs = pvp.process_turn_status(battle, player_key)
@@ -6362,8 +6632,37 @@ def _emit_pvp_to_master(battle, event='update'):
                               finished=battle.get('phase') == 'finished'))
 
 
+def _pvp_field_round_hook(battle):
+    """F5: uma vez por rodada PvP — chip de clima, cura de Grassy Terrain e
+    decremento das durações do campo (idempotente por número de rodada)."""
+    rnd = int(battle.get('round') or 0)
+    if rnd <= int(battle.get('_field_round_done') or 0):
+        return
+    battle['_field_round_done'] = rnd
+    fld = _field_of(battle)
+    if not (fld.get('weather') or fld.get('terrain')):
+        return
+    for key in ('player1', 'player2'):
+        side = battle[key]
+        poke = side['team'][side['active_idx']]
+        if pvp._poke_hp(poke) <= 0:
+            continue
+        delta, msg = _field_chip(battle, poke, poke.get('maxHp'),
+                                 poke.get('nickname') or poke.get('name', key))
+        if delta:
+            # chip nunca nocauteia (deixa em 1 HP) — o golpe é que decide
+            poke['currentHp'] = max(1, min(int(poke.get('maxHp') or 1),
+                                           int(poke.get('currentHp') or 0) + delta))
+        if msg:
+            battle['log'].append({'type': 'field', 'message': msg})
+    for m in _field_tick(battle):
+        battle['log'].append({'type': 'field', 'message': m})
+
+
 def _broadcast_pvp_state(battle, event='update'):
     """Envia o estado atual da batalha PVP para os dois lados e para o mestre."""
+    if battle.get('phase') == 'battle':
+        _pvp_field_round_hook(battle)   # F5: campo tica a cada rodada nova
     for key in ('player1', 'player2'):
         if not battle[key].get('is_npc'):
             state = pvp.get_battle_state_for_player(battle, key)
@@ -6387,6 +6686,14 @@ def _npc_pick_move(attacker_poke, defender_poke, defender_has_status=False):
     Returns (move_name, move_data, is_status).
     """
     moves = [m for m in (attacker_poke.get('moves') or []) if m] or ['Tackle']
+    # F5: se está carregando um golpe (Solar Beam...), dispara ele — trocar
+    # de golpe desperdiçaria a rodada de carga
+    _charging = (attacker_poke.get('_v3') or {}).get('charging')
+    if _charging:
+        for m in moves:
+            if m.lower() == _charging:
+                md = MOVES_BY_NAME.get(m.lower()) or MOVES_DB.get(m) or {}
+                return m, md, False
     def_vulns, def_resists, def_immune = _type_lists(defender_poke)
     atk_types   = [t.lower() for t in (attacker_poke.get('types') or [])]
 
@@ -6463,7 +6770,8 @@ def _process_pvp_status_move(battle, attacker_key, move_name, move_data):
         dict(att_poke.get('stats', {}), level=att_poke.get('level', 1),
              proficiency=att_poke.get('proficiency', _prof_for_level(att_poke.get('level', 1))),
              maxHp=att_poke.get('maxHp', 20),
-             currentHp=max(0, pvp._poke_hp(att_poke))),
+             currentHp=max(0, pvp._poke_hp(att_poke)),
+             _v3=_v3_side_state(att_poke)),   # Protect: corrente/flag no dict real
         dict(def_poke.get('stats', {}), level=def_poke.get('level', 1),
              currentHp=max(0, pvp._poke_hp(def_poke))))
 
@@ -6478,6 +6786,14 @@ def _process_pvp_status_move(battle, attacker_key, move_name, move_data):
 
     battle['log'].append({'type': 'status_move', 'attacker': attacker_key,
                           'move': move_name, 'message': result.get('message', '')})
+
+    # F5: clima/terreno de campo (Rain Dance, Grassy Terrain...)
+    if result.get('effect_type') == 'field':
+        _field_apply(battle, result.get('field_kind'), result.get('field_value'),
+                     result.get('duration'))
+        pvp.advance_turn(battle)
+        _broadcast_pvp_state(battle)
+        return result
 
     # Dano fixo (Night Shade/Pain Split/OHKO/Final Gambit...): ignora CA.
     # heal cura o atacante (Pain Split); self_damage fere o atacante (Final
@@ -6611,9 +6927,19 @@ def handle_npc_turn(battle, npc_key):
         _process_pvp_status_move(battle, npc_key, move, move_data)
         return
 
-    calc     = _calc_pvp_attack(npc_poke, def_poke, move)
+    calc     = _calc_pvp_attack(npc_poke, def_poke, move, field=_field_of(battle))
     damage   = calc['damage']
     move_type = calc.get('move_type_en', '')
+    # F5: recoil (nunca nocauteia o usuário) e dreno do golpe do NPC
+    if calc.get('recoil'):
+        npc_poke['currentHp'] = max(1, npc_poke.get('currentHp', 1) - int(calc['recoil']))
+        battle['log'].append({'type': 'info',
+                              'message': f"💢 Recoil: {calc['recoil']} de dano em si!"})
+    if calc.get('drain_heal'):
+        npc_poke['currentHp'] = min(npc_poke.get('maxHp', 20),
+                                    npc_poke.get('currentHp', 0) + int(calc['drain_heal']))
+        battle['log'].append({'type': 'info',
+                              'message': f"💚 Drenou {calc['drain_heal']} HP!"})
 
     # Check defender ability
     if damage > 0 and move_type and not battle[defender_key].get('is_npc'):
