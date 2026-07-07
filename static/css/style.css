@@ -662,6 +662,15 @@ h1, h2 {
 .attr-step:hover:not(:disabled) { background: var(--accent); color: #fff; }
 .attr-step:disabled { opacity: 0.35; cursor: not-allowed; }
 .attr-stepper .attr-input { font-size: 1.1rem; padding: 0.25rem; }
+/* Custom EVs — distribuição de pontos de status do Pokémon */
+.ev-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px solid var(--card-border); }
+.ev-row:last-child { border-bottom: none; }
+.ev-label { flex: 0 0 5.5rem; font-weight: 700; font-size: 0.85rem; }
+.ev-btn { width: 1.9rem; height: 1.9rem; flex: 0 0 auto; border: 1px solid var(--card-border); background: var(--darker); color: var(--text); border-radius: 4px; font-size: 1.1rem; font-weight: 800; line-height: 1; cursor: pointer; }
+.ev-btn:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.ev-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.ev-val { flex: 0 0 2.5rem; text-align: center; font-weight: 800; color: var(--accent); }
+.ev-cost { flex: 1; text-align: right; font-size: 0.72rem; color: var(--text-muted); }
 .trainer-name-input { background: transparent; border: none; border-bottom: 2px solid var(--accent); color: var(--accent); font-size: 1.5rem; font-weight: 800; padding: 0.3rem; width: 250px; }
 .trainer-name-input:focus { outline: none; border-color: var(--primary); }
 

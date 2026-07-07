@@ -746,6 +746,53 @@ def main():
     check(S, 'Dragon Rage = dano fixo escalado ((15+nível//4) × escala)',
           _dr['damage'] == _dr_exp, f"{_dr['damage']} (esperado {_dr_exp})")
 
+    # ── Custom EVs: Pontos de Potencial + Treinamento ──
+    check(S, 'custo progressivo n(n+1)/2', bmm.stat_cost(10) == 55 and bmm.stat_cost(4) == 10)
+    check(S, 'potencial = ⌊nv/2⌋ + evo + especial', bmm.potential_points(40, 12) == 32)
+    check(S, 'treino estágio 3/3 = 2/nível', bmm.training_points(40, 3, 3) == 78)
+    check(S, 'treino estágio 1/2 = 1.5/nível', bmm.training_points(20, 1, 2) == 28)
+    check(S, 'orçamento Tyranitar Nv40 (potencial 32 + treino 78)',
+          bmm.points_budget(40, 3, 3, evo_bonus=12) == 110)
+    check(S, 'anti-min-max: stat em múltiplo de 5 sem par trava',
+          bmm.stat_tier_locked('ATK', {'ATK': 5, 'DEF': 3}) is True and
+          bmm.stat_tier_locked('ATK', {'ATK': 5, 'DEF': 5}) is False)
+    # migração v3: reseta treino, rola evo bonus retroativo, saldo = orçamento
+    _pp = {'name': 'Tyranitar', 'number': 248, 'level': 40, 'training': {'ATK': 20},
+           'currentHp': 100, 'maxHp': 100}
+    mig.migrate_pokemon_v2(_pp, appmod.POKEMON_BY_NAME, appmod.POKEMON_BY_NUMBER)
+    mig.migrate_pokemon_pp(_pp, appmod.POKEMON_BY_NAME, appmod.POKEMON_BY_NUMBER)
+    check(S, 'migração v3: pp=1, treino zerado, evo bonus retroativo (estágio 3 = 9)',
+          _pp.get('pp') == 1 and sum(_pp['training'].values()) == 0 and
+          _pp.get('potential_evo_bonus') == 9)
+    check(S, 'migração v3 idempotente',
+          not mig.migrate_pokemon_pp(_pp, appmod.POKEMON_BY_NAME, appmod.POKEMON_BY_NUMBER))
+    _bud = mig.budget_for(_pp, appmod.POKEMON_BY_NAME['tyranitar'])
+    check(S, 'migração v3: saldo = orçamento (treino zerado)',
+          _pp['statPointsAvailable'] == _bud and _bud == bmm.points_budget(40, 3, 3, evo_bonus=9))
+    # endpoint /player/team: sanitiza distribuição forjada (over-budget → clampa,
+    # nunca rejeita) e respeita tier lock
+    import copy as _cpev
+    users = db.get_users()
+    _team_backup = _cpev.deepcopy(users[u1]['trainer_data'].get('team', []))
+    _pv = appmod.POKEMON_BY_NAME['pidgeot']  # estágio 3/3
+    _forge = [{'name': 'Pidgeot', 'number': 18, 'level': 30, 'sv': 2, 'pp': 1,
+               'potential_evo_bonus': 9, 'potential_special': 0, 'training_bonus': 0,
+               'training': {'ATK': 50, 'DEF': 0, 'SPA': 0, 'SPD': 0, 'SPE': 0, 'HP': 0},
+               'moves': ['Gust']}]
+    users[u1]['trainer_data']['team'] = _cpev.deepcopy(_forge)
+    db.save_users(users)
+    r = p1.post('/player/team', json={'team': _forge})
+    users = db.get_users(); _sv = users[u1]['trainer_data']['team'][0]
+    _bud2 = mig.budget_for(_sv, _pv)
+    check(S, 'save do time: distribuição forjada clampada ao orçamento Custom EVs',
+          bmm.training_spent(_sv['training']) <= _bud2)
+    check(S, 'save do time: anti-min-max respeitado (ATK all-in cai a 5 sem par)',
+          _sv['training']['ATK'] == 5)
+    # restaura o time original do u1 para as próximas seções
+    users = db.get_users()
+    users[u1]['trainer_data']['team'] = _team_backup
+    db.save_users(users)
+
     # ══════════ 4a-quater. ATRIBUTOS DO TREINADOR (6 novos + perícias) ══════════
     section('4a-quater. Atributos do treinador (Vínculo/Tática/... + perícias)')
     S = 'Atributos Treinador'

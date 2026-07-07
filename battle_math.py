@@ -30,8 +30,83 @@ def damage_scale(level):
     return DAMAGE_SCALE_BASE + DAMAGE_SCALE_PER_LEVEL * max(1, int(level or 50))
 
 
-TRAINING_POINTS_PER_LEVEL = 4  # pontos de treino ganhos por nível
+TRAINING_POINTS_PER_LEVEL = 4  # pontos de treino ganhos por nível (economia antiga)
 TRAINING_CAP = 63             # teto de treino por stat (≈ 252 EVs)
+
+# ── Custom EVs (economia v3): Pontos de Potencial + Treinamento ─────────────
+# Substitui o "+4/nível a custo 1" por orçamento = Potencial + Treinamento e
+# CUSTO PROGRESSIVO por stat: o n-ésimo ponto num stat custa n
+# (custo acumulado = n(n+1)/2). Cada +1 continua valendo +1 no stat (impacto
+# linear em combate), mas concentrar fica caro. Anti-min-max: um stat em
+# múltiplo de 5 trava até outro alcançar o mesmo patamar.
+TRAINING_STATS = ('HP', 'ATK', 'DEF', 'SPA', 'SPD', 'SPE')
+
+
+def parse_evolution_stage(raw):
+    """'2/3' → (2, 3). Sem/malformado → (1, 1) (tratado como sem evolução)."""
+    try:
+        cur, tot = str(raw or '1/1').split('/')
+        cur, tot = int(cur), int(tot)
+        if cur < 1 or tot < 1 or cur > tot:
+            return (1, 1)
+        return (cur, tot)
+    except (ValueError, AttributeError):
+        return (1, 1)
+
+
+def stat_cost(n):
+    """Custo acumulado para ter +n pontos em UM stat: n(n+1)/2."""
+    n = max(0, int(n or 0))
+    return n * (n + 1) // 2
+
+
+def next_point_cost(n):
+    """Custo do PRÓXIMO ponto num stat que já tem +n: n+1."""
+    return max(0, int(n or 0)) + 1
+
+
+def training_spent(training):
+    """Total de pontos do orçamento já gastos na distribuição atual."""
+    return sum(stat_cost(v) for v in (training or {}).values())
+
+
+def potential_points(level, evo_bonus=0, special=0):
+    """Pontos de Potencial = ⌊nível/2⌋ + bônus de evolução + bônus especiais."""
+    return max(1, int(level or 1)) // 2 + int(evo_bonus or 0) + int(special or 0)
+
+
+def _training_rate(stage_current, stage_total):
+    """Ganho de treino por nível como fração (num, den): 1, 1.5 (=3/2) ou 2."""
+    st, tot = int(stage_current or 1), int(stage_total or 1)
+    if tot >= 3:
+        return (1, 1) if st == 1 else (3, 2) if st == 2 else (2, 1)
+    if tot == 2:
+        return (3, 2) if st == 1 else (2, 1)
+    return (2, 1)   # sem evolução = considerado forma final
+
+
+def training_points(level, stage_current, stage_total, bonus=0):
+    """Pontos de Treinamento acumulados até o nível, pelo estágio ATUAL
+    (aproximação: não guardamos histórico de nível por estágio)."""
+    num, den = _training_rate(stage_current, stage_total)
+    return num * (max(1, int(level or 1)) - 1) // den + int(bonus or 0)
+
+
+def points_budget(level, stage_current, stage_total,
+                  evo_bonus=0, special=0, train_bonus=0):
+    """Orçamento total de pontos (Potencial + Treinamento)."""
+    return (potential_points(level, evo_bonus, special)
+            + training_points(level, stage_current, stage_total, train_bonus))
+
+
+def stat_tier_locked(stat_key, training):
+    """Anti min-max: stat em múltiplo de 5 (>0) trava até OUTRO stat alcançar
+    esse mesmo patamar."""
+    tr = training or {}
+    v = int(tr.get(stat_key, 0) or 0)
+    if v > 0 and v % 5 == 0:
+        return not any(k != stat_key and int(tr.get(k, 0) or 0) >= v for k in tr)
+    return False
 
 # Faixas de nível → multiplicador de QUANTIDADE de dados (cortes herdados
 # do sistema antigo: 10/20/40/60/80 — familiares aos jogadores)

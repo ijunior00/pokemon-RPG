@@ -2142,6 +2142,21 @@ def generate_npc():
     db.save_npc(npc)
     return jsonify(npc)
 
+def _carry_evolution_potential(old_poke, evolved, evolved_base):
+    """Custom EVs: ao evoluir, preserva os campos de Potencial e ROLA o bônus
+    permanente (1d6 ao chegar no estágio 2, 1d8 no 3) dos estágios cruzados."""
+    from_cur, _ = bm_core.parse_evolution_stage(
+        old_poke.get('evolutionStage')
+        or (POKEMON_BY_NAME.get((old_poke.get('name') or '').lower()) or {}).get('evolutionStage'))
+    to_cur, _ = bm_core.parse_evolution_stage(evolved_base.get('evolutionStage'))
+    evolved['potential_evo_bonus'] = int(old_poke.get('potential_evo_bonus') or 0) \
+        + migrations.roll_evolution_bonus(from_cur, to_cur)
+    evolved['potential_special'] = old_poke.get('potential_special', 0)
+    evolved['training_bonus'] = old_poke.get('training_bonus', 0)
+    evolved['pp'] = migrations.PP_VERSION
+    return evolved
+
+
 def check_and_evolve_pokemon(pokemon, trainer_level=None):
     """Check if a Pokemon should evolve based on trainer level.
     evolutionInfo stores the required *trainer* level (not pokemon level).
@@ -2213,6 +2228,7 @@ def check_and_evolve_pokemon(pokemon, trainer_level=None):
         'battle_wins': pokemon.get('battle_wins', 0),
         'statPointsAvailable': pokemon.get('statPointsAvailable', 0),
     }
+    _carry_evolution_potential(pokemon, evolved, evolved_base)
     return evolved, evolved_base['name']
 
 
@@ -2387,6 +2403,57 @@ def give_pokemon_xp():
         'leveled_up': leveled_up,
         'evolution': evolution
     })
+
+
+@app.route('/master/pokemon-points', methods=['POST'])
+@login_required
+def give_pokemon_points():
+    """Mestre concede/remove pontos Custom EVs a UM Pokémon do time do jogador:
+    Pontos de Potencial (potential_special) ou de Treinamento (training_bonus),
+    conforme a flexibilidade do sistema (captura, ginásio, evento...)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    player_id = data.get('player_id')
+    pokemon_idx = data.get('pokemon_idx')
+    kind = (data.get('kind') or 'potential').strip()   # 'potential' | 'training'
+    try:
+        amount = int(data.get('amount', 0))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Quantidade inválida'}), 400
+
+    if not player_id or pokemon_idx is None or amount == 0:
+        return jsonify({'error': 'Parâmetros inválidos'}), 400
+    if kind not in ('potential', 'training'):
+        return jsonify({'error': 'Tipo inválido'}), 400
+
+    users = get_users()
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    trainer = users[player_id].get('trainer_data', {})
+    team = trainer.get('team', [])
+    _mig(team)
+    if pokemon_idx < 0 or pokemon_idx >= len(team):
+        return jsonify({'error': 'Pokémon inválido'}), 400
+
+    poke = team[pokemon_idx]
+    field = 'potential_special' if kind == 'potential' else 'training_bonus'
+    poke[field] = max(0, int(poke.get(field) or 0) + amount)   # nunca negativo
+    base = POKEMON_BY_NAME.get((poke.get('name') or '').lower()) \
+        or POKEMON_BY_NUMBER.get(poke.get('number'))
+    # saldo derivado do novo orçamento (a distribuição atual continua válida)
+    budget = migrations.budget_for(poke, base)
+    poke['statPointsAvailable'] = max(0, budget - bm_core.training_spent(poke.get('training') or {}))
+    users[player_id]['trainer_data'] = trainer
+    save_users(users)
+
+    socketio.emit('pokemon_points_update', {
+        'pokemon_idx': pokemon_idx, 'pokemon_name': poke.get('name'),
+        'kind': kind, 'amount': amount,
+        'statPointsAvailable': poke['statPointsAvailable'],
+    }, room=player_id)
+    return jsonify({'success': True, 'field': field, 'value': poke[field],
+                    'statPointsAvailable': poke['statPointsAvailable']})
 
 # ============================================================
 # SITE SETTINGS API
@@ -3502,6 +3569,7 @@ def use_evolution_stone():
         'totalXp': pokemon.get('totalXp', 0),
         'statPointsAvailable': pokemon.get('statPointsAvailable', 0),
     }
+    _carry_evolution_potential(pokemon, evolved, evolved_base)
     team[pokemon_idx] = evolved
 
     # Consume item from bag
@@ -3599,6 +3667,7 @@ def friendship_evolve():
         'totalXp': pokemon.get('totalXp', 0),
         'statPointsAvailable': pokemon.get('statPointsAvailable', 0),
     }
+    _carry_evolution_potential(pokemon, evolved, evolved_base)
     team[pokemon_idx] = evolved
     trainer['team'] = team
     users[current_user.id]['trainer_data'] = trainer
@@ -3699,6 +3768,34 @@ def _mig(pokes):
     return migrations.ensure_v2(pokes, POKEMON_BY_NAME, POKEMON_BY_NUMBER)
 
 
+def _sanitize_training(tr, budget):
+    """Devolve uma distribuição de treino VÁLIDA sob a economia Custom EVs:
+    respeita o orçamento (custo progressivo n(n+1)/2) e o anti-min-max (stat
+    em múltiplo de 5 sem par cai ao múltiplo). Nunca rejeita — clampa — para
+    que o save normal do time (level-up, captura) não quebre."""
+    stats = bm_core.TRAINING_STATS
+    t = {k: max(0, int((tr or {}).get(k, 0) or 0)) for k in stats}
+    # 1) orçamento: reduz o stat de maior valor (maior custo marginal) até caber
+    guard = 0
+    while bm_core.training_spent(t) > budget and guard < 100000:
+        k = max(stats, key=lambda s: t[s])
+        if t[k] <= 0:
+            break
+        t[k] -= 1
+        guard += 1
+    # 2) anti-min-max: stat acima de um múltiplo de 5 sem par cai ao múltiplo
+    changed = True
+    while changed:
+        changed = False
+        for k in stats:
+            v = t[k]
+            m = 5 * ((v - 1) // 5) if v > 0 else 0
+            if m > 0 and not any(o != k and t[o] >= m for o in stats):
+                t[k] = m
+                changed = True
+    return t
+
+
 def _stamp_tatica(team, trainer):
     """Iniciativa: Pokémon de TREINADOR ganham +mod(♟️ Tática)//2 no d20 —
     a decisão mais inteligente sai na frente. Selvagens/NPCs não têm
@@ -3781,20 +3878,26 @@ def update_team():
                 p['is_shiny'] = bool(p.get('is_shiny'))
             p['level'] = level
 
-            tr = p.get('training') or {}
-            cap = bm_core.training_cap(level)
-            tr = {k: max(0, min(cap, int(v or 0))) for k, v in tr.items()}
-            budget = bm_core.training_budget(level)
-            total = sum(tr.values())
-            if total > budget and total > 0:
-                tr = {k: (v * budget) // total for k, v in tr.items()}
-            p['training'] = tr
-            p['statPointsAvailable'] = max(0, budget - sum(tr.values()))
+            # Campos de Potencial são AUTORIDADE DO SERVIDOR (bônus de evolução
+            # rolado, bônus do mestre) — o cliente não pode forjá-los.
+            for f in ('potential_evo_bonus', 'potential_special', 'training_bonus', 'pp'):
+                if prev is not None and f in prev:
+                    p[f] = prev[f]
+                else:
+                    p.pop(f, None)
+            # garante os campos (nova captura / prev não migrado); NÃO reseta
+            # treino se já migrado (pp setado)
+            migrations.migrate_pokemon_pp(p, POKEMON_BY_NAME, POKEMON_BY_NUMBER)
+
+            # Distribuição Custom EVs: custo progressivo n(n+1)/2 + anti-min-max.
+            budget = migrations.budget_for(p, base)
+            p['training'] = _sanitize_training(p.get('training') or {}, budget)
+            p['statPointsAvailable'] = max(0, budget - bm_core.training_spent(p['training']))
             # stats são DERIVADOS (espécie+nível+natureza+shiny+treino):
             # recalcula no save — o cliente nunca é autoridade sobre stats
             scaled = scaling.calculate_pokemon_stats(
                 base, level, p.get('nature') or None,
-                is_shiny=bool(p.get('is_shiny')), training=tr)
+                is_shiny=bool(p.get('is_shiny')), training=p['training'])
             p['stats'] = scaled['stats']
             p['maxHp'] = scaled['maxHp']
             p['hp'] = scaled['maxHp']

@@ -1194,6 +1194,27 @@ async function givePokemonXP() {
     }
 }
 
+async function givePokemonPoints(kind) {
+    const playerId = document.getElementById('poke-xp-player').value;
+    const pokemonIdx = parseInt(document.getElementById('poke-xp-slot').value);
+    const amount = parseInt(document.getElementById('poke-points-amount').value);
+    if (!playerId || isNaN(pokemonIdx) || isNaN(amount) || amount === 0) {
+        alert('Selecione jogador e Pokémon e informe uma quantidade (± diferente de 0).'); return;
+    }
+    const resp = await fetch('/master/pokemon-points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ player_id: playerId, pokemon_idx: pokemonIdx, kind, amount })
+    });
+    const result = await resp.json();
+    if (result.success) {
+        const label = kind === 'training' ? 'Treinamento' : 'Potencial';
+        alert(`✅ ${label}: agora ${result.value} (disponível: ${result.statPointsAvailable})`);
+    } else {
+        alert('❌ Erro: ' + (result.error || 'Falha'));
+    }
+}
+
 async function loadPokemonXPSlots() {
     const playerId = document.getElementById('poke-xp-player').value;
     const slotSelect = document.getElementById('poke-xp-slot');

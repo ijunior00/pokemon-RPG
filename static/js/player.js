@@ -205,6 +205,21 @@ socket.on('encounter_denied', (d) => {
     else alert(d.message || 'Aguarde o Mestre liberar um encontro.');
 });
 
+// Custom EVs: o mestre concedeu/removeu pontos (Potencial ou Treinamento)
+socket.on('pokemon_points_update', (d) => {
+    const poke = (typeof playerTeam !== 'undefined' && playerTeam[d.pokemon_idx]) || null;
+    if (poke) {
+        const field = d.kind === 'training' ? 'training_bonus' : 'potential_special';
+        poke[field] = Math.max(0, (poke[field] || 0) + (d.amount || 0));
+        poke.statPointsAvailable = d.statPointsAvailable;
+        if (window._editingPokeSlot === d.pokemon_idx) renderPokeStatPoints(poke);
+    }
+    const kindLabel = d.kind === 'training' ? 'Treinamento' : 'Potencial';
+    const verb = (d.amount || 0) >= 0 ? 'concedeu' : 'removeu';
+    const msg = `⚡ Mestre ${verb} ${Math.abs(d.amount || 0)} ponto(s) de ${kindLabel} a ${d.pokemon_name}.`;
+    if (typeof showNotification === 'function') showNotification(msg, 'success');
+});
+
 // ============================================
 // BATALHA EM DUPLA (caçada em grupo) — 2v1 / 2v2
 // Painel compartilhado, servidor autoritativo. Ataca só no seu turno.
@@ -2001,15 +2016,9 @@ function editPokemon(slot) {
     document.getElementById('poke-resistances').value = (pokemon.resistances || []).join(', ');
     document.getElementById('poke-notes').value = pokemon.notes || '';
     
-    // Show stat points if available
-    const statPoints = pokemon.statPointsAvailable || 0;
-    const statSection = document.getElementById('poke-stat-points-section');
-    if (statPoints > 0) {
-        statSection.classList.remove('hidden');
-        document.getElementById('poke-stat-points-available').textContent = statPoints;
-    } else {
-        statSection.classList.add('hidden');
-    }
+    // Pontos de Status (Custom EVs) — breakdown + distribuição por stat
+    window._editingPokeSlot = slot;
+    renderPokeStatPoints(pokemon);
     
     // Show XP bar
     const totalXp = pokemon.totalXp || 0;
@@ -5276,9 +5285,12 @@ function checkPokemonLevelUp(poke) {
     if (totalXp >= xpForNext) {
         const oldLevel = currentLevel;
         poke.level = currentLevel + 1;
-        // Sistema v2: +4 pontos de treino por nível (saldo derivado do budget)
-        const spent = Object.values(poke.training || {}).reduce((a, b) => a + (b || 0), 0);
-        poke.statPointsAvailable = Math.max(0, BattleMath.trainingBudget(poke.level) - spent);
+        // Custom EVs: saldo derivado do orçamento (Potencial + Treinamento) menos
+        // o custo progressivo já gasto
+        const [ec, et] = BattleMath.parseEvolutionStage(poke.evolutionStage);
+        const budget = BattleMath.pointsBudget(poke.level, ec, et,
+            poke.potential_evo_bonus || 0, poke.potential_special || 0, poke.training_bonus || 0);
+        poke.statPointsAvailable = Math.max(0, budget - BattleMath.trainingSpent(poke.training || {}));
         // Stats/HP recalculados pela fórmula v2 no refresh via /api/pokemon/stats
         // (updatePokemonInSheet); aqui só o full heal de level-up
         poke.currentHp = poke.maxHp; // Full heal on level up
@@ -5757,53 +5769,87 @@ async function processWildStatusMove(moveName) {
 // ============================================
 // STAT POINT DISTRIBUTION (Pokemon)
 // ============================================
-function distributeStat(stat) {
+// ── Custom EVs: orçamento (Potencial + Treinamento) e distribuição ──
+const EV_STATS = [
+    ['HP', 'HP'], ['ATK', 'Ataque'], ['DEF', 'Defesa'],
+    ['SPA', 'Atq. Esp.'], ['SPD', 'Def. Esp.'], ['SPE', 'Velocidade'],
+];
+
+function pokePointsBudget(poke) {
+    const [cur, tot] = BattleMath.parseEvolutionStage(poke.evolutionStage);
+    return BattleMath.pointsBudget(
+        poke.level || 1, cur, tot,
+        poke.potential_evo_bonus || 0, poke.potential_special || 0, poke.training_bonus || 0);
+}
+
+function renderPokeStatPoints(poke) {
+    const box = document.getElementById('poke-stat-distribute');
+    const bd = document.getElementById('poke-points-breakdown');
+    if (!box) return;
+    if (!poke.training) poke.training = {};
+    const [cur, tot] = BattleMath.parseEvolutionStage(poke.evolutionStage);
+    const potential = BattleMath.potentialPoints(
+        poke.level || 1, poke.potential_evo_bonus || 0, poke.potential_special || 0);
+    const trainTotal = BattleMath.trainingPoints(
+        poke.level || 1, cur, tot, poke.training_bonus || 0);
+    const budget = potential + trainTotal;
+    const spent = BattleMath.trainingSpent(poke.training);
+    const avail = Math.max(0, budget - spent);
+    poke.statPointsAvailable = avail;
+
+    if (bd) bd.innerHTML =
+        `⭐ <strong>Potencial</strong>: ${potential} `
+        + `<span style="opacity:.7">(⌊${poke.level||1}/2⌋=${Math.floor((poke.level||1)/2)}`
+        + `${poke.potential_evo_bonus ? ' + evolução '+poke.potential_evo_bonus : ''}`
+        + `${poke.potential_special ? ' + mestre '+poke.potential_special : ''})</span><br>`
+        + `🏋️ <strong>Treinamento</strong>: ${trainTotal} `
+        + `<span style="opacity:.7">(estágio ${cur}/${tot}${poke.training_bonus ? ' + mestre '+poke.training_bonus : ''})</span><br>`
+        + `💰 <strong>Orçamento</strong>: ${budget} · Gasto: ${spent} · `
+        + `<strong style="color:var(--accent)">Disponível: ${avail}</strong>`;
+
+    box.innerHTML = EV_STATS.map(([key, label]) => {
+        const n = poke.training[key] || 0;
+        const cost = BattleMath.nextPointCost(n);
+        const locked = BattleMath.statTierLocked(key, poke.training);
+        const canUp = !locked && avail >= cost;
+        const lockHint = locked ? ` title="Travado: +${n} é múltiplo de 5. Outro stat precisa alcançar +${n}."` : '';
+        return `<div class="ev-row">
+            <span class="ev-label">${label}</span>
+            <button type="button" class="ev-btn" onclick="distributeStat('${key}',-1)" ${n <= 0 ? 'disabled' : ''}>−</button>
+            <span class="ev-val">+${n}</span>
+            <button type="button" class="ev-btn"${lockHint} onclick="distributeStat('${key}',1)" ${canUp ? '' : 'disabled'}>+</button>
+            <span class="ev-cost">${locked ? '🔒' : 'próx: ' + cost + 'pt'}</span>
+        </div>`;
+    }).join('');
+}
+
+function distributeStat(stat, delta = 1) {
     const slot = window._editingPokeSlot;
     if (slot === undefined || slot === null) return;
     const poke = playerTeam[slot];
     if (!poke) return;
-    
-    const available = poke.statPointsAvailable || 0;
-    if (available <= 0) {
-        alert('Sem pontos disponíveis!');
-        return;
-    }
-
-    // Sistema v2: ponto vai para o TREINO (stat final = espécie + nível +
-    // natureza + treino), com teto por stat — nunca edita o stat direto
     if (!poke.training) poke.training = {};
-    const cap = BattleMath.trainingCap(poke.level || 1);
-    if ((poke.training[stat] || 0) >= cap) {
-        alert(`Teto de treino de ${stat} neste nível: ${cap} pontos.`);
-        return;
-    }
-    poke.training[stat] = (poke.training[stat] || 0) + 1;
-    poke.statPointsAvailable = available - 1;
+    const n = poke.training[stat] || 0;
 
-    // aplica o efeito imediato no stat exibido (+1) — o valor oficial vem do
-    // recálculo do servidor no próximo load/save
-    if (!poke.stats) poke.stats = {};
-    if (stat === 'HP') {
-        poke.maxHp = (poke.maxHp || 20) + 1;
-        poke.currentHp = Math.min((poke.currentHp || poke.maxHp) + 1, poke.maxHp);
-        document.getElementById('poke-max-hp').value = poke.maxHp;
-        document.getElementById('poke-current-hp').value = poke.currentHp;
+    if (delta > 0) {
+        if (BattleMath.statTierLocked(stat, poke.training)) {
+            alert(`🔒 ${stat} está em +${n} (múltiplo de 5). Suba outro stat até +${n} para continuar.`);
+            return;
+        }
+        const budget = pokePointsBudget(poke);
+        const avail = budget - BattleMath.trainingSpent(poke.training);
+        if (avail < BattleMath.nextPointCost(n)) {
+            alert('Sem pontos suficientes para o próximo ponto deste stat!');
+            return;
+        }
+        poke.training[stat] = n + 1;
     } else {
-        poke.stats[stat] = (poke.stats[stat] || 10) + 1;
+        if (n <= 0) return;
+        poke.training[stat] = n - 1;
     }
-    
-    // Map new stat names to input IDs (inputs still use old IDs)
-    const statToInput = { 'ATK': 'poke-str', 'DEF': 'poke-dex', 'SPA': 'poke-con', 'SPD': 'poke-int', 'SPE': 'poke-wis', 'HP': 'poke-cha' };
-    const inputId = statToInput[stat];
-    if (inputId) document.getElementById(inputId).value = poke.stats[stat];
-    
-    document.getElementById('poke-stat-points-available').textContent = poke.statPointsAvailable;
-    
-    if (poke.statPointsAvailable <= 0) {
-        document.getElementById('poke-stat-points-section').classList.add('hidden');
-    }
-    
-    // Auto-save
+
+    renderPokeStatPoints(poke);
+    renderStatBars(poke);
     saveTeam();
 }
 
