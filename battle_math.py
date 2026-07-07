@@ -130,6 +130,57 @@ FIXED_DAMAGE_FORMULAS = {
     'super fang':   lambda level, target_hp: max(1, (target_hp or 2) // 2),
 }
 
+# Power REPRESENTATIVO para moves de dano de potência VARIÁVEL (peso, HP,
+# felicidade, velocidade...). Sem isso o move caía em "mestre adjudica" (dano
+# 0). Usamos um valor médio p/ o move ter dano automático coerente. Moves de
+# RETALIAÇÃO (Counter/Mirror Coat/Metal Burst) dependem do dano recebido e
+# continuam adjudicados pelo mestre.
+VARIABLE_POWER = {
+    'return': 90, 'frustration': 90,          # felicidade
+    'low kick': 60, 'grass knot': 60,          # peso do alvo
+    'heavy slam': 80, 'heat crash': 80,        # razão de peso
+    'gyro ball': 70, 'electro ball': 70,       # razão de velocidade
+    'flail': 80, 'reversal': 80,               # HP do usuário (baixo = forte)
+    'crush grip': 80, 'wring out': 80,         # HP do alvo
+    'magnitude': 70, 'present': 60,            # aleatório
+    'natural gift': 80, 'punishment': 60,      # item / buffs do alvo
+    'trump card': 70, 'spit up': 60,           # PP / stockpile
+    'hidden power': 60,                        # tipo/força variável
+}
+
+
+# ── Stats por nível ────────────────────────────────────────────────────────
+# ── Crítico (sistema de estágios v2) ────────────────────────────────────────
+# Moves de alta taxa de crítico (canon): +1 estágio. Base = só nat 20; cada
+# estágio abaixa o limiar em 1 (teto 17 = crítico em 17-20).
+HIGH_CRIT_MOVES = {
+    'slash', 'razor leaf', 'crabhammer', 'karate chop', 'aeroblast', 'air cutter',
+    'attack order', 'blaze kick', 'cross chop', 'cross poison', 'drill run',
+    'leaf blade', 'night slash', 'poison tail', 'psycho cut', 'razor wind',
+    'shadow claw', 'sky attack', 'spacial rend', 'stone edge', 'razor shell',
+    'snipe shot', 'esper wing', 'shell side arm',
+}
+
+
+def crit_threshold(crit_stage=0):
+    """Limiar do d20 p/ crítico: base 20; cada estágio -1, teto 17."""
+    return max(17, 20 - int(crit_stage or 0))
+
+
+def crit_stage_for(move_name, ability=None, focus_energy=False):
+    """Estágio de crítico do golpe: move de alta taxa (+1), Super Luck (+1),
+    Focus Energy ativo (+2). `ability` pode ser str ou dict {'name':...}."""
+    if isinstance(ability, dict):
+        ability = ability.get('name', '')
+    stage = 0
+    if (move_name or '').lower() in HIGH_CRIT_MOVES:
+        stage += 1
+    if str(ability or '').strip().lower() == 'super luck':
+        stage += 1
+    if focus_energy:
+        stage += 2
+    return stage
+
 
 # ── Stats por nível ────────────────────────────────────────────────────────
 def stat_at_level(base, level, training=0):

@@ -746,6 +746,26 @@ def main():
     check(S, 'Dragon Rage = dano fixo escalado ((15+nível//4) × escala)',
           _dr['damage'] == _dr_exp, f"{_dr['damage']} (esperado {_dr_exp})")
 
+    # ── Revisão de combate: potência variável, crítico por estágios, categoria ──
+    # Return (potência variável) agora dá dano em vez de "mestre adjudica"
+    _rt = appmod._calc_pvp_attack(make_poke('Pikachu', 30), make_poke('Rattata', 30), 'Return', 15)
+    check(S, 'Return (potência variável) causa dano (não fica adjudicado)',
+          _rt['hit'] and _rt['damage'] > 0, str(_rt.get('damage')))
+    # crítico por estágios: Super Luck baixa o limiar; Night Slash + Super Luck = 18
+    check(S, 'crit_threshold: nat 20 base, Super Luck 19, Night Slash+SL 18',
+          bmm.crit_threshold(0) == 20 and
+          bmm.crit_threshold(bmm.crit_stage_for('X', 'Super Luck')) == 19 and
+          bmm.crit_threshold(bmm.crit_stage_for('Night Slash', 'Super Luck')) == 18)
+    # d20=19: com Super Luck é crítico; sem, não (Mega Punch NÃO é alta-taxa)
+    _p = make_poke('Machamp', 40); _p['ability'] = 'Super Luck'
+    _c19 = appmod._calc_pvp_attack(_p, make_poke('Snorlax', 40), 'Mega Punch', 19)
+    _n19 = appmod._calc_pvp_attack(make_poke('Machamp', 40), make_poke('Snorlax', 40), 'Mega Punch', 19)
+    check(S, 'Super Luck: d20=19 vira crítico (só com a habilidade)',
+          _c19.get('is_crit') is True and _n19.get('is_crit') is not True)
+    # Magnitude recategorizado p/ físico (usa ATK, não SPA)
+    check(S, 'Magnitude é físico (categoria corrigida)',
+          (appmod.MOVES_BY_NAME.get('magnitude') or {}).get('category') == 'physical')
+
     # ── Custom EVs: Pontos de Potencial + Treinamento ──
     check(S, 'custo progressivo n(n+1)/2', bmm.stat_cost(10) == 55 and bmm.stat_cost(4) == 10)
     check(S, 'potencial = ⌊nv/2⌋ + evo + especial', bmm.potential_points(40, 12) == 32)

@@ -76,6 +76,31 @@ const BattleMath = (() => {
         return potentialPoints(level, evoBonus, special)
              + trainingPoints(level, stageCur, stageTot, trainBonus);
     }
+    // Power representativo p/ moves de potência variável (espelho do servidor)
+    const VARIABLE_POWER = {
+        'return': 90, 'frustration': 90, 'low kick': 60, 'grass knot': 60,
+        'heavy slam': 80, 'heat crash': 80, 'gyro ball': 70, 'electro ball': 70,
+        'flail': 80, 'reversal': 80, 'crush grip': 80, 'wring out': 80,
+        'magnitude': 70, 'present': 60, 'natural gift': 80, 'punishment': 60,
+        'trump card': 70, 'spit up': 60, 'hidden power': 60,
+    };
+
+    // ── Crítico (estágios) ──
+    const HIGH_CRIT_MOVES = new Set(['slash','razor leaf','crabhammer','karate chop',
+        'aeroblast','air cutter','attack order','blaze kick','cross chop','cross poison',
+        'drill run','leaf blade','night slash','poison tail','psycho cut','razor wind',
+        'shadow claw','sky attack','spacial rend','stone edge','razor shell','snipe shot',
+        'esper wing','shell side arm']);
+    function critThreshold(critStage = 0) { return Math.max(17, 20 - (critStage | 0)); }
+    function critStageFor(moveName, ability, focusEnergy) {
+        if (ability && typeof ability === 'object') ability = ability.name || '';
+        let s = 0;
+        if (HIGH_CRIT_MOVES.has((moveName || '').toLowerCase())) s += 1;
+        if (String(ability || '').trim().toLowerCase() === 'super luck') s += 1;
+        if (focusEnergy) s += 2;
+        return s;
+    }
+
     function statTierLocked(statKey, training) {
         const tr = training || {};
         const v = (tr[statKey] | 0);
@@ -156,5 +181,6 @@ const BattleMath = (() => {
         defenseTax, damage, stageMult, initiativeBonus, fixedDamageFor,
         TRAINING_STATS, parseEvolutionStage, statCost, nextPointCost, trainingSpent,
         potentialPoints, trainingPoints, pointsBudget, statTierLocked,
+        HIGH_CRIT_MOVES, critThreshold, critStageFor, VARIABLE_POWER,
     };
 })();

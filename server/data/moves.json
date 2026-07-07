@@ -4452,7 +4452,7 @@
   "higherLevels": "Para rolagens de dano, use 2x os dados no nível 5, 3x os dados no nível 10 e 4x os dados no nível 17.",
   "baseDamage": "1d4",
   "saveType": "DES",
-  "category": "special"
+  "category": "physical"
  },
  "Mat Block": {
   "name": "Mat Block",
@@ -4946,7 +4946,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d8 no nível 5, 2d12 no nível 10 e 6d6 no nível 17.",
   "baseDamage": "1d12",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Nature Power": {
   "name": "Nature Power",
@@ -5622,7 +5622,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d4 no nível 5, 1d12 no nível 10 e 4d4 no nível 17.",
   "baseDamage": "1d6",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Prismatic Laser": {
   "name": "Prismatic Laser",
@@ -5805,7 +5805,7 @@
   "higherLevels": "O dado de dano para este Move muda para 2d10 no nível 5, 3d10 no nível 10 e 4d10 no nível 17.",
   "baseDamage": "1d10",
   "attackType": "ranged",
-  "category": "special"
+  "category": "physical"
  },
  "Purify": {
   "name": "Purify",
@@ -8698,7 +8698,7 @@
   "higherLevels": "Os dados de dano para este Move mudam para 5d6 no nível 5, 4d12 no nível 10 e 8d8 no nível 17.",
   "baseDamage": "3d8",
   "attackType": "melee",
-  "category": "physical"
+  "category": "special"
  },
  "X-Scissor": {
   "name": "X-Scissor",

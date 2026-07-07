@@ -294,7 +294,7 @@ def check_status_on_hit(move_name, attack_roll, damage_dealt):
         if random.random() < chance:
             return effect['status'], True
     elif trigger in ('save_fail', 'next_turn'):
-        # Treat as automatic on hit (server can roll saving throw if needed)
+        # Aplica pela chance do move (sistema v2 — sem teste de resistência D&D)
         if random.random() < chance:
             return effect['status'], True
 
@@ -664,10 +664,10 @@ def auto_detect_move_effect(move_data):
         'final gambit': {'type': 'fixed_damage', 'formula': 'user_hp'},  # canon: dano = seu HP; você desmaia
         'perish song': {'type': 'fixed_damage', 'formula': 'half_level', 'self': True},  # fere ambos
         'pain split': {'type': 'pain_split'},                          # canon: divide os HPs igualmente
-        # OHKO (homebrew: save com +4 de bônus; falhou → desmaia)
-        'fissure': {'type': 'ohko', 'save': 'DEX'},
-        'guillotine': {'type': 'ohko', 'save': 'CON'},
-        'horn drill': {'type': 'ohko', 'save': 'CON'},
+        # OHKO (v2: d20 vs accuracy canônica ~30%; acertou → desmaia)
+        'fissure': {'type': 'ohko'},
+        'guillotine': {'type': 'ohko'},
+        'horn drill': {'type': 'ohko'},
         # Haze: anula TODOS os buffs/debuffs acumulados (dos dois lados)
         'haze': {'type': 'reset_stages'},
         # Operações sobre stat stages (copiar/trocar/inverter)

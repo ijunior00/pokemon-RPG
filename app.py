@@ -303,7 +303,12 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     if attack_roll is None:
         attack_roll = random.randint(1, 20)
     d20 = int(attack_roll)
-    is_crit = d20 == 20
+    # Crítico por estágios (v2): nat 20 sempre; moves de alta taxa / Super Luck
+    # / Focus Energy abaixam o limiar (17-20 no máximo)
+    _crit_stage = bm_core.crit_stage_for(
+        move_name, attacker_poke.get('ability'),
+        bool(attacker_poke.get('focus_energy')))
+    is_crit = d20 >= bm_core.crit_threshold(_crit_stage)
     atk_stage = effects.attack_roll_bonus(attacker_poke)
     evasion = effects.ac_bonus(defender_poke)
     thr = bm_core.miss_threshold(accuracy)
@@ -317,6 +322,10 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
                 'log': f'{met}❌ Errou! d20({d20}){shift} ≤ limiar {thr} ({acc_label})'}
 
     # ── Dano: dados do Power × razão de stats × postura ──
+    if not power:
+        # potência VARIÁVEL (Return, Low Kick, Gyro Ball...) ganha um Power
+        # representativo p/ dar dano em vez de "mestre adjudica"
+        power = bm_core.VARIABLE_POWER.get(move_name.lower())
     if not power:
         # moves de DANO FIXO (Dragon Rage, Sonic Boom, Seismic Toss...) têm
         # power None no canônico — resolvidos pela tabela do battle_math
@@ -2834,32 +2843,33 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     # Validate moves against database - only keep moves that actually exist
     move_pool = [m for m in move_pool if m.lower() in MOVES_BY_NAME or m in MOVES_DB]
     
-    # Monta 4 moves garantindo pelo menos 2 ofensivos (com Power) — antes o
-    # selvagem às vezes vinha só com status/lixo e a batalha não tinha graça.
+    # Moveset do selvagem: 2 PRINCIPAIS fixos (melhores golpes ofensivos
+    # naturais da espécie p/ o nível) + 2 SECUNDÁRIOS aleatórios (cobertura,
+    # suporte, status). Mantém identidade da espécie com variedade por encontro.
     def _mv_power(m):
         try:
-            return int(canon_move(m).get('power') or 0)
+            return int(canon_move(m).get('power') or 0) or \
+                int(bm_core.VARIABLE_POWER.get(m.lower(), 0))
         except (TypeError, ValueError):
             return 0
-    offensive = [m for m in move_pool if _mv_power(m) > 0]
-    others = [m for m in move_pool if _mv_power(m) <= 0]
-    # ofensivos mais fortes primeiro; usa os melhores até 4
-    offensive.sort(key=_mv_power, reverse=True)
-    wild_moves = []
-    for m in offensive[:4]:
-        wild_moves.append(m)
-    # completa com moves de status/utilidade (os de nível mais alto do pool)
-    for m in reversed(others):
+    offensive = sorted((m for m in move_pool if _mv_power(m) > 0),
+                       key=_mv_power, reverse=True)
+    # 2 principais = os 2 golpes ofensivos mais fortes disponíveis
+    fixed = offensive[:2]
+    # secundários = todo o resto (ofensivos extras + status/suporte), embaralhado
+    secondary_pool = [m for m in move_pool if m not in fixed]
+    random.shuffle(secondary_pool)
+    wild_moves = list(fixed)
+    for m in secondary_pool:
         if len(wild_moves) >= 4:
             break
         if m not in wild_moves:
             wild_moves.append(m)
-    if not wild_moves:
-        wild_moves = ['Tackle']
-    # preserva ordenação por nível quando há ofensivos suficientes, mas nunca
-    # deixa o set sem ataque: se por acaso só sobrou status, injeta Tackle
+    # garantia mínima: sempre ter ao menos 1 golpe de dano
     if not any(_mv_power(m) > 0 for m in wild_moves):
         wild_moves = (['Tackle'] + wild_moves)[:4]
+    if not wild_moves:
+        wild_moves = ['Tackle']
     
     # Calculate scaled stats for the wild pokemon.
     # Shiny: +35% nos atributos BASE antes do escalonamento (SHINY_MULT em
