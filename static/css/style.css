@@ -671,6 +671,26 @@ h1, h2 {
 .ev-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 .ev-val { flex: 0 0 2.5rem; text-align: center; font-weight: 800; color: var(--accent); }
 .ev-cost { flex: 1; text-align: right; font-size: 0.72rem; color: var(--text-muted); }
+/* Caminho do Treinador */
+.path-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.6rem; }
+.path-card { text-align: left; background: var(--darker); border: 2px solid var(--card-border); border-radius: var(--radius); padding: 0.7rem; cursor: pointer; transition: border-color 0.15s, transform 0.1s; color: var(--text); }
+.path-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.path-emoji { font-size: 1.8rem; }
+.path-emoji-lg { font-size: 2.2rem; }
+.path-name { font-weight: 800; color: var(--accent); }
+.path-motto { font-style: italic; font-size: 0.78rem; color: var(--text-muted); margin: 0.2rem 0; }
+.path-desc { font-size: 0.76rem; color: var(--text-muted); }
+.path-header { display: flex; align-items: center; gap: 0.7rem; padding: 0.5rem 0.2rem 0.75rem; }
+.path-milestone { border: 1px solid var(--card-border); border-radius: var(--radius); padding: 0.6rem; margin-bottom: 0.6rem; }
+.path-milestone.locked { opacity: 0.55; }
+.path-ms-title { font-weight: 700; color: var(--accent); margin-bottom: 0.4rem; }
+.path-ms-locked { font-size: 0.78rem; color: var(--text-muted); }
+.path-talent { background: var(--card-bg); border-left: 3px solid var(--accent); border-radius: 4px; padding: 0.5rem; font-size: 0.85rem; }
+.path-talent small { color: var(--text-muted); }
+.path-options { display: grid; gap: 0.4rem; }
+.path-option { text-align: left; background: var(--darker); border: 1px solid var(--card-border); border-radius: 4px; padding: 0.5rem; cursor: pointer; color: var(--text); font-size: 0.82rem; transition: border-color 0.15s; }
+.path-option:hover { border-color: var(--accent); }
+.path-option small { color: var(--text-muted); }
 .trainer-name-input { background: transparent; border: none; border-bottom: 2px solid var(--accent); color: var(--accent); font-size: 1.5rem; font-weight: 800; padding: 0.3rem; width: 250px; }
 .trainer-name-input:focus { outline: none; border-color: var(--primary); }
 

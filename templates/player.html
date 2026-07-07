@@ -672,21 +672,12 @@
 
                 <div class="trainer-section">
                     <h4>🎯 Caminho do Treinador</h4>
-                    <div class="form-group">
-                        <label>Caminho (Nível 2)</label>
-                        <select id="trainer-path">
-                            <option value="" {% if not trainer.path %}selected{% endif %}>Selecionar...</option>
-                            <option value="Treinador Ás" {% if trainer.path == 'Treinador Ás' %}selected{% endif %}>Treinador Ás</option>
-                            <option value="Versátil" {% if trainer.path == 'Versátil' %}selected{% endif %}>Versátil</option>
-                            <option value="Mentor Pokémon" {% if trainer.path == 'Mentor Pokémon' %}selected{% endif %}>Mentor Pokémon</option>
-                            <option value="Pesquisador" {% if trainer.path == 'Pesquisador' %}selected{% endif %}>Pesquisador</option>
-                            <option value="Colecionador Pokémon" {% if trainer.path == 'Colecionador Pokémon' %}selected{% endif %}>Colecionador Pokémon</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="position:relative;">
+                    <!-- Preenchido por renderTrainerPath() a partir de /player/path -->
+                    <div id="trainer-path-panel"></div>
+                    <div class="form-group" style="position:relative;margin-top:0.75rem;">
                         <label>Especializações</label>
-                        <input type="text" id="trainer-specializations" 
-                               value="{{ trainer.specializations or '' }}" 
+                        <input type="text" id="trainer-specializations"
+                               value="{{ trainer.specializations or '' }}"
                                placeholder="Digite para buscar..." autocomplete="off">
                         <div id="spec-autocomplete" class="autocomplete-results"></div>
                     </div>

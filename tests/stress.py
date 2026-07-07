@@ -923,6 +923,35 @@ def main():
     check(S, 'roll_initiative soma SPE//10 + Tática',
           min(_rolls) >= 1 + _spe_b + 2 and max(_rolls) <= 20 + _spe_b + 2)
 
+    # ── Caminho do Treinador (4 caminhos, marcos 3/6/10) ──
+    def _afinidade():
+        d = p1.get('/api/skill/list').get_json() or {}
+        return {s['skill']: s['bonus'] for s in d.get('skills', [])}.get('Afinidade')
+    _before = _afinidade()
+    _ps = p1.get('/player/path').get_json() or {}
+    check(S, 'caminho desbloqueado no nível 2 e ainda sem escolha',
+          _ps.get('unlocked') is True and _ps.get('path') is None)
+    r = p1.post('/player/path', json={'action': 'choose_path', 'path': 'guardiao'})
+    check(S, 'escolher Caminho do Guardião', r.status_code == 200 and
+          (r.get_json() or {}).get('path') == 'guardiao')
+    check(S, 'caminho é permanente (re-escolha rejeitada)',
+          p1.post('/player/path', json={'action': 'choose_path', 'path': 'estrategista'}).status_code == 400)
+    # marco de nível 6 travado com treinador nível 5
+    check(S, 'talento de nível 6 travado no nível 5',
+          p1.post('/player/path', json={'action': 'choose_ability', 'milestone': 6, 'ability_id': 'reabilitacao'}).status_code == 400)
+    # Empatia (nível 3) = +1 Afinidade, aplicado na hora
+    r = p1.post('/player/path', json={'action': 'choose_ability', 'milestone': 3, 'ability_id': 'empatia'})
+    check(S, 'escolher Empatia (nível 3)', r.status_code == 200)
+    check(S, 'Empatia aplica +1 Afinidade automaticamente na perícia',
+          _afinidade() == (_before or 0) + 1, f'{_before} -> {_afinidade()}')
+    check(S, 'talento do marco é permanente (re-escolha rejeitada)',
+          p1.post('/player/path', json={'action': 'choose_ability', 'milestone': 3, 'ability_id': 'empatia'}).status_code == 400)
+    # limpa o caminho p/ não contaminar as próximas seções
+    users = db.get_users()
+    users[u1]['trainer_data'].pop('path', None)
+    users[u1]['trainer_data'].pop('path_abilities', None)
+    db.save_users(users)
+
     # ficha 100% v2: save do time recalcula stats e some com chaves D&D
     users = db.get_users()
     _team_junk = [{'name': 'Pikachu', 'number': 25, 'level': 10, 'sv': 2,

@@ -2733,7 +2733,6 @@ async function saveTrainerData() {
         hp_current: parseInt(document.getElementById('trainer-hp-current').value) || 8,
         race: document.getElementById('trainer-race').value,
         background: document.getElementById('trainer-background').value,
-        path: document.getElementById('trainer-path').value,
         specializations: document.getElementById('trainer-specializations').value,
         proficiencies: document.getElementById('trainer-proficiencies').value,
         pokeslots: parseInt(document.getElementById('trainer-pokeslots').value) || 3,
@@ -2809,6 +2808,90 @@ async function renderStatBars(pokemon) {
 }
 
 // ============================================
+// CAMINHO DO TREINADOR (4 caminhos, marcos nos níveis 3/6/10)
+// ============================================
+async function renderTrainerPath() {
+    const box = document.getElementById('trainer-path-panel');
+    if (!box) return;
+    let st;
+    try {
+        st = await (await fetch('/player/path')).json();
+    } catch (e) { return; }
+    window._pathState = st;
+
+    if (!st.unlocked) {
+        box.innerHTML = `<p style="color:var(--text-muted);font-size:0.85rem;">
+            🔒 O Caminho do Treinador é desbloqueado no <strong>Nível 2</strong>.</p>`;
+        return;
+    }
+    // ainda sem caminho: mostra os 4 para escolher (permanente)
+    if (!st.path) {
+        box.innerHTML = `<p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.5rem;">
+            Escolha <strong>um</strong> Caminho — a decisão é <strong>permanente</strong> (só o Mestre pode mudar).</p>`
+            + `<div class="path-grid">` + Object.entries(st.paths_catalog).map(([id, p]) => `
+            <button type="button" class="path-card" onclick="choosePath('${id}')">
+                <div class="path-emoji">${p.emoji}</div>
+                <div class="path-name">${p.name}</div>
+                <div class="path-motto">"${p.motto}"</div>
+                <div class="path-desc">${p.desc}</div>
+            </button>`).join('') + `</div>`;
+        return;
+    }
+    // caminho escolhido: cabeçalho + marcos
+    const cat = st.paths_catalog[st.path];
+    let html = `<div class="path-header">
+        <span class="path-emoji-lg">${cat.emoji}</span>
+        <div><div class="path-name">Caminho do ${cat.name}</div>
+        <div class="path-motto">"${cat.motto}"</div></div></div>`;
+
+    st.milestones.forEach(ms => {
+        const chosenId = ms.chosen;
+        const chosen = chosenId ? ms.options.find(o => o.id === chosenId) : null;
+        html += `<div class="path-milestone ${ms.unlocked ? '' : 'locked'}">
+            <div class="path-ms-title">Nível ${ms.level} ${ms.unlocked ? '' : '🔒'}${chosen ? ' ✓' : ''}</div>`;
+        if (chosen) {
+            html += `<div class="path-talent"><strong>${chosen.name}</strong><br>
+                <small>${chosen.desc}</small></div>`;
+        } else if (ms.unlocked) {
+            html += `<div class="path-options">` + ms.options.map(o => `
+                <button type="button" class="path-option" onclick="choosePathAbility(${ms.level},'${o.id}')">
+                    <strong>${o.name}</strong><br><small>${o.desc}</small>
+                </button>`).join('') + `</div>`;
+        } else {
+            html += `<div class="path-ms-locked">Desbloqueia no nível ${ms.level}.</div>`;
+        }
+        html += `</div>`;
+    });
+    box.innerHTML = html;
+}
+
+async function choosePath(pathId) {
+    const cat = (window._pathState?.paths_catalog || {})[pathId];
+    if (!confirm(`Escolher o Caminho do ${cat ? cat.name : pathId}? Esta decisão é permanente.`)) return;
+    await postPath({ action: 'choose_path', path: pathId });
+}
+
+async function choosePathAbility(milestone, abilityId) {
+    const opt = (window._pathState?.milestones || [])
+        .find(m => m.level === milestone)?.options.find(o => o.id === abilityId);
+    if (!confirm(`Escolher "${opt ? opt.name : abilityId}"? A escolha do marco é permanente.`)) return;
+    await postPath({ action: 'choose_ability', milestone, ability_id: abilityId });
+}
+
+async function postPath(body) {
+    try {
+        const resp = await fetch('/player/path', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const out = await resp.json();
+        if (!resp.ok) { alert('⚠️ ' + (out.error || 'Falha')); return; }
+        await renderTrainerPath();
+        renderTrainerSkills();   // bônus de perícia aparecem na hora
+    } catch (e) { alert('⚠️ Erro de conexão.'); }
+}
+
+// ============================================
 // PERÍCIAS DO TREINADOR (13) — teste = d20 + mod (+prof); Sorte = ½ mod DET
 // ============================================
 async function renderTrainerSkills() {
@@ -2881,6 +2964,7 @@ async function rollSkill(skill) {
 }
 
 document.addEventListener('DOMContentLoaded', renderTrainerSkills);
+document.addEventListener('DOMContentLoaded', renderTrainerPath);
 
 const TRAINER_ATTRS = ['vinculo','tatica','conhecimento','agilidade','influencia','determinacao'];
 function updateModifiers() {

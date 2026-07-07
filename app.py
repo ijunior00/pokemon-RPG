@@ -3813,7 +3813,7 @@ def _stamp_tatica(team, trainer):
     if not isinstance(trainer, dict) or not trainer:
         return 0
     trainer_attrs.migrate_trainer(trainer)
-    bonus = trainer_attrs.mod(trainer.get('tatica', 10)) // 2
+    bonus = trainer_attrs.attr_mod(trainer, 'tatica') // 2
     for p in (team or []):
         if isinstance(p, dict):
             p['trainer_init_bonus'] = bonus
@@ -3937,8 +3937,10 @@ def update_trainer():
         # pokeslots, max_sr e pokedex_seen saíram daqui de propósito: mudam
         # só por fluxos do servidor (loja, quest, PvP, ginásio, Pokédex) —
         # senão o jogador se dava dinheiro/insígnias infinitos.
+        # 'path' saiu daqui: o Caminho do Treinador é gerenciado por /player/path
+        # (permanente, com gate de nível) — não é campo livre.
         allowed_fields = ['name', 'visited_routes', 'notes',
-                         'race', 'background', 'path', 'specializations',
+                         'race', 'background', 'specializations',
                          'str', 'dex', 'con', 'int', 'wis', 'cha',
                          'skill_profs',
                          'hp_max', 'hp_current', 'proficiencies',
@@ -3987,6 +3989,36 @@ def update_trainer():
         save_users(users)
         return jsonify({'success': True})
     return jsonify({'error': 'User not found'}), 404
+
+
+@app.route('/player/path', methods=['GET', 'POST'])
+@login_required
+def player_path():
+    """Caminho do Treinador: GET devolve o estado; POST escolhe o caminho (nv 2,
+    permanente) ou uma habilidade de marco (nv 3/6/10, 1 de 3)."""
+    users = get_users()
+    if current_user.id not in users:
+        return jsonify({'error': 'User not found'}), 404
+    trainer = users[current_user.id].setdefault('trainer_data', {})
+    trainer_attrs.migrate_trainer(trainer)
+
+    if request.method == 'GET':
+        return jsonify(trainer_attrs.path_state(trainer))
+
+    data = request.json or {}
+    action = data.get('action')
+    if action == 'choose_path':
+        ok, err = trainer_attrs.choose_path(trainer, data.get('path'))
+    elif action == 'choose_ability':
+        ok, err = trainer_attrs.choose_path_ability(
+            trainer, data.get('milestone'), data.get('ability_id'))
+    else:
+        return jsonify({'error': 'Ação inválida'}), 400
+    if not ok:
+        return jsonify({'error': err}), 400
+    save_users(users)
+    return jsonify(dict(trainer_attrs.path_state(trainer), success=True))
+
 
 @app.route('/player/avatar', methods=['POST'])
 @login_required
@@ -4107,9 +4139,12 @@ def _influence_value(trainer):
     do CAR antigo pela migração automática."""
     trainer_attrs.migrate_trainer(trainer)
     try:
-        return int(trainer.get('influencia', 10) or 10)
+        base = int(trainer.get('influencia', 10) or 10)
     except (TypeError, ValueError):
-        return 10
+        base = 10
+    # bônus do Caminho (👑 Inspirador → Palavra Certa = +1 Influência)
+    _, attr_bonus = trainer_attrs.path_bonuses(trainer)
+    return base + attr_bonus.get('influencia', 0)
 
 
 def _cha_modifier(influencia: int):
