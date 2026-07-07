@@ -890,6 +890,9 @@ async function startBattle() {
     playerSpriteEl.src = playerSpriteUrl;
     playerSpriteEl.classList.toggle('sprite-shiny', !!playerPokemon.is_shiny);
     battleSpriteEnter('battle-player-sprite', 'player');
+    // v3: espelhos locais de cooldown/momentum começam limpos
+    window._playerCooldowns = {}; window._playerMomentum = 0; window._playerLastMove = null;
+    _renderMomentumBadge();
     document.getElementById('battle-player-name-full').textContent = playerPokemon.nickname || playerPokemon.name;
     const plvlBadge = document.getElementById('battle-player-level-badge');
     if (plvlBadge) plvlBadge.textContent = `Nv.${playerPokemon.level}`;
@@ -993,6 +996,10 @@ socket.on('battle_update', (data) => {
     // e divergente); mostramos o log detalhado autoritativo do servidor.
     if (data.action_by === 'player' && data.action_log) {
         addBattleLog(`🟢 <strong>${data.move_name}</strong>: ${data.action_log}`);
+        // v3: registra cooldown (do server_calc) e momentum do MEU golpe
+        if (data.action_type === 'attack' && data.move_name && !data.server_calc?.is_status) {
+            _trackPlayerMoveUse(data.move_name, data.server_calc?.cooldown || 0);
+        }
     } else if (data.action_by !== 'player') {
         if (data.action_log) {
             addBattleLog(`🔴 Selvagem usou <strong>${data.move_name}</strong>: ${data.action_log}`);
@@ -1138,9 +1145,19 @@ function renderMoveButton(moveName, clickable) {
     const dmgLabel = m.baseDamage ? ` (${m.baseDamage})` : '';
     const catIcon = m.category === 'special' ? '✨' : m.category === 'status' ? '◉' : '⚔️';
     const escapedName = moveName.replace(/'/g, "\\'");
-    
+    // v3: badge/trava de cooldown
+    const cdLeft = (window._playerCooldowns || {})[moveName.toLowerCase()] || 0;
+
+    if (clickable && cdLeft > 0) {
+        return `<span class="move-btn ${typeClass}" style="opacity:0.45;cursor:not-allowed;"
+                      data-move="${moveName}"
+                      onmouseenter="showMoveTooltip(event, '${escapedName}')"
+                      onmouseleave="hideMoveTooltip()"
+                      title="Em cooldown: ${cdLeft} rodada(s)"
+                >⏳ ${moveName} (${cdLeft})</span>`;
+    }
     if (clickable) {
-        return `<span class="move-btn selectable-move ${typeClass}" 
+        return `<span class="move-btn selectable-move ${typeClass}"
                       data-move="${moveName}"
                       onclick="handleMoveTap('${escapedName}')"
                       onmouseenter="showMoveTooltip(event, '${escapedName}')"
@@ -1285,21 +1302,97 @@ async function useMove(moveName) {
         return;
     }
 
-    // Roll d20 for attack — the SERVER recalculates hit/damage with this roll
-    // and its result (action_log) is what gets shown in the battle log.
-    const attackRoll = Math.floor(Math.random() * 20) + 1;
-    animateDice(attackRoll, 'd20');
+    // v3: golpe em cooldown não pode ser escolhido (o servidor também valida)
+    const cdLeft = (window._playerCooldowns || {})[moveName.toLowerCase()] || 0;
+    if (cdLeft > 0) {
+        _unlockPlayerActions();
+        addBattleLog(`⏳ <strong>${moveName}</strong> em cooldown (${cdLeft} rodada(s)) — escolha outro golpe.`);
+        return;
+    }
 
-    // Cancel turn timer - action was taken
+    // v3: o SERVIDOR rola o d100 (a rolagem local não é mais aceita) — o
+    // resultado autoritativo volta no action_log do battle_update.
+    try { playSound && playSound('dice'); } catch(e) {}
+
     clearTurnCountdown();
     _lockPlayerActions();
 
     socket.emit('battle_action', {
         action_by: 'player', action_type: 'attack', move_name: moveName,
-        attack_roll: attackRoll,
         player_status_damage: window._playerPreTurnStatusDamage || 0
     });
 }
+
+function _unlockPlayerActions() {
+    document.querySelectorAll('#battle-player-moves .selectable-move').forEach(btn => {
+        btn.style.opacity = '';
+        btn.style.pointerEvents = '';
+    });
+}
+
+// v3: cooldowns do MEU Pokémon (espelho do servidor, alimentado pelo
+// server_calc do battle_update) — {move_lower: rodadas restantes}
+window._playerCooldowns = {};
+window._playerMomentum = 0;
+window._playerLastMove = null;
+
+function _trackPlayerMoveUse(moveName, serverCooldown) {
+    const ml = (moveName || '').toLowerCase();
+    const cds = window._playerCooldowns;
+    // 1 ação minha = 1 rodada: decrementa os outros cooldowns
+    for (const k of Object.keys(cds)) {
+        cds[k] -= 1;
+        if (cds[k] <= 0) delete cds[k];
+    }
+    if (serverCooldown > 0) cds[ml] = serverCooldown;
+    // momentum (espelho da regra do servidor: variou +1 máx 3; repetiu zera)
+    if (window._playerLastMove === null || window._playerLastMove === ml) {
+        window._playerMomentum = 0;
+    } else {
+        window._playerMomentum = Math.min(BattleMath.V3_MOMENTUM_MAX || 3, window._playerMomentum + 1);
+    }
+    window._playerLastMove = ml;
+    _renderMomentumBadge();
+    refreshBattleMoveButtons();
+}
+
+function _renderMomentumBadge() {
+    const box = document.getElementById('battle-player-name-full')?.parentElement;
+    if (!box) return;
+    let b = document.getElementById('momentum-badge');
+    if (!b) {
+        b = document.createElement('span');
+        b.id = 'momentum-badge';
+        b.style.cssText = 'font-size:0.7rem;background:var(--accent);color:var(--dark,#222);padding:0.1rem 0.4rem;border-radius:8px;margin-left:0.4rem;font-weight:800;';
+        box.appendChild(b);
+    }
+    const m = window._playerMomentum || 0;
+    b.textContent = m > 0 ? `🔥 Momentum +${m}` : '';
+    b.style.display = m > 0 ? '' : 'none';
+}
+
+function refreshBattleMoveButtons() {
+    const el = document.getElementById('battle-player-moves');
+    const poke = window.currentBattleData?.playerPokemon;
+    if (!el || !poke) return;
+    el.innerHTML = (poke.moves || []).map(m => renderMoveButton(m, true)).join('');
+}
+
+// v3: golpe recusado pelo servidor (cooldown) — turno NÃO foi consumido
+socket.on('action_blocked', (d) => {
+    addBattleLog(d.message || '⏳ Golpe em cooldown — escolha outro.');
+    if (d.move_name && d.cooldown_left) {
+        window._playerCooldowns[(d.move_name || '').toLowerCase()] = d.cooldown_left;
+        refreshBattleMoveButtons();
+    }
+    _unlockPlayerActions();
+});
+
+// v3: golpe em cooldown na batalha em GRUPO — turno não consumido
+socket.on('group_battle_error', (d) => {
+    if (typeof showNotification === 'function') showNotification(d.message || '⏳ Golpe em cooldown.', 'error');
+    else alert(d.message || 'Golpe em cooldown.');
+});
 
 function rollDamageFromString(diceStr, pokeLevel) {
     if (!diceStr) return 0;
@@ -3443,7 +3536,11 @@ async function confirmSwitch(teamIdx) {
     
     // Update battle data
     window.currentBattleData.playerPokemon = newPoke;
-    
+    // v3: Pokémon novo tem cooldowns próprios (o servidor corrige via
+    // action_blocked se divergir); momentum zera na troca
+    window._playerCooldowns = {}; window._playerMomentum = 0; window._playerLastMove = null;
+    _renderMomentumBadge();
+
     // Update UI
     const pNum = newPoke.number || 0;
     const switchSpriteEl = document.getElementById('battle-player-sprite');
@@ -4045,7 +4142,7 @@ function renderPvpBattle(state) {
                 <div class="battle-pokemon-full">
                     <img src="${getPokemonSpriteUrl(opponent.number || 0, opponent.is_shiny)}" class="battle-sprite${opponent.is_shiny ? ' sprite-shiny' : ''}" id="pvp-opp-sprite">
                     <h4>${opponent.nickname || opponent.name || '???'} Nv.${opponent.level || '?'}
-                        ${(opponent.defense_mode || 1) !== 1 ? `<span style="font-size:0.7rem;background:var(--darker);padding:0.1rem 0.4rem;border-radius:4px;">${BattleMath.DEFENSE_MODES[opponent.defense_mode].label}</span>` : ''}</h4>
+                        </h4>
                     <div class="type-badges" style="justify-content:center;">${formatTypes(opponent.types || [])}</div>
                     <div class="hp-bar-container" id="pvp-opp-hpbar">
                         <div class="hp-bar enemy-hp ${hpBarClass(opponent.currentHp, opponent.maxHp)}" style="width:${oppHpPct}%"></div>
@@ -4054,7 +4151,7 @@ function renderPvpBattle(state) {
                     <div style="text-align:center;">${renderStageBadges(opponent.stat_stages)}</div>
                     <div class="battle-stats-mini">
                         <span>SPE: ${opponent.stats?.SPE ?? '?'}</span>
-                        <span>${BattleMath.DEFENSE_MODES[opponent.defense_mode || 1]?.label || '🛡️ Padrão'}</span>
+                        <span>🛡️ Resistência: d20 + Def/10 + Nv/10</span>
                     </div>
                     ${opponent.stats ? `<div class="mini-stats" style="justify-content:center;margin-top:0.3rem;">${Object.entries(opponent.stats).map(([k,v]) => `<span>${k}:${v}</span>`).join('')}</div>` : ''}
                 </div>
@@ -4079,7 +4176,7 @@ function renderPvpBattle(state) {
                     <div style="text-align:center;">${renderStageBadges(state.your_stat_stages)}</div>
                     <div class="battle-stats-mini">
                         <span>SPE: ${myActive.stats?.SPE ?? '?'}</span>
-                        <span>${BattleMath.DEFENSE_MODES[myActive.defense_mode || 1]?.label || '🛡️ Padrão'}</span>
+                        <span>🛡️ Resistência: d20 + Def/10 + Nv/10</span>
                     </div>
                 </div>
             </div>
@@ -4099,12 +4196,18 @@ function renderPvpBattle(state) {
         <div style="text-align:center;margin:1rem 0;">
             <h4 style="color:var(--accent);margin-bottom:0.5rem;">Moves:</h4>
             <div class="battle-moves-list" style="justify-content:center;gap:0.5rem;">
-                ${moves.map(m => `
-                    <span class="move-btn selectable-move" style="${canAct ? '' : 'opacity:0.4;pointer-events:none;'}"
+                ${moves.map(m => {
+                    // v3: cooldown vem no estado do servidor (poke._v3.cooldowns)
+                    const _cd = (myActive._v3?.cooldowns || {})[m.toLowerCase()] || 0;
+                    if (_cd > 0) {
+                        return `<span class="move-btn" style="opacity:0.45;cursor:not-allowed;"
+                              title="Em cooldown: ${_cd} rodada(s)">⏳ ${m} (${_cd})</span>`;
+                    }
+                    return `<span class="move-btn selectable-move" style="${canAct ? '' : 'opacity:0.4;pointer-events:none;'}"
                           onclick="pvpUseMove('${m.replace(/'/g, "\\'")}')">
                         ${m}
-                    </span>
-                `).join('')}
+                    </span>`;
+                }).join('')}
             </div>
         </div>
         
@@ -4130,7 +4233,6 @@ function renderPvpBattle(state) {
             ${mustSwitch
                 ? `<button class="btn btn-primary btn-lg" style="animation:pulse-border 1.2s infinite;" onclick="pvpSwitchPokemon()">🔄 Trocar Pokémon (obrigatório)</button>`
                 : `${isMyTurn ? `<button class="btn btn-secondary" onclick="pvpSwitchPokemon()">🔄 Trocar Pokémon</button>` : ''}
-                   ${isMyTurn ? `<button class="btn btn-secondary" onclick="pvpCycleDefense()">${BattleMath.DEFENSE_MODES[(state.your_team?.[state.your_active_idx]?.defense_mode) || 1].label}</button>` : ''}
                    ${isMyTurn ? `<button class="btn btn-secondary" onclick="pvpPassTurn()">⏭️ Passar Turno</button>` : ''}`}
             <button class="btn btn-danger" onclick="pvpForfeit()">🏳️ Desistir</button>
         </div>
@@ -4203,70 +4305,26 @@ async function pvpUseMove(moveName) {
         return;
     }
 
-    // Calculate attack roll
-    let moveMod = 0;
-    const power = (m.power || 'FOR').toUpperCase();
-    if (power.includes('FOR')) moveMod = Math.max(moveMod, Math.floor(((stats.STR||10) - 10) / 2));
-    if (power.includes('DES')) moveMod = Math.max(moveMod, Math.floor(((stats.DEX||10) - 10) / 2));
-    if (power.includes('INT')) moveMod = Math.max(moveMod, Math.floor(((stats.INT||10) - 10) / 2));
-    if (power.includes('SAB')) moveMod = Math.max(moveMod, Math.floor(((stats.WIS||10) - 10) / 2));
-    if (power.includes('CAR')) moveMod = Math.max(moveMod, Math.floor(((stats.CHA||10) - 10) / 2));
-    if (power.includes('CON')) moveMod = Math.max(moveMod, Math.floor(((stats.CON||10) - 10) / 2));
-
-    const profBonus = level >= 17 ? 6 : level >= 13 ? 5 : level >= 9 ? 4 : level >= 5 ? 3 : 2;
-    const attackRoll = Math.floor(Math.random() * 20) + 1;
-    const isCrit = attackRoll === 20;
-    const totalAttack = attackRoll + moveMod + profBonus;
-
-    const opponentAC = state.opponent_active?.ac || 13;
-
-    let damage = 0;
-    let message = '';
-
-    if (attackRoll === 1) {
-        message = `d20(1) Falha Crítica!`;
-    } else if (totalAttack >= opponentAC || isCrit) {
-        const diceRoll = rollDamageFromString(m.baseDamage || '1d6', level);
-        damage = diceRoll + moveMod;
-        if (isCrit) damage = diceRoll + rollDamageFromString(m.baseDamage || '1d6', level) + moveMod;
-
-        // STAB
-        const pokeTypes = (myActive.types || []).map(t => t.toLowerCase());
-        const stabTable = [0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5];
-        const stab = pokeTypes.includes(moveType) ? (stabTable[level] || 0) : 0;
-        damage += stab;
-        if (damage < 1) damage = 1;
-        message = `d20(${attackRoll})+${moveMod}+${profBonus}=${totalAttack} vs AC${opponentAC} ✅ ${damage}dano${isCrit ? ' CRIT!' : ''}`;
-    } else {
-        message = `d20(${attackRoll})+${moveMod}+${profBonus}=${totalAttack} vs AC${opponentAC} ❌ Errou`;
+    // v3: cooldown local (o servidor também valida e recusa sem gastar o turno)
+    const _pvpCd = (myActive._v3?.cooldowns || {})[moveName.toLowerCase()] || 0;
+    if (_pvpCd > 0) {
+        alert(`⏳ ${moveName} em cooldown (${_pvpCd} rodada(s)) — escolha outro golpe.`);
+        return;
     }
 
-    // Check status effect from the move (await so it's ready before emit)
-    await checkMoveStatusEffect(moveName, attackRoll, damage);
-    const statusEffect = window._lastStatusInflicted || null;
-    window._lastStatusInflicted = null;
-
+    // v3: o SERVIDOR rola d100/dados/resistência — o cliente só declara o golpe.
+    // (Toda a matemática D&D antiga que vivia aqui foi aposentada.)
+    try { playSound && playSound('dice'); } catch(e) {}
     clearPvpTimer();
     socket.emit('pvp_attack', {
         battle_id: window.pvpState.battleId,
-        move_name: moveName,
-        attack_roll: attackRoll,
-        move_type: moveType,
-        damage: 0,           // server calculates
-        message: message,
-        status_effect: statusEffect
+        move_name: moveName
     });
 }
 
-function pvpCycleDefense() {
-    const state = window.pvpState?.battleData;
-    if (!state || state.turn !== state.you_are) { alert('Não é seu turno!'); return; }
-    const cur = state.your_team?.[state.your_active_idx]?.defense_mode || 1;
-    const next = (cur % 3) + 1;
-    socket.emit('set_defense_mode', {
-        battle_type: 'pvp', battle_id: window.pvpState.battleId, mode: next
-    });
-}
+// v3: posturas aposentadas — a Resistência (d20 do defensor a cada golpe)
+// é a agência defensiva. Mantida como no-op p/ compatibilidade de handlers.
+function pvpCycleDefense() {}
 
 function pvpRollDice(sides) {
     const result = Math.floor(Math.random() * sides) + 1;
@@ -6162,33 +6220,13 @@ function distributeTrainerStat(statKey, label) {
 window.playerDefenseMode = 1;
 window.playerDodging = false;   // legado — não usado no sistema v2
 
-function cycleDefenseMode(battleType, battleId) {
-    // só no próprio turno (o servidor também valida)
-    const next = (window.playerDefenseMode % 3) + 1;
-    window.playerDefenseMode = next;
-    updateDefenseModeButton();
-    const info = BattleMath.DEFENSE_MODES[next];
-    addBattleLog(`${info.label}: defende com ${next === 1 ? 'Def/Sp.Def' : (next === 2 ? 'Velocidade' : 'Atk/Sp.Atk')}${info.tax > 1 ? ` — se atingido, dano ×${info.tax}` : ''}.`);
-    socket.emit('set_defense_mode', {
-        battle_type: battleType || 'wild',
-        battle_id: battleId || window.pvpState?.battleId || null,
-        mode: next
-    });
-}
+// v3: posturas defensivas APOSENTADAS — a agência defensiva agora é a
+// Resistência (d20 do defensor a cada golpe recebido). O botão some.
+function cycleDefenseMode() { /* aposentado no v3 */ }
 
 function updateDefenseModeButton() {
     const btn = document.getElementById('btn-dodge');
-    if (!btn) return;
-    const info = BattleMath.DEFENSE_MODES[window.playerDefenseMode || 1];
-    btn.textContent = info.label + (info.tax > 1 ? ` ×${info.tax}` : '');
-    btn.title = 'Postura defensiva: clique para alternar (não gasta a ação)';
-    if ((window.playerDefenseMode || 1) !== 1) {
-        btn.style.background = 'var(--accent)';
-        btn.style.color = 'var(--dark)';
-    } else {
-        btn.style.background = '';
-        btn.style.color = '';
-    }
+    if (btn) btn.classList.add('hidden');
 }
 
 socket.on('defense_mode_set', (d) => {
