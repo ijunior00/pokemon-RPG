@@ -205,6 +205,21 @@ socket.on('encounter_denied', (d) => {
     else alert(d.message || 'Aguarde o Mestre liberar um encontro.');
 });
 
+// Custom EVs: o mestre concedeu/removeu pontos (Potencial ou Treinamento)
+socket.on('pokemon_points_update', (d) => {
+    const poke = (typeof playerTeam !== 'undefined' && playerTeam[d.pokemon_idx]) || null;
+    if (poke) {
+        const field = d.kind === 'training' ? 'training_bonus' : 'potential_special';
+        poke[field] = Math.max(0, (poke[field] || 0) + (d.amount || 0));
+        poke.statPointsAvailable = d.statPointsAvailable;
+        if (window._editingPokeSlot === d.pokemon_idx) renderPokeStatPoints(poke);
+    }
+    const kindLabel = d.kind === 'training' ? 'Treinamento' : 'Potencial';
+    const verb = (d.amount || 0) >= 0 ? 'concedeu' : 'removeu';
+    const msg = `⚡ Mestre ${verb} ${Math.abs(d.amount || 0)} ponto(s) de ${kindLabel} a ${d.pokemon_name}.`;
+    if (typeof showNotification === 'function') showNotification(msg, 'success');
+});
+
 // ============================================
 // BATALHA EM DUPLA (caçada em grupo) — 2v1 / 2v2
 // Painel compartilhado, servidor autoritativo. Ataca só no seu turno.
@@ -1907,13 +1922,26 @@ function _setAbilitySelect(selId, options, current, emptyLabel) {
 function _updateAbilityHint() {
     const hint = document.getElementById('poke-ability-hint');
     if (!hint) return;
+    const descs = window._abilityDescriptions || {};
     const parts = [];
     for (const id of ['poke-ability', 'poke-hidden-ability']) {
         const opt = document.getElementById(id)?.selectedOptions?.[0];
-        if (opt?.value && opt.dataset?.desc) parts.push(`<strong>${opt.value}:</strong> ${opt.dataset.desc}`);
+        if (!opt?.value) continue;
+        // fallback: catálogo completo de habilidades quando a espécie não traz desc
+        const desc = opt.dataset?.desc || descs[opt.value.trim().toLowerCase()] || '';
+        if (desc) parts.push(`<strong>${opt.value}:</strong> ${desc}`);
     }
     hint.innerHTML = parts.join('<br>');
 }
+
+// carrega o catálogo de descrições de habilidades uma vez
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const d = await (await fetch('/api/abilities')).json();
+        window._abilityDescriptions = d.descriptions || {};
+        _updateAbilityHint();
+    } catch (e) {}
+});
 
 async function loadAbilityDropdowns(speciesName, currentAbility, currentHidden) {
     const learnset = await _fetchLearnset(speciesName);
@@ -2001,15 +2029,9 @@ function editPokemon(slot) {
     document.getElementById('poke-resistances').value = (pokemon.resistances || []).join(', ');
     document.getElementById('poke-notes').value = pokemon.notes || '';
     
-    // Show stat points if available
-    const statPoints = pokemon.statPointsAvailable || 0;
-    const statSection = document.getElementById('poke-stat-points-section');
-    if (statPoints > 0) {
-        statSection.classList.remove('hidden');
-        document.getElementById('poke-stat-points-available').textContent = statPoints;
-    } else {
-        statSection.classList.add('hidden');
-    }
+    // Pontos de Status (Custom EVs) — breakdown + distribuição por stat
+    window._editingPokeSlot = slot;
+    renderPokeStatPoints(pokemon);
     
     // Show XP bar
     const totalXp = pokemon.totalXp || 0;
@@ -2714,20 +2736,16 @@ async function saveBag() {
 }
 
 async function saveTrainerData() {
+    // Os 6 atributos NÃO vão aqui: são salvos pelo point-buy (saveAttrPointBuy)
+    // com validação própria (base 10, teto 16, 20 pontos). Mandá-los junto faria
+    // esta rota falhar quando o mestre tivesse concedido bônus acima de 16.
     const data = {
         name: document.getElementById('trainer-name-input').value,
-        vinculo: parseInt(document.getElementById('trainer-vinculo').value) || 10,
-        tatica: parseInt(document.getElementById('trainer-tatica').value) || 10,
-        conhecimento: parseInt(document.getElementById('trainer-conhecimento').value) || 10,
-        agilidade: parseInt(document.getElementById('trainer-agilidade').value) || 10,
-        influencia: parseInt(document.getElementById('trainer-influencia').value) || 10,
-        determinacao: parseInt(document.getElementById('trainer-determinacao').value) || 10,
         skill_profs: TRAINER_DATA.skill_profs || [],
         hp_max: parseInt(document.getElementById('trainer-hp-max').value) || 8,
         hp_current: parseInt(document.getElementById('trainer-hp-current').value) || 8,
         race: document.getElementById('trainer-race').value,
         background: document.getElementById('trainer-background').value,
-        path: document.getElementById('trainer-path').value,
         specializations: document.getElementById('trainer-specializations').value,
         proficiencies: document.getElementById('trainer-proficiencies').value,
         pokeslots: parseInt(document.getElementById('trainer-pokeslots').value) || 3,
@@ -2803,6 +2821,90 @@ async function renderStatBars(pokemon) {
 }
 
 // ============================================
+// CAMINHO DO TREINADOR (4 caminhos, marcos nos níveis 3/6/10)
+// ============================================
+async function renderTrainerPath() {
+    const box = document.getElementById('trainer-path-panel');
+    if (!box) return;
+    let st;
+    try {
+        st = await (await fetch('/player/path')).json();
+    } catch (e) { return; }
+    window._pathState = st;
+
+    if (!st.unlocked) {
+        box.innerHTML = `<p style="color:var(--text-muted);font-size:0.85rem;">
+            🔒 O Caminho do Treinador é desbloqueado no <strong>Nível 2</strong>.</p>`;
+        return;
+    }
+    // ainda sem caminho: mostra os 4 para escolher (permanente)
+    if (!st.path) {
+        box.innerHTML = `<p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.5rem;">
+            Escolha <strong>um</strong> Caminho — a decisão é <strong>permanente</strong> (só o Mestre pode mudar).</p>`
+            + `<div class="path-grid">` + Object.entries(st.paths_catalog).map(([id, p]) => `
+            <button type="button" class="path-card" onclick="choosePath('${id}')">
+                <div class="path-emoji">${p.emoji}</div>
+                <div class="path-name">${p.name}</div>
+                <div class="path-motto">"${p.motto}"</div>
+                <div class="path-desc">${p.desc}</div>
+            </button>`).join('') + `</div>`;
+        return;
+    }
+    // caminho escolhido: cabeçalho + marcos
+    const cat = st.paths_catalog[st.path];
+    let html = `<div class="path-header">
+        <span class="path-emoji-lg">${cat.emoji}</span>
+        <div><div class="path-name">Caminho do ${cat.name}</div>
+        <div class="path-motto">"${cat.motto}"</div></div></div>`;
+
+    st.milestones.forEach(ms => {
+        const chosenId = ms.chosen;
+        const chosen = chosenId ? ms.options.find(o => o.id === chosenId) : null;
+        html += `<div class="path-milestone ${ms.unlocked ? '' : 'locked'}">
+            <div class="path-ms-title">Nível ${ms.level} ${ms.unlocked ? '' : '🔒'}${chosen ? ' ✓' : ''}</div>`;
+        if (chosen) {
+            html += `<div class="path-talent"><strong>${chosen.name}</strong><br>
+                <small>${chosen.desc}</small></div>`;
+        } else if (ms.unlocked) {
+            html += `<div class="path-options">` + ms.options.map(o => `
+                <button type="button" class="path-option" onclick="choosePathAbility(${ms.level},'${o.id}')">
+                    <strong>${o.name}</strong><br><small>${o.desc}</small>
+                </button>`).join('') + `</div>`;
+        } else {
+            html += `<div class="path-ms-locked">Desbloqueia no nível ${ms.level}.</div>`;
+        }
+        html += `</div>`;
+    });
+    box.innerHTML = html;
+}
+
+async function choosePath(pathId) {
+    const cat = (window._pathState?.paths_catalog || {})[pathId];
+    if (!confirm(`Escolher o Caminho do ${cat ? cat.name : pathId}? Esta decisão é permanente.`)) return;
+    await postPath({ action: 'choose_path', path: pathId });
+}
+
+async function choosePathAbility(milestone, abilityId) {
+    const opt = (window._pathState?.milestones || [])
+        .find(m => m.level === milestone)?.options.find(o => o.id === abilityId);
+    if (!confirm(`Escolher "${opt ? opt.name : abilityId}"? A escolha do marco é permanente.`)) return;
+    await postPath({ action: 'choose_ability', milestone, ability_id: abilityId });
+}
+
+async function postPath(body) {
+    try {
+        const resp = await fetch('/player/path', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const out = await resp.json();
+        if (!resp.ok) { alert('⚠️ ' + (out.error || 'Falha')); return; }
+        await renderTrainerPath();
+        renderTrainerSkills();   // bônus de perícia aparecem na hora
+    } catch (e) { alert('⚠️ Erro de conexão.'); }
+}
+
+// ============================================
 // PERÍCIAS DO TREINADOR (13) — teste = d20 + mod (+prof); Sorte = ½ mod DET
 // ============================================
 async function renderTrainerSkills() {
@@ -2875,6 +2977,7 @@ async function rollSkill(skill) {
 }
 
 document.addEventListener('DOMContentLoaded', renderTrainerSkills);
+document.addEventListener('DOMContentLoaded', renderTrainerPath);
 
 const TRAINER_ATTRS = ['vinculo','tatica','conhecimento','agilidade','influencia','determinacao'];
 function updateModifiers() {
@@ -2886,6 +2989,94 @@ function updateModifiers() {
         const el = document.getElementById(`mod-${attr}`);
         if (el) el.textContent = `(${mod >= 0 ? '+' : ''}${mod})`;
     });
+    updateAttrPointBuy();
+}
+
+// ============================================
+// POINT-BUY DOS ATRIBUTOS (base 10, teto 16, 20 pontos)
+// ============================================
+const ATTR_BASE = 10, ATTR_MAX = 16, ATTR_BUDGET = 20;
+
+function attrPointsSpent() {
+    let spent = 0;
+    TRAINER_ATTRS.forEach(attr => {
+        const v = parseInt(document.getElementById(`trainer-${attr}`)?.value) || ATTR_BASE;
+        spent += Math.max(0, v - ATTR_BASE);
+    });
+    return spent;
+}
+
+function updateAttrPointBuy() {
+    const spent = attrPointsSpent();
+    const left = ATTR_BUDGET - spent;
+    const leftEl = document.getElementById('attr-points-left');
+    if (leftEl) {
+        leftEl.textContent = left;
+        leftEl.classList.toggle('attr-over', left < 0);
+    }
+    // habilita/desabilita botões conforme limites
+    TRAINER_ATTRS.forEach(attr => {
+        const box = document.getElementById(`trainer-${attr}`)?.closest('.attr-box');
+        if (!box) return;
+        const v = parseInt(document.getElementById(`trainer-${attr}`).value) || ATTR_BASE;
+        const minus = box.querySelector('.attr-minus');
+        const plus = box.querySelector('.attr-plus');
+        if (minus) minus.disabled = v <= ATTR_BASE;
+        if (plus) plus.disabled = v >= ATTR_MAX || left <= 0;
+    });
+}
+
+function stepAttr(attr, delta) {
+    const input = document.getElementById(`trainer-${attr}`);
+    if (!input) return;
+    let v = parseInt(input.value) || ATTR_BASE;
+    const next = v + delta;
+    if (next < ATTR_BASE || next > ATTR_MAX) return;
+    if (delta > 0 && attrPointsSpent() >= ATTR_BUDGET) return;  // sem pontos
+    input.value = next;
+    updateModifiers();
+}
+
+function resetAttrPointBuy() {
+    TRAINER_ATTRS.forEach(attr => {
+        const input = document.getElementById(`trainer-${attr}`);
+        if (input) input.value = ATTR_BASE;
+    });
+    updateModifiers();
+}
+
+async function saveAttrPointBuy() {
+    const spent = attrPointsSpent();
+    if (spent > ATTR_BUDGET) {
+        alert(`⚠️ Você usou ${spent} pontos, mas só tem ${ATTR_BUDGET}. Ajuste antes de salvar.`);
+        return;
+    }
+    const payload = {};
+    TRAINER_ATTRS.forEach(attr => {
+        payload[attr] = parseInt(document.getElementById(`trainer-${attr}`).value) || ATTR_BASE;
+    });
+    const btn = document.getElementById('attr-save-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+    try {
+        const resp = await fetch('/player/trainer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const out = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            alert('⚠️ ' + (out.error || 'Não foi possível salvar os atributos.'));
+        } else {
+            // sincroniza o cache local para as perícias reflitam na hora
+            if (window.TRAINER_DATA) Object.assign(TRAINER_DATA, payload);
+            renderTrainerSkills();
+            alert('✅ Atributos salvos!');
+        }
+    } catch(e) {
+        alert('⚠️ Erro de conexão ao salvar.');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Salvar atributos'; }
+    }
 }
 
 // Badge toggle
@@ -3157,6 +3348,9 @@ async function confirmSwitch(teamIdx) {
     const switchSpriteEl = document.getElementById('battle-player-sprite');
     switchSpriteEl.src = pNum ? getPokemonSpriteUrl(pNum, newPoke.is_shiny) : '';
     switchSpriteEl.classList.toggle('sprite-shiny', !!newPoke.is_shiny);
+    // limpa 'faint-anim' (deixado pelo Pokémon anterior desmaiado, que escondia
+    // o sprite) e re-anima a entrada — senão o novo Pokémon "não aparece"
+    battleSpriteEnter('battle-player-sprite', 'player');
     // nome SEM nível (o nível vive no badge separado — senão vira "Nv.36Nv.20")
     document.getElementById('battle-player-name-full').textContent = newPoke.nickname || newPoke.name;
     const swLvlBadge = document.getElementById('battle-player-level-badge');
@@ -5188,9 +5382,12 @@ function checkPokemonLevelUp(poke) {
     if (totalXp >= xpForNext) {
         const oldLevel = currentLevel;
         poke.level = currentLevel + 1;
-        // Sistema v2: +4 pontos de treino por nível (saldo derivado do budget)
-        const spent = Object.values(poke.training || {}).reduce((a, b) => a + (b || 0), 0);
-        poke.statPointsAvailable = Math.max(0, BattleMath.trainingBudget(poke.level) - spent);
+        // Custom EVs: saldo derivado do orçamento (Potencial + Treinamento) menos
+        // o custo progressivo já gasto
+        const [ec, et] = BattleMath.parseEvolutionStage(poke.evolutionStage);
+        const budget = BattleMath.pointsBudget(poke.level, ec, et,
+            poke.potential_evo_bonus || 0, poke.potential_special || 0, poke.training_bonus || 0);
+        poke.statPointsAvailable = Math.max(0, budget - BattleMath.trainingSpent(poke.training || {}));
         // Stats/HP recalculados pela fórmula v2 no refresh via /api/pokemon/stats
         // (updatePokemonInSheet); aqui só o full heal de level-up
         poke.currentHp = poke.maxHp; // Full heal on level up
@@ -5669,53 +5866,87 @@ async function processWildStatusMove(moveName) {
 // ============================================
 // STAT POINT DISTRIBUTION (Pokemon)
 // ============================================
-function distributeStat(stat) {
+// ── Custom EVs: orçamento (Potencial + Treinamento) e distribuição ──
+const EV_STATS = [
+    ['HP', 'HP'], ['ATK', 'Ataque'], ['DEF', 'Defesa'],
+    ['SPA', 'Atq. Esp.'], ['SPD', 'Def. Esp.'], ['SPE', 'Velocidade'],
+];
+
+function pokePointsBudget(poke) {
+    const [cur, tot] = BattleMath.parseEvolutionStage(poke.evolutionStage);
+    return BattleMath.pointsBudget(
+        poke.level || 1, cur, tot,
+        poke.potential_evo_bonus || 0, poke.potential_special || 0, poke.training_bonus || 0);
+}
+
+function renderPokeStatPoints(poke) {
+    const box = document.getElementById('poke-stat-distribute');
+    const bd = document.getElementById('poke-points-breakdown');
+    if (!box) return;
+    if (!poke.training) poke.training = {};
+    const [cur, tot] = BattleMath.parseEvolutionStage(poke.evolutionStage);
+    const potential = BattleMath.potentialPoints(
+        poke.level || 1, poke.potential_evo_bonus || 0, poke.potential_special || 0);
+    const trainTotal = BattleMath.trainingPoints(
+        poke.level || 1, cur, tot, poke.training_bonus || 0);
+    const budget = potential + trainTotal;
+    const spent = BattleMath.trainingSpent(poke.training);
+    const avail = Math.max(0, budget - spent);
+    poke.statPointsAvailable = avail;
+
+    if (bd) bd.innerHTML =
+        `⭐ <strong>Potencial</strong>: ${potential} `
+        + `<span style="opacity:.7">(⌊${poke.level||1}/2⌋=${Math.floor((poke.level||1)/2)}`
+        + `${poke.potential_evo_bonus ? ' + evolução '+poke.potential_evo_bonus : ''}`
+        + `${poke.potential_special ? ' + mestre '+poke.potential_special : ''})</span><br>`
+        + `🏋️ <strong>Treinamento</strong>: ${trainTotal} `
+        + `<span style="opacity:.7">(estágio ${cur}/${tot}${poke.training_bonus ? ' + mestre '+poke.training_bonus : ''})</span><br>`
+        + `💰 <strong>Orçamento</strong>: ${budget} · Gasto: ${spent} · `
+        + `<strong style="color:var(--accent)">Disponível: ${avail}</strong>`;
+
+    box.innerHTML = EV_STATS.map(([key, label]) => {
+        const n = poke.training[key] || 0;
+        const cost = BattleMath.nextPointCost(n);
+        const locked = BattleMath.statTierLocked(key, poke.training);
+        const canUp = !locked && avail >= cost;
+        const lockHint = locked ? ` title="Travado: +${n} é múltiplo de 5. Outro stat precisa alcançar +${n}."` : '';
+        return `<div class="ev-row">
+            <span class="ev-label">${label}</span>
+            <button type="button" class="ev-btn" onclick="distributeStat('${key}',-1)" ${n <= 0 ? 'disabled' : ''}>−</button>
+            <span class="ev-val">+${n}</span>
+            <button type="button" class="ev-btn"${lockHint} onclick="distributeStat('${key}',1)" ${canUp ? '' : 'disabled'}>+</button>
+            <span class="ev-cost">${locked ? '🔒' : 'próx: ' + cost + 'pt'}</span>
+        </div>`;
+    }).join('');
+}
+
+function distributeStat(stat, delta = 1) {
     const slot = window._editingPokeSlot;
     if (slot === undefined || slot === null) return;
     const poke = playerTeam[slot];
     if (!poke) return;
-    
-    const available = poke.statPointsAvailable || 0;
-    if (available <= 0) {
-        alert('Sem pontos disponíveis!');
-        return;
-    }
-
-    // Sistema v2: ponto vai para o TREINO (stat final = espécie + nível +
-    // natureza + treino), com teto por stat — nunca edita o stat direto
     if (!poke.training) poke.training = {};
-    const cap = BattleMath.trainingCap(poke.level || 1);
-    if ((poke.training[stat] || 0) >= cap) {
-        alert(`Teto de treino de ${stat} neste nível: ${cap} pontos.`);
-        return;
-    }
-    poke.training[stat] = (poke.training[stat] || 0) + 1;
-    poke.statPointsAvailable = available - 1;
+    const n = poke.training[stat] || 0;
 
-    // aplica o efeito imediato no stat exibido (+1) — o valor oficial vem do
-    // recálculo do servidor no próximo load/save
-    if (!poke.stats) poke.stats = {};
-    if (stat === 'HP') {
-        poke.maxHp = (poke.maxHp || 20) + 1;
-        poke.currentHp = Math.min((poke.currentHp || poke.maxHp) + 1, poke.maxHp);
-        document.getElementById('poke-max-hp').value = poke.maxHp;
-        document.getElementById('poke-current-hp').value = poke.currentHp;
+    if (delta > 0) {
+        if (BattleMath.statTierLocked(stat, poke.training)) {
+            alert(`🔒 ${stat} está em +${n} (múltiplo de 5). Suba outro stat até +${n} para continuar.`);
+            return;
+        }
+        const budget = pokePointsBudget(poke);
+        const avail = budget - BattleMath.trainingSpent(poke.training);
+        if (avail < BattleMath.nextPointCost(n)) {
+            alert('Sem pontos suficientes para o próximo ponto deste stat!');
+            return;
+        }
+        poke.training[stat] = n + 1;
     } else {
-        poke.stats[stat] = (poke.stats[stat] || 10) + 1;
+        if (n <= 0) return;
+        poke.training[stat] = n - 1;
     }
-    
-    // Map new stat names to input IDs (inputs still use old IDs)
-    const statToInput = { 'ATK': 'poke-str', 'DEF': 'poke-dex', 'SPA': 'poke-con', 'SPD': 'poke-int', 'SPE': 'poke-wis', 'HP': 'poke-cha' };
-    const inputId = statToInput[stat];
-    if (inputId) document.getElementById(inputId).value = poke.stats[stat];
-    
-    document.getElementById('poke-stat-points-available').textContent = poke.statPointsAvailable;
-    
-    if (poke.statPointsAvailable <= 0) {
-        document.getElementById('poke-stat-points-section').classList.add('hidden');
-    }
-    
-    // Auto-save
+
+    renderPokeStatPoints(poke);
+    renderStatBars(poke);
     saveTeam();
 }
 

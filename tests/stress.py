@@ -746,6 +746,73 @@ def main():
     check(S, 'Dragon Rage = dano fixo escalado ((15+nível//4) × escala)',
           _dr['damage'] == _dr_exp, f"{_dr['damage']} (esperado {_dr_exp})")
 
+    # ── Revisão de combate: potência variável, crítico por estágios, categoria ──
+    # Return (potência variável) agora dá dano em vez de "mestre adjudica"
+    _rt = appmod._calc_pvp_attack(make_poke('Pikachu', 30), make_poke('Rattata', 30), 'Return', 15)
+    check(S, 'Return (potência variável) causa dano (não fica adjudicado)',
+          _rt['hit'] and _rt['damage'] > 0, str(_rt.get('damage')))
+    # crítico por estágios: Super Luck baixa o limiar; Night Slash + Super Luck = 18
+    check(S, 'crit_threshold: nat 20 base, Super Luck 19, Night Slash+SL 18',
+          bmm.crit_threshold(0) == 20 and
+          bmm.crit_threshold(bmm.crit_stage_for('X', 'Super Luck')) == 19 and
+          bmm.crit_threshold(bmm.crit_stage_for('Night Slash', 'Super Luck')) == 18)
+    # d20=19: com Super Luck é crítico; sem, não (Mega Punch NÃO é alta-taxa)
+    _p = make_poke('Machamp', 40); _p['ability'] = 'Super Luck'
+    _c19 = appmod._calc_pvp_attack(_p, make_poke('Snorlax', 40), 'Mega Punch', 19)
+    _n19 = appmod._calc_pvp_attack(make_poke('Machamp', 40), make_poke('Snorlax', 40), 'Mega Punch', 19)
+    check(S, 'Super Luck: d20=19 vira crítico (só com a habilidade)',
+          _c19.get('is_crit') is True and _n19.get('is_crit') is not True)
+    # Magnitude recategorizado p/ físico (usa ATK, não SPA)
+    check(S, 'Magnitude é físico (categoria corrigida)',
+          (appmod.MOVES_BY_NAME.get('magnitude') or {}).get('category') == 'physical')
+
+    # ── Custom EVs: Pontos de Potencial + Treinamento ──
+    check(S, 'custo progressivo n(n+1)/2', bmm.stat_cost(10) == 55 and bmm.stat_cost(4) == 10)
+    check(S, 'potencial = ⌊nv/2⌋ + evo + especial', bmm.potential_points(40, 12) == 32)
+    check(S, 'treino estágio 3/3 = 2/nível', bmm.training_points(40, 3, 3) == 78)
+    check(S, 'treino estágio 1/2 = 1.5/nível', bmm.training_points(20, 1, 2) == 28)
+    check(S, 'orçamento Tyranitar Nv40 (potencial 32 + treino 78)',
+          bmm.points_budget(40, 3, 3, evo_bonus=12) == 110)
+    check(S, 'anti-min-max: stat em múltiplo de 5 sem par trava',
+          bmm.stat_tier_locked('ATK', {'ATK': 5, 'DEF': 3}) is True and
+          bmm.stat_tier_locked('ATK', {'ATK': 5, 'DEF': 5}) is False)
+    # migração v3: reseta treino, rola evo bonus retroativo, saldo = orçamento
+    _pp = {'name': 'Tyranitar', 'number': 248, 'level': 40, 'training': {'ATK': 20},
+           'currentHp': 100, 'maxHp': 100}
+    mig.migrate_pokemon_v2(_pp, appmod.POKEMON_BY_NAME, appmod.POKEMON_BY_NUMBER)
+    mig.migrate_pokemon_pp(_pp, appmod.POKEMON_BY_NAME, appmod.POKEMON_BY_NUMBER)
+    check(S, 'migração v3: pp=1, treino zerado, evo bonus retroativo (estágio 3 = 9)',
+          _pp.get('pp') == 1 and sum(_pp['training'].values()) == 0 and
+          _pp.get('potential_evo_bonus') == 9)
+    check(S, 'migração v3 idempotente',
+          not mig.migrate_pokemon_pp(_pp, appmod.POKEMON_BY_NAME, appmod.POKEMON_BY_NUMBER))
+    _bud = mig.budget_for(_pp, appmod.POKEMON_BY_NAME['tyranitar'])
+    check(S, 'migração v3: saldo = orçamento (treino zerado)',
+          _pp['statPointsAvailable'] == _bud and _bud == bmm.points_budget(40, 3, 3, evo_bonus=9))
+    # endpoint /player/team: sanitiza distribuição forjada (over-budget → clampa,
+    # nunca rejeita) e respeita tier lock
+    import copy as _cpev
+    users = db.get_users()
+    _team_backup = _cpev.deepcopy(users[u1]['trainer_data'].get('team', []))
+    _pv = appmod.POKEMON_BY_NAME['pidgeot']  # estágio 3/3
+    _forge = [{'name': 'Pidgeot', 'number': 18, 'level': 30, 'sv': 2, 'pp': 1,
+               'potential_evo_bonus': 9, 'potential_special': 0, 'training_bonus': 0,
+               'training': {'ATK': 50, 'DEF': 0, 'SPA': 0, 'SPD': 0, 'SPE': 0, 'HP': 0},
+               'moves': ['Gust']}]
+    users[u1]['trainer_data']['team'] = _cpev.deepcopy(_forge)
+    db.save_users(users)
+    r = p1.post('/player/team', json={'team': _forge})
+    users = db.get_users(); _sv = users[u1]['trainer_data']['team'][0]
+    _bud2 = mig.budget_for(_sv, _pv)
+    check(S, 'save do time: distribuição forjada clampada ao orçamento Custom EVs',
+          bmm.training_spent(_sv['training']) <= _bud2)
+    check(S, 'save do time: anti-min-max respeitado (ATK all-in cai a 5 sem par)',
+          _sv['training']['ATK'] == 5)
+    # restaura o time original do u1 para as próximas seções
+    users = db.get_users()
+    users[u1]['trainer_data']['team'] = _team_backup
+    db.save_users(users)
+
     # ══════════ 4a-quater. ATRIBUTOS DO TREINADOR (6 novos + perícias) ══════════
     section('4a-quater. Atributos do treinador (Vínculo/Tática/... + perícias)')
     S = 'Atributos Treinador'
@@ -767,6 +834,37 @@ def main():
           _tr.get('vinculo') == 16 and _tr.get('influencia') == 15 and
           _tr.get('determinacao') == 18 and _tr.get('agilidade') == 14 and
           _tr.get('tatica') == 8 and _tr.get('conhecimento') == 12 and _tr.get('av') == 2)
+
+    # ── Point-buy dos atributos (base 10, teto 16, 20 pontos) ──
+    # save válido: 16+16+10+10+10+10 = 12 pontos gastos
+    r = p1.post('/player/trainer', json={
+        'vinculo': 16, 'tatica': 16, 'conhecimento': 10,
+        'agilidade': 10, 'influencia': 10, 'determinacao': 10})
+    users = db.get_users(); _tr = users[u1]['trainer_data']
+    check(S, 'point-buy válido salvo (vinculo=16, tatica=16)',
+          r.status_code == 200 and _tr.get('vinculo') == 16 and _tr.get('tatica') == 16)
+    # estoura o orçamento: 16,16,16,13 = 21 pontos → rejeita, não altera
+    r = p1.post('/player/trainer', json={
+        'vinculo': 16, 'tatica': 16, 'conhecimento': 16,
+        'agilidade': 13, 'influencia': 10, 'determinacao': 10})
+    users = db.get_users(); _tr = users[u1]['trainer_data']
+    check(S, 'point-buy acima de 20 pontos rejeitado (400)',
+          r.status_code == 400 and _tr.get('conhecimento') == 10)
+    # passa do teto por atributo (17): rejeita
+    r = p1.post('/player/trainer', json={
+        'vinculo': 17, 'tatica': 10, 'conhecimento': 10,
+        'agilidade': 10, 'influencia': 10, 'determinacao': 10})
+    check(S, 'point-buy acima do teto 16 rejeitado (400)', r.status_code == 400)
+    # abaixo da base (9): rejeita
+    r = p1.post('/player/trainer', json={
+        'vinculo': 9, 'tatica': 10, 'conhecimento': 10,
+        'agilidade': 10, 'influencia': 10, 'determinacao': 10})
+    check(S, 'point-buy abaixo da base 10 rejeitado (400)', r.status_code == 400)
+    # restaura estado usado pelos testes de perícia abaixo (vínculo 16, det 18...)
+    users = db.get_users()
+    users[u1]['trainer_data'].update({'vinculo': 16, 'influencia': 15,
+        'determinacao': 18, 'agilidade': 14, 'tatica': 8, 'conhecimento': 12})
+    db.save_users(users)
 
     # /api/skill/list: 13 perícias e Sorte com metade do mod de Determinação
     r = p1.get('/api/skill/list')
@@ -824,6 +922,35 @@ def main():
     _spe_b = bmm.initiative_bonus(_poke_i['stats']['SPE'])
     check(S, 'roll_initiative soma SPE//10 + Tática',
           min(_rolls) >= 1 + _spe_b + 2 and max(_rolls) <= 20 + _spe_b + 2)
+
+    # ── Caminho do Treinador (4 caminhos, marcos 3/6/10) ──
+    def _afinidade():
+        d = p1.get('/api/skill/list').get_json() or {}
+        return {s['skill']: s['bonus'] for s in d.get('skills', [])}.get('Afinidade')
+    _before = _afinidade()
+    _ps = p1.get('/player/path').get_json() or {}
+    check(S, 'caminho desbloqueado no nível 2 e ainda sem escolha',
+          _ps.get('unlocked') is True and _ps.get('path') is None)
+    r = p1.post('/player/path', json={'action': 'choose_path', 'path': 'guardiao'})
+    check(S, 'escolher Caminho do Guardião', r.status_code == 200 and
+          (r.get_json() or {}).get('path') == 'guardiao')
+    check(S, 'caminho é permanente (re-escolha rejeitada)',
+          p1.post('/player/path', json={'action': 'choose_path', 'path': 'estrategista'}).status_code == 400)
+    # marco de nível 6 travado com treinador nível 5
+    check(S, 'talento de nível 6 travado no nível 5',
+          p1.post('/player/path', json={'action': 'choose_ability', 'milestone': 6, 'ability_id': 'reabilitacao'}).status_code == 400)
+    # Empatia (nível 3) = +1 Afinidade, aplicado na hora
+    r = p1.post('/player/path', json={'action': 'choose_ability', 'milestone': 3, 'ability_id': 'empatia'})
+    check(S, 'escolher Empatia (nível 3)', r.status_code == 200)
+    check(S, 'Empatia aplica +1 Afinidade automaticamente na perícia',
+          _afinidade() == (_before or 0) + 1, f'{_before} -> {_afinidade()}')
+    check(S, 'talento do marco é permanente (re-escolha rejeitada)',
+          p1.post('/player/path', json={'action': 'choose_ability', 'milestone': 3, 'ability_id': 'empatia'}).status_code == 400)
+    # limpa o caminho p/ não contaminar as próximas seções
+    users = db.get_users()
+    users[u1]['trainer_data'].pop('path', None)
+    users[u1]['trainer_data'].pop('path_abilities', None)
+    db.save_users(users)
 
     # ficha 100% v2: save do time recalcula stats e some com chaves D&D
     users = db.get_users()
@@ -1015,6 +1142,42 @@ def main():
     check(S, 'STAB boost Blaze a 25% HP', ab.stab_multiplier('Blaze', 'fire', 5, 40) == 2)
     r = p1.post('/api/moves/batch', json={'moves': ['Ember', 'Growl']})
     check(S, 'batch de moves', len(r.get_json() or {}) == 2)
+
+    # ── Habilidades passivas (expansão): 100% conhecidas + mecânicas ──
+    _names = set()
+    for _p in appmod.POKEMON_DB:
+        for _a in (_p.get('abilities') or []):
+            _names.add(_a['name'] if isinstance(_a, dict) else _a)
+        for _k in ('ability', 'hiddenAbility'):
+            _av = _p.get(_k)
+            if isinstance(_av, dict) and _av.get('name'):
+                _names.add(_av['name'])
+    _unknown = [n for n in _names if n and not ab.is_known_ability(n)]
+    check(S, 'TODAS as habilidades das espécies são conhecidas (0 sem descrição)',
+          len(_unknown) == 0, str(_unknown[:8]))
+    # stat-mult via effective_stat (Huge Power dobra ATK)
+    check(S, 'Huge Power dobra o ATK efetivo',
+          appmod.effects.effective_stat({'ability': 'Huge Power', 'stats': {'ATK': 100}, 'stat_stages': {}}, 'ATK') == 200)
+    check(S, 'Fur Coat dobra a DEF efetiva',
+          appmod.effects.effective_stat({'ability': 'Fur Coat', 'stats': {'DEF': 80}, 'stat_stages': {}}, 'DEF') == 160)
+    # damage-mult no cálculo real (Iron Fist em soco)
+    _pi = make_poke('Hitmonchan', 40); _pi['ability'] = 'Iron Fist'
+    _di = appmod._calc_pvp_attack(_pi, make_poke('Snorlax', 40), 'Fire Punch', 20)
+    _dn = appmod._calc_pvp_attack(make_poke('Hitmonchan', 40), make_poke('Snorlax', 40), 'Fire Punch', 20)
+    check(S, 'Iron Fist aumenta o dano de socos', _di['damage'] > _dn['damage'],
+          f"{_di['damage']} vs {_dn['damage']}")
+    # imunidade de status (Limber ignora paralisia; Water Veil ignora queimadura)
+    check(S, 'Limber é imune a paralisia',
+          ab.is_status_immune({'ability': 'Limber'}, 'paralisado') and
+          not ab.is_status_immune({'ability': 'Limber'}, 'queimado'))
+    _sk, _inf = appmod.effects.check_status_on_hit('Thunder Wave', 15, 5, defender={'ability': 'Limber'})
+    check(S, 'on-hit respeita imunidade (Thunder Wave em Limber)', _inf is False)
+    # crítico bloqueado por Shell Armor
+    _pa = make_poke('Machamp', 40); _def = make_poke('Cloyster', 40); _def['ability'] = 'Shell Armor'
+    _cc = appmod._calc_pvp_attack(_pa, _def, 'Karate Chop', 20)  # nat 20 seria crit
+    check(S, 'Shell Armor bloqueia crítico (nat 20 não crita)', _cc.get('is_crit') is False)
+    check(S, 'API /api/abilities lista descrições',
+          len((p1.get('/api/abilities').get_json() or {}).get('descriptions', {})) > 100)
 
     # ══════════ 7. PVP JOGADOR vs JOGADOR ══════════
     section('7. PvP jogador vs jogador')

@@ -46,6 +46,69 @@ const BattleMath = (() => {
         return Math.min(TRAINING_CAP, Math.max(1, level));
     }
 
+    // ── Custom EVs (economia v3): Pontos de Potencial + Treinamento ──
+    const TRAINING_STATS = ['HP', 'ATK', 'DEF', 'SPA', 'SPD', 'SPE'];
+    function parseEvolutionStage(raw) {
+        const m = String(raw || '1/1').split('/');
+        const cur = parseInt(m[0]), tot = parseInt(m[1]);
+        if (!(cur >= 1) || !(tot >= 1) || cur > tot) return [1, 1];
+        return [cur, tot];
+    }
+    function statCost(n) { n = Math.max(0, n | 0); return n * (n + 1) / 2; }
+    function nextPointCost(n) { return Math.max(0, n | 0) + 1; }
+    function trainingSpent(training) {
+        return Object.values(training || {}).reduce((s, v) => s + statCost(v), 0);
+    }
+    function potentialPoints(level, evoBonus = 0, special = 0) {
+        return Math.floor(Math.max(1, level | 0) / 2) + (evoBonus | 0) + (special | 0);
+    }
+    function trainingRate(stageCur, stageTot) {
+        const st = stageCur | 0, tot = stageTot | 0;
+        if (tot >= 3) return st === 1 ? [1, 1] : st === 2 ? [3, 2] : [2, 1];
+        if (tot === 2) return st === 1 ? [3, 2] : [2, 1];
+        return [2, 1];
+    }
+    function trainingPoints(level, stageCur, stageTot, bonus = 0) {
+        const [num, den] = trainingRate(stageCur, stageTot);
+        return Math.floor(num * (Math.max(1, level | 0) - 1) / den) + (bonus | 0);
+    }
+    function pointsBudget(level, stageCur, stageTot, evoBonus = 0, special = 0, trainBonus = 0) {
+        return potentialPoints(level, evoBonus, special)
+             + trainingPoints(level, stageCur, stageTot, trainBonus);
+    }
+    // Power representativo p/ moves de potência variável (espelho do servidor)
+    const VARIABLE_POWER = {
+        'return': 90, 'frustration': 90, 'low kick': 60, 'grass knot': 60,
+        'heavy slam': 80, 'heat crash': 80, 'gyro ball': 70, 'electro ball': 70,
+        'flail': 80, 'reversal': 80, 'crush grip': 80, 'wring out': 80,
+        'magnitude': 70, 'present': 60, 'natural gift': 80, 'punishment': 60,
+        'trump card': 70, 'spit up': 60, 'hidden power': 60,
+    };
+
+    // ── Crítico (estágios) ──
+    const HIGH_CRIT_MOVES = new Set(['slash','razor leaf','crabhammer','karate chop',
+        'aeroblast','air cutter','attack order','blaze kick','cross chop','cross poison',
+        'drill run','leaf blade','night slash','poison tail','psycho cut','razor wind',
+        'shadow claw','sky attack','spacial rend','stone edge','razor shell','snipe shot',
+        'esper wing','shell side arm']);
+    function critThreshold(critStage = 0) { return Math.max(17, 20 - (critStage | 0)); }
+    function critStageFor(moveName, ability, focusEnergy) {
+        if (ability && typeof ability === 'object') ability = ability.name || '';
+        let s = 0;
+        if (HIGH_CRIT_MOVES.has((moveName || '').toLowerCase())) s += 1;
+        if (String(ability || '').trim().toLowerCase() === 'super luck') s += 1;
+        if (focusEnergy) s += 2;
+        return s;
+    }
+
+    function statTierLocked(statKey, training) {
+        const tr = training || {};
+        const v = (tr[statKey] | 0);
+        if (v > 0 && v % 5 === 0)
+            return !Object.keys(tr).some(k => k !== statKey && (tr[k] | 0) >= v);
+        return false;
+    }
+
     // ── Acerto ──
     function missThreshold(accuracy) {
         if (!accuracy) return 0;
@@ -116,5 +179,8 @@ const BattleMath = (() => {
         DEFENSE_MODES, statAtLevel, hpAtLevel, trainingBudget, trainingCap,
         missThreshold, rollHits, levelTierMult, diceForPower, defenseStatKey,
         defenseTax, damage, stageMult, initiativeBonus, fixedDamageFor,
+        TRAINING_STATS, parseEvolutionStage, statCost, nextPointCost, trainingSpent,
+        potentialPoints, trainingPoints, pointsBudget, statTierLocked,
+        HIGH_CRIT_MOVES, critThreshold, critStageFor, VARIABLE_POWER,
     };
 })();

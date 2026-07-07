@@ -30,8 +30,83 @@ def damage_scale(level):
     return DAMAGE_SCALE_BASE + DAMAGE_SCALE_PER_LEVEL * max(1, int(level or 50))
 
 
-TRAINING_POINTS_PER_LEVEL = 4  # pontos de treino ganhos por nível
+TRAINING_POINTS_PER_LEVEL = 4  # pontos de treino ganhos por nível (economia antiga)
 TRAINING_CAP = 63             # teto de treino por stat (≈ 252 EVs)
+
+# ── Custom EVs (economia v3): Pontos de Potencial + Treinamento ─────────────
+# Substitui o "+4/nível a custo 1" por orçamento = Potencial + Treinamento e
+# CUSTO PROGRESSIVO por stat: o n-ésimo ponto num stat custa n
+# (custo acumulado = n(n+1)/2). Cada +1 continua valendo +1 no stat (impacto
+# linear em combate), mas concentrar fica caro. Anti-min-max: um stat em
+# múltiplo de 5 trava até outro alcançar o mesmo patamar.
+TRAINING_STATS = ('HP', 'ATK', 'DEF', 'SPA', 'SPD', 'SPE')
+
+
+def parse_evolution_stage(raw):
+    """'2/3' → (2, 3). Sem/malformado → (1, 1) (tratado como sem evolução)."""
+    try:
+        cur, tot = str(raw or '1/1').split('/')
+        cur, tot = int(cur), int(tot)
+        if cur < 1 or tot < 1 or cur > tot:
+            return (1, 1)
+        return (cur, tot)
+    except (ValueError, AttributeError):
+        return (1, 1)
+
+
+def stat_cost(n):
+    """Custo acumulado para ter +n pontos em UM stat: n(n+1)/2."""
+    n = max(0, int(n or 0))
+    return n * (n + 1) // 2
+
+
+def next_point_cost(n):
+    """Custo do PRÓXIMO ponto num stat que já tem +n: n+1."""
+    return max(0, int(n or 0)) + 1
+
+
+def training_spent(training):
+    """Total de pontos do orçamento já gastos na distribuição atual."""
+    return sum(stat_cost(v) for v in (training or {}).values())
+
+
+def potential_points(level, evo_bonus=0, special=0):
+    """Pontos de Potencial = ⌊nível/2⌋ + bônus de evolução + bônus especiais."""
+    return max(1, int(level or 1)) // 2 + int(evo_bonus or 0) + int(special or 0)
+
+
+def _training_rate(stage_current, stage_total):
+    """Ganho de treino por nível como fração (num, den): 1, 1.5 (=3/2) ou 2."""
+    st, tot = int(stage_current or 1), int(stage_total or 1)
+    if tot >= 3:
+        return (1, 1) if st == 1 else (3, 2) if st == 2 else (2, 1)
+    if tot == 2:
+        return (3, 2) if st == 1 else (2, 1)
+    return (2, 1)   # sem evolução = considerado forma final
+
+
+def training_points(level, stage_current, stage_total, bonus=0):
+    """Pontos de Treinamento acumulados até o nível, pelo estágio ATUAL
+    (aproximação: não guardamos histórico de nível por estágio)."""
+    num, den = _training_rate(stage_current, stage_total)
+    return num * (max(1, int(level or 1)) - 1) // den + int(bonus or 0)
+
+
+def points_budget(level, stage_current, stage_total,
+                  evo_bonus=0, special=0, train_bonus=0):
+    """Orçamento total de pontos (Potencial + Treinamento)."""
+    return (potential_points(level, evo_bonus, special)
+            + training_points(level, stage_current, stage_total, train_bonus))
+
+
+def stat_tier_locked(stat_key, training):
+    """Anti min-max: stat em múltiplo de 5 (>0) trava até OUTRO stat alcançar
+    esse mesmo patamar."""
+    tr = training or {}
+    v = int(tr.get(stat_key, 0) or 0)
+    if v > 0 and v % 5 == 0:
+        return not any(k != stat_key and int(tr.get(k, 0) or 0) >= v for k in tr)
+    return False
 
 # Faixas de nível → multiplicador de QUANTIDADE de dados (cortes herdados
 # do sistema antigo: 10/20/40/60/80 — familiares aos jogadores)
@@ -54,6 +129,57 @@ FIXED_DAMAGE_FORMULAS = {
     'sonic boom':   lambda level, target_hp: 10 + level // 5,
     'super fang':   lambda level, target_hp: max(1, (target_hp or 2) // 2),
 }
+
+# Power REPRESENTATIVO para moves de dano de potência VARIÁVEL (peso, HP,
+# felicidade, velocidade...). Sem isso o move caía em "mestre adjudica" (dano
+# 0). Usamos um valor médio p/ o move ter dano automático coerente. Moves de
+# RETALIAÇÃO (Counter/Mirror Coat/Metal Burst) dependem do dano recebido e
+# continuam adjudicados pelo mestre.
+VARIABLE_POWER = {
+    'return': 90, 'frustration': 90,          # felicidade
+    'low kick': 60, 'grass knot': 60,          # peso do alvo
+    'heavy slam': 80, 'heat crash': 80,        # razão de peso
+    'gyro ball': 70, 'electro ball': 70,       # razão de velocidade
+    'flail': 80, 'reversal': 80,               # HP do usuário (baixo = forte)
+    'crush grip': 80, 'wring out': 80,         # HP do alvo
+    'magnitude': 70, 'present': 60,            # aleatório
+    'natural gift': 80, 'punishment': 60,      # item / buffs do alvo
+    'trump card': 70, 'spit up': 60,           # PP / stockpile
+    'hidden power': 60,                        # tipo/força variável
+}
+
+
+# ── Stats por nível ────────────────────────────────────────────────────────
+# ── Crítico (sistema de estágios v2) ────────────────────────────────────────
+# Moves de alta taxa de crítico (canon): +1 estágio. Base = só nat 20; cada
+# estágio abaixa o limiar em 1 (teto 17 = crítico em 17-20).
+HIGH_CRIT_MOVES = {
+    'slash', 'razor leaf', 'crabhammer', 'karate chop', 'aeroblast', 'air cutter',
+    'attack order', 'blaze kick', 'cross chop', 'cross poison', 'drill run',
+    'leaf blade', 'night slash', 'poison tail', 'psycho cut', 'razor wind',
+    'shadow claw', 'sky attack', 'spacial rend', 'stone edge', 'razor shell',
+    'snipe shot', 'esper wing', 'shell side arm',
+}
+
+
+def crit_threshold(crit_stage=0):
+    """Limiar do d20 p/ crítico: base 20; cada estágio -1, teto 17."""
+    return max(17, 20 - int(crit_stage or 0))
+
+
+def crit_stage_for(move_name, ability=None, focus_energy=False):
+    """Estágio de crítico do golpe: move de alta taxa (+1), Super Luck (+1),
+    Focus Energy ativo (+2). `ability` pode ser str ou dict {'name':...}."""
+    if isinstance(ability, dict):
+        ability = ability.get('name', '')
+    stage = 0
+    if (move_name or '').lower() in HIGH_CRIT_MOVES:
+        stage += 1
+    if str(ability or '').strip().lower() == 'super luck':
+        stage += 1
+    if focus_energy:
+        stage += 2
+    return stage
 
 
 # ── Stats por nível ────────────────────────────────────────────────────────

@@ -274,15 +274,24 @@ MOVE_STATUS_EFFECTS = {
 # moves.json virou texto cosmético da ficha.
 
 
-def check_status_on_hit(move_name, attack_roll, damage_dealt):
+def check_status_on_hit(move_name, attack_roll, damage_dealt, defender=None):
     """Check if a move inflicts a status effect on hit.
     Returns (status_key, inflicted) or (None, False).
-    """
+    `defender` (opcional): respeita imunidades de habilidade (Limber, Immunity,
+    Water Veil, Shield Dust...) — bloqueia o status secundário."""
     # Dados canônicos primeiro (chances reais dos jogos); mapa curado como fallback
     entry = MOVE_EFFECTS_DATA.get((move_name or '').lower())
     effect = (entry or {}).get('on_hit') or MOVE_STATUS_EFFECTS.get(move_name)
     if not effect:
         return None, False
+    # imunidade por habilidade (Shield Dust bloqueia qualquer secundário)
+    if defender is not None:
+        try:
+            import abilities as _ab
+            if _ab.is_status_immune(defender, effect.get('status')):
+                return None, False
+        except Exception:
+            pass
 
     trigger = effect.get('on', 'hit')
     chance = effect.get('chance', 0)
@@ -294,7 +303,7 @@ def check_status_on_hit(move_name, attack_roll, damage_dealt):
         if random.random() < chance:
             return effect['status'], True
     elif trigger in ('save_fail', 'next_turn'):
-        # Treat as automatic on hit (server can roll saving throw if needed)
+        # Aplica pela chance do move (sistema v2 — sem teste de resistência D&D)
         if random.random() < chance:
             return effect['status'], True
 
@@ -459,7 +468,13 @@ def effective_stat(pokemon, stat):
         return 10
     base = int((pokemon.get('stats') or {}).get(stat, 10) or 10)
     stage = int((pokemon.get('stat_stages') or {}).get(stat, 0))
-    return max(1, int(base * bm.stage_mult(stage) * _cond_stat_mult(pokemon, stat)))
+    # multiplicador de habilidade (Huge Power, Fur Coat, Guts, Defeatist...)
+    try:
+        import abilities as _ab
+        abil_mult = _ab.stat_multiplier_for(pokemon, stat)
+    except Exception:
+        abil_mult = 1.0
+    return max(1, int(base * bm.stage_mult(stage) * _cond_stat_mult(pokemon, stat) * abil_mult))
 
 
 def attack_roll_bonus(pokemon):
@@ -664,10 +679,10 @@ def auto_detect_move_effect(move_data):
         'final gambit': {'type': 'fixed_damage', 'formula': 'user_hp'},  # canon: dano = seu HP; você desmaia
         'perish song': {'type': 'fixed_damage', 'formula': 'half_level', 'self': True},  # fere ambos
         'pain split': {'type': 'pain_split'},                          # canon: divide os HPs igualmente
-        # OHKO (homebrew: save com +4 de bônus; falhou → desmaia)
-        'fissure': {'type': 'ohko', 'save': 'DEX'},
-        'guillotine': {'type': 'ohko', 'save': 'CON'},
-        'horn drill': {'type': 'ohko', 'save': 'CON'},
+        # OHKO (v2: d20 vs accuracy canônica ~30%; acertou → desmaia)
+        'fissure': {'type': 'ohko'},
+        'guillotine': {'type': 'ohko'},
+        'horn drill': {'type': 'ohko'},
         # Haze: anula TODOS os buffs/debuffs acumulados (dos dois lados)
         'haze': {'type': 'reset_stages'},
         # Operações sobre stat stages (copiar/trocar/inverter)

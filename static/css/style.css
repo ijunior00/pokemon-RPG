@@ -650,6 +650,47 @@ h1, h2 {
 .attr-box label { display: block; font-size: 0.72rem; color: var(--accent); font-weight: 700; margin-bottom: 0.3rem; }
 .attr-input { width: 100%; text-align: center; background: var(--darker); border: 1px solid var(--card-border); border-radius: 4px; color: var(--text); font-size: 1.2rem; font-weight: 800; padding: 0.3rem; }
 .attr-mod { display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; }
+/* Point-buy dos atributos do treinador */
+.attr-pointbuy { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; background: var(--card-bg); border: 2px solid var(--accent); border-radius: var(--radius); padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; }
+.attr-pointbuy-info { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.9rem; }
+.attr-pointbuy-info strong { color: var(--accent); font-size: 1.05rem; }
+.attr-pointbuy-info strong.attr-over { color: #e74c3c; }
+.attr-pointbuy-hint { font-size: 0.72rem; color: var(--text-muted); }
+.attr-pointbuy-actions { display: flex; gap: 0.4rem; }
+.attr-stepper { display: flex; align-items: center; gap: 0.25rem; }
+.attr-step { width: 1.9rem; height: 1.9rem; flex: 0 0 auto; border: 1px solid var(--card-border); background: var(--darker); color: var(--text); border-radius: 4px; font-size: 1.1rem; font-weight: 800; line-height: 1; cursor: pointer; transition: background 0.15s, opacity 0.15s; }
+.attr-step:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.attr-step:disabled { opacity: 0.35; cursor: not-allowed; }
+.attr-stepper .attr-input { font-size: 1.1rem; padding: 0.25rem; }
+/* Custom EVs — distribuição de pontos de status do Pokémon */
+.ev-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px solid var(--card-border); }
+.ev-row:last-child { border-bottom: none; }
+.ev-label { flex: 0 0 5.5rem; font-weight: 700; font-size: 0.85rem; }
+.ev-btn { width: 1.9rem; height: 1.9rem; flex: 0 0 auto; border: 1px solid var(--card-border); background: var(--darker); color: var(--text); border-radius: 4px; font-size: 1.1rem; font-weight: 800; line-height: 1; cursor: pointer; }
+.ev-btn:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.ev-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.ev-val { flex: 0 0 2.5rem; text-align: center; font-weight: 800; color: var(--accent); }
+.ev-cost { flex: 1; text-align: right; font-size: 0.72rem; color: var(--text-muted); }
+/* Caminho do Treinador */
+.path-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.6rem; }
+.path-card { text-align: left; background: var(--darker); border: 2px solid var(--card-border); border-radius: var(--radius); padding: 0.7rem; cursor: pointer; transition: border-color 0.15s, transform 0.1s; color: var(--text); }
+.path-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.path-emoji { font-size: 1.8rem; }
+.path-emoji-lg { font-size: 2.2rem; }
+.path-name { font-weight: 800; color: var(--accent); }
+.path-motto { font-style: italic; font-size: 0.78rem; color: var(--text-muted); margin: 0.2rem 0; }
+.path-desc { font-size: 0.76rem; color: var(--text-muted); }
+.path-header { display: flex; align-items: center; gap: 0.7rem; padding: 0.5rem 0.2rem 0.75rem; }
+.path-milestone { border: 1px solid var(--card-border); border-radius: var(--radius); padding: 0.6rem; margin-bottom: 0.6rem; }
+.path-milestone.locked { opacity: 0.55; }
+.path-ms-title { font-weight: 700; color: var(--accent); margin-bottom: 0.4rem; }
+.path-ms-locked { font-size: 0.78rem; color: var(--text-muted); }
+.path-talent { background: var(--card-bg); border-left: 3px solid var(--accent); border-radius: 4px; padding: 0.5rem; font-size: 0.85rem; }
+.path-talent small { color: var(--text-muted); }
+.path-options { display: grid; gap: 0.4rem; }
+.path-option { text-align: left; background: var(--darker); border: 1px solid var(--card-border); border-radius: 4px; padding: 0.5rem; cursor: pointer; color: var(--text); font-size: 0.82rem; transition: border-color 0.15s; }
+.path-option:hover { border-color: var(--accent); }
+.path-option small { color: var(--text-muted); }
 .trainer-name-input { background: transparent; border: none; border-bottom: 2px solid var(--accent); color: var(--accent); font-size: 1.5rem; font-weight: 800; padding: 0.3rem; width: 250px; }
 .trainer-name-input:focus { outline: none; border-color: var(--primary); }
 

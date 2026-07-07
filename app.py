@@ -303,7 +303,18 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     if attack_roll is None:
         attack_roll = random.randint(1, 20)
     d20 = int(attack_roll)
-    is_crit = d20 == 20
+    # Crítico por estágios (v2): nat 20 sempre; moves de alta taxa / Super Luck
+    # / Focus Energy abaixam o limiar (17-20 no máximo)
+    _crit_stage = bm_core.crit_stage_for(
+        move_name, attacker_poke.get('ability'),
+        bool(attacker_poke.get('focus_energy')))
+    is_crit = d20 >= bm_core.crit_threshold(_crit_stage)
+    # Habilidades de crítico: Merciless garante crítico em alvo envenenado;
+    # Battle Armor / Shell Armor bloqueiam crítico contra o defensor
+    if ab.ability_forces_crit(attacker_poke, defender_poke):
+        is_crit = True
+    if ab.ability_prevents_crit(defender_poke.get('ability')):
+        is_crit = False
     atk_stage = effects.attack_roll_bonus(attacker_poke)
     evasion = effects.ac_bonus(defender_poke)
     thr = bm_core.miss_threshold(accuracy)
@@ -317,6 +328,10 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
                 'log': f'{met}❌ Errou! d20({d20}){shift} ≤ limiar {thr} ({acc_label})'}
 
     # ── Dano: dados do Power × razão de stats × postura ──
+    if not power:
+        # potência VARIÁVEL (Return, Low Kick, Gyro Ball...) ganha um Power
+        # representativo p/ dar dano em vez de "mestre adjudica"
+        power = bm_core.VARIABLE_POWER.get(move_name.lower())
     if not power:
         # moves de DANO FIXO (Dragon Rage, Sonic Boom, Seismic Toss...) têm
         # power None no canônico — resolvidos pela tabela do battle_math
@@ -367,6 +382,15 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     dmg = bm_core.damage(dice_total, atk_eff, def_eff, stab=stab,
                          effectiveness=eff, tax=tax, burned=burned,
                          stab_mult=stab_mult, level=level)
+
+    # Multiplicador de dano da habilidade do ATACANTE (Iron Fist, Technician,
+    # Tough Claws, Strong Jaw, Mega Launcher, Steelworker, Reckless, Sniper,
+    # Tinted Lens, Adaptability, Sheer Force...)
+    abil_dmg_mult = ab.ability_damage_mult(
+        attacker_poke, move_name, move_type_en, category, power,
+        is_crit=is_crit, effectiveness=eff, attacker_types=attacker_poke.get('types'))
+    if abil_dmg_mult != 1.0:
+        dmg = max(1, int(dmg * abil_dmg_mult))
 
     # Sinergia de veneno: Venoshock dobra contra alvo envenenado
     venoshock_x2 = False
@@ -2142,6 +2166,21 @@ def generate_npc():
     db.save_npc(npc)
     return jsonify(npc)
 
+def _carry_evolution_potential(old_poke, evolved, evolved_base):
+    """Custom EVs: ao evoluir, preserva os campos de Potencial e ROLA o bônus
+    permanente (1d6 ao chegar no estágio 2, 1d8 no 3) dos estágios cruzados."""
+    from_cur, _ = bm_core.parse_evolution_stage(
+        old_poke.get('evolutionStage')
+        or (POKEMON_BY_NAME.get((old_poke.get('name') or '').lower()) or {}).get('evolutionStage'))
+    to_cur, _ = bm_core.parse_evolution_stage(evolved_base.get('evolutionStage'))
+    evolved['potential_evo_bonus'] = int(old_poke.get('potential_evo_bonus') or 0) \
+        + migrations.roll_evolution_bonus(from_cur, to_cur)
+    evolved['potential_special'] = old_poke.get('potential_special', 0)
+    evolved['training_bonus'] = old_poke.get('training_bonus', 0)
+    evolved['pp'] = migrations.PP_VERSION
+    return evolved
+
+
 def check_and_evolve_pokemon(pokemon, trainer_level=None):
     """Check if a Pokemon should evolve based on trainer level.
     evolutionInfo stores the required *trainer* level (not pokemon level).
@@ -2213,6 +2252,7 @@ def check_and_evolve_pokemon(pokemon, trainer_level=None):
         'battle_wins': pokemon.get('battle_wins', 0),
         'statPointsAvailable': pokemon.get('statPointsAvailable', 0),
     }
+    _carry_evolution_potential(pokemon, evolved, evolved_base)
     return evolved, evolved_base['name']
 
 
@@ -2387,6 +2427,57 @@ def give_pokemon_xp():
         'leveled_up': leveled_up,
         'evolution': evolution
     })
+
+
+@app.route('/master/pokemon-points', methods=['POST'])
+@login_required
+def give_pokemon_points():
+    """Mestre concede/remove pontos Custom EVs a UM Pokémon do time do jogador:
+    Pontos de Potencial (potential_special) ou de Treinamento (training_bonus),
+    conforme a flexibilidade do sistema (captura, ginásio, evento...)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    player_id = data.get('player_id')
+    pokemon_idx = data.get('pokemon_idx')
+    kind = (data.get('kind') or 'potential').strip()   # 'potential' | 'training'
+    try:
+        amount = int(data.get('amount', 0))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Quantidade inválida'}), 400
+
+    if not player_id or pokemon_idx is None or amount == 0:
+        return jsonify({'error': 'Parâmetros inválidos'}), 400
+    if kind not in ('potential', 'training'):
+        return jsonify({'error': 'Tipo inválido'}), 400
+
+    users = get_users()
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    trainer = users[player_id].get('trainer_data', {})
+    team = trainer.get('team', [])
+    _mig(team)
+    if pokemon_idx < 0 or pokemon_idx >= len(team):
+        return jsonify({'error': 'Pokémon inválido'}), 400
+
+    poke = team[pokemon_idx]
+    field = 'potential_special' if kind == 'potential' else 'training_bonus'
+    poke[field] = max(0, int(poke.get(field) or 0) + amount)   # nunca negativo
+    base = POKEMON_BY_NAME.get((poke.get('name') or '').lower()) \
+        or POKEMON_BY_NUMBER.get(poke.get('number'))
+    # saldo derivado do novo orçamento (a distribuição atual continua válida)
+    budget = migrations.budget_for(poke, base)
+    poke['statPointsAvailable'] = max(0, budget - bm_core.training_spent(poke.get('training') or {}))
+    users[player_id]['trainer_data'] = trainer
+    save_users(users)
+
+    socketio.emit('pokemon_points_update', {
+        'pokemon_idx': pokemon_idx, 'pokemon_name': poke.get('name'),
+        'kind': kind, 'amount': amount,
+        'statPointsAvailable': poke['statPointsAvailable'],
+    }, room=player_id)
+    return jsonify({'success': True, 'field': field, 'value': poke[field],
+                    'statPointsAvailable': poke['statPointsAvailable']})
 
 # ============================================================
 # SITE SETTINGS API
@@ -2767,8 +2858,33 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     # Validate moves against database - only keep moves that actually exist
     move_pool = [m for m in move_pool if m.lower() in MOVES_BY_NAME or m in MOVES_DB]
     
-    # Pick last 4 moves (highest level moves)
-    wild_moves = move_pool[-4:] if len(move_pool) > 4 else (move_pool if move_pool else ['Tackle'])
+    # Moveset do selvagem: 2 PRINCIPAIS fixos (melhores golpes ofensivos
+    # naturais da espécie p/ o nível) + 2 SECUNDÁRIOS aleatórios (cobertura,
+    # suporte, status). Mantém identidade da espécie com variedade por encontro.
+    def _mv_power(m):
+        try:
+            return int(canon_move(m).get('power') or 0) or \
+                int(bm_core.VARIABLE_POWER.get(m.lower(), 0))
+        except (TypeError, ValueError):
+            return 0
+    offensive = sorted((m for m in move_pool if _mv_power(m) > 0),
+                       key=_mv_power, reverse=True)
+    # 2 principais = os 2 golpes ofensivos mais fortes disponíveis
+    fixed = offensive[:2]
+    # secundários = todo o resto (ofensivos extras + status/suporte), embaralhado
+    secondary_pool = [m for m in move_pool if m not in fixed]
+    random.shuffle(secondary_pool)
+    wild_moves = list(fixed)
+    for m in secondary_pool:
+        if len(wild_moves) >= 4:
+            break
+        if m not in wild_moves:
+            wild_moves.append(m)
+    # garantia mínima: sempre ter ao menos 1 golpe de dano
+    if not any(_mv_power(m) > 0 for m in wild_moves):
+        wild_moves = (['Tackle'] + wild_moves)[:4]
+    if not wild_moves:
+        wild_moves = ['Tackle']
     
     # Calculate scaled stats for the wild pokemon.
     # Shiny: +35% nos atributos BASE antes do escalonamento (SHINY_MULT em
@@ -3478,6 +3594,7 @@ def use_evolution_stone():
         'totalXp': pokemon.get('totalXp', 0),
         'statPointsAvailable': pokemon.get('statPointsAvailable', 0),
     }
+    _carry_evolution_potential(pokemon, evolved, evolved_base)
     team[pokemon_idx] = evolved
 
     # Consume item from bag
@@ -3575,6 +3692,7 @@ def friendship_evolve():
         'totalXp': pokemon.get('totalXp', 0),
         'statPointsAvailable': pokemon.get('statPointsAvailable', 0),
     }
+    _carry_evolution_potential(pokemon, evolved, evolved_base)
     team[pokemon_idx] = evolved
     trainer['team'] = team
     users[current_user.id]['trainer_data'] = trainer
@@ -3675,6 +3793,34 @@ def _mig(pokes):
     return migrations.ensure_v2(pokes, POKEMON_BY_NAME, POKEMON_BY_NUMBER)
 
 
+def _sanitize_training(tr, budget):
+    """Devolve uma distribuição de treino VÁLIDA sob a economia Custom EVs:
+    respeita o orçamento (custo progressivo n(n+1)/2) e o anti-min-max (stat
+    em múltiplo de 5 sem par cai ao múltiplo). Nunca rejeita — clampa — para
+    que o save normal do time (level-up, captura) não quebre."""
+    stats = bm_core.TRAINING_STATS
+    t = {k: max(0, int((tr or {}).get(k, 0) or 0)) for k in stats}
+    # 1) orçamento: reduz o stat de maior valor (maior custo marginal) até caber
+    guard = 0
+    while bm_core.training_spent(t) > budget and guard < 100000:
+        k = max(stats, key=lambda s: t[s])
+        if t[k] <= 0:
+            break
+        t[k] -= 1
+        guard += 1
+    # 2) anti-min-max: stat acima de um múltiplo de 5 sem par cai ao múltiplo
+    changed = True
+    while changed:
+        changed = False
+        for k in stats:
+            v = t[k]
+            m = 5 * ((v - 1) // 5) if v > 0 else 0
+            if m > 0 and not any(o != k and t[o] >= m for o in stats):
+                t[k] = m
+                changed = True
+    return t
+
+
 def _stamp_tatica(team, trainer):
     """Iniciativa: Pokémon de TREINADOR ganham +mod(♟️ Tática)//2 no d20 —
     a decisão mais inteligente sai na frente. Selvagens/NPCs não têm
@@ -3682,7 +3828,7 @@ def _stamp_tatica(team, trainer):
     if not isinstance(trainer, dict) or not trainer:
         return 0
     trainer_attrs.migrate_trainer(trainer)
-    bonus = trainer_attrs.mod(trainer.get('tatica', 10)) // 2
+    bonus = trainer_attrs.attr_mod(trainer, 'tatica') // 2
     for p in (team or []):
         if isinstance(p, dict):
             p['trainer_init_bonus'] = bonus
@@ -3757,20 +3903,26 @@ def update_team():
                 p['is_shiny'] = bool(p.get('is_shiny'))
             p['level'] = level
 
-            tr = p.get('training') or {}
-            cap = bm_core.training_cap(level)
-            tr = {k: max(0, min(cap, int(v or 0))) for k, v in tr.items()}
-            budget = bm_core.training_budget(level)
-            total = sum(tr.values())
-            if total > budget and total > 0:
-                tr = {k: (v * budget) // total for k, v in tr.items()}
-            p['training'] = tr
-            p['statPointsAvailable'] = max(0, budget - sum(tr.values()))
+            # Campos de Potencial são AUTORIDADE DO SERVIDOR (bônus de evolução
+            # rolado, bônus do mestre) — o cliente não pode forjá-los.
+            for f in ('potential_evo_bonus', 'potential_special', 'training_bonus', 'pp'):
+                if prev is not None and f in prev:
+                    p[f] = prev[f]
+                else:
+                    p.pop(f, None)
+            # garante os campos (nova captura / prev não migrado); NÃO reseta
+            # treino se já migrado (pp setado)
+            migrations.migrate_pokemon_pp(p, POKEMON_BY_NAME, POKEMON_BY_NUMBER)
+
+            # Distribuição Custom EVs: custo progressivo n(n+1)/2 + anti-min-max.
+            budget = migrations.budget_for(p, base)
+            p['training'] = _sanitize_training(p.get('training') or {}, budget)
+            p['statPointsAvailable'] = max(0, budget - bm_core.training_spent(p['training']))
             # stats são DERIVADOS (espécie+nível+natureza+shiny+treino):
             # recalcula no save — o cliente nunca é autoridade sobre stats
             scaled = scaling.calculate_pokemon_stats(
                 base, level, p.get('nature') or None,
-                is_shiny=bool(p.get('is_shiny')), training=tr)
+                is_shiny=bool(p.get('is_shiny')), training=p['training'])
             p['stats'] = scaled['stats']
             p['maxHp'] = scaled['maxHp']
             p['hp'] = scaled['maxHp']
@@ -3800,16 +3952,30 @@ def update_trainer():
         # pokeslots, max_sr e pokedex_seen saíram daqui de propósito: mudam
         # só por fluxos do servidor (loja, quest, PvP, ginásio, Pokédex) —
         # senão o jogador se dava dinheiro/insígnias infinitos.
+        # 'path' saiu daqui: o Caminho do Treinador é gerenciado por /player/path
+        # (permanente, com gate de nível) — não é campo livre.
         allowed_fields = ['name', 'visited_routes', 'notes',
-                         'race', 'background', 'path', 'specializations',
+                         'race', 'background', 'specializations',
                          'str', 'dex', 'con', 'int', 'wis', 'cha',
-                         'vinculo', 'tatica', 'conhecimento', 'agilidade',
-                         'influencia', 'determinacao', 'skill_profs',
+                         'skill_profs',
                          'hp_max', 'hp_current', 'proficiencies',
                          'avatar', 'trainerStatPointsUsed']
         for field in allowed_fields:
             if field in data:
                 trainer[field] = data[field]
+        # Atributos do treinador via POINT-BUY (base 10, teto 16, 20 pontos).
+        # Se o jogador enviou qualquer um dos 6, valida o conjunto inteiro e
+        # rejeita a ficha toda se estourar o orçamento — impede forjar 20 em
+        # tudo. (Bônus do mestre são aplicados por /master/edit-player.)
+        if any(k in data for k in trainer_attrs.ATTRIBUTES):
+            trainer_attrs.migrate_trainer(trainer)
+            incoming = {k: data.get(k, trainer.get(k, trainer_attrs.POINT_BUY_BASE))
+                        for k in trainer_attrs.ATTRIBUTES}
+            ok, cleaned, err = trainer_attrs.validate_point_buy(incoming)
+            if not ok:
+                return jsonify({'error': err}), 400
+            for k, v in cleaned.items():
+                trainer[k] = v
         # A bolsa o jogador gerencia (usar poção/bola), mas sanitiza para não
         # forjar itens: quantidades inteiras 0-999; sem entradas malformadas.
         if isinstance(data.get('bag'), list):
@@ -3838,6 +4004,36 @@ def update_trainer():
         save_users(users)
         return jsonify({'success': True})
     return jsonify({'error': 'User not found'}), 404
+
+
+@app.route('/player/path', methods=['GET', 'POST'])
+@login_required
+def player_path():
+    """Caminho do Treinador: GET devolve o estado; POST escolhe o caminho (nv 2,
+    permanente) ou uma habilidade de marco (nv 3/6/10, 1 de 3)."""
+    users = get_users()
+    if current_user.id not in users:
+        return jsonify({'error': 'User not found'}), 404
+    trainer = users[current_user.id].setdefault('trainer_data', {})
+    trainer_attrs.migrate_trainer(trainer)
+
+    if request.method == 'GET':
+        return jsonify(trainer_attrs.path_state(trainer))
+
+    data = request.json or {}
+    action = data.get('action')
+    if action == 'choose_path':
+        ok, err = trainer_attrs.choose_path(trainer, data.get('path'))
+    elif action == 'choose_ability':
+        ok, err = trainer_attrs.choose_path_ability(
+            trainer, data.get('milestone'), data.get('ability_id'))
+    else:
+        return jsonify({'error': 'Ação inválida'}), 400
+    if not ok:
+        return jsonify({'error': err}), 400
+    save_users(users)
+    return jsonify(dict(trainer_attrs.path_state(trainer), success=True))
+
 
 @app.route('/player/avatar', methods=['POST'])
 @login_required
@@ -3958,9 +4154,12 @@ def _influence_value(trainer):
     do CAR antigo pela migração automática."""
     trainer_attrs.migrate_trainer(trainer)
     try:
-        return int(trainer.get('influencia', 10) or 10)
+        base = int(trainer.get('influencia', 10) or 10)
     except (TypeError, ValueError):
-        return 10
+        base = 10
+    # bônus do Caminho (👑 Inspirador → Palavra Certa = +1 Influência)
+    _, attr_bonus = trainer_attrs.path_bonuses(trainer)
+    return base + attr_bonus.get('influencia', 0)
 
 
 def _cha_modifier(influencia: int):
@@ -4174,6 +4373,13 @@ def api_status_effects():
         'move_effects': {k: {'status': v['status'], 'chance': v.get('chance', None), 'on': v['on']}
                          for k, v in effects.MOVE_STATUS_EFFECTS.items()}
     })
+
+
+@app.route('/api/abilities')
+@login_required
+def api_abilities():
+    """Descrições de TODAS as habilidades conhecidas (para a ficha)."""
+    return jsonify({'descriptions': ab.ABILITY_DESCRIPTIONS})
 
 @app.route('/api/pokemon/stats', methods=['POST'])
 @login_required
@@ -4781,7 +4987,8 @@ def handle_battle_action(data):
             # rolado no servidor para valer também em batalhas selvagens.
             elif damage > 0 and not status_effect and not battle_state.get('wild_status'):
                 skey, inflicted = effects.check_status_on_hit(
-                    move_name, server_calc.get('attack_roll', 10), damage)
+                    move_name, server_calc.get('attack_roll', 10), damage,
+                    defender=encounter.get('pokemon'))
                 if inflicted:
                     status_effect = {'condition': skey, 'turns_active': 0}
                     cond = effects.STATUS_CONDITIONS.get(skey, {})
@@ -4886,7 +5093,8 @@ def handle_battle_action(data):
         if (action_type == 'attack' and action_by == 'master' and damage > 0
                 and move_name and not status_effect and not battle_state.get('player_status')):
             skey, inflicted = effects.check_status_on_hit(
-                move_name, int(data.get('attack_roll', 10) or 10), damage)
+                move_name, int(data.get('attack_roll', 10) or 10), damage,
+                defender=encounter.get('player_pokemon'))
             if inflicted:
                 status_effect = {'condition': skey, 'turns_active': 0}
 
@@ -5593,7 +5801,7 @@ def handle_pvp_attack(data):
         # Auto-check move status effects if client didn't send one
         if not status_applied and damage > 0 and move_name and result not in ('battle_end',):
             skey, inflicted = effects.check_status_on_hit(
-                move_name, int(data.get('attack_roll') or 15), damage)
+                move_name, int(data.get('attack_roll') or 15), damage, defender=def_poke)
             if inflicted:
                 auto_status = {'condition': skey}
                 status_applied = pvp.apply_status(battle, defender_key, auto_status)
@@ -6184,7 +6392,7 @@ def handle_npc_turn(battle, npc_key):
 
     # On-hit status do move do NPC (Ember→queimado etc.)
     if damage > 0 and not def_poke.get('status'):
-        skey, inflicted = effects.check_status_on_hit(move, 15, damage)
+        skey, inflicted = effects.check_status_on_hit(move, 15, damage, defender=def_poke)
         if inflicted:
             if pvp.apply_status(battle, defender_key, {'condition': skey}):
                 battle['log'].append({'type': 'status_applied', 'player': defender_key,
