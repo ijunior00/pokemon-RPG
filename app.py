@@ -3023,6 +3023,124 @@ def api_skill_roll():
     return jsonify({'ok': True, **roll_info})
 
 
+@app.route('/api/roll', methods=['POST'])
+@login_required
+def api_free_roll():
+    """Rolagem MANUAL de mesa (fora do sistema automatizado): dado puro
+    (d4-d100), atributo ou perícia — com uma nota ('pra quê'), virtual ou dado
+    físico. Vai para a Caixa de Rolagens do mestre. Se vier uma CD, marca
+    sucesso/falha."""
+    if _rate_limit(30, 60):
+        return jsonify({'error': 'Muitas rolagens em pouco tempo. Aguarde.'}), 429
+    data = request.json or {}
+    kind = (data.get('kind') or 'die').strip()
+    note = str(data.get('note') or '')[:120]
+
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    if trainer_attrs.migrate_trainer(trainer):
+        users[current_user.id]['trainer_data'] = trainer
+        save_users(users)
+
+    manual = data.get('manual_roll')
+
+    def _do_roll(sides):
+        if manual is not None:
+            try:
+                return max(1, min(int(sides), int(manual))), True
+            except (TypeError, ValueError):
+                pass
+        return random.randint(1, int(sides)), False
+
+    emoji, label, bonus, proficient, sides = '🎲', '', 0, False, 20
+    if kind == 'die':
+        try:
+            sides = max(2, min(100, int(data.get('die', 20))))
+        except (TypeError, ValueError):
+            sides = 20
+        roll, is_manual = _do_roll(sides)
+        total = roll
+        label = f'd{sides}'
+    elif kind == 'attr':
+        attr = (data.get('attr') or '').strip()
+        if attr not in trainer_attrs.ATTRIBUTES:
+            return jsonify({'error': 'Atributo inválido'}), 400
+        emoji, label = trainer_attrs.ATTRIBUTES[attr]
+        bonus = trainer_attrs.attr_mod(trainer, attr)
+        roll, is_manual = _do_roll(20)
+        total = roll + bonus
+    elif kind == 'skill':
+        skill = (data.get('skill') or '').strip()
+        if skill not in trainer_attrs.SKILLS:
+            return jsonify({'error': 'Perícia inválida'}), 400
+        bonus, proficient = trainer_attrs.skill_modifier(trainer, skill)
+        emoji, label = trainer_attrs.SKILLS[skill][1], skill
+        roll, is_manual = _do_roll(20)
+        total = roll + bonus
+    else:
+        return jsonify({'error': 'Tipo de rolagem inválido'}), 400
+
+    cd, success = data.get('cd'), None
+    try:
+        if cd not in (None, ''):
+            cd = int(cd)
+            success = total >= cd
+        else:
+            cd = None
+    except (TypeError, ValueError):
+        cd = None
+
+    roll_info = {
+        'player_id': str(current_user.id), 'player_name': current_user.username,
+        'kind': kind, 'label': label, 'emoji': emoji,
+        'roll': roll, 'sides': sides, 'bonus': bonus, 'proficient': proficient,
+        'total': total, 'manual': is_manual, 'note': note,
+        'cd': cd, 'success': success,
+        'nat1': sides == 20 and roll == 1, 'nat20': sides == 20 and roll == 20,
+    }
+    socketio.emit('free_roll', roll_info, room=f'master_{_tid()}')
+    return jsonify({'ok': True, **roll_info})
+
+
+@app.route('/master/request-roll', methods=['POST'])
+@login_required
+def master_request_roll():
+    """Mestre pede um teste a um jogador (atributo/perícia/dado) com um motivo e
+    CD opcional. O jogador recebe um aviso com botão de rolar (usa a própria
+    ficha)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    player_id = data.get('player_id')
+    kind = (data.get('kind') or 'attr').strip()
+    target = (data.get('target') or '').strip()
+    note = str(data.get('note') or '')[:120]
+
+    users = get_users()
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    if kind == 'attr' and target not in trainer_attrs.ATTRIBUTES:
+        return jsonify({'error': 'Atributo inválido'}), 400
+    if kind == 'skill' and target not in trainer_attrs.SKILLS:
+        return jsonify({'error': 'Perícia inválida'}), 400
+    if kind == 'die':
+        try:
+            target = str(max(2, min(100, int(target or 20))))
+        except (TypeError, ValueError):
+            target = '20'
+    cd = data.get('cd')
+    try:
+        cd = int(cd) if cd not in (None, '') else None
+    except (TypeError, ValueError):
+        cd = None
+
+    socketio.emit('roll_request', {
+        'kind': kind, 'target': target, 'note': note, 'cd': cd,
+        'master': current_user.username,
+    }, room=str(player_id))
+    return jsonify({'ok': True})
+
+
 @app.route('/api/skill/list')
 @login_required
 def api_skill_list():

@@ -2981,6 +2981,105 @@ async function rollSkill(skill) {
 document.addEventListener('DOMContentLoaded', renderTrainerSkills);
 document.addEventListener('DOMContentLoaded', renderTrainerPath);
 
+// ============================================
+// ROLAGEM DE MESA (livre + a pedido do Mestre)
+// ============================================
+const FREEROLL_ATTRS = [
+    ['vinculo', '❤️ Vínculo'], ['tatica', '♟️ Tática'], ['conhecimento', '📖 Conhecimento'],
+    ['agilidade', '🏃 Agilidade'], ['influencia', '👑 Influência'], ['determinacao', '🔥 Determinação'],
+];
+const FREEROLL_SKILLS = ['Afinidade','Ressonância','Análise','Comando','Pesquisa','Cuidados',
+    'Atletismo','Exploração','Diplomacia','Presença','Coragem','Resiliência','Sorte'];
+
+function _populateFreeRoll() {
+    const sel = document.getElementById('freeroll-target');
+    if (!sel || sel.dataset.ready) return;
+    let html = '<optgroup label="Dado">';
+    [4,6,8,10,12,20,100].forEach(d => html += `<option value="die:${d}">🎲 d${d}</option>`);
+    html += '</optgroup><optgroup label="Atributo (d20 + mod)">';
+    FREEROLL_ATTRS.forEach(([k,label]) => html += `<option value="attr:${k}">${label}</option>`);
+    html += '</optgroup><optgroup label="Perícia (d20 + mod + prof)">';
+    FREEROLL_SKILLS.forEach(s => html += `<option value="skill:${s}">🎲 ${s}</option>`);
+    html += '</optgroup>';
+    sel.innerHTML = html;
+    sel.value = 'die:20';
+    sel.dataset.ready = '1';
+    document.getElementById('freeroll-physical')?.addEventListener('change', e => {
+        document.getElementById('freeroll-manual')?.classList.toggle('hidden', !e.target.checked);
+    });
+}
+document.addEventListener('DOMContentLoaded', _populateFreeRoll);
+
+async function doFreeRoll(preset) {
+    _populateFreeRoll();
+    const sel = document.getElementById('freeroll-target');
+    const raw = preset?.target || (sel ? sel.value : 'die:20');
+    const [kind, val] = raw.split(':');
+    const note = preset?.note ?? (document.getElementById('freeroll-note')?.value || '');
+    const body = { kind, note };
+    if (kind === 'die') body.die = parseInt(val);
+    else if (kind === 'attr') body.attr = val;
+    else if (kind === 'skill') body.skill = val;
+    if (preset?.cd != null) body.cd = preset.cd;
+    // dado físico: o jogador digita o valor rolado na mesa
+    const physical = document.getElementById('freeroll-physical')?.checked;
+    if (!preset && physical) {
+        const m = parseInt(document.getElementById('freeroll-manual')?.value);
+        if (!isNaN(m)) body.manual_roll = m;
+    }
+    const box = document.getElementById('freeroll-result');
+    try {
+        const resp = await fetch('/api/roll', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const r = await resp.json();
+        if (!resp.ok) { if (box) box.textContent = '⚠️ ' + (r.error || 'Falha'); return; }
+        try { playSound && playSound('dice'); } catch(e) {}
+        const sign = r.bonus >= 0 ? '+' : '';
+        const flair = r.nat20 ? ' 🌟 NAT 20!' : r.nat1 ? ' 💀 NAT 1!' : '';
+        const bonusStr = (r.kind === 'die') ? '' : ` ${sign}${r.bonus}${r.proficient ? ' (prof.)' : ''}`;
+        const cdStr = (r.cd != null) ? ` vs CD ${r.cd} → ${r.success ? '✅ Sucesso' : '❌ Falha'}` : '';
+        if (box) box.innerHTML = `${r.emoji} <strong>${r.label}</strong>: ` +
+            `${r.kind === 'die' ? '' : 'd20('}<strong>${r.roll}</strong>${r.kind === 'die' ? '' : ')'}${bonusStr} = ` +
+            `<strong style="color:var(--accent);">${r.total}</strong>${flair}${cdStr} — 📨 enviado ao Mestre.`;
+    } catch(e) { if (box) box.textContent = '⚠️ Erro de conexão.'; }
+}
+
+// Mestre pediu um teste: mostra aviso com botão de rolar (usa a ficha)
+socket.on('roll_request', (req) => {
+    const labelMap = {
+        vinculo:'❤️ Vínculo', tatica:'♟️ Tática', conhecimento:'📖 Conhecimento',
+        agilidade:'🏃 Agilidade', influencia:'👑 Influência', determinacao:'🔥 Determinação',
+    };
+    const label = req.kind === 'die' ? `d${req.target}` : (labelMap[req.target] || req.target);
+    const cdStr = req.cd != null ? ` (CD ${req.cd})` : '';
+    const noteStr = req.note ? `: "${req.note}"` : '';
+    const msg = `🎲 O Mestre pediu um teste de <strong>${label}</strong>${cdStr}${noteStr}`;
+    const preset = { target: `${req.kind}:${req.target}`, note: req.note || '', cd: req.cd };
+    if (typeof showRollRequestPrompt === 'function') showRollRequestPrompt(msg, preset);
+    else if (confirm(msg.replace(/<[^>]+>/g, '') + '\n\nRolar agora?')) doFreeRoll(preset);
+});
+
+function showRollRequestPrompt(msgHtml, preset) {
+    let ov = document.getElementById('roll-request-overlay');
+    if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'roll-request-overlay';
+        ov.style.cssText = 'position:fixed;left:50%;bottom:1.5rem;transform:translateX(-50%);z-index:9999;background:var(--card-bg,#151b2b);border:2px solid var(--accent,#ffcb05);border-radius:12px;padding:0.8rem 1rem;box-shadow:0 8px 30px rgba(0,0,0,0.5);max-width:92vw;';
+        document.body.appendChild(ov);
+    }
+    ov.innerHTML = `<div style="font-size:0.9rem;margin-bottom:0.5rem;">${msgHtml}</div>
+        <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
+            <button class="btn btn-small" onclick="document.getElementById('roll-request-overlay').remove()">Depois</button>
+            <button class="btn btn-primary btn-small" id="roll-request-go">🎲 Rolar</button>
+        </div>`;
+    document.getElementById('roll-request-go').onclick = () => {
+        ov.remove();
+        doFreeRoll(preset);
+    };
+}
+
 const TRAINER_ATTRS = ['vinculo','tatica','conhecimento','agilidade','influencia','determinacao'];
 function updateModifiers() {
     TRAINER_ATTRS.forEach(attr => {
