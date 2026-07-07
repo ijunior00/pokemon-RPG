@@ -580,35 +580,71 @@
             <!-- Os 6 Atributos do Treinador -->
             <div class="trainer-attributes">
                 <h4>Os 6 Atributos do Treinador</h4>
+                <!-- Painel de distribuição de pontos (point-buy): 20 pontos,
+                     base 10, teto 16. Aparece ACIMA dos atributos. -->
+                <div id="attr-pointbuy-panel" class="attr-pointbuy">
+                    <div class="attr-pointbuy-info">
+                        <span>Pontos restantes: <strong id="attr-points-left">20</strong> / 20</span>
+                        <span class="attr-pointbuy-hint">Base 10 · máx. 16 por atributo · 1 ponto = +1</span>
+                    </div>
+                    <div class="attr-pointbuy-actions">
+                        <button type="button" class="btn btn-small" id="attr-reset-btn" onclick="resetAttrPointBuy()">↺ Redistribuir</button>
+                        <button type="button" class="btn btn-small btn-primary" id="attr-save-btn" onclick="saveAttrPointBuy()">Salvar atributos</button>
+                    </div>
+                </div>
                 <div class="attributes-grid">
                     <div class="attr-box" title="A verdadeira força de um treinador nasce da confiança construída com seus Pokémon. Afeta: captura, obediência, evoluções por amizade, Mega Evolução, Anima.">
                         <label>❤️ VÍNCULO</label>
-                        <input type="number" id="trainer-vinculo" value="{{ trainer.vinculo or trainer.wis or 10 }}" class="attr-input" readonly>
+                        <div class="attr-stepper">
+                            <button type="button" class="attr-step attr-minus" onclick="stepAttr('vinculo',-1)">−</button>
+                            <input type="number" id="trainer-vinculo" value="{{ trainer.vinculo or trainer.wis or 10 }}" class="attr-input" readonly>
+                            <button type="button" class="attr-step attr-plus" onclick="stepAttr('vinculo',1)">+</button>
+                        </div>
                         <span class="attr-mod" id="mod-vinculo"></span>
                     </div>
                     <div class="attr-box" title="Vencer nem sempre depende do Pokémon mais forte, mas da decisão mais inteligente. Afeta: iniciativa, leitura do adversário, combos, trocas estratégicas.">
                         <label>♟️ TÁTICA</label>
-                        <input type="number" id="trainer-tatica" value="{{ trainer.tatica or trainer.str or 10 }}" class="attr-input" readonly>
+                        <div class="attr-stepper">
+                            <button type="button" class="attr-step attr-minus" onclick="stepAttr('tatica',-1)">−</button>
+                            <input type="number" id="trainer-tatica" value="{{ trainer.tatica or trainer.str or 10 }}" class="attr-input" readonly>
+                            <button type="button" class="attr-step attr-plus" onclick="stepAttr('tatica',1)">+</button>
+                        </div>
                         <span class="attr-mod" id="mod-tatica"></span>
                     </div>
                     <div class="attr-box" title="Conhecer o mundo Pokémon é compreender como sobreviver nele. Afeta: identificar espécies/tipos/fraquezas, medicina Pokémon, pesquisa, ruínas.">
                         <label>📖 CONHEC.</label>
-                        <input type="number" id="trainer-conhecimento" value="{{ trainer.conhecimento or trainer.int or 10 }}" class="attr-input" readonly>
+                        <div class="attr-stepper">
+                            <button type="button" class="attr-step attr-minus" onclick="stepAttr('conhecimento',-1)">−</button>
+                            <input type="number" id="trainer-conhecimento" value="{{ trainer.conhecimento or trainer.int or 10 }}" class="attr-input" readonly>
+                            <button type="button" class="attr-step attr-plus" onclick="stepAttr('conhecimento',1)">+</button>
+                        </div>
                         <span class="attr-mod" id="mod-conhecimento"></span>
                     </div>
                     <div class="attr-box" title="Nem toda batalha é vencida atacando. Algumas são vencidas chegando primeiro. Afeta: corrida, escalada, esquivas, fugas, exploração.">
                         <label>🏃 AGILIDADE</label>
-                        <input type="number" id="trainer-agilidade" value="{{ trainer.agilidade or trainer.dex or 10 }}" class="attr-input" readonly>
+                        <div class="attr-stepper">
+                            <button type="button" class="attr-step attr-minus" onclick="stepAttr('agilidade',-1)">−</button>
+                            <input type="number" id="trainer-agilidade" value="{{ trainer.agilidade or trainer.dex or 10 }}" class="attr-input" readonly>
+                            <button type="button" class="attr-step attr-plus" onclick="stepAttr('agilidade',1)">+</button>
+                        </div>
                         <span class="attr-mod" id="mod-agilidade"></span>
                     </div>
                     <div class="attr-box" title="Grandes treinadores inspiram pessoas e Pokémon a darem o seu melhor. Afeta: persuasão, negociação, liderança, competições, preços da loja.">
                         <label>👑 INFLUÊNCIA</label>
-                        <input type="number" id="trainer-influencia" value="{{ trainer.influencia or trainer.cha or 10 }}" class="attr-input" readonly>
+                        <div class="attr-stepper">
+                            <button type="button" class="attr-step attr-minus" onclick="stepAttr('influencia',-1)">−</button>
+                            <input type="number" id="trainer-influencia" value="{{ trainer.influencia or trainer.cha or 10 }}" class="attr-input" readonly>
+                            <button type="button" class="attr-step attr-plus" onclick="stepAttr('influencia',1)">+</button>
+                        </div>
                         <span class="attr-mod" id="mod-influencia"></span>
                     </div>
                     <div class="attr-box" title="Quando tudo parece perdido, a determinação mantém um treinador de pé. Afeta: medo, resistência mental, situações extremas, Anima — e a Sorte (½ mod).">
                         <label>🔥 DETERM.</label>
-                        <input type="number" id="trainer-determinacao" value="{{ trainer.determinacao or trainer.con or 10 }}" class="attr-input" readonly>
+                        <div class="attr-stepper">
+                            <button type="button" class="attr-step attr-minus" onclick="stepAttr('determinacao',-1)">−</button>
+                            <input type="number" id="trainer-determinacao" value="{{ trainer.determinacao or trainer.con or 10 }}" class="attr-input" readonly>
+                            <button type="button" class="attr-step attr-plus" onclick="stepAttr('determinacao',1)">+</button>
+                        </div>
                         <span class="attr-mod" id="mod-determinacao"></span>
                     </div>
                 </div>

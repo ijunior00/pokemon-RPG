@@ -2714,14 +2714,11 @@ async function saveBag() {
 }
 
 async function saveTrainerData() {
+    // Os 6 atributos NÃO vão aqui: são salvos pelo point-buy (saveAttrPointBuy)
+    // com validação própria (base 10, teto 16, 20 pontos). Mandá-los junto faria
+    // esta rota falhar quando o mestre tivesse concedido bônus acima de 16.
     const data = {
         name: document.getElementById('trainer-name-input').value,
-        vinculo: parseInt(document.getElementById('trainer-vinculo').value) || 10,
-        tatica: parseInt(document.getElementById('trainer-tatica').value) || 10,
-        conhecimento: parseInt(document.getElementById('trainer-conhecimento').value) || 10,
-        agilidade: parseInt(document.getElementById('trainer-agilidade').value) || 10,
-        influencia: parseInt(document.getElementById('trainer-influencia').value) || 10,
-        determinacao: parseInt(document.getElementById('trainer-determinacao').value) || 10,
         skill_profs: TRAINER_DATA.skill_profs || [],
         hp_max: parseInt(document.getElementById('trainer-hp-max').value) || 8,
         hp_current: parseInt(document.getElementById('trainer-hp-current').value) || 8,
@@ -2886,6 +2883,94 @@ function updateModifiers() {
         const el = document.getElementById(`mod-${attr}`);
         if (el) el.textContent = `(${mod >= 0 ? '+' : ''}${mod})`;
     });
+    updateAttrPointBuy();
+}
+
+// ============================================
+// POINT-BUY DOS ATRIBUTOS (base 10, teto 16, 20 pontos)
+// ============================================
+const ATTR_BASE = 10, ATTR_MAX = 16, ATTR_BUDGET = 20;
+
+function attrPointsSpent() {
+    let spent = 0;
+    TRAINER_ATTRS.forEach(attr => {
+        const v = parseInt(document.getElementById(`trainer-${attr}`)?.value) || ATTR_BASE;
+        spent += Math.max(0, v - ATTR_BASE);
+    });
+    return spent;
+}
+
+function updateAttrPointBuy() {
+    const spent = attrPointsSpent();
+    const left = ATTR_BUDGET - spent;
+    const leftEl = document.getElementById('attr-points-left');
+    if (leftEl) {
+        leftEl.textContent = left;
+        leftEl.classList.toggle('attr-over', left < 0);
+    }
+    // habilita/desabilita botões conforme limites
+    TRAINER_ATTRS.forEach(attr => {
+        const box = document.getElementById(`trainer-${attr}`)?.closest('.attr-box');
+        if (!box) return;
+        const v = parseInt(document.getElementById(`trainer-${attr}`).value) || ATTR_BASE;
+        const minus = box.querySelector('.attr-minus');
+        const plus = box.querySelector('.attr-plus');
+        if (minus) minus.disabled = v <= ATTR_BASE;
+        if (plus) plus.disabled = v >= ATTR_MAX || left <= 0;
+    });
+}
+
+function stepAttr(attr, delta) {
+    const input = document.getElementById(`trainer-${attr}`);
+    if (!input) return;
+    let v = parseInt(input.value) || ATTR_BASE;
+    const next = v + delta;
+    if (next < ATTR_BASE || next > ATTR_MAX) return;
+    if (delta > 0 && attrPointsSpent() >= ATTR_BUDGET) return;  // sem pontos
+    input.value = next;
+    updateModifiers();
+}
+
+function resetAttrPointBuy() {
+    TRAINER_ATTRS.forEach(attr => {
+        const input = document.getElementById(`trainer-${attr}`);
+        if (input) input.value = ATTR_BASE;
+    });
+    updateModifiers();
+}
+
+async function saveAttrPointBuy() {
+    const spent = attrPointsSpent();
+    if (spent > ATTR_BUDGET) {
+        alert(`⚠️ Você usou ${spent} pontos, mas só tem ${ATTR_BUDGET}. Ajuste antes de salvar.`);
+        return;
+    }
+    const payload = {};
+    TRAINER_ATTRS.forEach(attr => {
+        payload[attr] = parseInt(document.getElementById(`trainer-${attr}`).value) || ATTR_BASE;
+    });
+    const btn = document.getElementById('attr-save-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+    try {
+        const resp = await fetch('/player/trainer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const out = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            alert('⚠️ ' + (out.error || 'Não foi possível salvar os atributos.'));
+        } else {
+            // sincroniza o cache local para as perícias reflitam na hora
+            if (window.TRAINER_DATA) Object.assign(TRAINER_DATA, payload);
+            renderTrainerSkills();
+            alert('✅ Atributos salvos!');
+        }
+    } catch(e) {
+        alert('⚠️ Erro de conexão ao salvar.');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Salvar atributos'; }
+    }
 }
 
 // Badge toggle
@@ -3157,6 +3242,9 @@ async function confirmSwitch(teamIdx) {
     const switchSpriteEl = document.getElementById('battle-player-sprite');
     switchSpriteEl.src = pNum ? getPokemonSpriteUrl(pNum, newPoke.is_shiny) : '';
     switchSpriteEl.classList.toggle('sprite-shiny', !!newPoke.is_shiny);
+    // limpa 'faint-anim' (deixado pelo Pokémon anterior desmaiado, que escondia
+    // o sprite) e re-anima a entrada — senão o novo Pokémon "não aparece"
+    battleSpriteEnter('battle-player-sprite', 'player');
     // nome SEM nível (o nível vive no badge separado — senão vira "Nv.36Nv.20")
     document.getElementById('battle-player-name-full').textContent = newPoke.nickname || newPoke.name;
     const swLvlBadge = document.getElementById('battle-player-level-badge');

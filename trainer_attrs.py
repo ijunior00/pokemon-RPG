@@ -50,6 +50,45 @@ SKILLS = {
 BASE_PROFS = 2
 EXTRA_PROF_LEVELS = (5, 9, 13, 17)
 
+# Distribuição de pontos dos atributos (point-buy do treinador):
+# todos começam em 10; 20 pontos livres; teto 16 por atributo; 1 ponto = +1.
+POINT_BUY_BASE = 10
+POINT_BUY_MAX = 16
+POINT_BUY_BUDGET = 20
+
+
+def points_spent(trainer):
+    """Quantos pontos de point-buy o treinador já gastou (Σ máx(0, attr-10))."""
+    total = 0
+    for key in ATTRIBUTES:
+        try:
+            total += max(0, int(trainer.get(key, POINT_BUY_BASE) or POINT_BUY_BASE) - POINT_BUY_BASE)
+        except (TypeError, ValueError):
+            pass
+    return total
+
+
+def validate_point_buy(incoming):
+    """Valida um dict {attr: valor} contra as regras do point-buy do jogador.
+    Retorna (ok, valores_limpos, erro). Cada atributo é clampado a 10-16 e a
+    soma dos pontos gastos não pode passar de 20."""
+    cleaned = {}
+    for key in ATTRIBUTES:
+        raw = incoming.get(key, POINT_BUY_BASE)
+        try:
+            v = int(raw)
+        except (TypeError, ValueError):
+            v = POINT_BUY_BASE
+        if v < POINT_BUY_BASE or v > POINT_BUY_MAX:
+            return False, None, (
+                f'{ATTRIBUTES[key][1]} deve ficar entre {POINT_BUY_BASE} e {POINT_BUY_MAX}.')
+        cleaned[key] = v
+    spent = sum(v - POINT_BUY_BASE for v in cleaned.values())
+    if spent > POINT_BUY_BUDGET:
+        return False, None, (
+            f'Você usou {spent} pontos, mas só tem {POINT_BUY_BUDGET}.')
+    return True, cleaned, None
+
 
 def mod(value):
     """Modificador D&D clássico: 10 → +0, 18 → +4."""

@@ -650,6 +650,18 @@ h1, h2 {
 .attr-box label { display: block; font-size: 0.72rem; color: var(--accent); font-weight: 700; margin-bottom: 0.3rem; }
 .attr-input { width: 100%; text-align: center; background: var(--darker); border: 1px solid var(--card-border); border-radius: 4px; color: var(--text); font-size: 1.2rem; font-weight: 800; padding: 0.3rem; }
 .attr-mod { display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; }
+/* Point-buy dos atributos do treinador */
+.attr-pointbuy { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; background: var(--card-bg); border: 2px solid var(--accent); border-radius: var(--radius); padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; }
+.attr-pointbuy-info { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.9rem; }
+.attr-pointbuy-info strong { color: var(--accent); font-size: 1.05rem; }
+.attr-pointbuy-info strong.attr-over { color: #e74c3c; }
+.attr-pointbuy-hint { font-size: 0.72rem; color: var(--text-muted); }
+.attr-pointbuy-actions { display: flex; gap: 0.4rem; }
+.attr-stepper { display: flex; align-items: center; gap: 0.25rem; }
+.attr-step { width: 1.9rem; height: 1.9rem; flex: 0 0 auto; border: 1px solid var(--card-border); background: var(--darker); color: var(--text); border-radius: 4px; font-size: 1.1rem; font-weight: 800; line-height: 1; cursor: pointer; transition: background 0.15s, opacity 0.15s; }
+.attr-step:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.attr-step:disabled { opacity: 0.35; cursor: not-allowed; }
+.attr-stepper .attr-input { font-size: 1.1rem; padding: 0.25rem; }
 .trainer-name-input { background: transparent; border: none; border-bottom: 2px solid var(--accent); color: var(--accent); font-size: 1.5rem; font-weight: 800; padding: 0.3rem; width: 250px; }
 .trainer-name-input:focus { outline: none; border-color: var(--primary); }
 

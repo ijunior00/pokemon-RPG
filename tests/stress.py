@@ -768,6 +768,37 @@ def main():
           _tr.get('determinacao') == 18 and _tr.get('agilidade') == 14 and
           _tr.get('tatica') == 8 and _tr.get('conhecimento') == 12 and _tr.get('av') == 2)
 
+    # ── Point-buy dos atributos (base 10, teto 16, 20 pontos) ──
+    # save válido: 16+16+10+10+10+10 = 12 pontos gastos
+    r = p1.post('/player/trainer', json={
+        'vinculo': 16, 'tatica': 16, 'conhecimento': 10,
+        'agilidade': 10, 'influencia': 10, 'determinacao': 10})
+    users = db.get_users(); _tr = users[u1]['trainer_data']
+    check(S, 'point-buy válido salvo (vinculo=16, tatica=16)',
+          r.status_code == 200 and _tr.get('vinculo') == 16 and _tr.get('tatica') == 16)
+    # estoura o orçamento: 16,16,16,13 = 21 pontos → rejeita, não altera
+    r = p1.post('/player/trainer', json={
+        'vinculo': 16, 'tatica': 16, 'conhecimento': 16,
+        'agilidade': 13, 'influencia': 10, 'determinacao': 10})
+    users = db.get_users(); _tr = users[u1]['trainer_data']
+    check(S, 'point-buy acima de 20 pontos rejeitado (400)',
+          r.status_code == 400 and _tr.get('conhecimento') == 10)
+    # passa do teto por atributo (17): rejeita
+    r = p1.post('/player/trainer', json={
+        'vinculo': 17, 'tatica': 10, 'conhecimento': 10,
+        'agilidade': 10, 'influencia': 10, 'determinacao': 10})
+    check(S, 'point-buy acima do teto 16 rejeitado (400)', r.status_code == 400)
+    # abaixo da base (9): rejeita
+    r = p1.post('/player/trainer', json={
+        'vinculo': 9, 'tatica': 10, 'conhecimento': 10,
+        'agilidade': 10, 'influencia': 10, 'determinacao': 10})
+    check(S, 'point-buy abaixo da base 10 rejeitado (400)', r.status_code == 400)
+    # restaura estado usado pelos testes de perícia abaixo (vínculo 16, det 18...)
+    users = db.get_users()
+    users[u1]['trainer_data'].update({'vinculo': 16, 'influencia': 15,
+        'determinacao': 18, 'agilidade': 14, 'tatica': 8, 'conhecimento': 12})
+    db.save_users(users)
+
     # /api/skill/list: 13 perícias e Sorte com metade do mod de Determinação
     r = p1.get('/api/skill/list')
     d = r.get_json() or {}

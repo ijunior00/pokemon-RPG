@@ -2767,8 +2767,32 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     # Validate moves against database - only keep moves that actually exist
     move_pool = [m for m in move_pool if m.lower() in MOVES_BY_NAME or m in MOVES_DB]
     
-    # Pick last 4 moves (highest level moves)
-    wild_moves = move_pool[-4:] if len(move_pool) > 4 else (move_pool if move_pool else ['Tackle'])
+    # Monta 4 moves garantindo pelo menos 2 ofensivos (com Power) — antes o
+    # selvagem às vezes vinha só com status/lixo e a batalha não tinha graça.
+    def _mv_power(m):
+        try:
+            return int(canon_move(m).get('power') or 0)
+        except (TypeError, ValueError):
+            return 0
+    offensive = [m for m in move_pool if _mv_power(m) > 0]
+    others = [m for m in move_pool if _mv_power(m) <= 0]
+    # ofensivos mais fortes primeiro; usa os melhores até 4
+    offensive.sort(key=_mv_power, reverse=True)
+    wild_moves = []
+    for m in offensive[:4]:
+        wild_moves.append(m)
+    # completa com moves de status/utilidade (os de nível mais alto do pool)
+    for m in reversed(others):
+        if len(wild_moves) >= 4:
+            break
+        if m not in wild_moves:
+            wild_moves.append(m)
+    if not wild_moves:
+        wild_moves = ['Tackle']
+    # preserva ordenação por nível quando há ofensivos suficientes, mas nunca
+    # deixa o set sem ataque: se por acaso só sobrou status, injeta Tackle
+    if not any(_mv_power(m) > 0 for m in wild_moves):
+        wild_moves = (['Tackle'] + wild_moves)[:4]
     
     # Calculate scaled stats for the wild pokemon.
     # Shiny: +35% nos atributos BASE antes do escalonamento (SHINY_MULT em
@@ -3803,13 +3827,25 @@ def update_trainer():
         allowed_fields = ['name', 'visited_routes', 'notes',
                          'race', 'background', 'path', 'specializations',
                          'str', 'dex', 'con', 'int', 'wis', 'cha',
-                         'vinculo', 'tatica', 'conhecimento', 'agilidade',
-                         'influencia', 'determinacao', 'skill_profs',
+                         'skill_profs',
                          'hp_max', 'hp_current', 'proficiencies',
                          'avatar', 'trainerStatPointsUsed']
         for field in allowed_fields:
             if field in data:
                 trainer[field] = data[field]
+        # Atributos do treinador via POINT-BUY (base 10, teto 16, 20 pontos).
+        # Se o jogador enviou qualquer um dos 6, valida o conjunto inteiro e
+        # rejeita a ficha toda se estourar o orçamento — impede forjar 20 em
+        # tudo. (Bônus do mestre são aplicados por /master/edit-player.)
+        if any(k in data for k in trainer_attrs.ATTRIBUTES):
+            trainer_attrs.migrate_trainer(trainer)
+            incoming = {k: data.get(k, trainer.get(k, trainer_attrs.POINT_BUY_BASE))
+                        for k in trainer_attrs.ATTRIBUTES}
+            ok, cleaned, err = trainer_attrs.validate_point_buy(incoming)
+            if not ok:
+                return jsonify({'error': err}), 400
+            for k, v in cleaned.items():
+                trainer[k] = v
         # A bolsa o jogador gerencia (usar poção/bola), mas sanitiza para não
         # forjar itens: quantidades inteiras 0-999; sem entradas malformadas.
         if isinstance(data.get('bag'), list):
