@@ -1922,13 +1922,26 @@ function _setAbilitySelect(selId, options, current, emptyLabel) {
 function _updateAbilityHint() {
     const hint = document.getElementById('poke-ability-hint');
     if (!hint) return;
+    const descs = window._abilityDescriptions || {};
     const parts = [];
     for (const id of ['poke-ability', 'poke-hidden-ability']) {
         const opt = document.getElementById(id)?.selectedOptions?.[0];
-        if (opt?.value && opt.dataset?.desc) parts.push(`<strong>${opt.value}:</strong> ${opt.dataset.desc}`);
+        if (!opt?.value) continue;
+        // fallback: catálogo completo de habilidades quando a espécie não traz desc
+        const desc = opt.dataset?.desc || descs[opt.value.trim().toLowerCase()] || '';
+        if (desc) parts.push(`<strong>${opt.value}:</strong> ${desc}`);
     }
     hint.innerHTML = parts.join('<br>');
 }
+
+// carrega o catálogo de descrições de habilidades uma vez
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const d = await (await fetch('/api/abilities')).json();
+        window._abilityDescriptions = d.descriptions || {};
+        _updateAbilityHint();
+    } catch (e) {}
+});
 
 async function loadAbilityDropdowns(speciesName, currentAbility, currentHidden) {
     const learnset = await _fetchLearnset(speciesName);

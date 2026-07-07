@@ -1143,6 +1143,42 @@ def main():
     r = p1.post('/api/moves/batch', json={'moves': ['Ember', 'Growl']})
     check(S, 'batch de moves', len(r.get_json() or {}) == 2)
 
+    # ── Habilidades passivas (expansão): 100% conhecidas + mecânicas ──
+    _names = set()
+    for _p in appmod.POKEMON_DB:
+        for _a in (_p.get('abilities') or []):
+            _names.add(_a['name'] if isinstance(_a, dict) else _a)
+        for _k in ('ability', 'hiddenAbility'):
+            _av = _p.get(_k)
+            if isinstance(_av, dict) and _av.get('name'):
+                _names.add(_av['name'])
+    _unknown = [n for n in _names if n and not ab.is_known_ability(n)]
+    check(S, 'TODAS as habilidades das espécies são conhecidas (0 sem descrição)',
+          len(_unknown) == 0, str(_unknown[:8]))
+    # stat-mult via effective_stat (Huge Power dobra ATK)
+    check(S, 'Huge Power dobra o ATK efetivo',
+          appmod.effects.effective_stat({'ability': 'Huge Power', 'stats': {'ATK': 100}, 'stat_stages': {}}, 'ATK') == 200)
+    check(S, 'Fur Coat dobra a DEF efetiva',
+          appmod.effects.effective_stat({'ability': 'Fur Coat', 'stats': {'DEF': 80}, 'stat_stages': {}}, 'DEF') == 160)
+    # damage-mult no cálculo real (Iron Fist em soco)
+    _pi = make_poke('Hitmonchan', 40); _pi['ability'] = 'Iron Fist'
+    _di = appmod._calc_pvp_attack(_pi, make_poke('Snorlax', 40), 'Fire Punch', 20)
+    _dn = appmod._calc_pvp_attack(make_poke('Hitmonchan', 40), make_poke('Snorlax', 40), 'Fire Punch', 20)
+    check(S, 'Iron Fist aumenta o dano de socos', _di['damage'] > _dn['damage'],
+          f"{_di['damage']} vs {_dn['damage']}")
+    # imunidade de status (Limber ignora paralisia; Water Veil ignora queimadura)
+    check(S, 'Limber é imune a paralisia',
+          ab.is_status_immune({'ability': 'Limber'}, 'paralisado') and
+          not ab.is_status_immune({'ability': 'Limber'}, 'queimado'))
+    _sk, _inf = appmod.effects.check_status_on_hit('Thunder Wave', 15, 5, defender={'ability': 'Limber'})
+    check(S, 'on-hit respeita imunidade (Thunder Wave em Limber)', _inf is False)
+    # crítico bloqueado por Shell Armor
+    _pa = make_poke('Machamp', 40); _def = make_poke('Cloyster', 40); _def['ability'] = 'Shell Armor'
+    _cc = appmod._calc_pvp_attack(_pa, _def, 'Karate Chop', 20)  # nat 20 seria crit
+    check(S, 'Shell Armor bloqueia crítico (nat 20 não crita)', _cc.get('is_crit') is False)
+    check(S, 'API /api/abilities lista descrições',
+          len((p1.get('/api/abilities').get_json() or {}).get('descriptions', {})) > 100)
+
     # ══════════ 7. PVP JOGADOR vs JOGADOR ══════════
     section('7. PvP jogador vs jogador')
     S = 'PvP P2P'

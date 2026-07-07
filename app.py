@@ -309,6 +309,12 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
         move_name, attacker_poke.get('ability'),
         bool(attacker_poke.get('focus_energy')))
     is_crit = d20 >= bm_core.crit_threshold(_crit_stage)
+    # Habilidades de crítico: Merciless garante crítico em alvo envenenado;
+    # Battle Armor / Shell Armor bloqueiam crítico contra o defensor
+    if ab.ability_forces_crit(attacker_poke, defender_poke):
+        is_crit = True
+    if ab.ability_prevents_crit(defender_poke.get('ability')):
+        is_crit = False
     atk_stage = effects.attack_roll_bonus(attacker_poke)
     evasion = effects.ac_bonus(defender_poke)
     thr = bm_core.miss_threshold(accuracy)
@@ -376,6 +382,15 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     dmg = bm_core.damage(dice_total, atk_eff, def_eff, stab=stab,
                          effectiveness=eff, tax=tax, burned=burned,
                          stab_mult=stab_mult, level=level)
+
+    # Multiplicador de dano da habilidade do ATACANTE (Iron Fist, Technician,
+    # Tough Claws, Strong Jaw, Mega Launcher, Steelworker, Reckless, Sniper,
+    # Tinted Lens, Adaptability, Sheer Force...)
+    abil_dmg_mult = ab.ability_damage_mult(
+        attacker_poke, move_name, move_type_en, category, power,
+        is_crit=is_crit, effectiveness=eff, attacker_types=attacker_poke.get('types'))
+    if abil_dmg_mult != 1.0:
+        dmg = max(1, int(dmg * abil_dmg_mult))
 
     # Sinergia de veneno: Venoshock dobra contra alvo envenenado
     venoshock_x2 = False
@@ -4359,6 +4374,13 @@ def api_status_effects():
                          for k, v in effects.MOVE_STATUS_EFFECTS.items()}
     })
 
+
+@app.route('/api/abilities')
+@login_required
+def api_abilities():
+    """Descrições de TODAS as habilidades conhecidas (para a ficha)."""
+    return jsonify({'descriptions': ab.ABILITY_DESCRIPTIONS})
+
 @app.route('/api/pokemon/stats', methods=['POST'])
 @login_required
 def api_pokemon_scaled_stats():
@@ -4965,7 +4987,8 @@ def handle_battle_action(data):
             # rolado no servidor para valer também em batalhas selvagens.
             elif damage > 0 and not status_effect and not battle_state.get('wild_status'):
                 skey, inflicted = effects.check_status_on_hit(
-                    move_name, server_calc.get('attack_roll', 10), damage)
+                    move_name, server_calc.get('attack_roll', 10), damage,
+                    defender=encounter.get('pokemon'))
                 if inflicted:
                     status_effect = {'condition': skey, 'turns_active': 0}
                     cond = effects.STATUS_CONDITIONS.get(skey, {})
@@ -5070,7 +5093,8 @@ def handle_battle_action(data):
         if (action_type == 'attack' and action_by == 'master' and damage > 0
                 and move_name and not status_effect and not battle_state.get('player_status')):
             skey, inflicted = effects.check_status_on_hit(
-                move_name, int(data.get('attack_roll', 10) or 10), damage)
+                move_name, int(data.get('attack_roll', 10) or 10), damage,
+                defender=encounter.get('player_pokemon'))
             if inflicted:
                 status_effect = {'condition': skey, 'turns_active': 0}
 
@@ -5777,7 +5801,7 @@ def handle_pvp_attack(data):
         # Auto-check move status effects if client didn't send one
         if not status_applied and damage > 0 and move_name and result not in ('battle_end',):
             skey, inflicted = effects.check_status_on_hit(
-                move_name, int(data.get('attack_roll') or 15), damage)
+                move_name, int(data.get('attack_roll') or 15), damage, defender=def_poke)
             if inflicted:
                 auto_status = {'condition': skey}
                 status_applied = pvp.apply_status(battle, defender_key, auto_status)
@@ -6368,7 +6392,7 @@ def handle_npc_turn(battle, npc_key):
 
     # On-hit status do move do NPC (Ember→queimado etc.)
     if damage > 0 and not def_poke.get('status'):
-        skey, inflicted = effects.check_status_on_hit(move, 15, damage)
+        skey, inflicted = effects.check_status_on_hit(move, 15, damage, defender=def_poke)
         if inflicted:
             if pvp.apply_status(battle, defender_key, {'condition': skey}):
                 battle['log'].append({'type': 'status_applied', 'player': defender_key,
