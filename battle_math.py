@@ -21,7 +21,9 @@ STAB_MULT = 1.5               # bônus de tipo igual (como nos jogos)
 # batalhas ficam na janela de 8-15 turnos em TODOS os níveis (validado por
 # sweep de 2.100 batalhas com movesets realistas por nível: médias 9-12).
 # O leve crescimento por nível compensa o HP subir mais rápido que os dados.
-DAMAGE_SCALE_BASE = 0.20        # escala no nível 1
+DAMAGE_SCALE_BASE = 0.30        # escala no nível 1 (0.20→0.30: batalhas mais
+                                # curtas e dano com mais peso — ~9-13 → ~6-9
+                                # golpes p/ nocaute; valida em tools/battle_sweep.py)
 DAMAGE_SCALE_PER_LEVEL = 0.0003  # quase flat: os movesets já ganham Power com o nível
 
 

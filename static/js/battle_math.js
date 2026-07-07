@@ -9,7 +9,7 @@ const BattleMath = (() => {
     // Escala GLOBAL de dano (espelho do battle_math.py): levemente crescente
     // com o nível porque o HP cresce mais rápido que os dados.
     // Antigo equivalente: 1.0 em todos os níveis (janela de 2-4 turnos).
-    const DAMAGE_SCALE_BASE = 0.20;
+    const DAMAGE_SCALE_BASE = 0.30;   // espelho de battle_math.py (batalhas mais curtas)
     const DAMAGE_SCALE_PER_LEVEL = 0.0003;
     function damageScale(level) {
         return DAMAGE_SCALE_BASE + DAMAGE_SCALE_PER_LEVEL * Math.max(1, level || 50);

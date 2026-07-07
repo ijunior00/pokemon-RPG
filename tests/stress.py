@@ -667,7 +667,7 @@ def main():
         r = max(0.5, min(2.0, atk / max(1, dfn)))
         d = dice_total * r * tax * (1.5 if stab else 1.0) * eff
         # escala global de dano crescente com o nível: batalhas de 8-15 turnos
-        scale = 0.20 + 0.0003 * max(1, lv)
+        scale = bmm.DAMAGE_SCALE_BASE + bmm.DAMAGE_SCALE_PER_LEVEL * max(1, lv)
         return max(1, int(d * scale)) if eff > 0 else 0
     _par_ok = True
     random.seed(99)
