@@ -168,6 +168,66 @@
                 </div>
             </div>
 
+            <!-- 🎁 Presentes: dar Pokémon, itens ou dinheiro (quests/NPCs) -->
+            <div style="margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid var(--card-border,#333);">
+                <strong style="font-size:0.9rem;">🎁 Dar a um jogador (quest, campeonato, presente de NPC)</strong>
+                <div class="form-row" style="align-items:flex-end;margin-top:0.4rem;gap:0.4rem;flex-wrap:wrap;">
+                    <div class="form-group">
+                        <label>Jogador</label>
+                        <select id="gift-player">
+                            {% for uid, player in players.items() %}
+                            <option value="{{ uid }}">{{ player.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:140px;">
+                        <label>De quem? (opc.)</label>
+                        <input type="text" id="gift-from" placeholder="ex.: Prof. Carvalho" maxlength="40">
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:150px;">
+                        <label>Motivo (opc.)</label>
+                        <input type="text" id="gift-note" placeholder="ex.: recompensa da quest" maxlength="120">
+                    </div>
+                </div>
+                <div class="form-row" style="align-items:flex-end;gap:0.4rem;flex-wrap:wrap;">
+                    <div class="form-group" style="min-width:150px;">
+                        <label>Pokémon (nome ou nº)</label>
+                        <input type="text" id="gift-species" placeholder="ex.: Eevee" list="gift-species-list">
+                        <datalist id="gift-species-list"></datalist>
+                    </div>
+                    <div class="form-group" style="max-width:4.5rem;">
+                        <label>Nível</label>
+                        <input type="number" id="gift-level" value="5" min="1" max="100">
+                    </div>
+                    <div class="form-group" style="max-width:5rem;">
+                        <label>✨ Shiny</label>
+                        <input type="checkbox" id="gift-shiny" style="width:auto;margin-top:0.4rem;">
+                    </div>
+                    <div class="form-group" style="min-width:120px;">
+                        <label>Apelido (opc.)</label>
+                        <input type="text" id="gift-nickname" maxlength="30">
+                    </div>
+                    <button class="btn btn-success" onclick="givePokemon()">🐾 Dar Pokémon</button>
+                </div>
+                <div class="form-row" style="align-items:flex-end;gap:0.4rem;flex-wrap:wrap;">
+                    <div class="form-group" style="min-width:160px;">
+                        <label>Item (catálogo ou nome livre)</label>
+                        <input type="text" id="gift-item" placeholder="ex.: Poção / Chave Antiga" list="gift-item-list">
+                        <datalist id="gift-item-list"></datalist>
+                    </div>
+                    <div class="form-group" style="max-width:4.5rem;">
+                        <label>Qtd</label>
+                        <input type="number" id="gift-qty" value="1" min="1" max="999">
+                    </div>
+                    <div class="form-group" style="max-width:7rem;">
+                        <label>💰 Dinheiro</label>
+                        <input type="number" id="gift-money" value="0" min="0" step="100">
+                    </div>
+                    <button class="btn btn-success" onclick="giveItem()">🎒 Dar Item/₽</button>
+                </div>
+                <p id="gift-result" style="font-size:0.85rem;margin:0.3rem 0;"></p>
+            </div>
+
             <div style="margin-top:0.6rem;">
                 <strong style="font-size:0.9rem;">📨 Rolagens recebidas</strong>
                 <div id="hunt-rolls-inbox" style="margin-top:0.4rem;display:flex;flex-direction:column;gap:0.35rem;max-height:220px;overflow-y:auto;">

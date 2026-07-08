@@ -3139,6 +3139,40 @@ async function doFreeRoll(preset) {
     } catch(e) { if (box) box.textContent = '⚠️ Erro de conexão.'; }
 }
 
+// 🎁 Presente do Mestre (Pokémon, item ou dinheiro) — atualiza na hora
+socket.on('gift_received', (g) => {
+    try { playSound && playSound('levelup'); } catch(e) {}
+    const from = g.from || 'O Mestre';
+    const noteStr = g.note ? ` — "${g.note}"` : '';
+    if (g.kind === 'pokemon' && g.pokemon) {
+        const p = g.pokemon;
+        const label = `${p.is_shiny ? '✨ ' : ''}${p.nickname || p.name} (Nv.${p.level})`;
+        showNotification(`🎁 ${from} te deu ${label}! Foi para o seu ${g.destination}.${noteStr}`, 'success');
+        // recarrega a ficha para o time/PC novos aparecerem em tudo
+        setTimeout(() => location.reload(), 2200);
+        return;
+    }
+    // item e/ou dinheiro: aplica no estado local sem recarregar
+    if (g.item) {
+        const existing = (window.bagItems || []).find(b => b && (b.name || '').toLowerCase() === g.item.name.toLowerCase());
+        if (existing) existing.qty = (existing.qty || 1) + g.item.qty;
+        else { if (!window.bagItems) window.bagItems = []; window.bagItems.push({ name: g.item.name, qty: g.item.qty, file: nameToFile(g.item.name) }); }
+        const te = (TRAINER_DATA.bag || []).find(b => b && (b.name || '').toLowerCase() === g.item.name.toLowerCase());
+        if (te) te.qty = (te.qty || 1) + g.item.qty;
+        else { if (!TRAINER_DATA.bag) TRAINER_DATA.bag = []; TRAINER_DATA.bag.push({ name: g.item.name, qty: g.item.qty }); }
+        try { renderBagGrid(); refreshEnergyDrinkBtn(); } catch(e) {}
+    }
+    if (g.money) {
+        TRAINER_DATA.money = g.total_money ?? ((TRAINER_DATA.money || 0) + g.money);
+        const moneyEl = document.getElementById('shop-money-display');
+        if (moneyEl) moneyEl.textContent = (TRAINER_DATA.money || 0).toLocaleString('pt-BR');
+    }
+    const parts = [];
+    if (g.item) parts.push(`${g.item.qty}x ${g.item.name}`);
+    if (g.money) parts.push(`₽${g.money.toLocaleString('pt-BR')}`);
+    showNotification(`🎁 ${from} te deu ${parts.join(' e ')}!${noteStr}`, 'success');
+});
+
 // Mestre pediu um teste: mostra aviso com botão de rolar (usa a ficha)
 socket.on('roll_request', (req) => {
     const labelMap = {
@@ -6851,9 +6885,10 @@ async function buyItem(itemId) {
     // mantém window.bagItems em sincronia (usado pela caçada/pokébola/energy drink)
     const wexisting = (window.bagItems || []).find(b => b && (b.name || '').toLowerCase() === item.name.toLowerCase());
     if (wexisting) wexisting.qty = (wexisting.qty || 1) + qty;
-    else { if (!window.bagItems) window.bagItems = []; window.bagItems.push({ name: item.name, qty, file: '' }); }
+    else { if (!window.bagItems) window.bagItems = []; window.bagItems.push({ name: item.name, qty, file: nameToFile(item.name) }); }
     refreshEnergyDrinkBtn();
     renderShop();
+    try { renderBagGrid(); } catch(e) {}   // a bolsa mostra a compra na hora
     const chaMsg = data.cha_bonus ? ` (bônus CHA!)` : '';
     showNotification(`✅ ${qty}x ${item.name} comprado por ₽${(data.unit_price * qty).toLocaleString('pt-BR')}${chaMsg}`, 'success');
 }

@@ -22,6 +22,7 @@ import app as appmod
 from app import app, socketio
 import database as db
 import pokemon_scaling as scaling
+import pvp_battle as pvp
 
 random.seed()
 app.config['TESTING'] = True
@@ -1914,6 +1915,75 @@ def main():
     check(S, 'Earthquake fura quem usou Dig (tabela de exceções)',
           bm.v3_pierces_invuln('no subsolo', 'Earthquake')
           and not bm.v3_pierces_invuln('no ar', 'Tackle'))
+
+    section('18. Presentes do Mestre & economia dos NPCs')
+    S = 'Presentes/NPCs'
+
+    # NPC gerado nasce com ₽3000 + itens básicos
+    r = m.post('/master/npcs/generate', json={'npc_class': 'Trainer', 'level': 12,
+                                              'team_size': 1})
+    npc_e = r.get_json() or {}
+    check(S, 'NPC gerado nasce com ₽3000', npc_e.get('money') == 3000)
+    _bagnames = [b.get('name') for b in (npc_e.get('bag') or [])]
+    check(S, 'NPC gerado tem itens básicos (Pokébola/Poção)',
+          'Pokébola' in _bagnames and 'Poção' in _bagnames, f'{_bagnames}')
+
+    # NPC ANTIGO (sem money/bag) é migrado ao listar
+    old_npc = {'id': 'npcvelho1', 'name': 'Veterano', 'npc_class': 'Trainer',
+               'level': 8, 'team': [], 'notes': '', 'diary': []}
+    db.save_npc(old_npc, TID)
+    r = m.get('/master/npcs')
+    got = next((n for n in (r.get_json() or []) if n['id'] == 'npcvelho1'), {})
+    check(S, 'NPC antigo ganha economia na migração',
+          got.get('money') == 3000 and bool(got.get('bag')))
+
+    # Espólio de rua sai do bolso REAL do NPC (antes ia/vinha do vazio)
+    loot_money, loot_items = pvp.calculate_street_loot(got)
+    check(S, 'loot de rua do NPC: 25% de ₽3000 = ₽750 + itens',
+          loot_money == 750 and len(loot_items) >= 1, f'{loot_money}/{loot_items}')
+
+    # 🎁 Mestre dá item do catálogo + dinheiro
+    _money_antes = db.get_users()[u1]['trainer_data'].get('money', 0)
+    r = m.post('/master/give-item', json={'player_id': u1, 'item_name': 'Poção',
+                                          'qty': 3, 'money': 500,
+                                          'note': 'recompensa da quest'})
+    d = r.get_json() or {}
+    t1 = db.get_users()[u1]['trainer_data']
+    _pocao = next((b for b in t1.get('bag', []) if b.get('name') == 'Poção'), {})
+    check(S, 'mestre dá 3x Poção + ₽500 (vai pra ficha)',
+          d.get('ok') and _pocao.get('qty', 0) >= 3
+          and t1.get('money') == _money_antes + 500)
+
+    # 🎁 Item de HISTÓRIA (fora do catálogo) também entra na bolsa
+    r = m.post('/master/give-item', json={'player_id': u1, 'item_name': 'Chave Antiga',
+                                          'qty': 1, 'description': 'Abre a ruína.'})
+    t1 = db.get_users()[u1]['trainer_data']
+    check(S, 'item de história (nome livre) entra na bolsa',
+          any(b.get('name') == 'Chave Antiga' for b in t1.get('bag', [])))
+    # ...mas item de história NÃO é vendável na loja
+    r = p1.post('/api/shop/sell', json={'item_name': 'Chave Antiga', 'qty': 1})
+    check(S, 'item de história não é vendável', r.status_code == 400)
+
+    # 🎁 Mestre dá um Pokémon específico (quest/campeonato)
+    _team_antes = len(db.get_users()[u1]['trainer_data'].get('team', []))
+    r = m.post('/master/give-pokemon', json={'player_id': u1, 'species': 'Eevee',
+                                             'level': 18, 'shiny': True,
+                                             'nickname': 'Presente'})
+    d = r.get_json() or {}
+    t1 = db.get_users()[u1]['trainer_data']
+    dest = t1['team'] if _team_antes < 6 else t1.get('pc', [])
+    given = next((p for p in dest if p.get('nickname') == 'Presente'), {})
+    check(S, 'mestre dá Eevee shiny Nv.18 (time ou PC)',
+          d.get('ok') and given.get('name') == 'Eevee'
+          and given.get('level') == 18 and given.get('is_shiny') is True,
+          f"{d.get('destination')}")
+    check(S, 'Pokémon dado tem moves e stats escalados',
+          bool(given.get('moves')) and (given.get('stats') or {}).get('ATK', 0) > 0)
+    r = m.post('/master/give-pokemon', json={'player_id': u1, 'species': 'NãoExiste'})
+    check(S, 'espécie inexistente é recusada (404)', r.status_code == 404)
+    # jogador comum não pode usar os endpoints de presente
+    r = p1.post('/master/give-item', json={'player_id': u1, 'money': 99999})
+    check(S, 'jogador não pode se auto-presentear', r.status_code == 403)
 
     # ────────────────────────── RELATÓRIO ──────────────────────────
     print('\n' + '═' * 62)

@@ -1747,7 +1747,27 @@ def _process_npcs_for_day(dkey):
     """Progressão autônoma dos NPCs num dia de jogo. Retorna log p/ o mestre."""
     log = []
     for npc in db.get_npcs():
+        # Economia do dia (para TODO NPC, mesmo sem progressão de nível):
+        # ganha um dinheiro pelo dia de trabalho e às vezes compra um item.
+        _npc_ensure_economy(npc)
+        earned = random.randint(100, 400)
+        npc['money'] = int(npc.get('money') or 0) + earned
+        econ_msg = f'💰 Ganhou ₽{earned} no dia.'
+        if npc['money'] >= 1500 and random.random() < 0.30:
+            affordable = [i for i in SHOP_CATALOG
+                          if i.get('category') in ('pokeball', 'medicine')
+                          and i['price'] <= min(1500, npc['money'] // 2)]
+            if affordable:
+                item = random.choice(affordable)
+                npc['money'] -= item['price']
+                _bag_add(npc.setdefault('bag', []), item['name'], 1,
+                         item.get('description', ''))
+                econ_msg += f" 🛍️ Comprou 1x {item['name']} (₽{item['price']})."
+        npc.setdefault('diary', []).append({'day_key': dkey, 'message': econ_msg})
+
         if not npc.get('progression_enabled'):
+            npc['diary'] = npc['diary'][-60:]
+            db.save_npc(npc)
             continue
         rate = npc.get('growth_rate', 'normal')
         roll = random.randint(1, 20)
@@ -2249,6 +2269,40 @@ def master_force_end_pvp(battle_id):
 # NPC MANAGEMENT
 # ============================================================
 
+# ── Economia dos NPCs: bolsa + dinheiro ──────────────────────────────────
+# Todo NPC começa a jornada com ₽3000 e itens básicos; ganha dinheiro com o
+# passar dos dias e às vezes compra itens. Em batalha de rua, o que ele tem
+# entra no espólio de verdade (antes o loot vinha/ia para o VAZIO).
+NPC_START_MONEY = 3000
+NPC_START_BAG = (
+    {'name': 'Pokébola', 'qty': 5, 'description': 'Pokébola padrão. DC captura base.'},
+    {'name': 'Poção', 'qty': 3, 'description': 'Restaura 2d4+2 HP de um Pokémon.'},
+    {'name': 'Super Poção', 'qty': 1, 'description': 'Restaura 4d4+4 HP de um Pokémon.'},
+)
+
+
+def _npc_ensure_economy(npc):
+    """Garante money/bag no NPC (migra NPCs antigos). Idempotente."""
+    changed = False
+    if not isinstance(npc.get('money'), int):
+        npc['money'] = NPC_START_MONEY
+        changed = True
+    if not isinstance(npc.get('bag'), list):
+        npc['bag'] = [dict(i) for i in NPC_START_BAG]
+        changed = True
+    return changed
+
+
+def _bag_add(bag, name, qty, description=''):
+    """Soma qty de um item na bolsa (cria a entrada se não existe)."""
+    for bi in bag:
+        if isinstance(bi, dict) and (bi.get('name') or '').lower() == name.lower():
+            bi['qty'] = int(bi.get('qty') or 0) + qty
+            return bag
+    bag.append({'name': name, 'qty': qty, 'description': description})
+    return bag
+
+
 @app.route('/master/npcs', methods=['GET'])
 @login_required
 def list_npcs():
@@ -2256,7 +2310,9 @@ def list_npcs():
         return jsonify({'error': 'Unauthorized'}), 403
     npcs = db.get_npcs()
     for npc in npcs:
-        if _mig(npc.get('team', [])):
+        changed = _mig(npc.get('team', []))
+        changed = _npc_ensure_economy(npc) or changed
+        if changed:
             db.save_npc(npc)
     return jsonify(npcs)
 
@@ -2277,6 +2333,7 @@ def create_npc():
         'progression_enabled': bool(data.get('progression_enabled', False)),
         'diary': []
     }
+    _npc_ensure_economy(npc)
     db.save_npc(npc)
     return jsonify(npc)
 
@@ -2464,8 +2521,141 @@ def generate_npc():
         'progression_enabled': bool(data.get('progression_enabled', False)),
         'diary': []
     }
+    _npc_ensure_economy(npc)   # ₽3000 + itens básicos de início de jornada
     db.save_npc(npc)
     return jsonify(npc)
+
+
+# ── 🎁 Presentes do Mestre: Pokémon, itens e dinheiro ───────────────────────
+def _build_gift_pokemon(base, level, is_shiny=False, nickname=''):
+    """Monta um Pokémon de time a partir da espécie (mesmo formato dos
+    gerados para NPCs/encontros), para o mestre presentear em quest/torneio."""
+    level = max(1, min(100, int(level or 5)))
+    move_pool = list(base.get('startingMoves', []))
+    for lv, moves in (base.get('levelMoves') or {}).items():
+        if int(lv) * 5 <= level:
+            move_pool.extend(moves)
+    move_pool = list(dict.fromkeys(
+        m for m in move_pool if m.lower() in MOVES_BY_NAME or m in MOVES_DB))
+    moves = move_pool[-4:] if move_pool else ['Tackle']
+    scaled = scaling.calculate_pokemon_stats(base, level, is_shiny=is_shiny)
+    poke = {
+        'name': base['name'],
+        'number': base['number'],
+        'level': level,
+        'types': base.get('types', []),
+        'hp': scaled['hp'], 'maxHp': scaled['maxHp'], 'currentHp': scaled['hp'],
+        'ac': scaled['ac'], 'stats': scaled['stats'],
+        'proficiency': scaled['proficiency'], 'stab': scaled['stab'],
+        'moves': moves,
+        'speed': base.get('speed', '30ft'),
+        'ability': (base.get('ability') or {}).get('name', '') if base.get('ability') else '',
+        'vulnerabilities': base.get('vulnerabilities', []),
+        'resistances': base.get('resistances', []),
+        'immunities': base.get('immunities', []),
+        'evolutionInfo': base.get('evolutionInfo', ''),
+        'is_shiny': bool(is_shiny),
+        'xp': 0, 'totalXp': 0, 'battle_wins': 0,
+        'sv': migrations.STATS_VERSION,
+    }
+    if nickname:
+        poke['nickname'] = str(nickname)[:30]
+    return poke
+
+
+@app.route('/master/give-pokemon', methods=['POST'])
+@login_required
+def master_give_pokemon():
+    """Mestre dá um Pokémon ESPECÍFICO a um jogador (quest, campeonato,
+    presente de NPC...). Vai pro time se houver vaga, senão pro PC."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    player_id = str(data.get('player_id') or '')
+    species = (data.get('species') or '').strip()
+
+    users = get_users()
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    base = POKEMON_BY_NAME.get(species.lower())
+    if not base and str(species).isdigit():
+        base = next((p for p in POKEMON_DB if int(p.get('number', 0)) == int(species)), None)
+    if not base:
+        return jsonify({'error': f'Espécie não encontrada: {species}'}), 404
+
+    poke = _build_gift_pokemon(base, data.get('level', 5),
+                               is_shiny=bool(data.get('shiny')),
+                               nickname=data.get('nickname') or '')
+    trainer = users[player_id].get('trainer_data', {})
+    team = trainer.get('team', [])
+    if len(team) < 6:
+        team.append(poke)
+        trainer['team'] = team
+        destino = 'time'
+    else:
+        pc = trainer.get('pc', [])
+        pc.append(poke)
+        trainer['pc'] = pc
+        destino = 'PC (time cheio)'
+    users[player_id]['trainer_data'] = trainer
+    save_users(users)
+    _grant_encounter(player_id, base['number'])   # registra na pokédex
+
+    note = str(data.get('note') or '')[:120]
+    socketio.emit('gift_received', {
+        'kind': 'pokemon',
+        'pokemon': {'name': poke['name'], 'nickname': poke.get('nickname'),
+                    'level': poke['level'], 'is_shiny': poke['is_shiny'],
+                    'number': poke['number']},
+        'destination': destino, 'note': note,
+        'from': data.get('from') or 'O Mestre',
+    }, room=player_id)
+    return jsonify({'ok': True, 'pokemon': poke, 'destination': destino})
+
+
+@app.route('/master/give-item', methods=['POST'])
+@login_required
+def master_give_item():
+    """Mestre dá itens e/ou dinheiro a um jogador (recompensa de quest,
+    presente de NPC...). Item pode ser do catálogo ou de história (nome livre)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    player_id = str(data.get('player_id') or '')
+    users = get_users()
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+
+    item_name = (data.get('item_name') or '').strip()[:60]
+    qty = max(0, min(999, int(data.get('qty') or 0)))
+    money = max(0, min(1_000_000, int(data.get('money') or 0)))
+    if not (item_name and qty) and not money:
+        return jsonify({'error': 'Informe um item (com quantidade) e/ou dinheiro'}), 400
+
+    trainer = users[player_id].get('trainer_data', {})
+    given = {}
+    if item_name and qty:
+        catalog = next((i for i in SHOP_CATALOG
+                        if i['name'].lower() == item_name.lower()
+                        or i['id'] == item_name.lower()), None)
+        name = catalog['name'] if catalog else item_name
+        desc = catalog.get('description', '') if catalog else str(data.get('description') or '')[:120]
+        _bag_add(trainer.setdefault('bag', []), name, qty, desc)
+        given['item'] = {'name': name, 'qty': qty}
+    if money:
+        trainer['money'] = int(trainer.get('money') or 0) + money
+        given['money'] = money
+    users[player_id]['trainer_data'] = trainer
+    save_users(users)
+
+    socketio.emit('gift_received', {
+        'kind': 'item', **given,
+        'note': str(data.get('note') or '')[:120],
+        'from': data.get('from') or 'O Mestre',
+        'bag': trainer.get('bag'), 'total_money': trainer.get('money'),
+    }, room=player_id)
+    return jsonify({'ok': True, **given, 'money_total': trainer.get('money')})
+
 
 def _carry_evolution_potential(old_poke, evolved, evolved_base):
     """Custom EVs: ao evoluir, preserva os campos de Potencial e ROLA o bônus
@@ -7052,11 +7242,26 @@ def handle_pvp_victory(battle):
     winner_id = battle[winner_key]['id']
     loser_id = battle[loser_key]['id']
     mode = battle['mode']
-    
+
     users = get_users()
-    winner_trainer = users.get(winner_id, {}).get('trainer_data', {})
-    loser_trainer = users.get(loser_id, {}).get('trainer_data', {})
-    
+    npcs = db.get_npcs()
+
+    def _party_sheet(pid):
+        """Ficha econômica (money/bag/team) do lado: jogador OU NPC.
+        NPC devolve o próprio dict do registro — mutações valem de verdade
+        (antes, dinheiro perdido para NPC ia para o VAZIO e NPC derrotado
+        não soltava espólio nenhum)."""
+        if pid in users:
+            return users[pid].get('trainer_data', {}), 'user'
+        npc = next((n for n in npcs if n['id'] == pid), None)
+        if npc is not None:
+            _npc_ensure_economy(npc)
+            return npc, 'npc'
+        return {}, 'ghost'
+
+    winner_trainer, winner_kind = _party_sheet(winner_id)
+    loser_trainer, loser_kind = _party_sheet(loser_id)
+
     rewards = {'money': 0, 'items': []}
     
     if mode == 'official' or mode == 'tournament':
@@ -7140,33 +7345,41 @@ def handle_pvp_victory(battle):
         winner_team[winner_active_idx]['battle_wins'] = winner_team[winner_active_idx].get('battle_wins', 0) + 1
     winner_trainer['team'] = winner_team
 
-    # Save
-    if winner_id in users:
+    # Save — cada lado no seu armazenamento (jogador em users, NPC em npcs)
+    if winner_kind == 'user':
         users[winner_id]['trainer_data'] = winner_trainer
-    if loser_id in users:
+    elif winner_kind == 'npc':
+        db.save_npc(winner_trainer)
+    if loser_kind == 'user':
         users[loser_id]['trainer_data'] = loser_trainer
+    elif loser_kind == 'npc':
+        db.save_npc(loser_trainer)
     save_users(users)
     
-    # Notify players
+    # Notify players (NPC usa o nome do registro; jogador, o username)
+    winner_name = (users.get(winner_id, {}).get('username')
+                   or (winner_trainer.get('name') if winner_kind == 'npc' else None) or '???')
+    loser_name = (users.get(loser_id, {}).get('username')
+                  or (loser_trainer.get('name') if loser_kind == 'npc' else None) or '???')
     socketio.emit('pvp_battle_ended', {
         'battle_id': battle['id'],
         'winner': winner_key,
-        'winner_name': users.get(winner_id, {}).get('username', '???'),
-        'loser_name': users.get(loser_id, {}).get('username', '???'),
+        'winner_name': winner_name,
+        'loser_name': loser_name,
         'mode': mode,
         'rewards': rewards
     }, room=winner_id)
     socketio.emit('pvp_battle_ended', {
         'battle_id': battle['id'],
         'winner': winner_key,
-        'winner_name': users.get(winner_id, {}).get('username', '???'),
-        'loser_name': users.get(loser_id, {}).get('username', '???'),
+        'winner_name': winner_name,
+        'loser_name': loser_name,
         'mode': mode,
         'lost': rewards
     }, room=loser_id)
     socketio.emit('pvp_battle_ended', {
         'battle_id': battle['id'],
-        'winner_name': users.get(winner_id, {}).get('username', '???'),
+        'winner_name': winner_name,
         'mode': mode
     }, room=f'master_{_tid()}')
     
