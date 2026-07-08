@@ -3421,10 +3421,20 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     
     # Validate moves against database - only keep moves that actually exist
     move_pool = [m for m in move_pool if m.lower() in MOVES_BY_NAME or m in MOVES_DB]
-    
-    # Moveset do selvagem: 2 PRINCIPAIS fixos (melhores golpes ofensivos
-    # naturais da espécie p/ o nível) + 2 SECUNDÁRIOS aleatórios (cobertura,
-    # suporte, status). Mantém identidade da espécie com variedade por encontro.
+
+    # Selvagem EXPERIENTE (Nv ≥ 25): o pool inclui os golpes de TM da espécie
+    # (Thunderbolt, Earthquake, Ice Beam...) — é onde moram os golpes bons.
+    # Antes o selvagem só via startingMoves/levelMoves/eggMoves.
+    if encounter_level >= 25:
+        tm_names = [TM_MOVES.get(n) for n in (chosen.get('tmMoves') or [])]
+        move_pool.extend(m for m in tm_names
+                         if m and (m.lower() in MOVES_BY_NAME or m in MOVES_DB))
+        move_pool = list(dict.fromkeys(move_pool))
+
+    # Moveset do selvagem: 2 PRINCIPAIS sorteados entre os TOP-4 golpes
+    # ofensivos disponíveis (qualidade garantida + variedade por encontro —
+    # antes eram SEMPRE os 2 mais fortes, todo encontro igual) + 2
+    # SECUNDÁRIOS aleatórios (cobertura, suporte, status).
     def _mv_power(m):
         try:
             return int(canon_move(m).get('power') or 0) or \
@@ -3433,8 +3443,9 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
             return 0
     offensive = sorted((m for m in move_pool if _mv_power(m) > 0),
                        key=_mv_power, reverse=True)
-    # 2 principais = os 2 golpes ofensivos mais fortes disponíveis
-    fixed = offensive[:2]
+    top = offensive[:4]
+    random.shuffle(top)
+    fixed = top[:2]
     # secundários = todo o resto (ofensivos extras + status/suporte), embaralhado
     secondary_pool = [m for m in move_pool if m not in fixed]
     random.shuffle(secondary_pool)
@@ -4184,6 +4195,60 @@ def get_pc():
     if _mig(trainer.get('pc', [])):
         save_users(users)
     return jsonify(trainer.get('pc', []))
+
+
+@app.route('/player/pc/capture', methods=['POST'])
+@login_required
+def pc_store_capture():
+    """Captura com o TIME CHEIO: o Pokémon vai direto para o PC em vez de
+    sumir no limbo. Mesma sanitização de captura nova do update_team:
+    espécie precisa existir, nível clampado, stats SEMPRE recalculados no
+    servidor (o cliente não é autoridade sobre nada além de nível/moves)."""
+    if _rate_limit(10, 60, bucket='pc_capture'):
+        return jsonify({'error': 'Muitas capturas em pouco tempo.'}), 429
+    data = request.json or {}
+    p = data.get('pokemon') or {}
+    base = POKEMON_BY_NAME.get((p.get('name') or '').lower()) \
+        or POKEMON_BY_NUMBER.get(p.get('number'))
+    if not base or not base.get('base_stats'):
+        return jsonify({'error': 'Espécie desconhecida'}), 400
+
+    level = max(1, min(100, int(p.get('level') or 1)))
+    moves = [m for m in (p.get('moves') or [])
+             if isinstance(m, str) and (m.lower() in MOVES_BY_NAME or m in MOVES_DB)][:4]
+    is_shiny = bool(p.get('is_shiny'))
+    scaled = scaling.calculate_pokemon_stats(base, level, is_shiny=is_shiny)
+    poke = {
+        'name': base['name'], 'number': base['number'],
+        'nickname': str(p.get('nickname') or '')[:30],
+        'types': base.get('types', []), 'level': level,
+        'moves': moves or list(base.get('startingMoves', []))[:4] or ['Tackle'],
+        'ability': (base.get('ability') or {}).get('name', '') if base.get('ability') else '',
+        'speed': base.get('speed', '30ft'),
+        'vulnerabilities': base.get('vulnerabilities', []),
+        'resistances': base.get('resistances', []),
+        'immunities': base.get('immunities', []),
+        'evolutionInfo': base.get('evolutionInfo', ''),
+        'is_shiny': is_shiny,
+        'stats': scaled['stats'], 'maxHp': scaled['maxHp'], 'hp': scaled['maxHp'],
+        'xp': 0, 'totalXp': 0, 'battle_wins': 0,
+        'sv': migrations.STATS_VERSION, 'training': {},
+    }
+    try:
+        cur = int(p.get('currentHp') or scaled['maxHp'])
+    except (TypeError, ValueError):
+        cur = scaled['maxHp']
+    poke['currentHp'] = max(1, min(scaled['maxHp'], cur))
+    migrations.migrate_pokemon_pp(poke, POKEMON_BY_NAME, POKEMON_BY_NUMBER)
+
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    pc = trainer.get('pc', [])
+    pc.append(poke)
+    trainer['pc'] = pc
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+    return jsonify({'ok': True, 'pc_size': len(pc), 'pokemon': poke})
 
 
 @app.route('/player/pc/deposit', methods=['POST'])

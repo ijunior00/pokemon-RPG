@@ -1718,7 +1718,22 @@ function endBattle(result) {
                 refreshTeamDisplay();
             }
         } else {
-            alert('Time cheio! Máximo de 6 Pokémon.');
+            // Time cheio: o capturado vai pro PC (antes ele sumia no limbo!)
+            const capturedHp = window._healBallCapture
+                ? pokemon.hp
+                : Math.max(1, currentEncounter._capturedHp || Math.floor(pokemon.hp * 0.3));
+            window._healBallCapture = false;
+            fetch('/player/pc/capture', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pokemon: {
+                    name: pokemon.name, number: pokemon.number, level: pokeLevel,
+                    moves: pokemon.startingMoves || [], currentHp: capturedHp,
+                    is_shiny: !!(currentEncounter.is_shiny || pokemon.is_shiny),
+                }})
+            }).then(r => r.json()).then(r => {
+                if (r.ok) showNotification(`📦 Time cheio — ${pokemon.name} foi guardado no PC! (${r.pc_size} no PC)`, 'success');
+                else showNotification('⚠️ ' + (r.error || 'Falha ao guardar no PC'), 'error');
+            }).catch(() => showNotification('⚠️ Erro de conexão ao guardar no PC.', 'error'));
         }
     }
 

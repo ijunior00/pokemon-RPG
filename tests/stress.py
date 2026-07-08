@@ -2013,6 +2013,55 @@ def main():
     r = p1.post('/master/give-item', json={'player_id': u1, 'money': 99999})
     check(S, 'jogador não pode se auto-presentear', r.status_code == 403)
 
+    section('19. Captura com time cheio → PC + movesets dos selvagens')
+    S = 'PC/Selvagens'
+
+    # Captura com time cheio vai pro PC (antes: sumia no limbo)
+    _pc_antes = len(db.get_users()[u1]['trainer_data'].get('pc', []))
+    r = p1.post('/player/pc/capture', json={'pokemon': {
+        'name': 'Pidgey', 'number': 16, 'level': 12,
+        'moves': ['Tackle', 'Gust'], 'currentHp': 5, 'is_shiny': False}})
+    d = r.get_json() or {}
+    t1 = db.get_users()[u1]['trainer_data']
+    stored = (t1.get('pc') or [])[-1] if t1.get('pc') else {}
+    check(S, 'captura com time cheio vai pro PC', d.get('ok')
+          and len(t1.get('pc', [])) == _pc_antes + 1
+          and stored.get('name') == 'Pidgey' and stored.get('level') == 12)
+    check(S, 'stats do capturado são recalculados no servidor',
+          (stored.get('stats') or {}).get('ATK', 0) > 0
+          and stored.get('maxHp', 0) > 0
+          and stored.get('currentHp') == 5)
+    r = p1.post('/player/pc/capture', json={'pokemon': {
+        'name': 'EspécieForjada', 'number': 99999, 'level': 100}})
+    check(S, 'espécie forjada não entra no PC', r.status_code == 400)
+
+    # Movesets dos selvagens: qualidade garantida + variedade + TMs no Nv≥25
+    _enc_sets = []
+    for _ in range(12):
+        enc = appmod._build_random_encounter(
+            next(iter(appmod.ROUTES_DATA.keys())), 'normal', 60)
+        if enc:
+            _enc_sets.append((enc['pokemon']['name'], tuple(enc['wild_moves'])))
+
+    def _wm_power(m):
+        return int(appmod.canon_move(m).get('power') or 0) or \
+            int(appmod.bm_core.VARIABLE_POWER.get(m.lower(), 0))
+    check(S, 'todo selvagem tem ao menos 1 golpe de dano',
+          all(any(_wm_power(m) > 0 for m in mv) for _, mv in _enc_sets))
+    check(S, 'selvagens de nível alto têm golpe FORTE (POW ≥ 60)',
+          sum(1 for _, mv in _enc_sets
+              if any(_wm_power(m) >= 60 for m in mv)) >= len(_enc_sets) * 0.7,
+          f'{sum(1 for _, mv in _enc_sets if any(_wm_power(m) >= 60 for m in mv))}/{len(_enc_sets)}')
+    # variedade: mesma espécie não repete SEMPRE o mesmo moveset
+    from collections import Counter as _Counter
+    _by_species = {}
+    for nm, mv in _enc_sets:
+        _by_species.setdefault(nm, set()).add(mv)
+    _repeat_ok = (any(len(v) > 1 for v in _by_species.values())
+                  or all(len([1 for n, _ in _enc_sets if n == k]) == 1
+                         for k in _by_species))
+    check(S, 'moveset varia entre encontros da mesma espécie', _repeat_ok)
+
     # ────────────────────────── RELATÓRIO ──────────────────────────
     print('\n' + '═' * 62)
     print('📊 SCORECARD FINAL')
