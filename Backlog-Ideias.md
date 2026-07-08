@@ -4,7 +4,7 @@
 
 - **Future Sight com resolução atrasada** (2 rodadas depois) — hoje resolve
   imediato com cooldown 3; a versão atrasada precisaria de fila de eventos
-  por batalha nos 3 modos. Ver [[Decisoes/sistema-combate-v3]].
+  por batalha nos 3 modos. Ver [[Decisoes/sistema-combate-v3]]. (Temos que revisar isso)
 - **UI de campo** — banner de clima/terreno na tela de batalha (hoje o
   estado aparece só nas linhas de log; o servidor já emite `field` no
   battle_update).
