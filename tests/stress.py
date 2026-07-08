@@ -22,6 +22,7 @@ import app as appmod
 from app import app, socketio
 import database as db
 import pokemon_scaling as scaling
+import pvp_battle as pvp
 
 random.seed()
 app.config['TESTING'] = True
@@ -296,6 +297,34 @@ def main():
     _rp = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30,
                   'stat_mods': {'HP': 500}}).get_json()
     check(S, 'jogador não infla stats via stat_mods', _rp['maxHp'] == _rn['maxHp'])
+
+    # ── Endurecimento de autenticação/headers ──
+    appmod._rate_store.clear()
+    # headers de segurança em toda resposta
+    _rh = p1.get('/login')
+    check(S, 'headers de segurança presentes',
+          _rh.headers.get('X-Frame-Options') == 'DENY'
+          and _rh.headers.get('X-Content-Type-Options') == 'nosniff'
+          and bool(_rh.headers.get('Referrer-Policy')))
+    # honeypot: bot que preenche o campo invisível não cria conta
+    px = app.test_client()
+    px.post('/register', data={'username': 'bot_honeypot', 'password': 'senha12345',
+                               'role': 'master', 'website': 'http://spam.com'})
+    check(S, 'honeypot descarta bot em silêncio', uid_of('bot_honeypot') is None)
+    # senha curta e username inválido são recusados
+    px.post('/register', data={'username': 'senha_curta', 'password': 'abc',
+                               'role': 'master'})
+    check(S, 'senha < 8 caracteres é recusada', uid_of('senha_curta') is None)
+    px.post('/register', data={'username': 'no me!<x>', 'password': 'senha12345',
+                               'role': 'master'})
+    check(S, 'username com caracteres inválidos é recusado', uid_of('no me!<x>') is None)
+    # lockout por conta: 5 falhas trancam o usuário (mesmo trocando de IP)
+    import time as _t_
+    appmod._login_fails['alvo_lockout'] = [_t_.time()] * 5
+    _rl = px.post('/login', data={'username': 'alvo_lockout', 'password': 'x' * 8})
+    check(S, 'lockout por conta após 5 falhas de login',
+          'bloqueada' in _rl.get_data(as_text=True))
+    appmod._login_fails.clear()
     for c in (msio, s1, s2):
         c.get_received()
 
@@ -1914,6 +1943,205 @@ def main():
     check(S, 'Earthquake fura quem usou Dig (tabela de exceções)',
           bm.v3_pierces_invuln('no subsolo', 'Earthquake')
           and not bm.v3_pierces_invuln('no ar', 'Tackle'))
+
+    section('18. Presentes do Mestre & economia dos NPCs')
+    S = 'Presentes/NPCs'
+
+    # NPC gerado nasce com ₽3000 + itens básicos
+    r = m.post('/master/npcs/generate', json={'npc_class': 'Trainer', 'level': 12,
+                                              'team_size': 1})
+    npc_e = r.get_json() or {}
+    check(S, 'NPC gerado nasce com ₽3000', npc_e.get('money') == 3000)
+    _bagnames = [b.get('name') for b in (npc_e.get('bag') or [])]
+    check(S, 'NPC gerado tem itens básicos (Pokébola/Poção)',
+          'Pokébola' in _bagnames and 'Poção' in _bagnames, f'{_bagnames}')
+
+    # NPC ANTIGO (sem money/bag) é migrado ao listar
+    old_npc = {'id': 'npcvelho1', 'name': 'Veterano', 'npc_class': 'Trainer',
+               'level': 8, 'team': [], 'notes': '', 'diary': []}
+    db.save_npc(old_npc, TID)
+    r = m.get('/master/npcs')
+    got = next((n for n in (r.get_json() or []) if n['id'] == 'npcvelho1'), {})
+    check(S, 'NPC antigo ganha economia na migração',
+          got.get('money') == 3000 and bool(got.get('bag')))
+
+    # Espólio de rua sai do bolso REAL do NPC (antes ia/vinha do vazio)
+    loot_money, loot_items = pvp.calculate_street_loot(got)
+    check(S, 'loot de rua do NPC: 25% de ₽3000 = ₽750 + itens',
+          loot_money == 750 and len(loot_items) >= 1, f'{loot_money}/{loot_items}')
+
+    # 🎁 Mestre dá item do catálogo + dinheiro
+    _money_antes = db.get_users()[u1]['trainer_data'].get('money', 0)
+    r = m.post('/master/give-item', json={'player_id': u1, 'item_name': 'Poção',
+                                          'qty': 3, 'money': 500,
+                                          'note': 'recompensa da quest'})
+    d = r.get_json() or {}
+    t1 = db.get_users()[u1]['trainer_data']
+    _pocao = next((b for b in t1.get('bag', []) if b.get('name') == 'Poção'), {})
+    check(S, 'mestre dá 3x Poção + ₽500 (vai pra ficha)',
+          d.get('ok') and _pocao.get('qty', 0) >= 3
+          and t1.get('money') == _money_antes + 500)
+
+    # 🎁 Item de HISTÓRIA (fora do catálogo) também entra na bolsa
+    r = m.post('/master/give-item', json={'player_id': u1, 'item_name': 'Chave Antiga',
+                                          'qty': 1, 'description': 'Abre a ruína.'})
+    t1 = db.get_users()[u1]['trainer_data']
+    check(S, 'item de história (nome livre) entra na bolsa',
+          any(b.get('name') == 'Chave Antiga' for b in t1.get('bag', [])))
+    # ...mas item de história NÃO é vendável na loja
+    r = p1.post('/api/shop/sell', json={'item_name': 'Chave Antiga', 'qty': 1})
+    check(S, 'item de história não é vendável', r.status_code == 400)
+
+    # 🎁 Mestre dá um Pokémon específico (quest/campeonato)
+    _team_antes = len(db.get_users()[u1]['trainer_data'].get('team', []))
+    r = m.post('/master/give-pokemon', json={'player_id': u1, 'species': 'Eevee',
+                                             'level': 18, 'shiny': True,
+                                             'nickname': 'Presente'})
+    d = r.get_json() or {}
+    t1 = db.get_users()[u1]['trainer_data']
+    dest = t1['team'] if _team_antes < 6 else t1.get('pc', [])
+    given = next((p for p in dest if p.get('nickname') == 'Presente'), {})
+    check(S, 'mestre dá Eevee shiny Nv.18 (time ou PC)',
+          d.get('ok') and given.get('name') == 'Eevee'
+          and given.get('level') == 18 and given.get('is_shiny') is True,
+          f"{d.get('destination')}")
+    check(S, 'Pokémon dado tem moves e stats escalados',
+          bool(given.get('moves')) and (given.get('stats') or {}).get('ATK', 0) > 0)
+    r = m.post('/master/give-pokemon', json={'player_id': u1, 'species': 'NãoExiste'})
+    check(S, 'espécie inexistente é recusada (404)', r.status_code == 404)
+    # jogador comum não pode usar os endpoints de presente
+    r = p1.post('/master/give-item', json={'player_id': u1, 'money': 99999})
+    check(S, 'jogador não pode se auto-presentear', r.status_code == 403)
+
+    section('19. Captura com time cheio → PC + movesets dos selvagens')
+    S = 'PC/Selvagens'
+
+    # Captura com time cheio vai pro PC (antes: sumia no limbo)
+    _pc_antes = len(db.get_users()[u1]['trainer_data'].get('pc', []))
+    r = p1.post('/player/pc/capture', json={'pokemon': {
+        'name': 'Pidgey', 'number': 16, 'level': 12,
+        'moves': ['Tackle', 'Gust'], 'currentHp': 5, 'is_shiny': False}})
+    d = r.get_json() or {}
+    t1 = db.get_users()[u1]['trainer_data']
+    stored = (t1.get('pc') or [])[-1] if t1.get('pc') else {}
+    check(S, 'captura com time cheio vai pro PC', d.get('ok')
+          and len(t1.get('pc', [])) == _pc_antes + 1
+          and stored.get('name') == 'Pidgey' and stored.get('level') == 12)
+    check(S, 'stats do capturado são recalculados no servidor',
+          (stored.get('stats') or {}).get('ATK', 0) > 0
+          and stored.get('maxHp', 0) > 0
+          and stored.get('currentHp') == 5)
+    r = p1.post('/player/pc/capture', json={'pokemon': {
+        'name': 'EspécieForjada', 'number': 99999, 'level': 100}})
+    check(S, 'espécie forjada não entra no PC', r.status_code == 400)
+
+    # Movesets dos selvagens: qualidade garantida + variedade + TMs no Nv≥25
+    _enc_sets = []
+    for _ in range(12):
+        enc = appmod._build_random_encounter(
+            next(iter(appmod.ROUTES_DATA.keys())), 'normal', 60)
+        if enc:
+            _enc_sets.append((enc['pokemon']['name'], tuple(enc['wild_moves'])))
+
+    def _wm_power(m):
+        return int(appmod.canon_move(m).get('power') or 0) or \
+            int(appmod.bm_core.VARIABLE_POWER.get(m.lower(), 0))
+    check(S, 'todo selvagem tem ao menos 1 golpe de dano',
+          all(any(_wm_power(m) > 0 for m in mv) for _, mv in _enc_sets))
+    check(S, 'selvagens de nível alto têm golpe FORTE (POW ≥ 60)',
+          sum(1 for _, mv in _enc_sets
+              if any(_wm_power(m) >= 60 for m in mv)) >= len(_enc_sets) * 0.7,
+          f'{sum(1 for _, mv in _enc_sets if any(_wm_power(m) >= 60 for m in mv))}/{len(_enc_sets)}')
+    # variedade: mesma espécie não repete SEMPRE o mesmo moveset
+    from collections import Counter as _Counter
+    _by_species = {}
+    for nm, mv in _enc_sets:
+        _by_species.setdefault(nm, set()).add(mv)
+    _repeat_ok = (any(len(v) > 1 for v in _by_species.values())
+                  or all(len([1 for n, _ in _enc_sets if n == k]) == 1
+                         for k in _by_species))
+    check(S, 'moveset varia entre encontros da mesma espécie', _repeat_ok)
+
+    section('20. Auditoria de moves (tabela do tester): Leech Seed & cia')
+    S = 'Moves canônicos'
+    import status_effects as se_mod
+
+    # Leech Seed vira condição 'seeded' (não é mais cura instantânea!)
+    _venu = fresh('Venusaur', 50)
+    _lax = fresh('Snorlax', 50)
+    rs = se_mod.process_status_move({'name': 'Leech Seed', 'category': 'status'},
+                                    dict(_venu['stats'], level=50, maxHp=120, currentHp=120),
+                                    dict(_lax['stats'], level=50, currentHp=120))
+    check(S, 'Leech Seed aplica semente (sem cura instantânea)',
+          rs.get('status_applied') == 'seeded' and not rs.get('heal'))
+    check(S, 'tipo Grama é imune à semente',
+          se_mod.type_blocks_status(['grass'], 'seeded')
+          and not se_mod.type_blocks_status(['normal'], 'seeded'))
+
+    # Trap (Wrap/Bind/...): condição trapped, ⌊HP/16⌋ por 4 turnos
+    _sk, _ok = se_mod.check_status_on_hit('Wrap', 50, 10, defender=_lax)
+    check(S, 'Wrap prende (trapped) ao acertar', _sk == 'trapped' and _ok)
+    _st = {'condition': 'trapped', 'turns_active': 0}
+    _removed, _i, _dmg = False, 0, 0
+    for _i in range(5):
+        _, _dmg, _, _rem = se_mod.process_turn_start(_st, 160)
+        if _rem:
+            _removed = True
+            break
+    check(S, 'trapped: ⌊160/16⌋=10 por turno e expira no 4º',
+          _removed and _i + 1 == 4 and _dmg == 10, f'turno={_i+1} dmg={_dmg}')
+
+    # Rampage: Outrage deixa o PRÓPRIO usuário confuso
+    _drag = fresh('Dragonite', 50)
+    for _ in range(10):
+        ro = appmod._calc_attack_core(_drag, fresh('Snorlax', 50), 'Outrage',
+                                      attack_roll=10, field={})
+        if ro.get('damage', 0) > 0:
+            break
+    check(S, 'Outrage: usuário fica confuso após atacar',
+          ro.get('self_status') == 'confuso')
+
+    # Crash: High Jump Kick errado machuca o usuário (⌊HPmáx/8⌋ via recoil)
+    rc = appmod._calc_attack_core(fresh('Hitmonlee', 50), fresh('Snorlax', 50),
+                                  'High Jump Kick', attack_roll=99,
+                                  atk_max_hp=120, field={})
+    check(S, 'High Jump Kick: crash de 15 no erro',
+          not rc.get('hit') and rc.get('recoil') == 15)
+
+    # Explosion: o usuário desmaia
+    re_ = appmod._calc_attack_core(fresh('Electrode', 50), fresh('Snorlax', 50),
+                                   'Explosion', attack_roll=10, field={})
+    check(S, 'Explosion: self_ko (usuário desmaia)', re_.get('self_ko') is True)
+
+    # Stat drop canônico on-hit: Overheat −2 SPA no PRÓPRIO usuário (100%)
+    _arc = fresh('Arcanine', 50)
+    for _ in range(10):
+        rov = appmod._calc_attack_core(_arc, fresh('Snorlax', 50), 'Overheat',
+                                       attack_roll=10, field={})
+        if rov.get('damage', 0) > 0:
+            break
+        _arc = fresh('Arcanine', 50)
+    check(S, 'Overheat: −2 SpA no usuário (recuo canônico)',
+          (_arc.get('stat_stages') or {}).get('SPA') == -2)
+
+    # Rapid Spin limpa semente/prisão do usuário
+    _bl = fresh('Blastoise', 50)
+    _sts = {'condition': 'seeded', 'turns_active': 2}
+    for _ in range(10):
+        rr2 = appmod._calc_attack_core(_bl, fresh('Snorlax', 50), 'Rapid Spin',
+                                       attack_roll=10, attacker_status=_sts, field={})
+        if rr2.get('damage', 0) > 0:
+            break
+    check(S, 'Rapid Spin limpa a semente do usuário', not _sts)
+
+    # Rain Dance / Sunny Day existem no moves.json e viram campo
+    check(S, 'Rain Dance e Sunny Day agora existem no moves.json',
+          'rain dance' in appmod.MOVES_BY_NAME and 'sunny day' in appmod.MOVES_BY_NAME)
+    rrd = se_mod.process_status_move(appmod.MOVES_BY_NAME['sunny day'],
+                                     dict(_venu['stats'], level=50, maxHp=120, currentHp=120),
+                                     dict(_lax['stats'], level=50, currentHp=120))
+    check(S, 'Sunny Day resolve para efeito de campo (sol)',
+          rrd.get('effect_type') == 'field' and rrd.get('field_value') == 'sun')
 
     # ────────────────────────── RELATÓRIO ──────────────────────────
     print('\n' + '═' * 62)

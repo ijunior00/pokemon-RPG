@@ -8766,5 +8766,27 @@
   "baseDamage": "1d10",
   "attackType": "ranged",
   "category": "physical"
+ },
+ "Rain Dance": {
+  "name": "Rain Dance",
+  "type": "Água",
+  "power": "Nenhum",
+  "time": "1 ação",
+  "pp": 5,
+  "duration": "5 rodadas",
+  "range": "Campo de batalha",
+  "category": "status",
+  "description": "Você invoca uma chuva forte que cai por 5 rodadas. Golpes de Água ganham +1 dado e golpes de Fogo perdem 1 dado; Thunder e Hurricane passam a ter ACC 100."
+ },
+ "Sunny Day": {
+  "name": "Sunny Day",
+  "type": "Fogo",
+  "power": "Nenhum",
+  "time": "1 ação",
+  "pp": 5,
+  "duration": "5 rodadas",
+  "range": "Campo de batalha",
+  "category": "status",
+  "description": "Você intensifica o sol por 5 rodadas. Golpes de Fogo ganham +1 dado e golpes de Água perdem 1 dado; Solar Beam dispara sem carregar; Thunder e Hurricane caem para ACC 50."
  }
 }

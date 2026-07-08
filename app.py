@@ -36,6 +36,25 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB (upload de avatar)
 app.config['REMEMBER_COOKIE_DURATION'] = 2592000  # 30 dias
 
+# ── Endurecimento de sessão (anti roubo de cookie / CSRF) ──
+# SameSite=Lax: navegador NÃO manda o cookie em POST vindo de outro site —
+# fecha a classe inteira de CSRF nos endpoints JSON sem precisar de token.
+# Secure só em produção (Render = HTTPS); em dev local http continuaria sem cookie.
+_ON_RENDER = bool(os.environ.get('RENDER'))
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=_ON_RENDER,
+    REMEMBER_COOKIE_HTTPONLY=True,
+    REMEMBER_COOKIE_SAMESITE='Lax',
+    REMEMBER_COOKIE_SECURE=_ON_RENDER,
+)
+
+# Código de fundador (opcional): se definido no ambiente, criar conta de
+# MESTRE exige o código — barra os bots que acham o formulário público.
+# Sem a env, vale só a fila de aprovação do super-admin (como antes).
+MASTER_SIGNUP_CODE = (os.environ.get('MASTER_SIGNUP_CODE') or '').strip()
+
 # Atrás do proxy do Render, request.remote_addr é o IP do proxy (igual p/ todos).
 # ProxyFix faz o Flask ler o IP real do cliente em X-Forwarded-For, para o
 # rate-limit por IP não penalizar jogadores que compartilham o proxy.
@@ -48,10 +67,31 @@ login_manager.login_view = 'login'
 # Initialize database
 db.init_db()
 
+# Headers de segurança em TODA resposta (defesa em profundidade):
+# clickjacking, sniffing de MIME, vazamento de referrer e HSTS em produção.
+@app.after_request
+def _security_headers(resp):
+    resp.headers.setdefault('X-Frame-Options', 'DENY')
+    resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    resp.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    resp.headers.setdefault('Permissions-Policy',
+                            'camera=(), microphone=(), geolocation=()')
+    if _ON_RENDER:
+        resp.headers.setdefault('Strict-Transport-Security',
+                                'max-age=31536000; includeSubDomains')
+    return resp
+
+
 # ============================================================
 # RATE LIMITING (simple in-memory, resets on restart)
 # ============================================================
 _rate_store: dict = defaultdict(list)  # ip -> [timestamps]
+
+# Bloqueio POR CONTA no login (independente do IP — pega ataque distribuído
+# de força bruta contra um usuário específico): 5 falhas → 10 min de espera.
+_login_fails: dict = defaultdict(list)  # username_lower -> [timestamps de falha]
+LOGIN_LOCK_MAX = 5
+LOGIN_LOCK_WINDOW = 600
 
 def _rate_limit(max_calls: int, window_seconds: int, bucket: str = '') -> bool:
     """Return True (blocked) if IP exceeds max_calls in window_seconds.
@@ -318,6 +358,15 @@ def _v3_register_use(st, move_lower, power):
     return st['momentum'], adapt
 
 
+# ── Casos especiais da auditoria de moves (tabela do tester, jul/2026) ──
+V3_RAMPAGE_MOVES = ('outrage', 'thrash', 'petal dance')      # usa → fica confuso
+V3_CRASH_MOVES = ('jump kick', 'high jump kick')             # errou → se machuca
+V3_SELF_KO_MOVES = ('explosion', 'self-destruct', 'self destruct')
+# golpes cujo stat_change canônico NEGATIVO é no PRÓPRIO usuário (recuo)
+V3_SELF_DEBUFF_MOVES = ('overheat', 'psycho boost', 'superpower', 'close combat',
+                        'draco meteor', 'leaf storm', 'hammer arm', 'v-create')
+
+
 def _v3_reset_battle_flow(poke):
     """Troca de Pokémon: momentum e adaptação zeram; cooldowns FICAM
     (trocar não zera cooldown — regra do doc). Carga e invulnerabilidade
@@ -480,10 +529,17 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     acc_label = 'certeiro' if certeiro else f'ACC {acc_eff}%'
 
     if not bm_core.v3_connects(d100, acc_eff):
-        return {'hit': False, 'damage': 0,
-                'message': f'{met}Errou (d100 {d100} > {acc_eff})',
+        # Crash (Jump Kick/High Jump Kick): errar machuca o usuário —
+        # reutiliza o canal de recoil dos handlers (aplicado mesmo no miss)
+        crash = 0
+        if ml in V3_CRASH_MOVES:
+            crash = max(1, int(atk_max_hp or 20) // 8)
+        return {'hit': False, 'damage': 0, 'recoil': crash,
+                'message': f'{met}Errou (d100 {d100} > {acc_eff})'
+                           + (f' e se machucou (-{crash} HP)!' if crash else ''),
                 'attack_roll': d100, 'move_type_en': move_type_en,
-                'log': f'{met}❌ d100({d100}) > {acc_eff} ({acc_label}) → Errou!'}
+                'log': f'{met}❌ d100({d100}) > {acc_eff} ({acc_label}) → Errou!'
+                       + (f' 💥 Errou o chute e caiu: <strong>-{crash} HP</strong>!' if crash else '')}
 
     # ── Crítico (d100 próprio: 5% + 10 p.p./estágio; fura a defesa) ──
     _crit_stages = bm_core.crit_stage_for(
@@ -619,6 +675,40 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     recoil = bm_core.v3_recoil(dmg, canon_drain)
     drain_heal = bm_core.v3_drain_heal(dmg, canon_drain)
 
+    # ── Efeito secundário de ESTÁGIO (canônico): Icy Wind/Rock Tomb reduzem
+    # SPE, Crunch DEF, Ancient Power sobe tudo no usuário... Positivo → no
+    # usuário; negativo → no alvo (exceto recuos tipo Overheat, no usuário).
+    # Aplicado direto nos dicts vivos — vale nos 3 modos sem handler. ──
+    sc_label = ''
+    _sc = canon.get('stat_changes') or []
+    _sc_chance = int(canon.get('stat_chance') or 0)
+    if dmg > 0 and _sc and _sc_chance and random.randint(1, 100) <= _sc_chance:
+        delta = {c['stat']: int(c['change']) for c in _sc if c.get('stat')}
+        if delta:
+            to_self = (all(v > 0 for v in delta.values())
+                       or ml in V3_SELF_DEBUFF_MOVES)
+            effects.apply_stat_changes(attacker_poke if to_self else defender_poke,
+                                       delta)
+            _who = 'em si' if to_self else 'no alvo'
+            sc_label = ' 📊 ' + ', '.join(f'{k} {v:+d}' for k, v in delta.items()) \
+                       + f' ({_who})'
+
+    # ── Rampage (Outrage/Thrash/Petal Dance): o preço canônico — o PRÓPRIO
+    # usuário fica confuso após o ataque (handler aplica) ──
+    self_status = None
+    if dmg > 0 and ml in V3_RAMPAGE_MOVES:
+        self_status = 'confuso'
+
+    # ── Explosion/Self-Destruct: o usuário DESMAIA ao usar (handler zera HP) ──
+    self_ko = ml in V3_SELF_KO_MOVES
+
+    # ── Rapid Spin: limpa semente/prisão do próprio usuário ao acertar ──
+    spin_label = ''
+    if (ml == 'rapid spin' and dmg > 0 and isinstance(attacker_status, dict)
+            and attacker_status.get('condition') in ('seeded', 'trapped')):
+        attacker_status.clear()   # mesmo dict do battle_state/poke → some
+        spin_label = ' 🌀 girou e se livrou da semente/prisão!'
+
     eff_label = ''
     if eff > 1:   eff_label = f' ⚡ Super Efetivo (+{bm_core.v3_effectiveness_dice_delta(eff)} dado)'
     elif eff < 1: eff_label = f' 🛡️ Não Efetivo ({bm_core.v3_effectiveness_dice_delta(eff)} dado)'
@@ -643,13 +733,17 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
            f'{" · 🎯 ×0,9 (certeiro)" if certeiro and dmg > 0 else ""}'
            f' = <strong>{dmg} dano {move.get("type", "")}</strong>'
            f'{f" · 💢 recoil {recoil}" if recoil else ""}'
-           f'{f" · 💚 drena {drain_heal}" if drain_heal else ""}')
+           f'{f" · 💚 drena {drain_heal}" if drain_heal else ""}'
+           f'{sc_label}{spin_label}'
+           f'{" · 💫 fica CONFUSO pela fúria!" if self_status else ""}'
+           f'{" · 💥 o usuário DESMAIA com a explosão!" if self_ko else ""}')
 
     return {'hit': True, 'damage': dmg,
             'message': f'{met}d100({d100}) vs {acc_label}{" Crítico!" if is_crit else ""}{eff_label}',
             'attack_roll': d100, 'move_type_en': move_type_en,
             'is_crit': is_crit, 'log': log, 'outcome': outcome,
             'recoil': recoil, 'drain_heal': drain_heal,
+            'self_status': self_status, 'self_ko': self_ko,
             'cooldown': bm_core.v3_cooldown(power)}
 
 
@@ -1023,6 +1117,18 @@ def login():
             return render_template('login.html')
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
+
+        # Bloqueio POR CONTA: 5 falhas em 10 min trancam o usuário-alvo,
+        # mesmo que o atacante troque de IP (força bruta distribuída)
+        uname_key = username.lower()
+        _now = _time.time()
+        _login_fails[uname_key] = [t for t in _login_fails[uname_key]
+                                   if _now - t < LOGIN_LOCK_WINDOW]
+        if len(_login_fails[uname_key]) >= LOGIN_LOCK_MAX:
+            flash('Conta temporariamente bloqueada por excesso de tentativas. '
+                  'Tente de novo em ~10 minutos.', 'error')
+            return render_template('login.html')
+
         users = get_users()
         for uid, u in users.items():
             if u['username'].lower() == username.lower():
@@ -1032,10 +1138,12 @@ def login():
                         flash('Sua conta de Mestre está aguardando aprovação do '
                               'administrador. Você será avisado quando for liberada.', 'error')
                         return render_template('login.html')
+                    _login_fails.pop(uname_key, None)
                     user = User(uid, u['username'], u['password_hash'], u['role'], u.get('trainer_data'))
                     remember = request.form.get('remember') == '1'
                     login_user(user, remember=remember)
                     return redirect(url_for('index'))
+        _login_fails[uname_key].append(_now)
         flash('Usuário ou senha incorretos', 'error')
     return render_template('login.html')
 
@@ -1046,6 +1154,13 @@ def register():
         if _rate_limit(8, 60, bucket='register'):
             flash('Muitos cadastros em pouco tempo. Aguarde um momento.', 'error')
             return render_template('register.html')
+        # Honeypot: campo invisível que humano nenhum preenche. Bot que
+        # preencher recebe um "sucesso" falso e NADA é criado (não damos a
+        # dica de que foi detectado).
+        if request.form.get('website'):
+            flash('Cadastro enviado! Aguarde a liberação.', 'success')
+            return redirect(url_for('login'))
+
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         role = request.form.get('role', 'player')
@@ -1053,10 +1168,22 @@ def register():
         if not username or not password:
             flash('Preencha todos os campos', 'error')
             return render_template('register.html')
-        if len(password) < 4:
-            flash('A senha deve ter pelo menos 4 caracteres.', 'error')
+        if not _re.fullmatch(r'[A-Za-z0-9_]{3,20}', username):
+            flash('Nome de usuário: 3 a 20 caracteres, só letras, números e _.', 'error')
             return render_template('register.html')
-        
+        if len(password) < 8:
+            flash('A senha deve ter pelo menos 8 caracteres.', 'error')
+            return render_template('register.html')
+
+        # Código de fundador: se configurado (MASTER_SIGNUP_CODE), criar
+        # conta de mestre exige o código — bots/curiosos param aqui.
+        if (role == 'master' and MASTER_SIGNUP_CODE
+                and username.lower() != SUPER_ADMIN_USERNAME):
+            if (request.form.get('master_code') or '').strip() != MASTER_SIGNUP_CODE:
+                flash('Código de fundador inválido. Contas de Mestre exigem o '
+                      'código fornecido pelo administrador da mesa.', 'error')
+                return render_template('register.html')
+
         users = get_users()
         # Check if username exists
         for u in users.values():
@@ -1747,7 +1874,27 @@ def _process_npcs_for_day(dkey):
     """Progressão autônoma dos NPCs num dia de jogo. Retorna log p/ o mestre."""
     log = []
     for npc in db.get_npcs():
+        # Economia do dia (para TODO NPC, mesmo sem progressão de nível):
+        # ganha um dinheiro pelo dia de trabalho e às vezes compra um item.
+        _npc_ensure_economy(npc)
+        earned = random.randint(100, 400)
+        npc['money'] = int(npc.get('money') or 0) + earned
+        econ_msg = f'💰 Ganhou ₽{earned} no dia.'
+        if npc['money'] >= 1500 and random.random() < 0.30:
+            affordable = [i for i in SHOP_CATALOG
+                          if i.get('category') in ('pokeball', 'medicine')
+                          and i['price'] <= min(1500, npc['money'] // 2)]
+            if affordable:
+                item = random.choice(affordable)
+                npc['money'] -= item['price']
+                _bag_add(npc.setdefault('bag', []), item['name'], 1,
+                         item.get('description', ''))
+                econ_msg += f" 🛍️ Comprou 1x {item['name']} (₽{item['price']})."
+        npc.setdefault('diary', []).append({'day_key': dkey, 'message': econ_msg})
+
         if not npc.get('progression_enabled'):
+            npc['diary'] = npc['diary'][-60:]
+            db.save_npc(npc)
             continue
         rate = npc.get('growth_rate', 'normal')
         roll = random.randint(1, 20)
@@ -2249,6 +2396,40 @@ def master_force_end_pvp(battle_id):
 # NPC MANAGEMENT
 # ============================================================
 
+# ── Economia dos NPCs: bolsa + dinheiro ──────────────────────────────────
+# Todo NPC começa a jornada com ₽3000 e itens básicos; ganha dinheiro com o
+# passar dos dias e às vezes compra itens. Em batalha de rua, o que ele tem
+# entra no espólio de verdade (antes o loot vinha/ia para o VAZIO).
+NPC_START_MONEY = 3000
+NPC_START_BAG = (
+    {'name': 'Pokébola', 'qty': 5, 'description': 'Pokébola padrão. DC captura base.'},
+    {'name': 'Poção', 'qty': 3, 'description': 'Restaura 2d4+2 HP de um Pokémon.'},
+    {'name': 'Super Poção', 'qty': 1, 'description': 'Restaura 4d4+4 HP de um Pokémon.'},
+)
+
+
+def _npc_ensure_economy(npc):
+    """Garante money/bag no NPC (migra NPCs antigos). Idempotente."""
+    changed = False
+    if not isinstance(npc.get('money'), int):
+        npc['money'] = NPC_START_MONEY
+        changed = True
+    if not isinstance(npc.get('bag'), list):
+        npc['bag'] = [dict(i) for i in NPC_START_BAG]
+        changed = True
+    return changed
+
+
+def _bag_add(bag, name, qty, description=''):
+    """Soma qty de um item na bolsa (cria a entrada se não existe)."""
+    for bi in bag:
+        if isinstance(bi, dict) and (bi.get('name') or '').lower() == name.lower():
+            bi['qty'] = int(bi.get('qty') or 0) + qty
+            return bag
+    bag.append({'name': name, 'qty': qty, 'description': description})
+    return bag
+
+
 @app.route('/master/npcs', methods=['GET'])
 @login_required
 def list_npcs():
@@ -2256,7 +2437,9 @@ def list_npcs():
         return jsonify({'error': 'Unauthorized'}), 403
     npcs = db.get_npcs()
     for npc in npcs:
-        if _mig(npc.get('team', [])):
+        changed = _mig(npc.get('team', []))
+        changed = _npc_ensure_economy(npc) or changed
+        if changed:
             db.save_npc(npc)
     return jsonify(npcs)
 
@@ -2277,6 +2460,7 @@ def create_npc():
         'progression_enabled': bool(data.get('progression_enabled', False)),
         'diary': []
     }
+    _npc_ensure_economy(npc)
     db.save_npc(npc)
     return jsonify(npc)
 
@@ -2464,8 +2648,141 @@ def generate_npc():
         'progression_enabled': bool(data.get('progression_enabled', False)),
         'diary': []
     }
+    _npc_ensure_economy(npc)   # ₽3000 + itens básicos de início de jornada
     db.save_npc(npc)
     return jsonify(npc)
+
+
+# ── 🎁 Presentes do Mestre: Pokémon, itens e dinheiro ───────────────────────
+def _build_gift_pokemon(base, level, is_shiny=False, nickname=''):
+    """Monta um Pokémon de time a partir da espécie (mesmo formato dos
+    gerados para NPCs/encontros), para o mestre presentear em quest/torneio."""
+    level = max(1, min(100, int(level or 5)))
+    move_pool = list(base.get('startingMoves', []))
+    for lv, moves in (base.get('levelMoves') or {}).items():
+        if int(lv) * 5 <= level:
+            move_pool.extend(moves)
+    move_pool = list(dict.fromkeys(
+        m for m in move_pool if m.lower() in MOVES_BY_NAME or m in MOVES_DB))
+    moves = move_pool[-4:] if move_pool else ['Tackle']
+    scaled = scaling.calculate_pokemon_stats(base, level, is_shiny=is_shiny)
+    poke = {
+        'name': base['name'],
+        'number': base['number'],
+        'level': level,
+        'types': base.get('types', []),
+        'hp': scaled['hp'], 'maxHp': scaled['maxHp'], 'currentHp': scaled['hp'],
+        'ac': scaled['ac'], 'stats': scaled['stats'],
+        'proficiency': scaled['proficiency'], 'stab': scaled['stab'],
+        'moves': moves,
+        'speed': base.get('speed', '30ft'),
+        'ability': (base.get('ability') or {}).get('name', '') if base.get('ability') else '',
+        'vulnerabilities': base.get('vulnerabilities', []),
+        'resistances': base.get('resistances', []),
+        'immunities': base.get('immunities', []),
+        'evolutionInfo': base.get('evolutionInfo', ''),
+        'is_shiny': bool(is_shiny),
+        'xp': 0, 'totalXp': 0, 'battle_wins': 0,
+        'sv': migrations.STATS_VERSION,
+    }
+    if nickname:
+        poke['nickname'] = str(nickname)[:30]
+    return poke
+
+
+@app.route('/master/give-pokemon', methods=['POST'])
+@login_required
+def master_give_pokemon():
+    """Mestre dá um Pokémon ESPECÍFICO a um jogador (quest, campeonato,
+    presente de NPC...). Vai pro time se houver vaga, senão pro PC."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    player_id = str(data.get('player_id') or '')
+    species = (data.get('species') or '').strip()
+
+    users = get_users()
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    base = POKEMON_BY_NAME.get(species.lower())
+    if not base and str(species).isdigit():
+        base = next((p for p in POKEMON_DB if int(p.get('number', 0)) == int(species)), None)
+    if not base:
+        return jsonify({'error': f'Espécie não encontrada: {species}'}), 404
+
+    poke = _build_gift_pokemon(base, data.get('level', 5),
+                               is_shiny=bool(data.get('shiny')),
+                               nickname=data.get('nickname') or '')
+    trainer = users[player_id].get('trainer_data', {})
+    team = trainer.get('team', [])
+    if len(team) < 6:
+        team.append(poke)
+        trainer['team'] = team
+        destino = 'time'
+    else:
+        pc = trainer.get('pc', [])
+        pc.append(poke)
+        trainer['pc'] = pc
+        destino = 'PC (time cheio)'
+    users[player_id]['trainer_data'] = trainer
+    save_users(users)
+    _grant_encounter(player_id, base['number'])   # registra na pokédex
+
+    note = str(data.get('note') or '')[:120]
+    socketio.emit('gift_received', {
+        'kind': 'pokemon',
+        'pokemon': {'name': poke['name'], 'nickname': poke.get('nickname'),
+                    'level': poke['level'], 'is_shiny': poke['is_shiny'],
+                    'number': poke['number']},
+        'destination': destino, 'note': note,
+        'from': data.get('from') or 'O Mestre',
+    }, room=player_id)
+    return jsonify({'ok': True, 'pokemon': poke, 'destination': destino})
+
+
+@app.route('/master/give-item', methods=['POST'])
+@login_required
+def master_give_item():
+    """Mestre dá itens e/ou dinheiro a um jogador (recompensa de quest,
+    presente de NPC...). Item pode ser do catálogo ou de história (nome livre)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    player_id = str(data.get('player_id') or '')
+    users = get_users()
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+
+    item_name = (data.get('item_name') or '').strip()[:60]
+    qty = max(0, min(999, int(data.get('qty') or 0)))
+    money = max(0, min(1_000_000, int(data.get('money') or 0)))
+    if not (item_name and qty) and not money:
+        return jsonify({'error': 'Informe um item (com quantidade) e/ou dinheiro'}), 400
+
+    trainer = users[player_id].get('trainer_data', {})
+    given = {}
+    if item_name and qty:
+        catalog = next((i for i in SHOP_CATALOG
+                        if i['name'].lower() == item_name.lower()
+                        or i['id'] == item_name.lower()), None)
+        name = catalog['name'] if catalog else item_name
+        desc = catalog.get('description', '') if catalog else str(data.get('description') or '')[:120]
+        _bag_add(trainer.setdefault('bag', []), name, qty, desc)
+        given['item'] = {'name': name, 'qty': qty}
+    if money:
+        trainer['money'] = int(trainer.get('money') or 0) + money
+        given['money'] = money
+    users[player_id]['trainer_data'] = trainer
+    save_users(users)
+
+    socketio.emit('gift_received', {
+        'kind': 'item', **given,
+        'note': str(data.get('note') or '')[:120],
+        'from': data.get('from') or 'O Mestre',
+        'bag': trainer.get('bag'), 'total_money': trainer.get('money'),
+    }, room=player_id)
+    return jsonify({'ok': True, **given, 'money_total': trainer.get('money')})
+
 
 def _carry_evolution_potential(old_poke, evolved, evolved_base):
     """Custom EVs: ao evoluir, preserva os campos de Potencial e ROLA o bônus
@@ -3158,10 +3475,20 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     
     # Validate moves against database - only keep moves that actually exist
     move_pool = [m for m in move_pool if m.lower() in MOVES_BY_NAME or m in MOVES_DB]
-    
-    # Moveset do selvagem: 2 PRINCIPAIS fixos (melhores golpes ofensivos
-    # naturais da espécie p/ o nível) + 2 SECUNDÁRIOS aleatórios (cobertura,
-    # suporte, status). Mantém identidade da espécie com variedade por encontro.
+
+    # Selvagem EXPERIENTE (Nv ≥ 25): o pool inclui os golpes de TM da espécie
+    # (Thunderbolt, Earthquake, Ice Beam...) — é onde moram os golpes bons.
+    # Antes o selvagem só via startingMoves/levelMoves/eggMoves.
+    if encounter_level >= 25:
+        tm_names = [TM_MOVES.get(n) for n in (chosen.get('tmMoves') or [])]
+        move_pool.extend(m for m in tm_names
+                         if m and (m.lower() in MOVES_BY_NAME or m in MOVES_DB))
+        move_pool = list(dict.fromkeys(move_pool))
+
+    # Moveset do selvagem: 2 PRINCIPAIS sorteados entre os TOP-4 golpes
+    # ofensivos disponíveis (qualidade garantida + variedade por encontro —
+    # antes eram SEMPRE os 2 mais fortes, todo encontro igual) + 2
+    # SECUNDÁRIOS aleatórios (cobertura, suporte, status).
     def _mv_power(m):
         try:
             return int(canon_move(m).get('power') or 0) or \
@@ -3170,8 +3497,9 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
             return 0
     offensive = sorted((m for m in move_pool if _mv_power(m) > 0),
                        key=_mv_power, reverse=True)
-    # 2 principais = os 2 golpes ofensivos mais fortes disponíveis
-    fixed = offensive[:2]
+    top = offensive[:4]
+    random.shuffle(top)
+    fixed = top[:2]
     # secundários = todo o resto (ofensivos extras + status/suporte), embaralhado
     secondary_pool = [m for m in move_pool if m not in fixed]
     random.shuffle(secondary_pool)
@@ -3655,7 +3983,8 @@ def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data
                               'message': f"{actor['name']} usou {move_name} — ...mas não funcionou!"})
         gb.advance_turn(battle)
         return
-    if result.get('status_applied'):
+    if result.get('status_applied') and not effects.type_blocks_status(
+            (target.get('pokemon') or {}).get('types'), result['status_applied']):
         target['status'] = {'condition': result['status_applied'], 'turns_active': 0}
     if result.get('heal'):
         actor['hp'] = min(actor['maxHp'], actor['hp'] + result['heal'])
@@ -3683,16 +4012,46 @@ def _group_apply_recoil_drain(battle, combatant, calc):
         combatant['hp'] = min(combatant['maxHp'], combatant['hp'] + heal)
         combatant['pokemon']['currentHp'] = combatant['hp']
         suffix += f' 💚 Drenou {heal} HP!'
+    # Rampage: usuário fica confuso; Explosion: usuário desmaia
+    if calc.get('self_status'):
+        pk = combatant.get('pokemon') or {}
+        if not pk.get('status') and not effects.type_blocks_status(
+                pk.get('types'), calc['self_status']):
+            pk['status'] = {'condition': calc['self_status'], 'turns_active': 0}
+            suffix += ' 💫 ficou confuso pela fúria!'
+    if calc.get('self_ko'):
+        combatant['hp'] = 0
+        combatant['pokemon']['currentHp'] = 0
+        combatant['fainted'] = True
+        suffix += ' 💥 desmaiou com o próprio golpe!'
     return suffix
 
 
 def _group_field_round_hook(battle):
     """F5: uma vez por rodada — chip de clima (areia/granizo), cura de Grassy
-    Terrain e decremento das durações do campo."""
+    Terrain, tick do 🌱 Leech Seed e decremento das durações do campo."""
     rnd = int(battle.get('round') or 0)
     if rnd <= int(battle.get('_field_round_done') or 0):
         return
     battle['_field_round_done'] = rnd
+    # 🌱 Leech Seed: portador perde ⌊HPmáx/8⌋; um oponente vivo cura o mesmo
+    for c in battle['combatants'].values():
+        if c.get('fainted') or c['hp'] <= 0:
+            continue
+        if ((c.get('pokemon') or {}).get('status') or {}).get('condition') != 'seeded':
+            continue
+        seed_dmg = max(1, int(c.get('maxHp') or 8) // 8)
+        c['hp'] = max(1, c['hp'] - seed_dmg)
+        c['pokemon']['currentHp'] = c['hp']
+        other_side = 'wild' if c['side'] == 'ally' else 'ally'
+        for o in battle['combatants'].values():
+            if o['side'] == other_side and not o.get('fainted') and o['hp'] > 0:
+                o['hp'] = min(o['maxHp'], o['hp'] + seed_dmg)
+                o['pokemon']['currentHp'] = o['hp']
+                battle['log'].append({'type': 'field', 'message':
+                    f"🌱 {c['name']} perde {seed_dmg} HP pra semente — "
+                    f"{o['name']} recupera {seed_dmg}!"})
+                break
     fld = _field_of(battle)
     if not (fld.get('weather') or fld.get('terrain')):
         return
@@ -3921,6 +4280,60 @@ def get_pc():
     if _mig(trainer.get('pc', [])):
         save_users(users)
     return jsonify(trainer.get('pc', []))
+
+
+@app.route('/player/pc/capture', methods=['POST'])
+@login_required
+def pc_store_capture():
+    """Captura com o TIME CHEIO: o Pokémon vai direto para o PC em vez de
+    sumir no limbo. Mesma sanitização de captura nova do update_team:
+    espécie precisa existir, nível clampado, stats SEMPRE recalculados no
+    servidor (o cliente não é autoridade sobre nada além de nível/moves)."""
+    if _rate_limit(10, 60, bucket='pc_capture'):
+        return jsonify({'error': 'Muitas capturas em pouco tempo.'}), 429
+    data = request.json or {}
+    p = data.get('pokemon') or {}
+    base = POKEMON_BY_NAME.get((p.get('name') or '').lower()) \
+        or POKEMON_BY_NUMBER.get(p.get('number'))
+    if not base or not base.get('base_stats'):
+        return jsonify({'error': 'Espécie desconhecida'}), 400
+
+    level = max(1, min(100, int(p.get('level') or 1)))
+    moves = [m for m in (p.get('moves') or [])
+             if isinstance(m, str) and (m.lower() in MOVES_BY_NAME or m in MOVES_DB)][:4]
+    is_shiny = bool(p.get('is_shiny'))
+    scaled = scaling.calculate_pokemon_stats(base, level, is_shiny=is_shiny)
+    poke = {
+        'name': base['name'], 'number': base['number'],
+        'nickname': str(p.get('nickname') or '')[:30],
+        'types': base.get('types', []), 'level': level,
+        'moves': moves or list(base.get('startingMoves', []))[:4] or ['Tackle'],
+        'ability': (base.get('ability') or {}).get('name', '') if base.get('ability') else '',
+        'speed': base.get('speed', '30ft'),
+        'vulnerabilities': base.get('vulnerabilities', []),
+        'resistances': base.get('resistances', []),
+        'immunities': base.get('immunities', []),
+        'evolutionInfo': base.get('evolutionInfo', ''),
+        'is_shiny': is_shiny,
+        'stats': scaled['stats'], 'maxHp': scaled['maxHp'], 'hp': scaled['maxHp'],
+        'xp': 0, 'totalXp': 0, 'battle_wins': 0,
+        'sv': migrations.STATS_VERSION, 'training': {},
+    }
+    try:
+        cur = int(p.get('currentHp') or scaled['maxHp'])
+    except (TypeError, ValueError):
+        cur = scaled['maxHp']
+    poke['currentHp'] = max(1, min(scaled['maxHp'], cur))
+    migrations.migrate_pokemon_pp(poke, POKEMON_BY_NAME, POKEMON_BY_NUMBER)
+
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    pc = trainer.get('pc', [])
+    pc.append(poke)
+    trainer['pc'] = pc
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+    return jsonify({'ok': True, 'pc_size': len(pc), 'pokemon': poke})
 
 
 @app.route('/player/pc/deposit', methods=['POST'])
@@ -5462,7 +5875,10 @@ def handle_battle_action(data):
                 if sres.get('effect_type') == 'field':
                     _field_apply(battle_state, sres.get('field_kind'),
                                  sres.get('field_value'), sres.get('duration'))
-                if sres.get('status_applied') and not status_effect and not battle_state.get('wild_status'):
+                if (sres.get('status_applied') and not status_effect
+                        and not battle_state.get('wild_status')
+                        and not effects.type_blocks_status(
+                            wpoke.get('types'), sres['status_applied'])):
                     status_effect = {'condition': sres['status_applied'], 'turns_active': 0}
                 if sres.get('heal'):
                     battle_state['player_hp_current'] = min(
@@ -5498,6 +5914,13 @@ def handle_battle_action(data):
                 battle_state['player_hp_current'] = min(
                     battle_state['player_hp_max'],
                     battle_state['player_hp_current'] + int(server_calc['drain_heal']))
+            # Rampage (Outrage...): o próprio usuário fica confuso
+            if server_calc.get('self_status') and not battle_state.get('player_status'):
+                battle_state['player_status'] = {
+                    'condition': server_calc['self_status'], 'turns_active': 0}
+            # Explosion/Self-Destruct: o usuário desmaia
+            if server_calc.get('self_ko'):
+                battle_state['player_hp_current'] = 0
 
         # Turno do SELVAGEM conduzido pelo cliente do jogador (modo AUTO):
         # recalcula o dano no servidor — o cliente não é autoridade sobre o
@@ -5518,6 +5941,11 @@ def handle_battle_action(data):
                     battle_state['wild_hp_current'] = min(
                         battle_state['wild_hp_max'],
                         battle_state['wild_hp_current'] + int(wild_calc['drain_heal']))
+                if wild_calc.get('self_status') and not battle_state.get('wild_status'):
+                    battle_state['wild_status'] = {
+                        'condition': wild_calc['self_status'], 'turns_active': 0}
+                if wild_calc.get('self_ko'):
+                    battle_state['wild_hp_current'] = 0
 
         if server_calc:
             action_log = server_calc.get('log')
@@ -5582,6 +6010,9 @@ def handle_battle_action(data):
                 battle_state['player_hp_max'] = new_max_hp
             # trocar de pokémon zera os buffs/debuffs acumulados do lado do jogador
             ppoke_sw = encounter.get('player_pokemon')
+            # sair de campo remove semente/prisão (Leech Seed/Bind)
+            if (battle_state.get('player_status') or {}).get('condition') in ('seeded', 'trapped'):
+                battle_state['player_status'] = None
             if isinstance(ppoke_sw, dict):
                 effects.reset_stat_stages(ppoke_sw)
                 ppoke_sw['defense_mode'] = 1   # postura reseta na troca
@@ -5694,6 +6125,26 @@ def handle_battle_action(data):
         field_events = []
         if battle_state['turn'] == 'player':
             battle_state['round'] += 1
+            # 🌱 Leech Seed: o portador perde ⌊HPmáx/8⌋ e o OUTRO lado cura
+            # o mesmo tanto (dreno canônico por rodada; nunca nocauteia)
+            for holder_st, h_hp, h_max, o_hp, o_max, h_label, o_label in (
+                    (battle_state.get('player_status'), 'player_hp_current',
+                     'player_hp_max', 'wild_hp_current', 'wild_hp_max',
+                     'Seu Pokémon', 'o selvagem'),
+                    (battle_state.get('wild_status'), 'wild_hp_current',
+                     'wild_hp_max', 'player_hp_current', 'player_hp_max',
+                     'O selvagem', 'seu Pokémon')):
+                if (holder_st or {}).get('condition') != 'seeded':
+                    continue
+                if int(battle_state.get(h_hp) or 0) <= 0:
+                    continue
+                seed_dmg = max(1, int(battle_state.get(h_max) or 8) // 8)
+                battle_state[h_hp] = max(1, int(battle_state[h_hp]) - seed_dmg)
+                if int(battle_state.get(o_hp) or 0) > 0:
+                    battle_state[o_hp] = min(int(battle_state.get(o_max) or 1),
+                                             int(battle_state[o_hp]) + seed_dmg)
+                field_events.append(f'🌱 {h_label} perde {seed_dmg} HP pra semente '
+                                    f'— {o_label} recupera {seed_dmg}!')
             # F5: fim da rodada — chip de clima, cura de terreno e durações
             fld = _field_of(battle_state)
             if fld.get('weather') or fld.get('terrain'):
@@ -6265,6 +6716,13 @@ def handle_pvp_attack(data):
                                         att_poke.get('currentHp', 0) + int(calc['drain_heal']))
             battle['log'].append({'type': 'info',
                                   'message': f"💚 Drenou {calc['drain_heal']} HP!"})
+        # Rampage: o usuário fica confuso; Explosion: o usuário desmaia
+        if calc.get('self_status'):
+            pvp.apply_status(battle, player_key, {'condition': calc['self_status']})
+        if calc.get('self_ko'):
+            att_poke['currentHp'] = 0
+            battle['log'].append({'type': 'faint', 'player': player_key,
+                                  'permadeath': False})
 
         # Process attacker's own status damage before acting
         status_dmg, status_info, can_act, status_msgs = pvp.process_turn_status(battle, player_key)
@@ -6669,12 +7127,31 @@ def _emit_pvp_to_master(battle, event='update'):
 
 
 def _pvp_field_round_hook(battle):
-    """F5: uma vez por rodada PvP — chip de clima, cura de Grassy Terrain e
-    decremento das durações do campo (idempotente por número de rodada)."""
+    """F5: uma vez por rodada PvP — chip de clima, cura de Grassy Terrain,
+    tick do 🌱 Leech Seed e durações do campo (idempotente por rodada)."""
     rnd = int(battle.get('round') or 0)
     if rnd <= int(battle.get('_field_round_done') or 0):
         return
     battle['_field_round_done'] = rnd
+    # 🌱 Leech Seed: portador perde ⌊HPmáx/8⌋, o lado oposto cura o mesmo
+    for key, other in (('player1', 'player2'), ('player2', 'player1')):
+        side = battle[key]
+        poke = side['team'][side['active_idx']]
+        if (poke.get('status') or {}).get('condition') != 'seeded':
+            continue
+        if pvp._poke_hp(poke) <= 0:
+            continue
+        seed_dmg = max(1, int(poke.get('maxHp') or 8) // 8)
+        poke['currentHp'] = max(1, int(poke.get('currentHp') or 1) - seed_dmg)
+        o_side = battle[other]
+        o_poke = o_side['team'][o_side['active_idx']]
+        if pvp._poke_hp(o_poke) > 0:
+            o_poke['currentHp'] = min(int(o_poke.get('maxHp') or 1),
+                                      int(o_poke.get('currentHp') or 0) + seed_dmg)
+        battle['log'].append({'type': 'field', 'message':
+            f'🌱 {poke.get("nickname") or poke.get("name", "?")} perde {seed_dmg} HP '
+            f'pra semente — {o_poke.get("nickname") or o_poke.get("name", "?")} '
+            f'recupera {seed_dmg}!'})
     fld = _field_of(battle)
     if not (fld.get('weather') or fld.get('terrain')):
         return
@@ -6976,6 +7453,11 @@ def handle_npc_turn(battle, npc_key):
                                     npc_poke.get('currentHp', 0) + int(calc['drain_heal']))
         battle['log'].append({'type': 'info',
                               'message': f"💚 Drenou {calc['drain_heal']} HP!"})
+    if calc.get('self_status'):
+        pvp.apply_status(battle, npc_key, {'condition': calc['self_status']})
+    if calc.get('self_ko'):
+        npc_poke['currentHp'] = 0
+        battle['log'].append({'type': 'faint', 'player': npc_key, 'permadeath': False})
 
     # Check defender ability
     if damage > 0 and move_type and not battle[defender_key].get('is_npc'):
@@ -7052,11 +7534,26 @@ def handle_pvp_victory(battle):
     winner_id = battle[winner_key]['id']
     loser_id = battle[loser_key]['id']
     mode = battle['mode']
-    
+
     users = get_users()
-    winner_trainer = users.get(winner_id, {}).get('trainer_data', {})
-    loser_trainer = users.get(loser_id, {}).get('trainer_data', {})
-    
+    npcs = db.get_npcs()
+
+    def _party_sheet(pid):
+        """Ficha econômica (money/bag/team) do lado: jogador OU NPC.
+        NPC devolve o próprio dict do registro — mutações valem de verdade
+        (antes, dinheiro perdido para NPC ia para o VAZIO e NPC derrotado
+        não soltava espólio nenhum)."""
+        if pid in users:
+            return users[pid].get('trainer_data', {}), 'user'
+        npc = next((n for n in npcs if n['id'] == pid), None)
+        if npc is not None:
+            _npc_ensure_economy(npc)
+            return npc, 'npc'
+        return {}, 'ghost'
+
+    winner_trainer, winner_kind = _party_sheet(winner_id)
+    loser_trainer, loser_kind = _party_sheet(loser_id)
+
     rewards = {'money': 0, 'items': []}
     
     if mode == 'official' or mode == 'tournament':
@@ -7140,33 +7637,41 @@ def handle_pvp_victory(battle):
         winner_team[winner_active_idx]['battle_wins'] = winner_team[winner_active_idx].get('battle_wins', 0) + 1
     winner_trainer['team'] = winner_team
 
-    # Save
-    if winner_id in users:
+    # Save — cada lado no seu armazenamento (jogador em users, NPC em npcs)
+    if winner_kind == 'user':
         users[winner_id]['trainer_data'] = winner_trainer
-    if loser_id in users:
+    elif winner_kind == 'npc':
+        db.save_npc(winner_trainer)
+    if loser_kind == 'user':
         users[loser_id]['trainer_data'] = loser_trainer
+    elif loser_kind == 'npc':
+        db.save_npc(loser_trainer)
     save_users(users)
     
-    # Notify players
+    # Notify players (NPC usa o nome do registro; jogador, o username)
+    winner_name = (users.get(winner_id, {}).get('username')
+                   or (winner_trainer.get('name') if winner_kind == 'npc' else None) or '???')
+    loser_name = (users.get(loser_id, {}).get('username')
+                  or (loser_trainer.get('name') if loser_kind == 'npc' else None) or '???')
     socketio.emit('pvp_battle_ended', {
         'battle_id': battle['id'],
         'winner': winner_key,
-        'winner_name': users.get(winner_id, {}).get('username', '???'),
-        'loser_name': users.get(loser_id, {}).get('username', '???'),
+        'winner_name': winner_name,
+        'loser_name': loser_name,
         'mode': mode,
         'rewards': rewards
     }, room=winner_id)
     socketio.emit('pvp_battle_ended', {
         'battle_id': battle['id'],
         'winner': winner_key,
-        'winner_name': users.get(winner_id, {}).get('username', '???'),
-        'loser_name': users.get(loser_id, {}).get('username', '???'),
+        'winner_name': winner_name,
+        'loser_name': loser_name,
         'mode': mode,
         'lost': rewards
     }, room=loser_id)
     socketio.emit('pvp_battle_ended', {
         'battle_id': battle['id'],
-        'winner_name': users.get(winner_id, {}).get('username', '???'),
+        'winner_name': winner_name,
         'mode': mode
     }, room=f'master_{_tid()}')
     

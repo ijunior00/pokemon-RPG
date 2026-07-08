@@ -696,6 +696,78 @@ socket.on('free_roll', (r) => {
     inbox.insertBefore(card, inbox.firstChild);
 });
 
+// ── 🎁 Presentes do Mestre: dar Pokémon, itens ou dinheiro ──
+async function _populateGiftLists() {
+    const spList = document.getElementById('gift-species-list');
+    if (spList && !spList.dataset.ready) {
+        try {
+            const resp = await fetch('/api/pokemon?search=');
+            const all = await resp.json();
+            spList.innerHTML = (all || []).map(p => `<option value="${p.name}">`).join('');
+            spList.dataset.ready = '1';
+        } catch(e) {}
+    }
+    const itList = document.getElementById('gift-item-list');
+    if (itList && !itList.dataset.ready) {
+        try {
+            const resp = await fetch('/api/shop');
+            const data = await resp.json();
+            const items = data.items || data || [];
+            itList.innerHTML = items.map(i => `<option value="${i.name}">`).join('');
+            itList.dataset.ready = '1';
+        } catch(e) {}
+    }
+}
+document.addEventListener('DOMContentLoaded', _populateGiftLists);
+
+async function givePokemon() {
+    const out = document.getElementById('gift-result');
+    const body = {
+        player_id: document.getElementById('gift-player')?.value,
+        species: document.getElementById('gift-species')?.value?.trim(),
+        level: parseInt(document.getElementById('gift-level')?.value || 5),
+        shiny: !!document.getElementById('gift-shiny')?.checked,
+        nickname: document.getElementById('gift-nickname')?.value?.trim() || '',
+        note: document.getElementById('gift-note')?.value || '',
+        from: document.getElementById('gift-from')?.value || '',
+    };
+    if (!body.player_id || !body.species) { alert('Selecione o jogador e a espécie.'); return; }
+    const resp = await fetch('/master/give-pokemon', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    const r = await resp.json();
+    if (out) out.textContent = r.ok
+        ? `✅ ${r.pokemon.is_shiny ? '✨ ' : ''}${r.pokemon.nickname || r.pokemon.name} (Nv.${r.pokemon.level}) entregue — foi para o ${r.destination}.`
+        : `❌ ${r.error || 'Falha'}`;
+}
+
+async function giveItem() {
+    const out = document.getElementById('gift-result');
+    const body = {
+        player_id: document.getElementById('gift-player')?.value,
+        item_name: document.getElementById('gift-item')?.value?.trim() || '',
+        qty: parseInt(document.getElementById('gift-qty')?.value || 1),
+        money: parseInt(document.getElementById('gift-money')?.value || 0),
+        note: document.getElementById('gift-note')?.value || '',
+        from: document.getElementById('gift-from')?.value || '',
+    };
+    if (!body.player_id || (!body.item_name && !body.money)) {
+        alert('Informe um item e/ou dinheiro.'); return;
+    }
+    const resp = await fetch('/master/give-item', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    const r = await resp.json();
+    if (out) {
+        const parts = [];
+        if (r.item) parts.push(`${r.item.qty}x ${r.item.name}`);
+        if (r.money) parts.push(`₽${r.money}`);
+        out.textContent = r.ok ? `✅ Entregue: ${parts.join(' e ')}.` : `❌ ${r.error || 'Falha'}`;
+    }
+}
+
 // Mestre pede um teste a um jogador (atributo/perícia/dado) com motivo e CD
 async function requestRoll() {
     const playerId = document.getElementById('reqroll-player')?.value;
