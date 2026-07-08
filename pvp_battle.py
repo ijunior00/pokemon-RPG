@@ -101,6 +101,14 @@ def switch_pokemon(battle, player_key, new_idx):
     player = battle[player_key]
     mode = battle['mode']
 
+    # sair de campo remove semente/prisão (Leech Seed/Bind) do que SAI
+    try:
+        cur = player['team'][player['active_idx']]
+        if (cur.get('status') or {}).get('condition') in ('seeded', 'trapped'):
+            cur['status'] = None
+    except (KeyError, IndexError, TypeError):
+        pass
+
     if new_idx >= len(player['team']):
         return False, "Índice inválido"
 
@@ -271,6 +279,10 @@ def apply_status(battle, player_key, status_condition):
     active = player['team'][player['active_idx']]
     if active.get('status'):
         return False  # already statused
+    # imunidade por TIPO (Grama × Leech Seed, Elétrico × paralisia...)
+    if effects.type_blocks_status(active.get('types'),
+                                  (status_condition or {}).get('condition')):
+        return False
     active['status'] = dict(status_condition, turns_active=0)
     return True
 

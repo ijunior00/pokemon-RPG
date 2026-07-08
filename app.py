@@ -358,6 +358,15 @@ def _v3_register_use(st, move_lower, power):
     return st['momentum'], adapt
 
 
+# ── Casos especiais da auditoria de moves (tabela do tester, jul/2026) ──
+V3_RAMPAGE_MOVES = ('outrage', 'thrash', 'petal dance')      # usa → fica confuso
+V3_CRASH_MOVES = ('jump kick', 'high jump kick')             # errou → se machuca
+V3_SELF_KO_MOVES = ('explosion', 'self-destruct', 'self destruct')
+# golpes cujo stat_change canônico NEGATIVO é no PRÓPRIO usuário (recuo)
+V3_SELF_DEBUFF_MOVES = ('overheat', 'psycho boost', 'superpower', 'close combat',
+                        'draco meteor', 'leaf storm', 'hammer arm', 'v-create')
+
+
 def _v3_reset_battle_flow(poke):
     """Troca de Pokémon: momentum e adaptação zeram; cooldowns FICAM
     (trocar não zera cooldown — regra do doc). Carga e invulnerabilidade
@@ -520,10 +529,17 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     acc_label = 'certeiro' if certeiro else f'ACC {acc_eff}%'
 
     if not bm_core.v3_connects(d100, acc_eff):
-        return {'hit': False, 'damage': 0,
-                'message': f'{met}Errou (d100 {d100} > {acc_eff})',
+        # Crash (Jump Kick/High Jump Kick): errar machuca o usuário —
+        # reutiliza o canal de recoil dos handlers (aplicado mesmo no miss)
+        crash = 0
+        if ml in V3_CRASH_MOVES:
+            crash = max(1, int(atk_max_hp or 20) // 8)
+        return {'hit': False, 'damage': 0, 'recoil': crash,
+                'message': f'{met}Errou (d100 {d100} > {acc_eff})'
+                           + (f' e se machucou (-{crash} HP)!' if crash else ''),
                 'attack_roll': d100, 'move_type_en': move_type_en,
-                'log': f'{met}❌ d100({d100}) > {acc_eff} ({acc_label}) → Errou!'}
+                'log': f'{met}❌ d100({d100}) > {acc_eff} ({acc_label}) → Errou!'
+                       + (f' 💥 Errou o chute e caiu: <strong>-{crash} HP</strong>!' if crash else '')}
 
     # ── Crítico (d100 próprio: 5% + 10 p.p./estágio; fura a defesa) ──
     _crit_stages = bm_core.crit_stage_for(
@@ -659,6 +675,40 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     recoil = bm_core.v3_recoil(dmg, canon_drain)
     drain_heal = bm_core.v3_drain_heal(dmg, canon_drain)
 
+    # ── Efeito secundário de ESTÁGIO (canônico): Icy Wind/Rock Tomb reduzem
+    # SPE, Crunch DEF, Ancient Power sobe tudo no usuário... Positivo → no
+    # usuário; negativo → no alvo (exceto recuos tipo Overheat, no usuário).
+    # Aplicado direto nos dicts vivos — vale nos 3 modos sem handler. ──
+    sc_label = ''
+    _sc = canon.get('stat_changes') or []
+    _sc_chance = int(canon.get('stat_chance') or 0)
+    if dmg > 0 and _sc and _sc_chance and random.randint(1, 100) <= _sc_chance:
+        delta = {c['stat']: int(c['change']) for c in _sc if c.get('stat')}
+        if delta:
+            to_self = (all(v > 0 for v in delta.values())
+                       or ml in V3_SELF_DEBUFF_MOVES)
+            effects.apply_stat_changes(attacker_poke if to_self else defender_poke,
+                                       delta)
+            _who = 'em si' if to_self else 'no alvo'
+            sc_label = ' 📊 ' + ', '.join(f'{k} {v:+d}' for k, v in delta.items()) \
+                       + f' ({_who})'
+
+    # ── Rampage (Outrage/Thrash/Petal Dance): o preço canônico — o PRÓPRIO
+    # usuário fica confuso após o ataque (handler aplica) ──
+    self_status = None
+    if dmg > 0 and ml in V3_RAMPAGE_MOVES:
+        self_status = 'confuso'
+
+    # ── Explosion/Self-Destruct: o usuário DESMAIA ao usar (handler zera HP) ──
+    self_ko = ml in V3_SELF_KO_MOVES
+
+    # ── Rapid Spin: limpa semente/prisão do próprio usuário ao acertar ──
+    spin_label = ''
+    if (ml == 'rapid spin' and dmg > 0 and isinstance(attacker_status, dict)
+            and attacker_status.get('condition') in ('seeded', 'trapped')):
+        attacker_status.clear()   # mesmo dict do battle_state/poke → some
+        spin_label = ' 🌀 girou e se livrou da semente/prisão!'
+
     eff_label = ''
     if eff > 1:   eff_label = f' ⚡ Super Efetivo (+{bm_core.v3_effectiveness_dice_delta(eff)} dado)'
     elif eff < 1: eff_label = f' 🛡️ Não Efetivo ({bm_core.v3_effectiveness_dice_delta(eff)} dado)'
@@ -683,13 +733,17 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
            f'{" · 🎯 ×0,9 (certeiro)" if certeiro and dmg > 0 else ""}'
            f' = <strong>{dmg} dano {move.get("type", "")}</strong>'
            f'{f" · 💢 recoil {recoil}" if recoil else ""}'
-           f'{f" · 💚 drena {drain_heal}" if drain_heal else ""}')
+           f'{f" · 💚 drena {drain_heal}" if drain_heal else ""}'
+           f'{sc_label}{spin_label}'
+           f'{" · 💫 fica CONFUSO pela fúria!" if self_status else ""}'
+           f'{" · 💥 o usuário DESMAIA com a explosão!" if self_ko else ""}')
 
     return {'hit': True, 'damage': dmg,
             'message': f'{met}d100({d100}) vs {acc_label}{" Crítico!" if is_crit else ""}{eff_label}',
             'attack_roll': d100, 'move_type_en': move_type_en,
             'is_crit': is_crit, 'log': log, 'outcome': outcome,
             'recoil': recoil, 'drain_heal': drain_heal,
+            'self_status': self_status, 'self_ko': self_ko,
             'cooldown': bm_core.v3_cooldown(power)}
 
 
@@ -3929,7 +3983,8 @@ def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data
                               'message': f"{actor['name']} usou {move_name} — ...mas não funcionou!"})
         gb.advance_turn(battle)
         return
-    if result.get('status_applied'):
+    if result.get('status_applied') and not effects.type_blocks_status(
+            (target.get('pokemon') or {}).get('types'), result['status_applied']):
         target['status'] = {'condition': result['status_applied'], 'turns_active': 0}
     if result.get('heal'):
         actor['hp'] = min(actor['maxHp'], actor['hp'] + result['heal'])
@@ -3957,16 +4012,46 @@ def _group_apply_recoil_drain(battle, combatant, calc):
         combatant['hp'] = min(combatant['maxHp'], combatant['hp'] + heal)
         combatant['pokemon']['currentHp'] = combatant['hp']
         suffix += f' 💚 Drenou {heal} HP!'
+    # Rampage: usuário fica confuso; Explosion: usuário desmaia
+    if calc.get('self_status'):
+        pk = combatant.get('pokemon') or {}
+        if not pk.get('status') and not effects.type_blocks_status(
+                pk.get('types'), calc['self_status']):
+            pk['status'] = {'condition': calc['self_status'], 'turns_active': 0}
+            suffix += ' 💫 ficou confuso pela fúria!'
+    if calc.get('self_ko'):
+        combatant['hp'] = 0
+        combatant['pokemon']['currentHp'] = 0
+        combatant['fainted'] = True
+        suffix += ' 💥 desmaiou com o próprio golpe!'
     return suffix
 
 
 def _group_field_round_hook(battle):
     """F5: uma vez por rodada — chip de clima (areia/granizo), cura de Grassy
-    Terrain e decremento das durações do campo."""
+    Terrain, tick do 🌱 Leech Seed e decremento das durações do campo."""
     rnd = int(battle.get('round') or 0)
     if rnd <= int(battle.get('_field_round_done') or 0):
         return
     battle['_field_round_done'] = rnd
+    # 🌱 Leech Seed: portador perde ⌊HPmáx/8⌋; um oponente vivo cura o mesmo
+    for c in battle['combatants'].values():
+        if c.get('fainted') or c['hp'] <= 0:
+            continue
+        if ((c.get('pokemon') or {}).get('status') or {}).get('condition') != 'seeded':
+            continue
+        seed_dmg = max(1, int(c.get('maxHp') or 8) // 8)
+        c['hp'] = max(1, c['hp'] - seed_dmg)
+        c['pokemon']['currentHp'] = c['hp']
+        other_side = 'wild' if c['side'] == 'ally' else 'ally'
+        for o in battle['combatants'].values():
+            if o['side'] == other_side and not o.get('fainted') and o['hp'] > 0:
+                o['hp'] = min(o['maxHp'], o['hp'] + seed_dmg)
+                o['pokemon']['currentHp'] = o['hp']
+                battle['log'].append({'type': 'field', 'message':
+                    f"🌱 {c['name']} perde {seed_dmg} HP pra semente — "
+                    f"{o['name']} recupera {seed_dmg}!"})
+                break
     fld = _field_of(battle)
     if not (fld.get('weather') or fld.get('terrain')):
         return
@@ -5790,7 +5875,10 @@ def handle_battle_action(data):
                 if sres.get('effect_type') == 'field':
                     _field_apply(battle_state, sres.get('field_kind'),
                                  sres.get('field_value'), sres.get('duration'))
-                if sres.get('status_applied') and not status_effect and not battle_state.get('wild_status'):
+                if (sres.get('status_applied') and not status_effect
+                        and not battle_state.get('wild_status')
+                        and not effects.type_blocks_status(
+                            wpoke.get('types'), sres['status_applied'])):
                     status_effect = {'condition': sres['status_applied'], 'turns_active': 0}
                 if sres.get('heal'):
                     battle_state['player_hp_current'] = min(
@@ -5826,6 +5914,13 @@ def handle_battle_action(data):
                 battle_state['player_hp_current'] = min(
                     battle_state['player_hp_max'],
                     battle_state['player_hp_current'] + int(server_calc['drain_heal']))
+            # Rampage (Outrage...): o próprio usuário fica confuso
+            if server_calc.get('self_status') and not battle_state.get('player_status'):
+                battle_state['player_status'] = {
+                    'condition': server_calc['self_status'], 'turns_active': 0}
+            # Explosion/Self-Destruct: o usuário desmaia
+            if server_calc.get('self_ko'):
+                battle_state['player_hp_current'] = 0
 
         # Turno do SELVAGEM conduzido pelo cliente do jogador (modo AUTO):
         # recalcula o dano no servidor — o cliente não é autoridade sobre o
@@ -5846,6 +5941,11 @@ def handle_battle_action(data):
                     battle_state['wild_hp_current'] = min(
                         battle_state['wild_hp_max'],
                         battle_state['wild_hp_current'] + int(wild_calc['drain_heal']))
+                if wild_calc.get('self_status') and not battle_state.get('wild_status'):
+                    battle_state['wild_status'] = {
+                        'condition': wild_calc['self_status'], 'turns_active': 0}
+                if wild_calc.get('self_ko'):
+                    battle_state['wild_hp_current'] = 0
 
         if server_calc:
             action_log = server_calc.get('log')
@@ -5910,6 +6010,9 @@ def handle_battle_action(data):
                 battle_state['player_hp_max'] = new_max_hp
             # trocar de pokémon zera os buffs/debuffs acumulados do lado do jogador
             ppoke_sw = encounter.get('player_pokemon')
+            # sair de campo remove semente/prisão (Leech Seed/Bind)
+            if (battle_state.get('player_status') or {}).get('condition') in ('seeded', 'trapped'):
+                battle_state['player_status'] = None
             if isinstance(ppoke_sw, dict):
                 effects.reset_stat_stages(ppoke_sw)
                 ppoke_sw['defense_mode'] = 1   # postura reseta na troca
@@ -6022,6 +6125,26 @@ def handle_battle_action(data):
         field_events = []
         if battle_state['turn'] == 'player':
             battle_state['round'] += 1
+            # 🌱 Leech Seed: o portador perde ⌊HPmáx/8⌋ e o OUTRO lado cura
+            # o mesmo tanto (dreno canônico por rodada; nunca nocauteia)
+            for holder_st, h_hp, h_max, o_hp, o_max, h_label, o_label in (
+                    (battle_state.get('player_status'), 'player_hp_current',
+                     'player_hp_max', 'wild_hp_current', 'wild_hp_max',
+                     'Seu Pokémon', 'o selvagem'),
+                    (battle_state.get('wild_status'), 'wild_hp_current',
+                     'wild_hp_max', 'player_hp_current', 'player_hp_max',
+                     'O selvagem', 'seu Pokémon')):
+                if (holder_st or {}).get('condition') != 'seeded':
+                    continue
+                if int(battle_state.get(h_hp) or 0) <= 0:
+                    continue
+                seed_dmg = max(1, int(battle_state.get(h_max) or 8) // 8)
+                battle_state[h_hp] = max(1, int(battle_state[h_hp]) - seed_dmg)
+                if int(battle_state.get(o_hp) or 0) > 0:
+                    battle_state[o_hp] = min(int(battle_state.get(o_max) or 1),
+                                             int(battle_state[o_hp]) + seed_dmg)
+                field_events.append(f'🌱 {h_label} perde {seed_dmg} HP pra semente '
+                                    f'— {o_label} recupera {seed_dmg}!')
             # F5: fim da rodada — chip de clima, cura de terreno e durações
             fld = _field_of(battle_state)
             if fld.get('weather') or fld.get('terrain'):
@@ -6593,6 +6716,13 @@ def handle_pvp_attack(data):
                                         att_poke.get('currentHp', 0) + int(calc['drain_heal']))
             battle['log'].append({'type': 'info',
                                   'message': f"💚 Drenou {calc['drain_heal']} HP!"})
+        # Rampage: o usuário fica confuso; Explosion: o usuário desmaia
+        if calc.get('self_status'):
+            pvp.apply_status(battle, player_key, {'condition': calc['self_status']})
+        if calc.get('self_ko'):
+            att_poke['currentHp'] = 0
+            battle['log'].append({'type': 'faint', 'player': player_key,
+                                  'permadeath': False})
 
         # Process attacker's own status damage before acting
         status_dmg, status_info, can_act, status_msgs = pvp.process_turn_status(battle, player_key)
@@ -6997,12 +7127,31 @@ def _emit_pvp_to_master(battle, event='update'):
 
 
 def _pvp_field_round_hook(battle):
-    """F5: uma vez por rodada PvP — chip de clima, cura de Grassy Terrain e
-    decremento das durações do campo (idempotente por número de rodada)."""
+    """F5: uma vez por rodada PvP — chip de clima, cura de Grassy Terrain,
+    tick do 🌱 Leech Seed e durações do campo (idempotente por rodada)."""
     rnd = int(battle.get('round') or 0)
     if rnd <= int(battle.get('_field_round_done') or 0):
         return
     battle['_field_round_done'] = rnd
+    # 🌱 Leech Seed: portador perde ⌊HPmáx/8⌋, o lado oposto cura o mesmo
+    for key, other in (('player1', 'player2'), ('player2', 'player1')):
+        side = battle[key]
+        poke = side['team'][side['active_idx']]
+        if (poke.get('status') or {}).get('condition') != 'seeded':
+            continue
+        if pvp._poke_hp(poke) <= 0:
+            continue
+        seed_dmg = max(1, int(poke.get('maxHp') or 8) // 8)
+        poke['currentHp'] = max(1, int(poke.get('currentHp') or 1) - seed_dmg)
+        o_side = battle[other]
+        o_poke = o_side['team'][o_side['active_idx']]
+        if pvp._poke_hp(o_poke) > 0:
+            o_poke['currentHp'] = min(int(o_poke.get('maxHp') or 1),
+                                      int(o_poke.get('currentHp') or 0) + seed_dmg)
+        battle['log'].append({'type': 'field', 'message':
+            f'🌱 {poke.get("nickname") or poke.get("name", "?")} perde {seed_dmg} HP '
+            f'pra semente — {o_poke.get("nickname") or o_poke.get("name", "?")} '
+            f'recupera {seed_dmg}!'})
     fld = _field_of(battle)
     if not (fld.get('weather') or fld.get('terrain')):
         return
@@ -7304,6 +7453,11 @@ def handle_npc_turn(battle, npc_key):
                                     npc_poke.get('currentHp', 0) + int(calc['drain_heal']))
         battle['log'].append({'type': 'info',
                               'message': f"💚 Drenou {calc['drain_heal']} HP!"})
+    if calc.get('self_status'):
+        pvp.apply_status(battle, npc_key, {'condition': calc['self_status']})
+    if calc.get('self_ko'):
+        npc_poke['currentHp'] = 0
+        battle['log'].append({'type': 'faint', 'player': npc_key, 'permadeath': False})
 
     # Check defender ability
     if damage > 0 and move_type and not battle[defender_key].get('is_npc'):

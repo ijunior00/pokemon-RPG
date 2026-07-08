@@ -103,6 +103,33 @@ STATUS_CONDITIONS = {
         'duration': 'permanent',
         'description': 'Não pode agir. No início do turno, rola d20: ≥15 descongela. Moves de fogo descongelam.'
     },
+    'seeded': {
+        'name': 'Semeado',
+        'icon': '🌱',
+        'color': '#78c850',
+        # o tick do seeded é CUSTOM (dreno: fere o portador e CURA o oponente)
+        # — processado nos hooks de rodada dos 3 modos, não pelo pipeline
+        # genérico (que não tem canal de cura para o outro lado).
+        'turn_effect': None,
+        'drain_fraction': 8,             # ⌊HPmáx/8⌋ por rodada
+        'can_act': True,
+        'duration': 'permanent',
+        'description': 'Semente de Leech Seed: perde ⌊HPmáx/8⌋ por rodada e o '
+                       'oponente CURA o mesmo tanto. Sai de campo ou Rapid Spin remove. '
+                       'Tipo Grama é imune.'
+    },
+    'trapped': {
+        'name': 'Preso',
+        'icon': '🌀',
+        'color': '#4e8098',
+        'turn_effect': 'damage',
+        'damage_fraction': 16,           # ⌊HPmáx/16⌋ por turno
+        'can_act': True,
+        'duration': 'turns',
+        'max_turns': 4,                  # 4-5 turnos nos jogos → 4 fixo
+        'description': 'Preso (Bind/Wrap/Fire Spin...): perde ⌊HPmáx/16⌋ por turno '
+                       'por 4 turnos e não pode fugir.'
+    },
     'confuso': {
         'name': 'Confuso',
         'icon': '💫',
@@ -211,6 +238,13 @@ MOVE_STATUS_EFFECTS = {
     'Freeze Shock': {'status': 'paralisado', 'chance': 0.30, 'on': 'hit'},
     
     # Confusion moves
+    # Trapping (canon ailment 'trap', 100%): prende 4 turnos com chip ⌊HP/16⌋
+    'Wrap':      {'status': 'trapped', 'chance': 1.0, 'on': 'hit'},
+    'Bind':      {'status': 'trapped', 'chance': 1.0, 'on': 'hit'},
+    'Fire Spin': {'status': 'trapped', 'chance': 1.0, 'on': 'hit'},
+    'Clamp':     {'status': 'trapped', 'chance': 1.0, 'on': 'hit'},
+    'Whirlpool': {'status': 'trapped', 'chance': 1.0, 'on': 'hit'},
+    'Sand Tomb': {'status': 'trapped', 'chance': 1.0, 'on': 'hit'},
     'Confuse Ray': {'status': 'confuso', 'chance': 1.0, 'on': 'save_fail', 'save': 'WIS'},
     'Confusion': {'status': 'confuso', 'chance': 0.10, 'on': 'hit'},
     'Psybeam': {'status': 'confuso', 'chance': 0.10, 'on': 'hit'},
@@ -274,6 +308,22 @@ MOVE_STATUS_EFFECTS = {
 # moves.json virou texto cosmético da ficha.
 
 
+def type_blocks_status(target_types, status_key):
+    """Imunidade de TIPO a condições: Grama é imune ao Leech Seed ('seeded'),
+    Elétrico à paralisia, Fogo à queimadura, Gelo ao congelamento,
+    Veneno/Aço ao envenenamento (regras dos jogos)."""
+    types = [str(t).lower() for t in (target_types or [])]
+    block = {
+        'seeded': ('grass',),
+        'paralisado': ('electric',),
+        'queimado': ('fire',),
+        'congelado': ('ice',),
+        'envenenado': ('poison', 'steel'),
+        'badly_poisoned': ('poison', 'steel'),
+    }.get(status_key, ())
+    return any(t in block for t in types)
+
+
 def check_status_on_hit(move_name, attack_roll, damage_dealt, defender=None):
     """Check if a move inflicts a status effect on hit.
     Returns (status_key, inflicted) or (None, False).
@@ -292,6 +342,9 @@ def check_status_on_hit(move_name, attack_roll, damage_dealt, defender=None):
                 return None, False
         except Exception:
             pass
+        # imunidade por TIPO (Elétrico não paralisa, Fogo não queima...)
+        if type_blocks_status(defender.get('types'), effect.get('status')):
+            return None, False
 
     trigger = effect.get('on', 'hit')
     chance = effect.get('chance', 0)
@@ -665,6 +718,10 @@ def auto_detect_move_effect(move_data):
         'hail': {'type': 'weather', 'weather': 'hail', 'duration': 5},
         'snowscape': {'type': 'weather', 'weather': 'hail', 'duration': 5},
         'defog': {'type': 'weather', 'weather': None, 'duration': 0},  # limpa o campo
+        # Leech Seed: semente no ALVO (dreno por rodada — condição 'seeded').
+        # Antes caía na auto-detecção e virava CURA INSTANTÂNEA forte (o bug
+        # do playtest: "isso é o Absorb").
+        'leech seed': {'type': 'inflict_status', 'status': 'seeded'},
         # Terreno (v3 F5: ±dados por tipo, cura/bloqueios — doc §13)
         'grassy terrain': {'type': 'terrain', 'terrain': 'grassy', 'duration': 5},
         'electric terrain': {'type': 'terrain', 'terrain': 'electric', 'duration': 5},

@@ -2062,6 +2062,87 @@ def main():
                          for k in _by_species))
     check(S, 'moveset varia entre encontros da mesma espécie', _repeat_ok)
 
+    section('20. Auditoria de moves (tabela do tester): Leech Seed & cia')
+    S = 'Moves canônicos'
+    import status_effects as se_mod
+
+    # Leech Seed vira condição 'seeded' (não é mais cura instantânea!)
+    _venu = fresh('Venusaur', 50)
+    _lax = fresh('Snorlax', 50)
+    rs = se_mod.process_status_move({'name': 'Leech Seed', 'category': 'status'},
+                                    dict(_venu['stats'], level=50, maxHp=120, currentHp=120),
+                                    dict(_lax['stats'], level=50, currentHp=120))
+    check(S, 'Leech Seed aplica semente (sem cura instantânea)',
+          rs.get('status_applied') == 'seeded' and not rs.get('heal'))
+    check(S, 'tipo Grama é imune à semente',
+          se_mod.type_blocks_status(['grass'], 'seeded')
+          and not se_mod.type_blocks_status(['normal'], 'seeded'))
+
+    # Trap (Wrap/Bind/...): condição trapped, ⌊HP/16⌋ por 4 turnos
+    _sk, _ok = se_mod.check_status_on_hit('Wrap', 50, 10, defender=_lax)
+    check(S, 'Wrap prende (trapped) ao acertar', _sk == 'trapped' and _ok)
+    _st = {'condition': 'trapped', 'turns_active': 0}
+    _removed, _i, _dmg = False, 0, 0
+    for _i in range(5):
+        _, _dmg, _, _rem = se_mod.process_turn_start(_st, 160)
+        if _rem:
+            _removed = True
+            break
+    check(S, 'trapped: ⌊160/16⌋=10 por turno e expira no 4º',
+          _removed and _i + 1 == 4 and _dmg == 10, f'turno={_i+1} dmg={_dmg}')
+
+    # Rampage: Outrage deixa o PRÓPRIO usuário confuso
+    _drag = fresh('Dragonite', 50)
+    for _ in range(10):
+        ro = appmod._calc_attack_core(_drag, fresh('Snorlax', 50), 'Outrage',
+                                      attack_roll=10, field={})
+        if ro.get('damage', 0) > 0:
+            break
+    check(S, 'Outrage: usuário fica confuso após atacar',
+          ro.get('self_status') == 'confuso')
+
+    # Crash: High Jump Kick errado machuca o usuário (⌊HPmáx/8⌋ via recoil)
+    rc = appmod._calc_attack_core(fresh('Hitmonlee', 50), fresh('Snorlax', 50),
+                                  'High Jump Kick', attack_roll=99,
+                                  atk_max_hp=120, field={})
+    check(S, 'High Jump Kick: crash de 15 no erro',
+          not rc.get('hit') and rc.get('recoil') == 15)
+
+    # Explosion: o usuário desmaia
+    re_ = appmod._calc_attack_core(fresh('Electrode', 50), fresh('Snorlax', 50),
+                                   'Explosion', attack_roll=10, field={})
+    check(S, 'Explosion: self_ko (usuário desmaia)', re_.get('self_ko') is True)
+
+    # Stat drop canônico on-hit: Overheat −2 SPA no PRÓPRIO usuário (100%)
+    _arc = fresh('Arcanine', 50)
+    for _ in range(10):
+        rov = appmod._calc_attack_core(_arc, fresh('Snorlax', 50), 'Overheat',
+                                       attack_roll=10, field={})
+        if rov.get('damage', 0) > 0:
+            break
+        _arc = fresh('Arcanine', 50)
+    check(S, 'Overheat: −2 SpA no usuário (recuo canônico)',
+          (_arc.get('stat_stages') or {}).get('SPA') == -2)
+
+    # Rapid Spin limpa semente/prisão do usuário
+    _bl = fresh('Blastoise', 50)
+    _sts = {'condition': 'seeded', 'turns_active': 2}
+    for _ in range(10):
+        rr2 = appmod._calc_attack_core(_bl, fresh('Snorlax', 50), 'Rapid Spin',
+                                       attack_roll=10, attacker_status=_sts, field={})
+        if rr2.get('damage', 0) > 0:
+            break
+    check(S, 'Rapid Spin limpa a semente do usuário', not _sts)
+
+    # Rain Dance / Sunny Day existem no moves.json e viram campo
+    check(S, 'Rain Dance e Sunny Day agora existem no moves.json',
+          'rain dance' in appmod.MOVES_BY_NAME and 'sunny day' in appmod.MOVES_BY_NAME)
+    rrd = se_mod.process_status_move(appmod.MOVES_BY_NAME['sunny day'],
+                                     dict(_venu['stats'], level=50, maxHp=120, currentHp=120),
+                                     dict(_lax['stats'], level=50, currentHp=120))
+    check(S, 'Sunny Day resolve para efeito de campo (sol)',
+          rrd.get('effect_type') == 'field' and rrd.get('field_value') == 'sun')
+
     # ────────────────────────── RELATÓRIO ──────────────────────────
     print('\n' + '═' * 62)
     print('📊 SCORECARD FINAL')
