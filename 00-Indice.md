@@ -19,6 +19,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 - [[Sistemas/habilidades]] — 100% das abilities funcionais e onde elas plugam
 - [[Sistemas/evs-e-treino]] — Custom EVs: potencial, treino, custo progressivo
 - [[Sistemas/mesa-e-papeis]] — multi-tenant (`_tid`), papéis, aprovação de mestre
+- [[Sistemas/economia-e-seguranca]] — loja/apostas/NPCs com bolsa, presentes do mestre, defesas de acesso
 
 ## Decisões (por que o sistema é assim)
 

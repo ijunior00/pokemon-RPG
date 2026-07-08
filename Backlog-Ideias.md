@@ -14,6 +14,10 @@
 
 ## Decidido e adiado
 
+- **CSP estrito** — exige tirar os scripts inline dos templates; fazer se o
+  site for divulgado amplamente.
+- **CAPTCHA no registro** — só se honeypot + Código de Fundador não bastarem.
+
 - **F7 do combate** (se houver): itens seguráveis, entry hazards persistentes
   (Spikes/Stealth Rock hoje são dano fixo pontual).
 
