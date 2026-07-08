@@ -32,6 +32,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 
 - [[Bugs-Resolvidos/agua-sem-super-efetivo]] — dado de matchup corrompido na fonte
 - [[Bugs-Resolvidos/curse-alvo-errado]] — debuff aplicado no lado errado
+- [[Bugs-Resolvidos/leech-seed-como-absorb]] — auto-detecção virou cura instantânea
 
 ## Outras notas
 
