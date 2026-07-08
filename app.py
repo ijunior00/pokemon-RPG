@@ -36,6 +36,25 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB (upload de avatar)
 app.config['REMEMBER_COOKIE_DURATION'] = 2592000  # 30 dias
 
+# ── Endurecimento de sessão (anti roubo de cookie / CSRF) ──
+# SameSite=Lax: navegador NÃO manda o cookie em POST vindo de outro site —
+# fecha a classe inteira de CSRF nos endpoints JSON sem precisar de token.
+# Secure só em produção (Render = HTTPS); em dev local http continuaria sem cookie.
+_ON_RENDER = bool(os.environ.get('RENDER'))
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=_ON_RENDER,
+    REMEMBER_COOKIE_HTTPONLY=True,
+    REMEMBER_COOKIE_SAMESITE='Lax',
+    REMEMBER_COOKIE_SECURE=_ON_RENDER,
+)
+
+# Código de fundador (opcional): se definido no ambiente, criar conta de
+# MESTRE exige o código — barra os bots que acham o formulário público.
+# Sem a env, vale só a fila de aprovação do super-admin (como antes).
+MASTER_SIGNUP_CODE = (os.environ.get('MASTER_SIGNUP_CODE') or '').strip()
+
 # Atrás do proxy do Render, request.remote_addr é o IP do proxy (igual p/ todos).
 # ProxyFix faz o Flask ler o IP real do cliente em X-Forwarded-For, para o
 # rate-limit por IP não penalizar jogadores que compartilham o proxy.
@@ -48,10 +67,31 @@ login_manager.login_view = 'login'
 # Initialize database
 db.init_db()
 
+# Headers de segurança em TODA resposta (defesa em profundidade):
+# clickjacking, sniffing de MIME, vazamento de referrer e HSTS em produção.
+@app.after_request
+def _security_headers(resp):
+    resp.headers.setdefault('X-Frame-Options', 'DENY')
+    resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    resp.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    resp.headers.setdefault('Permissions-Policy',
+                            'camera=(), microphone=(), geolocation=()')
+    if _ON_RENDER:
+        resp.headers.setdefault('Strict-Transport-Security',
+                                'max-age=31536000; includeSubDomains')
+    return resp
+
+
 # ============================================================
 # RATE LIMITING (simple in-memory, resets on restart)
 # ============================================================
 _rate_store: dict = defaultdict(list)  # ip -> [timestamps]
+
+# Bloqueio POR CONTA no login (independente do IP — pega ataque distribuído
+# de força bruta contra um usuário específico): 5 falhas → 10 min de espera.
+_login_fails: dict = defaultdict(list)  # username_lower -> [timestamps de falha]
+LOGIN_LOCK_MAX = 5
+LOGIN_LOCK_WINDOW = 600
 
 def _rate_limit(max_calls: int, window_seconds: int, bucket: str = '') -> bool:
     """Return True (blocked) if IP exceeds max_calls in window_seconds.
@@ -1023,6 +1063,18 @@ def login():
             return render_template('login.html')
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
+
+        # Bloqueio POR CONTA: 5 falhas em 10 min trancam o usuário-alvo,
+        # mesmo que o atacante troque de IP (força bruta distribuída)
+        uname_key = username.lower()
+        _now = _time.time()
+        _login_fails[uname_key] = [t for t in _login_fails[uname_key]
+                                   if _now - t < LOGIN_LOCK_WINDOW]
+        if len(_login_fails[uname_key]) >= LOGIN_LOCK_MAX:
+            flash('Conta temporariamente bloqueada por excesso de tentativas. '
+                  'Tente de novo em ~10 minutos.', 'error')
+            return render_template('login.html')
+
         users = get_users()
         for uid, u in users.items():
             if u['username'].lower() == username.lower():
@@ -1032,10 +1084,12 @@ def login():
                         flash('Sua conta de Mestre está aguardando aprovação do '
                               'administrador. Você será avisado quando for liberada.', 'error')
                         return render_template('login.html')
+                    _login_fails.pop(uname_key, None)
                     user = User(uid, u['username'], u['password_hash'], u['role'], u.get('trainer_data'))
                     remember = request.form.get('remember') == '1'
                     login_user(user, remember=remember)
                     return redirect(url_for('index'))
+        _login_fails[uname_key].append(_now)
         flash('Usuário ou senha incorretos', 'error')
     return render_template('login.html')
 
@@ -1046,6 +1100,13 @@ def register():
         if _rate_limit(8, 60, bucket='register'):
             flash('Muitos cadastros em pouco tempo. Aguarde um momento.', 'error')
             return render_template('register.html')
+        # Honeypot: campo invisível que humano nenhum preenche. Bot que
+        # preencher recebe um "sucesso" falso e NADA é criado (não damos a
+        # dica de que foi detectado).
+        if request.form.get('website'):
+            flash('Cadastro enviado! Aguarde a liberação.', 'success')
+            return redirect(url_for('login'))
+
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         role = request.form.get('role', 'player')
@@ -1053,10 +1114,22 @@ def register():
         if not username or not password:
             flash('Preencha todos os campos', 'error')
             return render_template('register.html')
-        if len(password) < 4:
-            flash('A senha deve ter pelo menos 4 caracteres.', 'error')
+        if not _re.fullmatch(r'[A-Za-z0-9_]{3,20}', username):
+            flash('Nome de usuário: 3 a 20 caracteres, só letras, números e _.', 'error')
             return render_template('register.html')
-        
+        if len(password) < 8:
+            flash('A senha deve ter pelo menos 8 caracteres.', 'error')
+            return render_template('register.html')
+
+        # Código de fundador: se configurado (MASTER_SIGNUP_CODE), criar
+        # conta de mestre exige o código — bots/curiosos param aqui.
+        if (role == 'master' and MASTER_SIGNUP_CODE
+                and username.lower() != SUPER_ADMIN_USERNAME):
+            if (request.form.get('master_code') or '').strip() != MASTER_SIGNUP_CODE:
+                flash('Código de fundador inválido. Contas de Mestre exigem o '
+                      'código fornecido pelo administrador da mesa.', 'error')
+                return render_template('register.html')
+
         users = get_users()
         # Check if username exists
         for u in users.values():

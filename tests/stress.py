@@ -297,6 +297,34 @@ def main():
     _rp = p1.post('/api/pokemon/stats', json={'number': 25, 'level': 30,
                   'stat_mods': {'HP': 500}}).get_json()
     check(S, 'jogador não infla stats via stat_mods', _rp['maxHp'] == _rn['maxHp'])
+
+    # ── Endurecimento de autenticação/headers ──
+    appmod._rate_store.clear()
+    # headers de segurança em toda resposta
+    _rh = p1.get('/login')
+    check(S, 'headers de segurança presentes',
+          _rh.headers.get('X-Frame-Options') == 'DENY'
+          and _rh.headers.get('X-Content-Type-Options') == 'nosniff'
+          and bool(_rh.headers.get('Referrer-Policy')))
+    # honeypot: bot que preenche o campo invisível não cria conta
+    px = app.test_client()
+    px.post('/register', data={'username': 'bot_honeypot', 'password': 'senha12345',
+                               'role': 'master', 'website': 'http://spam.com'})
+    check(S, 'honeypot descarta bot em silêncio', uid_of('bot_honeypot') is None)
+    # senha curta e username inválido são recusados
+    px.post('/register', data={'username': 'senha_curta', 'password': 'abc',
+                               'role': 'master'})
+    check(S, 'senha < 8 caracteres é recusada', uid_of('senha_curta') is None)
+    px.post('/register', data={'username': 'no me!<x>', 'password': 'senha12345',
+                               'role': 'master'})
+    check(S, 'username com caracteres inválidos é recusado', uid_of('no me!<x>') is None)
+    # lockout por conta: 5 falhas trancam o usuário (mesmo trocando de IP)
+    import time as _t_
+    appmod._login_fails['alvo_lockout'] = [_t_.time()] * 5
+    _rl = px.post('/login', data={'username': 'alvo_lockout', 'password': 'x' * 8})
+    check(S, 'lockout por conta após 5 falhas de login',
+          'bloqueada' in _rl.get_data(as_text=True))
+    appmod._login_fails.clear()
     for c in (msio, s1, s2):
         c.get_received()
 

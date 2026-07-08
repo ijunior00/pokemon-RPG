@@ -16,5 +16,10 @@ services:
       # Chave de sessão gerada uma vez pelo Render (evita o segredo padrão).
       - key: SECRET_KEY
         generateValue: true
+      # Código de fundador (opcional): defina um valor no dashboard para
+      # exigir código na criação de contas de MESTRE (barra bots no /register).
+      # sync:false = o valor colado no Environment persiste entre deploys.
+      - key: MASTER_SIGNUP_CODE
+        sync: false
       - key: RENDER
         value: true

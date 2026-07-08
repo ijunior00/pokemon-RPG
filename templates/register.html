@@ -9,14 +9,23 @@
             <h1>⚡ Pokémon 5e RPG</h1>
             <p>Criar nova conta</p>
         </div>
-        <form method="POST" class="auth-form">
+        <form method="POST" class="auth-form" autocomplete="off">
+            <!-- honeypot anti-bot: invisível para humanos; bot que preencher
+                 é descartado em silêncio no servidor -->
+            <div style="position:absolute;left:-9999px;top:-9999px;" aria-hidden="true">
+                <label for="website">Website</label>
+                <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+            </div>
             <div class="form-group">
                 <label for="username">Nome de Usuário</label>
-                <input type="text" id="username" name="username" required autofocus>
+                <input type="text" id="username" name="username" required autofocus
+                       minlength="3" maxlength="20" pattern="[A-Za-z0-9_]+"
+                       title="3 a 20 caracteres: letras, números e _">
             </div>
             <div class="form-group">
                 <label for="password">Senha</label>
-                <input type="password" id="password" name="password" required>
+                <input type="password" id="password" name="password" required minlength="8">
+                <small style="color:var(--text-muted);">Mínimo de 8 caracteres.</small>
             </div>
             <div class="form-group">
                 <label for="role">Tipo de Conta</label>
@@ -30,10 +39,16 @@
                 <input type="text" id="invite_code" name="invite_code" placeholder="Ex: A3F9C2" style="text-transform:uppercase;" maxlength="6">
                 <small style="color:var(--text-muted);">Peça ao seu Mestre o código de convite da mesa.</small>
             </div>
+            <div class="form-group" id="master-code-field" style="display:none;">
+                <label for="master_code">Código de Fundador (se houver)</label>
+                <input type="text" id="master_code" name="master_code" maxlength="60" autocomplete="off">
+                <small style="color:var(--text-muted);">Contas de Mestre passam por aprovação do administrador. Se você recebeu um código, informe aqui.</small>
+            </div>
             <button type="submit" class="btn btn-primary btn-block">Criar Conta</button>
 <script>
 function toggleInviteField(role) {
     document.getElementById('invite-field').style.display = role === 'player' ? '' : 'none';
+    document.getElementById('master-code-field').style.display = role === 'master' ? '' : 'none';
 }
 toggleInviteField('player');
 </script>
