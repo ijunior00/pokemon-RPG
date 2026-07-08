@@ -330,7 +330,8 @@ V3_STAB_FLAT = 2
 V3_ACC_CAP, V3_ACC_FLOOR = 100, 5
 V3_CRIT_BASE, V3_CRIT_PER_STAGE, V3_CRIT_CAP = 5, 10, 50
 V3_MOMENTUM_MAX = 3
-V3_CERTEIRO_COMPONENT_PCT = 60   # % do Componente para golpes certeiros
+V3_CERTEIRO_DAMAGE_MULT = 0.90   # ACC ∞: dano final ×0,90 (compensa a
+                                 # confiabilidade — não há outra penalidade)
 
 # TABELA MESTRA: (pow_máx, nº dados, lados, TN, cooldown em rodadas)
 V3_MASTER_TABLE = (
@@ -378,12 +379,11 @@ def v3_milestone_dice(level):
     return max(0, min(4, int(level or 1) // 25))
 
 
-def v3_status_component(stat, atk_stages=0, certeiro=False):
+def v3_status_component(stat, atk_stages=0):
     """Componente de Status: ⌊stat/divisor⌋ ± 2 por estágio de ATK/SpA (mín 1).
-    Certeiro usa 60% do componente."""
+    Certeiro (ACC ∞) NÃO reduz o componente — a compensação é o ×0,90 no
+    dano final (v3_certeiro_mult)."""
     comp = int(stat or 10) // V3_STATUS_DIVISOR + 2 * int(atk_stages or 0)
-    if certeiro:
-        comp = comp * V3_CERTEIRO_COMPONENT_PCT // 100
     return max(1, comp)
 
 
@@ -401,14 +401,13 @@ def v3_effectiveness_dice_delta(effectiveness):
     return 0
 
 
-def v3_build_dice(power, level, certeiro=False, stab=False,
+def v3_build_dice(power, level, stab=False,
                   effectiveness=1.0, field_delta=0):
     """Constrói a rolagem final: (n, lados, halve).
-    Ordem: degrau → certeiro (−1 degrau) → marcos → STAB (+1) → efetividade →
-    clima/terreno. Se n cair abaixo de 1: rola 1 dado e divide por 2."""
+    Ordem: degrau → marcos → STAB (+1) → efetividade → clima/terreno.
+    Certeiro (ACC ∞) rola os dados NORMAIS — a compensação é só o ×0,90 no
+    dano final. Se n cair abaixo de 1: rola 1 dado e divide por 2."""
     tier = v3_tier(power)
-    if certeiro:
-        tier = max(0, tier - 1)
     n, sides = V3_MASTER_TABLE[tier][1], V3_MASTER_TABLE[tier][2]
     n += v3_milestone_dice(level)
     if stab and int(level or 1) >= V3_STAB_DIE_LEVEL:
@@ -613,9 +612,11 @@ V3_CHARGE_MOVES = ('solar beam', 'solar blade', 'sky attack', 'skull bash',
 
 
 def v3_needs_charge(move_name, weather=None):
-    """True se o golpe precisa carregar 1 rodada (Solar Beam/Blade dispara
-    direto no Sol)."""
+    """True se o golpe precisa de 1 rodada de preparo: carga (Solar Beam —
+    dispara direto no Sol) ou semi-invulnerabilidade (Fly/Dig/Dive...)."""
     ml = (move_name or '').lower()
+    if ml in V3_SEMI_INVULN:
+        return True
     if ml not in V3_CHARGE_MOVES:
         return False
     if ml in ('solar beam', 'solar blade') and (weather or '').lower() == 'sun':
@@ -646,3 +647,45 @@ def v3_ohko_resist_tn():
     """OHKO (Fissure/Guillotine): Resistência vs TN 22 — qualquer sucesso
     anula o golpe inteiro."""
     return 22
+
+
+# ── ACC ∞ (certeiros) e estados de invulnerabilidade (spec de precisão) ────
+# Certeiro (ACC "—"): ignora SÓ os testes de Precisão×Evasão. Continua
+# respeitando imunidade de tipo, habilidades, Protect e invulnerabilidade.
+# Compensação pela confiabilidade: dano final ×0,90 (nenhuma outra penalidade).
+
+def v3_certeiro_mult(damage):
+    """Aplica o redutor de balanceamento do ACC ∞ ao dano final (mín. 1)."""
+    d = int(damage or 0)
+    if d <= 0:
+        return d
+    return max(1, int(d * V3_CERTEIRO_DAMAGE_MULT))
+
+
+# Golpes de 2 turnos que deixam o usuário INVULNERÁVEL na rodada de preparo.
+# move → rótulo do estado (para logs).
+V3_SEMI_INVULN = {
+    'fly': 'no ar', 'bounce': 'no ar', 'sky drop': 'no ar',
+    'dig': 'no subsolo', 'dive': 'debaixo d’água',
+    'phantom force': 'nas sombras', 'shadow force': 'nas sombras',
+}
+
+# Exceções canônicas: golpes que ATINGEM cada estado invulnerável.
+V3_INVULN_PIERCE = {
+    'no ar': ('gust', 'twister', 'thunder', 'hurricane', 'sky uppercut',
+              'smack down', 'thousand arrows'),
+    'no subsolo': ('earthquake', 'magnitude', 'fissure'),
+    'debaixo d’água': ('surf', 'whirlpool'),
+    'nas sombras': (),
+}
+
+
+def v3_semi_invuln_state(move_name):
+    """Rótulo do estado invulnerável do golpe, ou None."""
+    return V3_SEMI_INVULN.get((move_name or '').lower())
+
+
+def v3_pierces_invuln(state, incoming_move):
+    """True se o golpe recebido atinge o alvo mesmo invulnerável (Earthquake
+    acerta quem usou Dig, Thunder acerta quem usou Fly...)."""
+    return (incoming_move or '').lower() in V3_INVULN_PIERCE.get(state or '', ())

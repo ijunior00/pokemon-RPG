@@ -181,7 +181,7 @@ const BattleMath = (() => {
     const V3_DEF_BONUS_CAP = 12, V3_STAB_DIE_LEVEL = 25, V3_STAB_FLAT = 2;
     const V3_ACC_CAP = 100, V3_ACC_FLOOR = 5;
     const V3_CRIT_BASE = 5, V3_CRIT_PER_STAGE = 10, V3_CRIT_CAP = 50;
-    const V3_MOMENTUM_MAX = 3, V3_CERTEIRO_COMPONENT_PCT = 60;
+    const V3_MOMENTUM_MAX = 3, V3_CERTEIRO_DAMAGE_MULT = 0.90;
     // (pow_máx, nº dados, lados, TN, cooldown)
     const V3_MASTER_TABLE = [
         [35, 1, 6, 10, 0], [50, 1, 8, 12, 0], [65, 1, 10, 14, 0], [80, 2, 6, 16, 0],
@@ -200,9 +200,9 @@ const BattleMath = (() => {
     }
     function v3Cooldown(power) { return V3_MASTER_TABLE[v3Tier(power)][4]; }
     function v3MilestoneDice(level) { return Math.max(0, Math.min(4, Math.floor((level || 1) / 25))); }
-    function v3StatusComponent(stat, atkStages = 0, certeiro = false) {
-        let c = Math.floor((stat || 10) / V3_STATUS_DIVISOR) + 2 * (atkStages | 0);
-        if (certeiro) c = Math.floor(c * V3_CERTEIRO_COMPONENT_PCT / 100);
+    function v3StatusComponent(stat, atkStages = 0) {
+        // Certeiro (ACC ∞) NÃO reduz o componente — compensação é v3CerteiroMult
+        const c = Math.floor((stat || 10) / V3_STATUS_DIVISOR) + 2 * (atkStages | 0);
         return Math.max(1, c);
     }
     function v3LevelBonus(level) { return Math.floor(Math.max(1, level | 0) / 10); }
@@ -212,9 +212,9 @@ const BattleMath = (() => {
         if (e <= 0.25) return -2; if (e <= 0.5) return -1;
         return 0;
     }
-    function v3BuildDice(power, level, certeiro = false, stab = false, effectiveness = 1, fieldDelta = 0) {
-        let tier = v3Tier(power);
-        if (certeiro) tier = Math.max(0, tier - 1);
+    function v3BuildDice(power, level, stab = false, effectiveness = 1, fieldDelta = 0) {
+        // Certeiro (ACC ∞) rola os dados NORMAIS — compensação é v3CerteiroMult
+        const tier = v3Tier(power);
         let n = V3_MASTER_TABLE[tier][1];
         const sides = V3_MASTER_TABLE[tier][2];
         n += v3MilestoneDice(level) + ((stab && (level | 0) >= V3_STAB_DIE_LEVEL) ? 1 : 0)
@@ -332,6 +332,7 @@ const BattleMath = (() => {
                              'razor wind', 'freeze shock', 'ice burn', 'meteor beam'];
     function v3NeedsCharge(moveName, weather) {
         const ml = (moveName || '').toLowerCase();
+        if (V3_SEMI_INVULN[ml]) return true;   // Fly/Dig/Dive... preparam 1 rodada
         if (!V3_CHARGE_MOVES.includes(ml)) return false;
         if ((ml === 'solar beam' || ml === 'solar blade') && (weather || '').toLowerCase() === 'sun') return false;
         return true;
@@ -346,6 +347,31 @@ const BattleMath = (() => {
     }
     function v3ProtectChance(chain) {
         return Math.max(V3_PROTECT_FLOOR, 100 >> Math.max(0, chain | 0));
+    }
+
+    // ── ACC ∞ (certeiros) e invulnerabilidade ──
+    function v3CerteiroMult(damage) {
+        const d = damage | 0;
+        if (d <= 0) return d;
+        return Math.max(1, Math.floor(d * V3_CERTEIRO_DAMAGE_MULT));
+    }
+    const V3_SEMI_INVULN = {
+        'fly': 'no ar', 'bounce': 'no ar', 'sky drop': 'no ar',
+        'dig': 'no subsolo', 'dive': 'debaixo d’água',
+        'phantom force': 'nas sombras', 'shadow force': 'nas sombras',
+    };
+    const V3_INVULN_PIERCE = {
+        'no ar': ['gust', 'twister', 'thunder', 'hurricane', 'sky uppercut',
+                  'smack down', 'thousand arrows'],
+        'no subsolo': ['earthquake', 'magnitude', 'fissure'],
+        'debaixo d’água': ['surf', 'whirlpool'],
+        'nas sombras': [],
+    };
+    function v3SemiInvulnState(moveName) {
+        return V3_SEMI_INVULN[(moveName || '').toLowerCase()] || null;
+    }
+    function v3PiercesInvuln(state, incomingMove) {
+        return (V3_INVULN_PIERCE[state || ''] || []).includes((incomingMove || '').toLowerCase());
     }
 
     return {
@@ -364,5 +390,7 @@ const BattleMath = (() => {
         v3WeatherDiceDelta, v3TerrainDiceDelta, v3WeatherAcc,
         v3WeatherResistBonus, v3WeatherChip, v3TerrainHeal, v3MultiHits,
         v3NeedsCharge, v3Recoil, v3DrainHeal, v3ProtectChance,
+        V3_CERTEIRO_DAMAGE_MULT, V3_SEMI_INVULN, V3_INVULN_PIERCE,
+        v3CerteiroMult, v3SemiInvulnState, v3PiercesInvuln,
     };
 })();
