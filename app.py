@@ -320,12 +320,15 @@ def _v3_register_use(st, move_lower, power):
 
 def _v3_reset_battle_flow(poke):
     """Troca de Pokémon: momentum e adaptação zeram; cooldowns FICAM
-    (trocar não zera cooldown — regra do doc)."""
+    (trocar não zera cooldown — regra do doc). Carga e invulnerabilidade
+    (Fly/Dig) também se perdem ao sair de campo."""
     st = poke.get('_v3')
     if isinstance(st, dict):
         st['momentum'] = 0
         st['streak'] = 0
         st['last_move'] = None
+        st.pop('charging', None)
+        st.pop('invulnerable', None)
 
 
 def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
@@ -381,21 +384,32 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
                 'log': f'⏳ <strong>{move_name}</strong> está em cooldown '
                        f'({_cd_left} rodada(s) restante(s)) — escolha outro golpe!'}
 
-    # ── F5: golpes de CARGA (Solar Beam, Sky Attack...) gastam 1 rodada
-    # carregando (Solar Beam no Sol dispara direto — doc §17) ──
+    # ── F5: golpes de PREPARO (carga: Solar Beam...; semi-invulnerável:
+    # Fly/Dig/Dive...) gastam 1 rodada; Solar Beam no Sol dispara direto ──
     charging_released = False
     if bm_core.v3_needs_charge(ml, weather):
         if st.get('charging') != ml:
             st['charging'] = ml
+            inv_state = bm_core.v3_semi_invuln_state(ml)
+            if inv_state:
+                st['invulnerable'] = inv_state   # fica fora de alcance na rodada
+                aname = attacker_poke.get('nickname') or attacker_poke.get('name', 'O atacante')
+                return {'hit': True, 'damage': 0, 'charging': True,
+                        'message': f'{met}{aname} está {inv_state} — ataca na próxima rodada!',
+                        'attack_roll': 0, 'move_type_en': move_type_en, 'cooldown': 0,
+                        'log': f'{met}🕳️ <strong>{aname}</strong> usou {move_name} e está '
+                               f'<strong>{inv_state}</strong> — invulnerável até atacar!'}
             return {'hit': True, 'damage': 0, 'charging': True,
                     'message': f'{met}{move_name} está carregando energia...',
                     'attack_roll': 0, 'move_type_en': move_type_en, 'cooldown': 0,
                     'log': f'{met}🔆 <strong>{move_name}</strong> carrega energia — '
                            f'dispara na próxima rodada!'}
         st.pop('charging', None)
+        st.pop('invulnerable', None)   # sai da invulnerabilidade ao atacar
         charging_released = True
     elif st.get('charging'):
-        st.pop('charging', None)   # trocou de golpe — perde a carga
+        st.pop('charging', None)       # trocou de golpe — perde a carga
+        st.pop('invulnerable', None)
 
     _mom, _adapt = _v3_register_use(st, ml, power)
     if momentum is None:
@@ -427,6 +441,35 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
                     'cooldown': bm_core.v3_cooldown(power) if power else 0,
                     'log': f'{met}🔮 <strong>Psychic Terrain</strong> protege o alvo '
                            f'contra golpes de prioridade — {move_name} falhou!'}
+
+    # ── Alvo INVULNERÁVEL (usou Fly/Dig/Dive...): o golpe falha, exceto as
+    # interações canônicas (Earthquake acerta quem cavou, Thunder quem voou).
+    # Vale para TODOS os golpes — certeiro ignora evasão, não isto. ──
+    d_invuln = (dst or {}).get('invulnerable')
+    if d_invuln and not bm_core.v3_pierces_invuln(d_invuln, ml):
+        dname = defender_poke.get('nickname') or defender_poke.get('name', 'O alvo')
+        return {'hit': False, 'damage': 0,
+                'message': f'{met}{dname} está {d_invuln} — fora de alcance!',
+                'attack_roll': 0, 'move_type_en': move_type_en,
+                'cooldown': bm_core.v3_cooldown(power) if power else 0,
+                'log': f'{met}🕳️ <strong>{dname}</strong> está {d_invuln} — '
+                       f'{move_name} não alcança!'}
+
+    # ── IMUNIDADE DE TIPO — checada ANTES da precisão (ordem da spec):
+    # nem ACC 100 nem certeiro atravessam imunidade natural. ──
+    vulns, resists, immunities = _type_lists(defender_poke)
+    eff = 1.0
+    if move_type_en in immunities:
+        eff = 0.0
+    else:
+        if move_type_en in vulns:   eff *= 2
+        if move_type_en in resists: eff *= 0.5
+    if eff == 0:
+        return {'hit': True, 'damage': 0, 'is_crit': False,
+                'message': f'{met}O alvo é IMUNE (0x)',
+                'attack_roll': 0, 'move_type_en': move_type_en,
+                'outcome': 'immune', 'cooldown': bm_core.v3_cooldown(power) if power else 0,
+                'log': f'{met}⛔ IMUNE (0x) — {move_name} não afeta o alvo = <strong>0 dano</strong>'}
 
     # ── Camada 1: PRECISÃO (d100 vs ACC efetivo; certeiro conecta sempre) ──
     # estágios legados 'attack_roll'/'AC' viram estágios de Precisão/Evasão
@@ -509,7 +552,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     atk_key = 'SPA' if category == 'special' else 'ATK'
     atk_stat = effects.effective_stat(attacker_poke, atk_key, include_stages=False)
     atk_stages = effects.stat_stage(attacker_poke, atk_key)
-    component = bm_core.v3_status_component(atk_stat, atk_stages, certeiro=certeiro)
+    component = bm_core.v3_status_component(atk_stat, atk_stages)
 
     # Queimado corta o Componente físico pela metade (Guts ignora)
     burned = (category == 'physical'
@@ -531,23 +574,10 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     t_delta = bm_core.v3_terrain_dice_delta(terrain, move_type_en, ml)
     field_delta += w_delta + t_delta
 
-    # Efetividade de tipo → ±dados (imune = 0 de dano)
-    vulns, resists, immunities = _type_lists(defender_poke)
-    eff = 1.0
-    if move_type_en in immunities:
-        eff = 0.0
-    else:
-        if move_type_en in vulns:   eff *= 2
-        if move_type_en in resists: eff *= 0.5
-    if eff == 0:
-        return {'hit': True, 'damage': 0, 'is_crit': False,
-                'message': f'{met}Conectou, mas o alvo é IMUNE (0x)',
-                'attack_roll': d100, 'move_type_en': move_type_en,
-                'outcome': 'immune', 'cooldown': bm_core.v3_cooldown(power),
-                'log': f'{met}✅ d100({d100}) ({acc_label}) ⛔ IMUNE (0x) = <strong>0 dano</strong>'}
-
+    # Efetividade de tipo → ±dados (a IMUNIDADE já foi checada antes da
+    # precisão — ordem da spec; aqui eff é sempre > 0)
     n_dice, sides, halve = bm_core.v3_build_dice(
-        power, level, certeiro=certeiro, stab=stab,
+        power, level, stab=stab,
         effectiveness=eff, field_delta=field_delta)
     dice_total = sum(random.randint(1, sides) for _ in range(n_dice))
     # F5: MULTI-HIT (Double Kick, Rock Blast...): 1 ACC, 1 Componente e
@@ -579,6 +609,11 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     # ── Camada 3: RESISTÊNCIA do defensor ──
     dmg, outcome, rline = _resist(gross, power)
 
+    # ── ACC ∞: redutor de balanceamento ×0,90 no dano FINAL (após a
+    # Resistência) — compensa a confiabilidade do golpe certeiro ──
+    if certeiro and dmg > 0:
+        dmg = bm_core.v3_certeiro_mult(dmg)
+
     # ── F5: recoil (⌊dano÷3⌋) e dreno (⌊dano÷2⌋) — o handler aplica no HP ──
     canon_drain = int(canon.get('drain') or 0)
     recoil = bm_core.v3_recoil(dmg, canon_drain)
@@ -605,6 +640,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
            f'{" ×½ (queimado)" if burned else ""}'
            f'{" ☠️×2 (alvo envenenado)" if venoshock_x2 else ""}'
            f'{eff_label}{field_label} = bruto {gross}{rline}'
+           f'{" · 🎯 ×0,9 (certeiro)" if certeiro and dmg > 0 else ""}'
            f' = <strong>{dmg} dano {move.get("type", "")}</strong>'
            f'{f" · 💢 recoil {recoil}" if recoil else ""}'
            f'{f" · 💚 drena {drain_heal}" if drain_heal else ""}')

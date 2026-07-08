@@ -1857,6 +1857,64 @@ def main():
           rw.get('effect_type') == 'field' and rw.get('field_value') == 'rain'
           and rt.get('effect_type') == 'field' and rt.get('field_value') == 'grassy')
 
+    # ── ACC 100 vs ACC ∞ (spec de precisão) ──
+    # ACC 100 ainda sofre evasão: Double Team +2 → ACC efetivo 80
+    b10 = fresh('Blastoise', 50)
+    b10['stat_stages'] = {'AC': 2}
+    r10 = appmod._calc_attack_core(fresh('Charizard', 50), b10, 'Flamethrower',
+                                   attack_roll=85, field={})
+    check(S, 'ACC 100 não é garantido (evasão +2 → erra com 85)', not r10.get('hit'))
+
+    # Certeiro: componente CHEIO (sem os antigos 60%) e ×0,90 no dano final
+    c10 = fresh('Charizard', 50)
+    _comp_cheio = max(1, int(c10['stats']['ATK']) // 8)
+    r10b = appmod._calc_attack_core(c10, fresh('Blastoise', 50), 'Aerial Ace',
+                                    attack_roll=None, field={})
+    check(S, 'certeiro usa componente cheio (⌊ATK/8⌋ sem redução)',
+          f'comp {_comp_cheio}' in (r10b.get('log') or ''),
+          (r10b.get('log') or '')[:70])
+    ok_mult = all('×0,9' in (rr.get('log') or '') or rr.get('damage', 0) == 0
+                  for rr in (appmod._calc_attack_core(fresh('Charizard', 50),
+                                                      fresh('Blastoise', 50),
+                                                      'Aerial Ace', field={})
+                             for _ in range(15)))
+    check(S, 'certeiro aplica ×0,90 no dano final', ok_mult)
+
+    # Certeiro NÃO atravessa imunidade de tipo (Swift normal vs fantasma)
+    gas = fresh('Gastly', 30)
+    r11 = appmod._calc_attack_core(fresh('Charizard', 50), gas, 'Swift', field={})
+    check(S, 'certeiro não atravessa imunidade (Swift vs fantasma)',
+          r11.get('outcome') == 'immune' and r11.get('damage') == 0)
+    check(S, 'imunidade é checada ANTES do d100',
+          'd100' not in (r11.get('log') or ''))
+
+    # Certeiro NÃO atravessa Protect
+    b11 = fresh('Blastoise', 50)
+    appmod._v3_side_state(b11)['protected'] = True
+    r12 = appmod._calc_attack_core(fresh('Charizard', 50), b11, 'Aerial Ace', field={})
+    check(S, 'certeiro não atravessa Protect', bool(r12.get('protected')))
+
+    # Semi-invulnerabilidade: Fly deixa fora de alcance; Thunder fura; 2ª rodada ataca
+    c12 = fresh('Charizard', 50)
+    rf = appmod._calc_attack_core(c12, fresh('Blastoise', 50), 'Fly', field={})
+    check(S, 'Fly: 1ª rodada prepara e fica invulnerável',
+          rf.get('charging') and c12['_v3'].get('invulnerable') == 'no ar')
+    rtk = appmod._calc_attack_core(fresh('Blastoise', 50), c12, 'Tackle',
+                                   attack_roll=10, field={})
+    check(S, 'alvo no ar não é alcançado (nem por ACC 100)',
+          not rtk.get('hit') and 'não alcança' in (rtk.get('log') or ''))
+    rth = appmod._calc_attack_core(fresh('Blastoise', 50), c12, 'Thunder',
+                                   attack_roll=5, field={})
+    check(S, 'Thunder fura a invulnerabilidade do Fly',
+          int(rth.get('attack_roll') or 0) > 0)
+    rf2 = appmod._calc_attack_core(c12, fresh('Blastoise', 50), 'Fly',
+                                   attack_roll=10, field={})
+    check(S, 'Fly: 2ª rodada ataca e sai da invulnerabilidade',
+          not rf2.get('charging') and not c12['_v3'].get('invulnerable'))
+    check(S, 'Earthquake fura quem usou Dig (tabela de exceções)',
+          bm.v3_pierces_invuln('no subsolo', 'Earthquake')
+          and not bm.v3_pierces_invuln('no ar', 'Tackle'))
+
     # ────────────────────────── RELATÓRIO ──────────────────────────
     print('\n' + '═' * 62)
     print('📊 SCORECARD FINAL')

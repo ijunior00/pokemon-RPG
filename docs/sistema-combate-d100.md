@@ -197,19 +197,35 @@ reinicia.
 
 ---
 
-## 8. Golpes Certeiros (Aerial Ace, Swift, Shock Wave, Magnet Bomb…)
+## 8. Precisão 100% vs ACC ∞ (Certeiros: Aerial Ace, Swift, Shock Wave…)
 
-Golpes com ACC "—" (sempre acertam):
-- **ACC Efetivo = 100 fixo**, ignorando estágios de evasão do alvo.
-- **Ainda passam pela Resistência normalmente** — a garantia é de *conectar*,
-  não de atravessar as defesas.
-- **Componente de Status reduzido a 60%** (arred. p/ baixo).
-- **Dados rebaixados 1 degrau** na Tabela Mestra (Aerial Ace 60: 1d10 → 1d8).
-- *Regra opcional de reflexos:* defensor com Speed maior que a do atacante ganha
-  **+2 na Resistência** contra Certeiros (compensa a evasão que eles ignoram).
+**ACC 100% NÃO é acerto garantido** — é só a precisão *base*. O golpe continua
+sujeito a:
+- estágios de **Precisão** do usuário (Sand Attack, Mud-Slap, Flash → −10 p.p.
+  por estágio) e de **Evasão** do alvo (Double Team, Minimize → −10 p.p.);
+- **Névoa** (−10 ACC global) e demais efeitos de campo.
 
-Troca justa: garantia de acerto em troca de menor poder — golpes automáticos
-nunca são a opção mais forte só por não errarem.
+**ACC ∞ (golpes com ACC "—")** ignora **apenas** o teste de Precisão×Evasão:
+- Não rola d100 de acerto; estágios de Precisão/Evasão são irrelevantes.
+- **Compensação pela confiabilidade: dano final ×0,90** (aplicado DEPOIS da
+  Resistência; alavanca `V3_CERTEIRO_DAMAGE_MULT` — conservador 0,95,
+  competitivo 0,85). Componente e dados são os NORMAIS do golpe.
+
+**O que NENHUM dos dois atravessa** (nem ACC 100, nem ACC ∞):
+1. **Imunidade de tipo** (Elétrico vs Terrestre, Normal/Lutador vs Fantasma…)
+   — checada ANTES de qualquer rolagem;
+2. **Habilidades** que anulam/absorvem (Levitate, Flash Fire, Volt/Water
+   Absorb, Motor Drive, Sap Sipper, Storm Drain, Lightning Rod, Wonder Guard);
+3. **Protect/Detect** e equivalentes;
+4. **Estados invulneráveis** (alvo que usou Fly, Bounce, Dig, Dive, Phantom
+   Force, Shadow Force, Sky Drop — ver §17), salvo as exceções canônicas do
+   golpe (Earthquake acerta quem cavou; Thunder/Gust/Hurricane acertam quem
+   voou; Surf/Whirlpool acertam quem mergulhou);
+5. **Resistência do defensor (§4)** — a garantia é de *conectar*, nunca de
+   atravessar as defesas.
+
+Certeiro = excelente contra times de evasão, e sempre um tico mais fraco
+(×0,9) que o golpe equivalente que pode errar.
 
 ---
 
@@ -364,6 +380,7 @@ qualquer fórmula.
 | **Recoil** (Double-Edge, Flare Blitz…) | usuário sofre ⌊dano final ÷ 3⌋ |
 | **Dreno** (Giga Drain, Drain Punch…) | usuário cura ⌊dano final ÷ 2⌋ |
 | **Carga** (Solar Beam, Sky Attack…) | 1 rodada carregando (salvo exceção: Solar Beam no Sol dispara direto) |
+| **Semi-invulnerável** (Fly, Bounce, Dig, Dive, Phantom Force, Shadow Force, Sky Drop) | 1 rodada de preparo em que o usuário fica FORA DE ALCANCE (nem certeiros acertam); exceções canônicas atravessam: Earthquake/Magnitude/Fissure acertam quem cavou; Gust/Twister/Thunder/Hurricane/Sky Uppercut/Smack Down acertam quem voou; Surf/Whirlpool acertam quem mergulhou. Trocar de golpe ou de Pokémon perde o preparo |
 | **Future Sight** | resolve 2 rodadas depois com os dados/TN do POW 120; entra em cooldown normalmente ao declarar |
 
 **Notas de implementação (F5, motor digital):**
@@ -390,16 +407,21 @@ qualquer fórmula.
 2. Na vez de cada Pokémon:
    a. Golpe em **cooldown**? Não pode ser escolhido.
    b. Testes de condição (Paralysis d100≤25, Sleep, Freeze, Confusion).
-   c. **Precisão**: calcula ACC Efetivo → rola **d100** (Certeiro pula direto).
-      Errou → fim da ação. (O mesmo d100 resolve efeito secundário.)
-   d. **Crítico**: d100 vs chance (5% + estágios).
-   e. **Dano Bruto** = Componente (+estágios ATK) + ⌊Nível/10⌋ + dados
-      (Tabela Mestra → certeiro → marcos → STAB → efetividade → clima/terreno)
+   c. **Bloqueios absolutos**, nesta ordem: Protect do alvo → alvo
+      invulnerável (Fly/Dig…, salvo exceção do golpe) → **imunidade de tipo**
+      → habilidade que anula/absorve. Qualquer um → fim da ação.
+   d. **Precisão**: calcula ACC Efetivo → rola **d100**. Certeiro (ACC ∞)
+      pula este passo. Errou → fim da ação. (O mesmo d100 resolve efeito
+      secundário.)
+   e. **Crítico**: d100 vs chance (5% + estágios).
+   f. **Dano Bruto** = Componente (+estágios ATK) + ⌊Nível/10⌋ + dados
+      (Tabela Mestra → marcos → STAB → efetividade → clima/terreno)
       + Momentum.
-   f. **Resistência** do defensor: d20 + ⌊Def/10⌋ + ⌊Nível/10⌋ + estágios
-      (crítico corta esses bônus pela metade) vs TN → cheio / metade / zero
+   g. **Resistência** do defensor: d20 + ⌊Def/10⌋ + ⌊Nível/10⌋ + estágios
+      (crítico corta esses bônus pela metade) vs TN → cheio / metade / zero.
+      **Certeiro: aplicar ×0,90 ao dano final** depois desta camada.
       (empate exato → Speed decide).
-   g. Aplica dano (mínimo 1 se não anulado), efeitos on-hit, contadores de
+   h. Aplica dano (mínimo 1 se não anulado), efeitos on-hit, contadores de
       Momentum/Adaptação, inicia cooldown.
 3. **Fim da rodada**: dano de Burn/Poison/Toxic e clima; cura de terreno;
    decrementa cooldowns, durações de clima/terreno, Sleep/Confusion.
@@ -434,6 +456,8 @@ nível do Snorlax — exatamente o equilíbrio pedido.
 
 1. **Divisor 8** do Componente de Status (Seção 3.1).
 2. **Coluna de TN** da Tabela Mestra (deslocá-la inteira ±2).
+3. **Redutor do ACC ∞** (`V3_CERTEIRO_DAMAGE_MULT`): padrão **0,90**;
+   conservador 0,95; competitivo 0,85 (Seção 8).
 
 **Alvo oficial da mesa: batalhas de 5 a 10 turnos** (mediana por faixa de
 nível, validada por `tools/battle_sweep_v3.py` — 500 batalhas completas por
