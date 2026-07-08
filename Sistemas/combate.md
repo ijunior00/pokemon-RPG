@@ -13,7 +13,10 @@
 
 - Crítico: d100 próprio, 5% base (+10 p.p./estágio, teto 50) — fura metade do
   bônus de Def do defensor (Sniper zera).
-- Certeiros (ACC "—"): conectam sempre, componente 60%, −1 degrau de dado.
+- Certeiros (ACC ∞): pulam SÓ o teste de Precisão×Evasão; dano final ×0,90
+  (após a Resistência). Não atravessam imunidade, habilidades, Protect nem
+  invulnerabilidade (Fly/Dig — 1 rodada fora de alcance, exceções canônicas
+  furam: Earthquake acerta quem cavou, Thunder quem voou).
 - Cooldown por POW (0–3 rodadas), momentum (+1/golpe variado, máx 3),
   adaptação (3ª repetição → alvo +2). Sem PP.
 - Clima/terreno: 5 rodadas, ±1 dado por tipo, chips ⌊HP/16⌋, ACC especiais

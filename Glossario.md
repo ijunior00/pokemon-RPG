@@ -11,7 +11,8 @@
 | **TN Efetiva** | Alvo da Resistência: TN da tabela + ⌊nível do atacante/10⌋. |
 | **Momentum** | +1 de dano por golpe DIFERENTE do anterior (máx +3); zera ao repetir/trocar. |
 | **Adaptação em Combate** | 3ª repetição consecutiva do mesmo golpe → defensor +2 na Resistência. |
-| **Certeiro** | Golpe com ACC "—" (Swift...): conecta sempre, componente 60%, −1 degrau de dado. |
+| **Certeiro** | Golpe com ACC ∞ (Swift...): pula só o teste de Precisão×Evasão; dano final ×0,90. Não atravessa imunidade/Protect/invulnerabilidade. |
+| **Semi-invulnerável** | Estado de Fly/Dig/Dive...: 1 rodada fora de alcance (nem certeiro acerta); Earthquake/Thunder/Surf furam os estados correspondentes. |
 | **Chip** | Dano passivo por rodada (areia/granizo ⌊HP/16⌋); nunca nocauteia (para em 1 HP). |
 | **`_v3`** | Dict de estado por lado na batalha: cooldowns, last_move, streak, momentum, charging, protected. |
 | **`field`** | Estado de campo da batalha: clima + terreno com durações (5 rodadas). |

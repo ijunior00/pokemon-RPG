@@ -36,6 +36,12 @@ Sistema em **3 camadas**, cada uma com um dado e um dono:
 - **Posturas de defesa aposentadas** — a camada de Resistência substituiu o
   seletor de postura/esquiva do sistema v2.
 - **Shiny ×1,35 nos stats, nunca na precisão** — accuracy é do golpe.
+- **Certeiros rebalanceados (spec de precisão, jul/2026)** — a penalidade
+  original (componente 60% + dado −1 degrau) era severa demais; virou
+  **dano final ×0,90** (`V3_CERTEIRO_DAMAGE_MULT`). ACC 100 ≠ ACC ∞:
+  100% ainda sofre Precisão/Evasão; ∞ pula só esse teste. Imunidade de
+  tipo passou a ser checada ANTES da precisão, e Fly/Dig/Dive... ganharam
+  semi-invulnerabilidade real (PR #19).
 
 ## Calibração (alavancas em `battle_math.py`)
 
