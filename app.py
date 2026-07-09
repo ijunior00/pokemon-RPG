@@ -4812,11 +4812,15 @@ def update_team():
         # Estado ANTERIOR do time (autoridade sobre nível/shiny): impede o
         # cliente de saltar para Nv.100 ou ligar shiny de graça. Casa por
         # (número, apelido); Pokémon novo (captura) não casa e é tratado à parte.
+        # Cada chave guarda uma LISTA (FIFO): dois Pokémon da mesma espécie SEM
+        # apelido não colidem — cada incoming consome um prev distinto (senão o
+        # shiny de um vazava para o outro / era ligado de graça).
         prev_team = users[current_user.id].get('trainer_data', {}).get('team', [])
         prev_by_key = {}
         for pp in prev_team:
             if isinstance(pp, dict):
-                prev_by_key[(pp.get('number'), (pp.get('nickname') or ''))] = pp
+                prev_by_key.setdefault(
+                    (pp.get('number'), (pp.get('nickname') or '')), []).append(pp)
         clean_team = []
         for p in team:
             if not isinstance(p, dict):
@@ -4827,7 +4831,8 @@ def update_team():
                 or POKEMON_BY_NUMBER.get(p.get('number'))
             if not base or not base.get('base_stats'):
                 continue   # espécie desconhecida → descarta (anti-forja)
-            prev = prev_by_key.get((p.get('number'), (p.get('nickname') or '')))
+            _pk_matches = prev_by_key.get((p.get('number'), (p.get('nickname') or '')))
+            prev = _pk_matches.pop(0) if _pk_matches else None   # consome 1:1
             level = max(1, min(100, int(p.get('level') or 1)))
             if prev is not None:
                 # Pokémon já existente: nível só sobe (e no máx. +5 por save,

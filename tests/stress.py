@@ -264,6 +264,28 @@ def main():
     check(S, 'espécie inventada é descartada (anti-forja de stats)',
           all(p['name'] != 'Fakemon' for p in _saved))
 
+    # BUG do shiny: dois Pokémon da MESMA espécie SEM apelido não podem
+    # trocar/herdar shiny entre si (colisão de chave (number, nickname)).
+    _uu = db.get_users()
+    _uu[u1]['trainer_data']['team'] = [
+        {'name': 'Rattata', 'number': 19, 'level': 10, 'nickname': '',
+         'is_shiny': False, 'sv': 2, 'stats': {'ATK': 10}, 'maxHp': 20},
+        {'name': 'Rattata', 'number': 19, 'level': 10, 'nickname': '',
+         'is_shiny': True, 'sv': 2, 'stats': {'ATK': 10}, 'maxHp': 20},
+    ]
+    db.save_users(_uu)
+    # cliente reenvia o mesmo time (ordem preservada) — cada um mantém seu shiny
+    p1.post('/player/team', json={'team': [
+        {'name': 'Rattata', 'number': 19, 'level': 10, 'nickname': ''},
+        {'name': 'Rattata', 'number': 19, 'level': 10, 'nickname': ''}]})
+    _sv = db.get_users()[u1]['trainer_data']['team']
+    check(S, 'duplicatas sem apelido não trocam shiny (slot 0 normal)',
+          len(_sv) == 2 and _sv[0].get('is_shiny') is False)
+    check(S, 'duplicatas sem apelido preservam o shiny do slot certo',
+          _sv[1].get('is_shiny') is True)
+    # restaura o time original
+    give_team(u1, [('Charmander', 20), ('Squirtle', 18), ('Pidgey', 15)])
+
     # Pokédex: número inexistente não dá XP
     appmod._rate_store.clear()
     _xp0 = db.get_users()[u1]['trainer_data'].get('xp', 0)
