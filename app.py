@@ -313,6 +313,9 @@ def _resolve_metronome(move_name):
 # Guard de re-entrância do battle_action (por player_id) contra duplo-clique /
 # duas abas. Sob gevent (cooperativo) o check+add do set é atômico.
 _BATTLE_BUSY = set()
+# Idem para escrita de economia (compra/venda) — impede double-spend do MESMO
+# jogador em requisições paralelas (read-modify-write de dinheiro).
+_ECON_BUSY = set()
 
 
 def _v3_side_state(poke):
@@ -4648,6 +4651,15 @@ def friendship_evolve():
 @login_required
 def pokemon_center():
     """Heal all Pokémon to full HP and clear all status conditions."""
+    # Não pode curar o time no MEIO de uma batalha (era cura grátis a cada
+    # turno de um encontro/PvP em andamento).
+    _pid = str(current_user.id)
+    if (get_game_state().get('active_encounters') or {}).get(_pid):
+        return jsonify({'error': 'Não pode usar o Centro Pokémon durante uma batalha.'}), 400
+    if any(_pid in (b.get('player1', {}).get('id'), b.get('player2', {}).get('id'))
+           and b.get('phase') == 'battle' for b in ACTIVE_PVP.values()):
+        return jsonify({'error': 'Não pode usar o Centro Pokémon durante um PvP.'}), 400
+
     users = get_users()
     trainer = users[current_user.id].get('trainer_data', {})
     team = trainer.get('team', [])
@@ -5110,29 +5122,37 @@ def api_shop_buy():
     if not item:
         return jsonify({'error': 'Item não encontrado'}), 404
 
-    users = get_users()
-    trainer = users.get(current_user.id, {}).get('trainer_data', {})
-    cha = _influence_value(trainer)
-    buy_mult, _ = _cha_modifier(cha)
-    unit_price = max(1, int(item['price'] * buy_mult))
-    total_cost = unit_price * qty
+    # Guard anti double-spend (duplo-clique): read-modify-write de dinheiro
+    # protegido por um flag síncrono (atômico sob gevent).
+    if current_user.id in _ECON_BUSY:
+        return jsonify({'error': 'Operação em andamento, tente de novo.'}), 429
+    _ECON_BUSY.add(current_user.id)
+    try:
+        users = get_users()
+        trainer = users.get(current_user.id, {}).get('trainer_data', {})
+        cha = _influence_value(trainer)
+        buy_mult, _ = _cha_modifier(cha)
+        unit_price = max(1, int(item['price'] * buy_mult))
+        total_cost = unit_price * qty
 
-    money = trainer.get('money', 0)
-    if money < total_cost:
-        return jsonify({'error': f'Sem dinheiro suficiente! Precisa de ₽{total_cost}, tem ₽{money}'}), 400
+        money = trainer.get('money', 0)
+        if money < total_cost:
+            return jsonify({'error': f'Sem dinheiro suficiente! Precisa de ₽{total_cost}, tem ₽{money}'}), 400
 
-    trainer['money'] = money - total_cost
-    bag = trainer.get('bag', [])
-    existing = next((b for b in bag if isinstance(b, dict) and b.get('name', '').lower() == item['name'].lower()), None)
-    if existing:
-        existing['qty'] = existing.get('qty', 1) + qty
-    else:
-        bag.append({'name': item['name'], 'qty': qty, 'description': item['description']})
-    trainer['bag'] = bag
-    users[current_user.id]['trainer_data'] = trainer
-    save_users(users)
-    return jsonify({'success': True, 'money_left': trainer['money'], 'item': item,
-                    'qty': qty, 'unit_price': unit_price, 'cha_bonus': cha != 10})
+        trainer['money'] = money - total_cost
+        bag = trainer.get('bag', [])
+        existing = next((b for b in bag if isinstance(b, dict) and b.get('name', '').lower() == item['name'].lower()), None)
+        if existing:
+            existing['qty'] = existing.get('qty', 1) + qty
+        else:
+            bag.append({'name': item['name'], 'qty': qty, 'description': item['description']})
+        trainer['bag'] = bag
+        users[current_user.id]['trainer_data'] = trainer
+        save_users(users)
+        return jsonify({'success': True, 'money_left': trainer['money'], 'item': item,
+                        'qty': qty, 'unit_price': unit_price, 'cha_bonus': cha != 10})
+    finally:
+        _ECON_BUSY.discard(current_user.id)
 
 @app.route('/api/shop/sell', methods=['POST'])
 @login_required
@@ -5914,6 +5934,36 @@ def handle_battle_action(data):
 
         action_log = None
         server_calc = None  # populated when server recalculates attack
+
+        # ITEM X (X Attack/Defense/Speed/Sp.Atk...): aplica um ESTÁGIO real no
+        # Pokémon do jogador, server-autoritativo. Consome o item da bolsa no
+        # servidor (a bolsa do cliente não é fonte de verdade) e passa o turno.
+        if action_type == 'use_item' and action_by == 'player':
+            _xmap = {'x attack': ('ATK', '⚔️ Ataque'), 'x defense': ('DEF', '🛡️ Defesa'),
+                     'x speed': ('SPE', '💨 Velocidade'), 'x sp. atk': ('SPA', '✨ Atq. Esp.'),
+                     'x sp. def': ('SPD', '🔮 Def. Esp.'), 'x accuracy': ('attack_roll', '🎯 Precisão')}
+            _iname = str(data.get('item_name') or '')
+            _xk = _xmap.get(_iname.lower())
+            _users_x = get_users()
+            _bag_x = _users_x.get(current_user.id, {}).get('trainer_data', {}).get('bag', [])
+            _slot = next((it for it in _bag_x
+                          if str(it.get('name', '')).lower() == _iname.lower()
+                          and int(it.get('qty', 0)) > 0), None)
+            if not _xk or not _slot:
+                emit('action_blocked', {'message': f'{_iname} indisponível.'})
+                return
+            _slot['qty'] = int(_slot['qty']) - 1
+            _users_x[current_user.id]['trainer_data']['bag'] = [
+                it for it in _bag_x if int(it.get('qty', 0)) > 0]
+            save_users(_users_x)
+            ppoke_x = encounter.get('player_pokemon') or {}
+            effects.apply_stat_changes(ppoke_x, {_xk[0]: 1})
+            battle_state['player_stat_stages'] = ppoke_x.get('stat_stages')
+            action_log = f'🧪 <strong>{_iname}</strong> — {_xk[1]} +1 estágio!'
+            message = action_log
+            server_calc = {'is_item': True, 'log': action_log}
+            # cai no fluxo comum: troca de turno + broadcast abaixo
+
         # Efeitos de status são DERIVADOS no servidor (não confiar no payload):
         # zera heal/status/reset_stages/stage_op forjados; o motor abaixo
         # preenche os valores reais. (Fecha cura/status/Haze forjados.)

@@ -704,6 +704,54 @@ def main():
     _rs[u2]['trainer_data']['money'] = _m2_bak
     db.save_users(_rs)
 
+    # Lote 3 — pokemon-center bloqueado durante encontro ativo
+    _gs = gstate()
+    _gs.setdefault('active_encounters', {})[str(u1)] = {
+        'player_id': str(u1), 'pokemon': {'name': 'Pidgey', 'number': 16, 'level': 12},
+        'level': 12, 'battle_state': {'wild_hp_current': 5, 'wild_hp_max': 40,
+                                      'player_hp_current': 10, 'player_hp_max': 60, 'turn': 'player'}}
+    db.save_game_state(_gs, TID)
+    r = p1.post('/player/pokemon-center', json={})
+    check(S, 'Centro Pokémon bloqueado durante batalha', r.status_code == 400)
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+    r = p1.post('/player/pokemon-center', json={})
+    check(S, 'Centro Pokémon funciona fora de batalha', (r.get_json() or {}).get('ok'))
+
+    # Lote 3 — item X aplica estágio real no servidor e consome da bolsa
+    _u = db.get_users(); _u[u1]['trainer_data']['bag'] = [{'name': 'X Attack', 'qty': 2}]
+    _u[u1]['trainer_data']['team'][0]['stat_stages'] = None
+    db.save_users(_u)
+    _gs = gstate()
+    _team0 = db.get_users()[u1]['trainer_data']['team'][0]
+    _gs.setdefault('active_encounters', {})[str(u1)] = {
+        'player_id': str(u1), 'pokemon': dict(enc['pokemon'], hp=40, currentHp=40),
+        'level': enc['level'], 'player_pokemon': _team0,
+        'battle_state': {'turn': 'player', 'round': 1, 'wild_hp_current': 40, 'wild_hp_max': 40,
+                         'player_hp_current': 60, 'player_hp_max': 60,
+                         'wild_status': None, 'player_status': None, 'initiative_rolled': True}}
+    db.save_game_state(_gs, TID)
+    s1.get_received()
+    s1.emit('battle_action', {'action_by': 'player', 'action_type': 'use_item',
+                              'item_name': 'X Attack'})
+    recv(s1)
+    _stg = gstate()['active_encounters'][u1]['battle_state'].get('player_stat_stages') or {}
+    _bag_after = next((it for it in db.get_users()[u1]['trainer_data'].get('bag', [])
+                       if it.get('name') == 'X Attack'), {})
+    check(S, 'item X aplica +1 estágio de ATK (server-autoritativo)', _stg.get('ATK') == 1)
+    check(S, 'item X é consumido da bolsa no servidor', int(_bag_after := _bag_after.get('qty', 0)) == 1)
+    # item X sem estoque é bloqueado (reseta o turno p/ passar do gate de turno)
+    _u = db.get_users(); _u[u1]['trainer_data']['bag'] = []; db.save_users(_u)
+    _gs = gstate(); _gs['active_encounters'][u1]['battle_state']['turn'] = 'player'
+    db.save_game_state(_gs, TID)
+    s1.get_received()
+    s1.emit('battle_action', {'action_by': 'player', 'action_type': 'use_item', 'item_name': 'X Attack'})
+    _blk = recv(s1, 'action_blocked')
+    check(S, 'item X sem estoque é bloqueado', bool(_blk))
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+
+    # Lote 3 — double-spend guard reentrante na loja (o flag existe)
+    check(S, 'guard de economia (_ECON_BUSY) definido', hasattr(appmod, '_ECON_BUSY'))
+
     # Habilidade do ATACANTE (Poison Touch) envenena o alvo no contato físico.
     pt_procs = sum(1 for _ in range(400)
                    if (appmod.ab.check_attacker_contact_ability('Poison Touch') or {}).get('status') == 'badly_poisoned')
