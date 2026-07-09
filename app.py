@@ -310,6 +310,11 @@ def _resolve_metronome(move_name):
     return pick, f'{emoji} {move_name} → {pick}'
 
 
+# Guard de re-entrância do battle_action (por player_id) contra duplo-clique /
+# duas abas. Sob gevent (cooperativo) o check+add do set é atômico.
+_BATTLE_BUSY = set()
+
+
 def _v3_side_state(poke):
     """Estado v3 do lado (vive no dict do Pokémon em batalha — morre com ela):
     cooldowns por move, último golpe, streak (adaptação) e momentum."""
@@ -5839,18 +5844,27 @@ def handle_set_defense_mode(data):
 @socketio.on('battle_action')
 def handle_battle_action(data):
     """Handle a battle action (attack, status move, etc.)."""
-    if current_user.is_authenticated:
-        action_by = data.get('action_by')  # 'player' or 'master' (for wild pokemon)
-        # Security: non-masters can only act for themselves. No modo AUTO o
-        # navegador do JOGADOR conduz o turno do selvagem (action_by='master')
-        # — permitido, mas o dano é RECALCULADO no servidor abaixo, então o
-        # cliente não consegue mandar o selvagem bater de graça (dano 0).
-        if current_user.role != 'master':
-            player_id = str(current_user.id)
-        else:
-            player_id = str(data.get('player_id', current_user.id))
-            if not _player_in_master_table(player_id, get_users(), _tid()):
-                return
+    if not current_user.is_authenticated:
+        return
+    action_by = data.get('action_by')  # 'player' or 'master' (for wild pokemon)
+    # Security: non-masters can only act for themselves. No modo AUTO o
+    # navegador do JOGADOR conduz o turno do selvagem (action_by='master')
+    # — permitido, mas o dano é RECALCULADO no servidor abaixo, então o
+    # cliente não consegue mandar o selvagem bater de graça (dano 0).
+    if current_user.role != 'master':
+        player_id = str(current_user.id)
+    else:
+        player_id = str(data.get('player_id', current_user.id))
+        if not _player_in_master_table(player_id, get_users(), _tid()):
+            return
+    # Guard de re-entrância (duplo-clique / duas abas): sob gevent o check+add é
+    # atômico (sem yield), então a 2ª ação concorrente do MESMO encontro é
+    # descartada — fecha o lost-update (dois battle_action lendo o mesmo turno
+    # e sobrescrevendo o HP/turno um do outro).
+    if player_id in _BATTLE_BUSY:
+        return
+    _BATTLE_BUSY.add(player_id)
+    try:
         action_type = data.get('action_type')  # 'attack', 'status', 'item'
         move_name = data.get('move_name', '')
         move_type = data.get('move_type', '')   # e.g. 'fire', 'ground'
@@ -6345,6 +6359,8 @@ def handle_battle_action(data):
         # Wild auto-attack is handled client-side (player.js wildPokemonAutoAttack) to support
         # status damage, move variety, and status moves. Server-side auto-attack removed to
         # prevent race condition: server used stale encounter state and overwrote correct HP.
+    finally:
+        _BATTLE_BUSY.discard(player_id)
 
 def _auto_roll_initiative(player_id, game_state):
     """Auto-roll initiative when AUTO mode is ON."""

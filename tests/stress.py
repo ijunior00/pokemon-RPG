@@ -685,6 +685,25 @@ def main():
     else:
         check(S, 'terceiro não encerra PvP alheio (forfeit ignorado)', True, 'sem batalha — pulado')
 
+    # Lote 2 — CONCORRÊNCIA: save_users grava só quem MUDOU. Dois snapshots
+    # (como 2 greenlets) mutando jogadores diferentes não se sobrescrevem.
+    _m1_bak = db.get_users()[u1]['trainer_data'].get('money')
+    _m2_bak = db.get_users()[u2]['trainer_data'].get('money')
+    _ua = db.get_users(); _ub = db.get_users()   # dois loads (estado obsoleto em _ub)
+    _ua[u1]['trainer_data']['money'] = 111
+    db.save_users(_ua)                            # grava só u1
+    _ub[u2]['trainer_data']['money'] = 222
+    db.save_users(_ub)                            # grava só u2 — NÃO reverte u1
+    _fin = db.get_users()
+    check(S, 'save concorrente não faz clobber cross-player',
+          _fin[u1]['trainer_data']['money'] == 111
+          and _fin[u2]['trainer_data']['money'] == 222)
+    # restaura o dinheiro para não interferir nos testes de economia adiante
+    _rs = db.get_users()
+    _rs[u1]['trainer_data']['money'] = _m1_bak
+    _rs[u2]['trainer_data']['money'] = _m2_bak
+    db.save_users(_rs)
+
     # Habilidade do ATACANTE (Poison Touch) envenena o alvo no contato físico.
     pt_procs = sum(1 for _ in range(400)
                    if (appmod.ab.check_attacker_contact_ability('Poison Touch') or {}).get('status') == 'badly_poisoned')
