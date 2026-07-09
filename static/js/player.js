@@ -950,8 +950,27 @@ socket.on('initiative_result', (data) => {
     }
     window.currentTurn = data.first_turn;
     updateTurnUI();
+    if (data.wild_auto !== undefined) window._wildAuto = !!data.wild_auto;
     if (data.first_turn === 'wild') {
-        setTimeout(() => wildPokemonAutoAttack(), 1500);
+        if (window._wildAuto === false) {
+            addBattleLog('⏳ <em>Modo manual: aguardando o Mestre jogar o turno do selvagem…</em>');
+        } else {
+            setTimeout(() => wildPokemonAutoAttack(), 1500);
+        }
+    }
+});
+
+// Mestre ligou/desligou o modo automático no meio da sessão
+socket.on('auto_mode_changed', (data) => {
+    window._wildAuto = !!data.enabled;
+    if (battleActive) {
+        addBattleLog(data.enabled
+            ? '🤖 <em>Modo automático religado — o selvagem volta a agir sozinho.</em>'
+            : '🎭 <em>Modo manual: o Mestre passa a conduzir o selvagem.</em>');
+        // se já era o turno do selvagem, destrava o auto-attack agora
+        if (data.enabled && window.currentTurn === 'wild') {
+            setTimeout(() => wildPokemonAutoAttack(), 800);
+        }
     }
 });
 
@@ -1051,9 +1070,14 @@ socket.on('battle_update', (data) => {
     window.currentTurn = bs.turn;
     updateTurnUI();
 
-    // Wild Pokemon auto-attack when it's their turn
+    // Wild Pokemon auto-attack when it's their turn (modo manual: o Mestre conduz)
+    if (data.wild_auto !== undefined) window._wildAuto = !!data.wild_auto;
     if (bs.turn === 'wild' && bs.wild_hp_current > 0 && bs.player_hp_current > 0 && !window.wildFainted && !window._wildIsActing) {
-        setTimeout(() => wildPokemonAutoAttack(), 1200);
+        if (window._wildAuto === false) {
+            addBattleLog('⏳ <em>Aguardando o Mestre jogar o turno do selvagem…</em>');
+        } else {
+            setTimeout(() => wildPokemonAutoAttack(), 1200);
+        }
     }
 
     // Badges de buff/debuff acumulados (fonte: servidor)
@@ -1298,6 +1322,13 @@ async function useMove(moveName) {
     const VARIABLE_DMG = ['metronome', 'mirror move', 'copycat', 'assist', 'me first', 'mimic', 'sketch'];
     const isVariable = VARIABLE_DMG.includes(moveName.toLowerCase());
     if (!isVariable && (m.category === 'status' || !m.baseDamage || PLAYER_STATUS_MOVES.includes(moveName.toLowerCase()))) {
+        // v3: cura instantânea também tem recarga — checa antes de processar
+        const cdS = (window._playerCooldowns || {})[moveName.toLowerCase()] || 0;
+        if (cdS > 0) {
+            _unlockPlayerActions();
+            addBattleLog(`⏳ <strong>${moveName}</strong> em recarga (${cdS} rodada(s)) — escolha outro golpe.`);
+            return;
+        }
         await processStatusMove(moveName, poke, window.currentBattleData?.enemy);
         return;
     }
@@ -5161,6 +5192,8 @@ updateTurnUI = async function() {
 async function wildPokemonAutoAttack() {
     if (!battleActive || !window.currentBattleData || window.wildFainted) return;
     if (window.currentTurn !== 'wild') return;
+    // Modo manual (auto OFF): o MESTRE conduz o selvagem — o cliente não age
+    if (window._wildAuto === false) return;
     // Prevent re-entry: if the wild is already acting, exit
     if (window._wildIsActing) return;
     window._wildIsActing = true;
@@ -5800,11 +5833,20 @@ async function processStatusMove(moveName, attackerPoke, targetPoke) {
         const resp = await fetch('/api/process-status-move', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ move_name: moveName, attacker_stats: attackerStats, target_stats: targetStats })
+            body: JSON.stringify({ move_name: moveName, attacker_stats: attackerStats, target_stats: targetStats, side: 'player' })
         });
         const result = await resp.json();
 
+        // v3: cura instantânea em recarga — NÃO consome o turno; escolha outro
+        if (result.blocked) {
+            addBattleLog(`⏳ <strong>${moveName}</strong> — ${result.message}`);
+            _unlockPlayerActions();
+            return;
+        }
+
         addBattleLog(`▶️ <strong>${moveName}</strong> → ${result.message}`);
+        // recarga de cura instantânea: espelha nos botões (como os ataques)
+        if (result.cooldown) _trackPlayerMoveUse(moveName, result.cooldown);
 
         // Teleport: foge da batalha selvagem (ignora até prisão — teletransporte)
         if (result.effect_type === 'flee') {
@@ -5958,9 +6000,21 @@ async function processWildStatusMove(moveName) {
         const resp = await fetch('/api/process-status-move', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ move_name: moveName, attacker_stats: attackerStats, target_stats: targetStats })
+            body: JSON.stringify({ move_name: moveName, attacker_stats: attackerStats, target_stats: targetStats, side: 'wild' })
         });
         const result = await resp.json();
+
+        // v3: cura do selvagem em recarga — ele hesita e perde a ação
+        if (result.blocked) {
+            addBattleLog(`⏳ Selvagem tentou <strong>${moveName}</strong>, mas está em recarga — perdeu a ação!`);
+            socket.emit('battle_action', {
+                action_by: 'master', action_type: 'pass',
+                move_name: 'Passar', damage: 0,
+                wild_status_damage: window._wildPreTurnStatusDamage || 0,
+                message: `${moveName} em recarga — o selvagem hesitou`
+            });
+            return;
+        }
 
         addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> → ${result.message}`);
 

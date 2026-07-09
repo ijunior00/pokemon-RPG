@@ -8,10 +8,10 @@
  },
  "acid armor": {
   "effect": {
-   "duration": 3,
-   "stat": "DEF",
-   "type": "buff_self",
-   "value": 3
+   "stats": {
+    "DEF": 2
+   },
+   "type": "buff_self"
   }
  },
  "acid spray": {
@@ -31,10 +31,10 @@
  },
  "agility": {
   "effect": {
-   "duration": 3,
-   "stat": "SPE",
-   "type": "buff_self",
-   "value": 4
+   "stats": {
+    "SPE": 2
+   },
+   "type": "buff_self"
   }
  },
  "air slash": {
@@ -51,18 +51,18 @@
  },
  "amnesia": {
   "effect": {
-   "duration": 3,
-   "stat": "SPD",
-   "type": "buff_self",
-   "value": 3
+   "stats": {
+    "SPD": 2
+   },
+   "type": "buff_self"
   }
  },
  "aromatic mist": {
   "effect": {
-   "duration": 3,
-   "stat": "SPD",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "SPD": 1
+   },
+   "type": "buff_self"
   }
  },
  "assist": {
@@ -79,7 +79,6 @@
  },
  "attract": {
   "effect": {
-   "save": "WIS",
    "status": "amedrontado",
    "type": "inflict_status"
   }
@@ -94,19 +93,18 @@
  },
  "autotomize": {
   "effect": {
-   "duration": 3,
-   "stat": "SPE",
-   "type": "buff_self",
-   "value": 4
+   "stats": {
+    "SPE": 2
+   },
+   "type": "buff_self"
   }
  },
  "baby-doll eyes": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "ATK",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "ATK": -1
+   },
+   "type": "debuff_target"
   }
  },
  "baneful bunker": {
@@ -117,10 +115,10 @@
  },
  "barrier": {
   "effect": {
-   "duration": 3,
-   "stat": "DEF",
-   "type": "buff_self",
-   "value": 3
+   "stats": {
+    "DEF": 2
+   },
+   "type": "buff_self"
   }
  },
  "baton pass": {
@@ -155,7 +153,6 @@
  "bestow": {
   "effect": {
    "duration": 2,
-   "save": "WIS",
    "stat": "attack_roll",
    "type": "debuff_target",
    "value": -1
@@ -191,7 +188,6 @@
  "block": {
   "effect": {
    "duration": 3,
-   "save": "CON",
    "stat": "SPE",
    "type": "debuff_target",
    "value": -3
@@ -234,18 +230,20 @@
  },
  "bulk up": {
   "effect": {
-   "duration": 3,
-   "stat": "ATK",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "ATK": 1,
+    "DEF": 1
+   },
+   "type": "buff_self"
   }
  },
  "calm mind": {
   "effect": {
-   "duration": 3,
-   "stat": "SPA",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "SPA": 1,
+    "SPD": 1
+   },
+   "type": "buff_self"
   }
  },
  "camouflage": {
@@ -258,28 +256,26 @@
  },
  "captivate": {
   "effect": {
-   "duration": 2,
-   "save": "CHA",
-   "stat": "ATK",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "SPA": -2
+   },
+   "type": "debuff_target"
   }
  },
  "charge": {
   "effect": {
-   "duration": 3,
-   "stat": "SPD",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "SPD": 1
+   },
+   "type": "buff_self"
   }
  },
  "charm": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "ATK",
-   "type": "debuff_target",
-   "value": -3
+   "stats": {
+    "ATK": -2
+   },
+   "type": "debuff_target"
   }
  },
  "chatter": {
@@ -291,24 +287,24 @@
  },
  "coil": {
   "effect": {
-   "duration": 3,
-   "stat": "attack_roll",
-   "type": "buff_self",
-   "value": 1
+   "stats": {
+    "ATK": 1,
+    "DEF": 1,
+    "attack_roll": 1
+   },
+   "type": "buff_self"
   }
  },
  "confide": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "SPA",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "SPA": -1
+   },
+   "type": "debuff_target"
   }
  },
  "confuse ray": {
   "effect": {
-   "save": "WIS",
    "status": "confuso",
    "type": "inflict_status"
   }
@@ -343,27 +339,27 @@
  },
  "cosmic power": {
   "effect": {
-   "duration": 3,
-   "stat": "DEF",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "DEF": 1,
+    "SPD": 1
+   },
+   "type": "buff_self"
   }
  },
  "cotton guard": {
   "effect": {
-   "duration": 3,
-   "stat": "DEF",
-   "type": "buff_self",
-   "value": 4
+   "stats": {
+    "DEF": 3
+   },
+   "type": "buff_self"
   }
  },
  "cotton spore": {
   "effect": {
-   "duration": 3,
-   "save": "DEX",
-   "stat": "SPE",
-   "type": "debuff_target",
-   "value": -4
+   "stats": {
+    "SPE": -2
+   },
+   "type": "debuff_target"
   }
  },
  "crafty shield": {
@@ -380,10 +376,7 @@
  },
  "curse": {
   "effect": {
-   "type": "buff_self",
-   "stat": "ATK",
-   "value": 2,
-   "duration": 3
+   "type": "curse"
   }
  },
  "dark pulse": {
@@ -395,40 +388,38 @@
  },
  "dark void": {
   "effect": {
-   "save": "WIS",
    "status": "dormindo",
    "type": "inflict_status"
   }
  },
  "defend order": {
   "effect": {
-   "duration": 3,
-   "stat": "DEF",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "DEF": 1,
+    "SPD": 1
+   },
+   "type": "buff_self"
   }
  },
  "defense curl": {
   "effect": {
-   "duration": 1,
-   "stat": "AC",
-   "type": "buff_self",
-   "value": 4
+   "stats": {
+    "DEF": 1
+   },
+   "type": "buff_self"
   }
  },
  "defog": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "AC",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "AC": -1
+   },
+   "type": "debuff_target"
   }
  },
  "destiny bond": {
   "effect": {
    "duration": 3,
-   "save": "WIS",
    "stat": "attack_roll",
    "type": "debuff_target",
    "value": -2
@@ -443,7 +434,6 @@
  "disable": {
   "effect": {
    "duration": 3,
-   "save": "WIS",
    "stat": "locked_move",
    "type": "debuff_target",
    "value": -1
@@ -472,10 +462,10 @@
  },
  "double team": {
   "effect": {
-   "duration": 3,
-   "stat": "AC",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "AC": 1
+   },
+   "type": "buff_self"
   }
  },
  "dragon breath": {
@@ -487,10 +477,11 @@
  },
  "dragon dance": {
   "effect": {
-   "duration": 3,
-   "stat": "ATK",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "ATK": 1,
+    "SPE": 1
+   },
+   "type": "buff_self"
   }
  },
  "dragon rush": {
@@ -509,11 +500,10 @@
  },
  "eerie impulse": {
   "effect": {
-   "duration": 3,
-   "save": "CON",
-   "stat": "SPA",
-   "type": "debuff_target",
-   "value": -3
+   "stats": {
+    "SPA": -2
+   },
+   "type": "debuff_target"
   }
  },
  "electric terrain": {
@@ -527,7 +517,6 @@
  "electrify": {
   "effect": {
    "duration": 2,
-   "save": "CON",
    "stat": "SPA",
    "type": "debuff_target",
    "value": -2
@@ -535,11 +524,10 @@
  },
  "electroweb": {
   "effect": {
-   "duration": 3,
-   "save": "DEX",
-   "stat": "SPE",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "SPE": -1
+   },
+   "type": "debuff_target"
   }
  },
  "ember": {
@@ -552,7 +540,6 @@
  "encore": {
   "effect": {
    "duration": 3,
-   "save": "WIS",
    "stat": "locked_move",
    "type": "debuff_target",
    "value": -1
@@ -573,7 +560,6 @@
  "entrainment": {
   "effect": {
    "duration": 3,
-   "save": "WIS",
    "stat": "attack_roll",
    "type": "debuff_target",
    "value": -2
@@ -589,7 +575,6 @@
  "fairy lock": {
   "effect": {
    "duration": 2,
-   "save": "WIS",
    "stat": "SPE",
    "type": "debuff_target",
    "value": -2
@@ -597,7 +582,6 @@
  },
  "fake out": {
   "effect": {
-   "save": "CON",
    "status": "atordoado",
    "type": "inflict_status"
   },
@@ -609,20 +593,18 @@
  },
  "fake tears": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "SPD",
-   "type": "debuff_target",
-   "value": -3
+   "stats": {
+    "SPD": -2
+   },
+   "type": "debuff_target"
   }
  },
  "feather dance": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "ATK",
-   "type": "debuff_target",
-   "value": -3
+   "stats": {
+    "ATK": -2
+   },
+   "type": "debuff_target"
   }
  },
  "final gambit": {
@@ -654,7 +636,6 @@
  },
  "fissure": {
   "effect": {
-   "save": "DEX",
    "type": "ohko"
   }
  },
@@ -681,16 +662,14 @@
  },
  "flash": {
   "effect": {
-   "duration": 3,
-   "save": "CON",
-   "stat": "attack_roll",
-   "type": "debuff_target",
-   "value": -3
+   "stats": {
+    "attack_roll": -1
+   },
+   "type": "debuff_target"
   }
  },
  "flatter": {
   "effect": {
-   "save": "WIS",
    "status": "confuso",
    "type": "inflict_status"
   }
@@ -709,10 +688,10 @@
  },
  "flower shield": {
   "effect": {
-   "duration": 3,
-   "stat": "DEF",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "DEF": 1
+   },
+   "type": "buff_self"
   }
  },
  "focus energy": {
@@ -749,7 +728,6 @@
  "forest's curse": {
   "effect": {
    "duration": 3,
-   "save": "WIS",
    "stat": "DEF",
    "type": "debuff_target",
    "value": -2
@@ -772,7 +750,6 @@
  "gastro acid": {
   "effect": {
    "duration": 3,
-   "save": "CON",
    "stat": "attack_roll",
    "type": "debuff_target",
    "value": -2
@@ -780,30 +757,31 @@
  },
  "gear up": {
   "effect": {
-   "duration": 3,
-   "stat": "ATK",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "ATK": 1,
+    "SPA": 1
+   },
+   "type": "buff_self"
   }
  },
  "geomancy": {
   "effect": {
-   "duration": 3,
-   "stat": "SPA",
-   "type": "buff_self",
-   "value": 4
+   "stats": {
+    "SPA": 2,
+    "SPD": 2,
+    "SPE": 2
+   },
+   "type": "buff_self"
   }
  },
  "glare": {
   "effect": {
-   "save": "CON",
    "status": "paralisado",
    "type": "inflict_status"
   }
  },
  "grass whistle": {
   "effect": {
-   "save": "WIS",
    "status": "dormindo",
    "type": "inflict_status"
   }
@@ -811,7 +789,6 @@
  "gravity": {
   "effect": {
    "duration": 3,
-   "save": "CON",
    "stat": "AC",
    "type": "debuff_target",
    "value": -2
@@ -819,25 +796,24 @@
  },
  "growl": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "ATK",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "ATK": -1
+   },
+   "type": "debuff_target"
   }
  },
  "growth": {
   "effect": {
-   "duration": 3,
-   "stat": "attack_roll",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "ATK": 1,
+    "SPA": 1
+   },
+   "type": "buff_self"
   }
  },
  "grudge": {
   "effect": {
    "duration": 3,
-   "save": "WIS",
    "stat": "attack_roll",
    "type": "debuff_target",
    "value": -2
@@ -846,7 +822,6 @@
  "guard split": {
   "effect": {
    "duration": 3,
-   "save": "CON",
    "stat": "DEF",
    "type": "debuff_target",
    "value": -2
@@ -854,7 +829,6 @@
  },
  "guillotine": {
   "effect": {
-   "save": "CON",
    "type": "ohko"
   }
  },
@@ -874,10 +848,10 @@
  },
  "harden": {
   "effect": {
-   "duration": 3,
-   "stat": "DEF",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "DEF": 1
+   },
+   "type": "buff_self"
   }
  },
  "haze": {
@@ -942,24 +916,24 @@
  },
  "hone claws": {
   "effect": {
-   "duration": 3,
-   "stat": "ATK",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "ATK": 1,
+    "attack_roll": 1
+   },
+   "type": "buff_self"
   }
  },
  "horn drill": {
   "effect": {
-   "save": "CON",
    "type": "ohko"
   }
  },
  "howl": {
   "effect": {
-   "duration": 3,
-   "stat": "ATK",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "ATK": 1
+   },
+   "type": "buff_self"
   }
  },
  "hurricane": {
@@ -978,7 +952,6 @@
  },
  "hypnosis": {
   "effect": {
-   "save": "WIS",
    "status": "dormindo",
    "type": "inflict_status"
   }
@@ -1021,7 +994,6 @@
  "imprison": {
   "effect": {
    "duration": 3,
-   "save": "WIS",
    "stat": "attack_roll",
    "type": "debuff_target",
    "value": -2
@@ -1058,10 +1030,10 @@
  },
  "iron defense": {
   "effect": {
-   "duration": 3,
-   "stat": "DEF",
-   "type": "buff_self",
-   "value": 3
+   "stats": {
+    "DEF": 2
+   },
+   "type": "buff_self"
   }
  },
  "iron head": {
@@ -1073,11 +1045,10 @@
  },
  "kinesis": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "attack_roll",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "attack_roll": -1
+   },
+   "type": "debuff_target"
   }
  },
  "king's shield": {
@@ -1103,11 +1074,10 @@
  },
  "leer": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "DEF",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "DEF": -1
+   },
+   "type": "debuff_target"
   }
  },
  "lick": {
@@ -1135,7 +1105,6 @@
  },
  "lovely kiss": {
   "effect": {
-   "save": "WIS",
    "status": "dormindo",
    "type": "inflict_status"
   }
@@ -1156,7 +1125,6 @@
  "magic room": {
   "effect": {
    "duration": 3,
-   "save": "INT",
    "stat": "SPD",
    "type": "debuff_target",
    "value": -2
@@ -1172,10 +1140,11 @@
  },
  "magnetic flux": {
   "effect": {
-   "duration": 3,
-   "stat": "DEF",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "DEF": 1,
+    "SPD": 1
+   },
+   "type": "buff_self"
   }
  },
  "me first": {
@@ -1185,19 +1154,19 @@
  },
  "meditate": {
   "effect": {
-   "duration": 3,
-   "stat": "attack_roll",
-   "type": "buff_self",
-   "value": 1
+   "stats": {
+    "ATK": 1
+   },
+   "type": "buff_self"
   }
  },
  "memento": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "ATK",
-   "type": "debuff_target",
-   "value": -4
+   "stats": {
+    "ATK": -2,
+    "SPA": -2
+   },
+   "type": "debuff_target"
   }
  },
  "metal burst": {
@@ -1208,11 +1177,10 @@
  },
  "metal sound": {
   "effect": {
-   "duration": 3,
-   "save": "CON",
-   "stat": "SPD",
-   "type": "debuff_target",
-   "value": -3
+   "stats": {
+    "SPD": -2
+   },
+   "type": "debuff_target"
   }
  },
  "metronome": {
@@ -1241,10 +1209,10 @@
  },
  "minimize": {
   "effect": {
-   "duration": 3,
-   "stat": "AC",
-   "type": "buff_self",
-   "value": 3
+   "stats": {
+    "AC": 2
+   },
+   "type": "buff_self"
   }
  },
  "mirror move": {
@@ -1281,17 +1249,15 @@
  },
  "mud-slap": {
   "effect": {
-   "duration": 3,
-   "save": "DEX",
-   "stat": "attack_roll",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "attack_roll": -1
+   },
+   "type": "debuff_target"
   }
  },
  "muddy water": {
   "effect": {
    "duration": 2,
-   "save": "DEX",
    "stat": "attack_roll",
    "type": "debuff_target",
    "value": -1
@@ -1299,10 +1265,10 @@
  },
  "nasty plot": {
   "effect": {
-   "duration": 3,
-   "stat": "SPA",
-   "type": "buff_self",
-   "value": 4
+   "stats": {
+    "SPA": 2
+   },
+   "type": "buff_self"
   }
  },
  "nature's madness": {
@@ -1332,16 +1298,15 @@
  },
  "noble roar": {
   "effect": {
-   "duration": 2,
-   "save": "WIS",
-   "stat": "ATK",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "ATK": -1,
+    "SPA": -1
+   },
+   "type": "debuff_target"
   }
  },
  "nuzzle": {
   "effect": {
-   "save": "CON",
    "status": "paralisado",
    "type": "inflict_status"
   },
@@ -1353,11 +1318,10 @@
  },
  "octazooka": {
   "effect": {
-   "duration": 3,
-   "save": "DEX",
-   "stat": "attack_roll",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "attack_roll": -1
+   },
+   "type": "debuff_target"
   }
  },
  "odor sleuth": {
@@ -1375,11 +1339,11 @@
  },
  "parting shot": {
   "effect": {
-   "duration": 2,
-   "save": "WIS",
-   "stat": "ATK",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "ATK": -1,
+    "SPA": -1
+   },
+   "type": "debuff_target"
   }
  },
  "perish song": {
@@ -1391,11 +1355,10 @@
  },
  "play nice": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "ATK",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "ATK": -1
+   },
+   "type": "debuff_target"
   }
  },
  "poison fang": {
@@ -1407,7 +1370,6 @@
  },
  "poison gas": {
   "effect": {
-   "save": "CON",
    "status": "badly_poisoned",
    "type": "inflict_status"
   }
@@ -1421,7 +1383,6 @@
  },
  "poison powder": {
   "effect": {
-   "save": "CON",
    "status": "badly_poisoned",
    "type": "inflict_status"
   }
@@ -1443,7 +1404,6 @@
  "powder": {
   "effect": {
    "duration": 2,
-   "save": "DEX",
    "stat": "attack_roll",
    "type": "debuff_target",
    "value": -2
@@ -1459,7 +1419,6 @@
  "power split": {
   "effect": {
    "duration": 3,
-   "save": "CON",
    "stat": "ATK",
    "type": "debuff_target",
    "value": -2
@@ -1468,7 +1427,6 @@
  "power swap": {
   "effect": {
    "duration": 3,
-   "save": "CON",
    "stat": "ATK",
    "type": "debuff_target",
    "value": -2
@@ -1503,7 +1461,6 @@
  },
  "psycho shift": {
   "effect": {
-   "save": "WIS",
    "status": "confuso",
    "type": "inflict_status"
   }
@@ -1517,7 +1474,6 @@
  "quash": {
   "effect": {
    "duration": 2,
-   "save": "CON",
    "stat": "SPE",
    "type": "debuff_target",
    "value": -2
@@ -1530,10 +1486,12 @@
  },
  "quiver dance": {
   "effect": {
-   "duration": 3,
-   "stat": "SPA",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "SPA": 1,
+    "SPD": 1,
+    "SPE": 1
+   },
+   "type": "buff_self"
   }
  },
  "rage powder": {
@@ -1594,10 +1552,10 @@
  },
  "rock polish": {
   "effect": {
-   "duration": 3,
-   "stat": "SPE",
-   "type": "buff_self",
-   "value": 4
+   "stats": {
+    "SPE": 2
+   },
+   "type": "buff_self"
   }
  },
  "rock slide": {
@@ -1628,10 +1586,11 @@
  },
  "rototiller": {
   "effect": {
-   "duration": 3,
-   "stat": "ATK",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "ATK": 1,
+    "SPA": 1
+   },
+   "type": "buff_self"
   }
  },
  "sacred fire": {
@@ -1643,11 +1602,10 @@
  },
  "sand attack": {
   "effect": {
-   "duration": 3,
-   "save": "DEX",
-   "stat": "attack_roll",
-   "type": "debuff_target",
-   "value": -3
+   "stats": {
+    "attack_roll": -1
+   },
+   "type": "debuff_target"
   }
  },
  "sandstorm": {
@@ -1666,20 +1624,18 @@
  },
  "scary face": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "SPE",
-   "type": "debuff_target",
-   "value": -3
+   "stats": {
+    "SPE": -2
+   },
+   "type": "debuff_target"
   }
  },
  "screech": {
   "effect": {
-   "duration": 3,
-   "save": "CON",
-   "stat": "DEF",
-   "type": "debuff_target",
-   "value": -3
+   "stats": {
+    "DEF": -2
+   },
+   "type": "debuff_target"
   }
  },
  "searing shot": {
@@ -1697,26 +1653,36 @@
  },
  "sharpen": {
   "effect": {
-   "duration": 3,
-   "stat": "attack_roll",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "ATK": 1
+   },
+   "type": "buff_self"
+  }
+ },
+ "sheer cold": {
+  "effect": {
+   "type": "ohko"
   }
  },
  "shell smash": {
   "effect": {
-   "duration": 3,
-   "stat": "SPE",
-   "type": "buff_self",
-   "value": 3
+   "stats": {
+    "ATK": 2,
+    "DEF": -1,
+    "SPA": 2,
+    "SPD": -1,
+    "SPE": 2
+   },
+   "type": "buff_self"
   }
  },
  "shift gear": {
   "effect": {
-   "duration": 3,
-   "stat": "SPE",
-   "type": "buff_self",
-   "value": 3
+   "stats": {
+    "ATK": 1,
+    "SPE": 2
+   },
+   "type": "buff_self"
   }
  },
  "shore up": {
@@ -1735,7 +1701,6 @@
  "simple beam": {
   "effect": {
    "duration": 3,
-   "save": "CON",
    "stat": "SPA",
    "type": "debuff_target",
    "value": -2
@@ -1743,7 +1708,6 @@
  },
  "sing": {
   "effect": {
-   "save": "WIS",
    "status": "dormindo",
    "type": "inflict_status"
   }
@@ -1756,7 +1720,6 @@
  "skill swap": {
   "effect": {
    "duration": 3,
-   "save": "INT",
    "stat": "attack_roll",
    "type": "debuff_target",
    "value": -2
@@ -1777,7 +1740,6 @@
  },
  "sleep powder": {
   "effect": {
-   "save": "CON",
    "status": "dormindo",
    "type": "inflict_status"
   }
@@ -1812,11 +1774,10 @@
  },
  "smokescreen": {
   "effect": {
-   "duration": 3,
-   "save": "CON",
-   "stat": "attack_roll",
-   "type": "debuff_target",
-   "value": -3
+   "stats": {
+    "attack_roll": -1
+   },
+   "type": "debuff_target"
   }
  },
  "snore": {
@@ -1829,7 +1790,6 @@
  "soak": {
   "effect": {
    "duration": 3,
-   "save": "CON",
    "stat": "DEF",
    "type": "debuff_target",
    "value": -2
@@ -1857,7 +1817,6 @@
  "speed swap": {
   "effect": {
    "duration": 3,
-   "save": "CON",
    "stat": "SPE",
    "type": "debuff_target",
    "value": -2
@@ -1866,7 +1825,6 @@
  "spider web": {
   "effect": {
    "duration": 3,
-   "save": "DEX",
    "stat": "SPE",
    "type": "debuff_target",
    "value": -3
@@ -1887,7 +1845,6 @@
  "spite": {
   "effect": {
    "duration": 2,
-   "save": "WIS",
    "stat": "attack_roll",
    "type": "debuff_target",
    "value": -2
@@ -1901,7 +1858,6 @@
  },
  "spore": {
   "effect": {
-   "save": "CON",
    "status": "dormindo",
    "type": "inflict_status"
   }
@@ -1909,7 +1865,6 @@
  "spotlight": {
   "effect": {
    "duration": 1,
-   "save": "WIS",
    "stat": "AC",
    "type": "debuff_target",
    "value": -2
@@ -1938,7 +1893,6 @@
  "sticky web": {
   "effect": {
    "duration": 5,
-   "save": "DEX",
    "stat": "SPE",
    "type": "debuff_target",
    "value": -2
@@ -1946,10 +1900,11 @@
  },
  "stockpile": {
   "effect": {
-   "duration": 3,
-   "stat": "DEF",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "DEF": 1,
+    "SPD": 1
+   },
+   "type": "buff_self"
   }
  },
  "stomp": {
@@ -1961,39 +1916,34 @@
  },
  "strength sap": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "ATK",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "ATK": -1
+   },
+   "type": "debuff_target"
   }
  },
  "string shot": {
   "effect": {
-   "duration": 3,
-   "save": "DEX",
-   "stat": "SPE",
-   "type": "debuff_target",
-   "value": -3
+   "stats": {
+    "SPE": -2
+   },
+   "type": "debuff_target"
   }
  },
  "stun spore": {
   "effect": {
-   "save": "CON",
    "status": "paralisado",
    "type": "inflict_status"
   }
  },
  "supersonic": {
   "effect": {
-   "save": "WIS",
    "status": "confuso",
    "type": "inflict_status"
   }
  },
  "swagger": {
   "effect": {
-   "save": "WIS",
    "status": "confuso",
    "type": "inflict_status"
   }
@@ -2006,23 +1956,21 @@
  },
  "sweet kiss": {
   "effect": {
-   "save": "WIS",
    "status": "confuso",
    "type": "inflict_status"
   }
  },
  "sweet scent": {
   "effect": {
-   "duration": 2,
-   "stat": "attack_roll",
-   "type": "buff_self",
-   "value": 3
+   "stats": {
+    "AC": -2
+   },
+   "type": "buff_self"
   }
  },
  "switcheroo": {
   "effect": {
    "duration": 2,
-   "save": "WIS",
    "stat": "attack_roll",
    "type": "debuff_target",
    "value": -2
@@ -2030,10 +1978,10 @@
  },
  "swords dance": {
   "effect": {
-   "duration": 3,
-   "stat": "ATK",
-   "type": "buff_self",
-   "value": 4
+   "stats": {
+    "ATK": 2
+   },
+   "type": "buff_self"
   }
  },
  "synthesis": {
@@ -2044,25 +1992,23 @@
  },
  "tail glow": {
   "effect": {
-   "duration": 3,
-   "stat": "SPA",
-   "type": "buff_self",
-   "value": 4
+   "stats": {
+    "SPA": 3
+   },
+   "type": "buff_self"
   }
  },
  "tail whip": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "DEF",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "DEF": -1
+   },
+   "type": "debuff_target"
   }
  },
  "taunt": {
   "effect": {
    "duration": 3,
-   "save": "WIS",
    "stat": "no_status_moves",
    "type": "debuff_target",
    "value": -1
@@ -2070,16 +2016,15 @@
  },
  "tearful look": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "ATK",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "ATK": -1,
+    "SPA": -1
+   },
+   "type": "debuff_target"
   }
  },
  "teeter dance": {
   "effect": {
-   "save": "WIS",
    "status": "confuso",
    "type": "inflict_status"
   }
@@ -2087,7 +2032,6 @@
  "telekinesis": {
   "effect": {
    "duration": 3,
-   "save": "CON",
    "stat": "AC",
    "type": "debuff_target",
    "value": -3
@@ -2128,7 +2072,6 @@
  },
  "thunder wave": {
   "effect": {
-   "save": "CON",
    "status": "paralisado",
    "type": "inflict_status"
   }
@@ -2142,11 +2085,11 @@
  },
  "tickle": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "ATK",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "ATK": -1,
+    "DEF": -1
+   },
+   "type": "debuff_target"
   }
  },
  "topsy-turvy": {
@@ -2158,7 +2101,6 @@
  "torment": {
   "effect": {
    "duration": 3,
-   "save": "WIS",
    "stat": "locked_move",
    "type": "debuff_target",
    "value": -1
@@ -2166,14 +2108,12 @@
  },
  "toxic": {
   "effect": {
-   "save": "CON",
    "status": "badly_poisoned",
    "type": "inflict_status"
   }
  },
  "toxic thread": {
   "effect": {
-   "save": "CON",
    "status": "badly_poisoned",
    "type": "inflict_status"
   }
@@ -2187,7 +2127,6 @@
  "trick": {
   "effect": {
    "duration": 2,
-   "save": "WIS",
    "stat": "attack_roll",
    "type": "debuff_target",
    "value": -2
@@ -2196,7 +2135,6 @@
  "trick room": {
   "effect": {
    "duration": 3,
-   "save": "INT",
    "stat": "SPE",
    "type": "debuff_target",
    "value": -3
@@ -2205,7 +2143,6 @@
  "trick-or-treat": {
   "effect": {
    "duration": 3,
-   "save": "WIS",
    "stat": "DEF",
    "type": "debuff_target",
    "value": -2
@@ -2227,11 +2164,12 @@
  },
  "venom drench": {
   "effect": {
-   "duration": 3,
-   "save": "WIS",
-   "stat": "ATK",
-   "type": "debuff_target",
-   "value": -2
+   "stats": {
+    "ATK": -1,
+    "SPA": -1,
+    "SPE": -1
+   },
+   "type": "debuff_target"
   }
  },
  "volt tackle": {
@@ -2265,7 +2203,6 @@
  },
  "will-o-wisp": {
   "effect": {
-   "save": "DEX",
    "status": "queimado",
    "type": "inflict_status"
   }
@@ -2278,16 +2215,15 @@
  },
  "withdraw": {
   "effect": {
-   "duration": 3,
-   "stat": "DEF",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "DEF": 1
+   },
+   "type": "buff_self"
   }
  },
  "wonder room": {
   "effect": {
    "duration": 3,
-   "save": "INT",
    "stat": "SPD",
    "type": "debuff_target",
    "value": -2
@@ -2295,15 +2231,15 @@
  },
  "work up": {
   "effect": {
-   "duration": 3,
-   "stat": "ATK",
-   "type": "buff_self",
-   "value": 2
+   "stats": {
+    "ATK": 1,
+    "SPA": 1
+   },
+   "type": "buff_self"
   }
  },
  "yawn": {
   "effect": {
-   "save": "CON",
    "status": "dormindo",
    "type": "inflict_status"
   }

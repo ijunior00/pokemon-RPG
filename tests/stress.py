@@ -499,6 +499,102 @@ def main():
     check(S, 'espectador: fim da batalha chega com finished=True',
           any(p['args'][0].get('finished') for p in _spec if p.get('args')))
 
+    # ══════════ 4b. MODO MANUAL (AUTO OFF): mestre conduz wild/NPC ══════════
+    section('4b. Modo manual (AUTO OFF)')
+    S = 'Modo Manual'
+    msio.get_received(); s1.get_received()
+    msio.emit('set_auto_mode', {'enabled': False})
+    _amc = recv(msio, 'auto_mode_changed')
+    check(S, 'toggle OFF re-emite auto_mode_changed',
+          any((p['args'][0] or {}).get('enabled') is False for p in _amc if p.get('args')))
+    # mestre libera novo encontro e o jogador inicia
+    msio.emit('master_action', {'type': 'forced_encounter', 'player_id': u1,
+                                'pokemon': enc['pokemon'], 'level': enc['level'],
+                                'wild_moves': ['Tackle']})
+    recv(msio); s1.get_received()
+    s1.emit('start_encounter', {'pokemon': dict(enc['pokemon'], hp=enc['pokemon'].get('maxHp', enc['pokemon'].get('hp', 30))),
+                                'level': enc['level'], 'is_shiny': False, 'route_id': 'route1',
+                                'player_pokemon': 'Charmander', 'player_pokemon_idx': 0,
+                                'wild_moves': ['Tackle']})
+    recv(s1)
+    check(S, 'com AUTO OFF a iniciativa NÃO rola sozinha',
+          not gstate()['active_encounters'][u1]['battle_state'].get('initiative_rolled'))
+    # mestre rola a iniciativa manualmente
+    msio.get_received(); s1.get_received()
+    msio.emit('roll_initiative', {'player_id': u1})
+    _init = recv(s1, 'initiative_result')
+    check(S, 'initiative_result (manual) chega ao jogador com wild_auto=False',
+          any((p['args'][0] or {}).get('wild_auto') is False for p in _init if p.get('args')))
+    # força o turno do selvagem para testar o gate
+    _gs = gstate()
+    _bsm = _gs['active_encounters'][u1]['battle_state']
+    _bsm['turn'] = 'wild'
+    db.save_game_state(_gs, TID)
+    _hp_antes = _bsm['player_hp_current']
+    # JOGADOR tenta conduzir o selvagem (é o que o cliente antigo fazia) → bloqueado
+    s1.get_received()
+    s1.emit('battle_action', {'action_by': 'master', 'action_type': 'attack',
+                              'move_name': 'Tackle', 'damage': 50})
+    _blk = recv(s1, 'action_blocked')
+    check(S, 'ação de selvagem vinda do JOGADOR é bloqueada no modo manual',
+          any((p['args'][0] or {}).get('manual_wild') for p in _blk if p.get('args')))
+    _bsm2 = gstate()['active_encounters'][u1]['battle_state']
+    check(S, 'HP e turno intactos após o bloqueio',
+          _bsm2['player_hp_current'] == _hp_antes and _bsm2['turn'] == 'wild')
+    # MESTRE conduz: dano forjado (999) é ignorado — o v3 recalcula no servidor
+    msio.get_received()
+    msio.emit('battle_action', {'player_id': u1, 'action_by': 'master',
+                                'action_type': 'attack', 'move_name': 'Tackle',
+                                'damage': 999})
+    _upd = [p['args'][0] for p in recv(msio, 'battle_update') if p.get('args')]
+    _mup = next((u for u in _upd if u.get('server_calc')), None)
+    check(S, 'ataque do mestre é recalculado no motor v3 (server_calc)', _mup is not None)
+    _bsm3 = gstate()['active_encounters'][u1]['battle_state']
+    check(S, 'dano aplicado é do motor, não o forjado',
+          (_mup or {}).get('damage') != 999 and _hp_antes - _bsm3['player_hp_current'] < 999)
+    check(S, 'battle_update carrega wild_auto=False',
+          (_mup or {}).get('wild_auto') is False)
+    check(S, 'turno voltou ao jogador após a ação do mestre', _bsm3['turn'] == 'player')
+    s1.emit('end_encounter', {'result': 'fled'}); recv(s1)
+
+    # NPC também respeita o modo manual: IA não age; mestre usa Forçar Ação
+    r = m.post('/master/npcs/generate', json={'npc_class': 'Trainer', 'level': 12, 'team_size': 1})
+    _npcm = r.get_json()
+    for q in _npcm['team']:
+        q['moves'] = ['Tackle']
+    db.save_npc(_npcm, TID)
+    s1.get_received(); msio.get_received()
+    s1.emit('pvp_challenge', {'target_id': _npcm['id'], 'mode': 'street'})
+    _cr = recv(s1, 'pvp_battle_created')
+    _bidm = _cr[0]['args'][0]['battle_id'] if _cr else None
+    check(S, 'desafio a NPC criado (modo manual)', _bidm is not None)
+    if _bidm:
+        s1.emit('pvp_select_pokemon', {'battle_id': _bidm, 'pokemon_idx': 0}); recv(s1)
+        _btm = appmod.ACTIVE_PVP.get(_bidm)
+        _npck = 'player2' if _btm['player2'].get('is_npc') else 'player1'
+        _plk = 'player1' if _npck == 'player2' else 'player2'
+        # se o jogador começa, ataca uma vez para passar o turno ao NPC
+        if _btm['turn'] == _plk:
+            _pk = _btm[_plk]['team'][_btm[_plk]['active_idx']]
+            s1.emit('pvp_attack', {'battle_id': _bidm, 'move_name': dmg_move(_pk),
+                                   'attack_roll': random.randint(1, 20)})
+            recv(s1)
+        check(S, 'NPC NÃO age sozinho no modo manual (turno preso no NPC)',
+              _btm['turn'] == _npck and _btm['phase'] == 'battle')
+        check(S, 'mestre é avisado (npc_awaiting_master)',
+              bool(recv(msio, 'npc_awaiting_master')))
+        check(S, 'log da batalha registra a espera pelo mestre',
+              any('aguardando o Mestre' in (e.get('message') or '') for e in _btm['log']))
+        # Forçar Ação destrava: a IA joga UMA vez a mando do mestre
+        msio.emit('master_force_npc_action', {'battle_id': _bidm, 'player_key': _npck})
+        recv(msio)
+        check(S, 'Forçar Ação do mestre faz o NPC agir', _btm['turn'] == _plk
+              or _btm['phase'] != 'battle')
+        appmod.ACTIVE_PVP.pop(_bidm, None)
+    # religa o AUTO para o resto da suíte
+    msio.emit('set_auto_mode', {'enabled': True}); recv(msio)
+    check(S, 'AUTO religado', db.get_game_state(TID).get('wild_auto_mode') is True)
+
     # Habilidade do ATACANTE (Poison Touch) envenena o alvo no contato físico.
     pt_procs = sum(1 for _ in range(400)
                    if (appmod.ab.check_attacker_contact_ability('Poison Touch') or {}).get('status') == 'badly_poisoned')
@@ -2142,6 +2238,97 @@ def main():
                                      dict(_lax['stats'], level=50, currentHp=120))
     check(S, 'Sunny Day resolve para efeito de campo (sol)',
           rrd.get('effect_type') == 'field' and rrd.get('field_value') == 'sun')
+
+    # ══════════ COOLDOWN DE SUSTAIN (dreno / cura instantânea) ══════════
+    section('Cooldown de dreno/cura instantânea')
+    S = 'Sustain/Recarga'
+    check(S, 'Giga Drain (POW 75, dreno) → recarga 1', appmod.bm_core.v3_move_cooldown(75, 50) == 1)
+    check(S, 'Absorb (POW 20, dreno) → recarga 1', appmod.bm_core.v3_move_cooldown(20, 50) == 1)
+    check(S, 'Dream Eater (POW 100, dreno) → recarga 2', appmod.bm_core.v3_move_cooldown(100, 50) == 2)
+    check(S, 'POW 90 sem dreno segue a Tabela Mestra (1)', appmod.bm_core.v3_move_cooldown(90, 0) == 1)
+    check(S, 'Hyper Beam (150) mantém recarga 3', appmod.bm_core.v3_move_cooldown(150, 0) == 3)
+    check(S, 'cura de metade/total → recarga 2; um quarto → 1',
+          appmod.bm_core.v3_heal_cooldown('half') == 2 and appmod.bm_core.v3_heal_cooldown('full') == 2
+          and appmod.bm_core.v3_heal_cooldown('quarter') == 1)
+    # detecção pela MECÂNICA (drain canônico), sem lista fixa
+    check(S, 'dreno detectado no dado canônico (giga drain: drain>0)',
+          int(appmod.canon_move('giga drain').get('drain') or 0) > 0)
+    # fluxo real: usar → bloquear → outro golpe destrava
+    _susA = make_poke('Venusaur', 30)
+    _susD = make_poke('Snorlax', 30)
+    _r1 = appmod._calc_attack_core(_susA, _susD, 'Giga Drain')
+    check(S, 'Giga Drain conecta e anuncia recarga 1',
+          _r1.get('cooldown') == 1 and _susA['_v3']['cooldowns'].get('giga drain') == 1)
+    _r2 = appmod._calc_attack_core(_susA, _susD, 'Giga Drain')
+    check(S, 'reuso imediato é BLOQUEADO (não cicla cura todo turno)',
+          _r2.get('blocked') is True)
+    _r3 = appmod._calc_attack_core(_susA, _susD, 'Vine Whip')
+    check(S, 'outro golpe passa e a recarga expira (1 ação = 1 rodada)',
+          _r3.get('hit') and 'giga drain' not in _susA['_v3']['cooldowns'])
+    # cura instantânea de status (Recover): recarga 2, bloqueio sem consumir
+    _v3h = {}
+    _md_rec = appmod.MOVES_BY_NAME.get('recover') or {'name': 'Recover'}
+    _h1 = appmod.effects.process_status_move(_md_rec, {'maxHp': 100, '_v3': _v3h}, {})
+    check(S, 'Recover cura metade e entra em recarga 2',
+          _h1.get('heal') == 50 and _h1.get('cooldown') == 2)
+    _h2 = appmod.effects.process_status_move(_md_rec, {'maxHp': 100, '_v3': _v3h}, {})
+    check(S, 'Recover em recarga é bloqueado com a mensagem canônica',
+          _h2.get('blocked') is True and 'recarga' in _h2.get('message', ''))
+    # exceção: cura GRADUAL não ganha recarga (Leech Seed é condição por turno)
+    _md_ls = appmod.MOVES_BY_NAME.get('leech seed') or {'name': 'Leech Seed'}
+    _dls = appmod.effects.auto_detect_move_effect(_md_ls)
+    check(S, 'exceção: Leech Seed (gradual) não é heal_self',
+          (_dls or {}).get('type') != 'heal_self')
+    # IA: selvagem/NPC não escolhe golpe em recarga
+    _susA['_v3']['cooldowns']['giga drain'] = 2
+    _susA['moves'] = ['Giga Drain', 'Vine Whip']
+    _pick = appmod._npc_pick_move(_susA, _susD)
+    check(S, 'IA evita golpe em recarga na escolha', _pick[0].lower() != 'giga drain')
+
+    # ══════════ MIGRAÇÃO 5e→v3 DOS MOVES (Curse, estágios canônicos, d100) ══════════
+    section('Migração 5e→v3 dos moves')
+    S = 'Migração 5e→v3'
+    _mdc = appmod.MOVES_BY_NAME.get('curse') or {'name': 'Curse'}
+    _cg = appmod.effects.process_status_move(_mdc, {'maxHp': 100, 'types': ['Ghost'], '_v3': {}}, {})
+    check(S, 'Curse (Fantasma): amaldiçoa o alvo e sacrifica ⌊HPmáx/2⌋',
+          _cg.get('status_applied') == 'amaldicoado' and _cg.get('self_damage') == 50)
+    _cn = appmod.effects.process_status_move(_mdc, {'maxHp': 100, 'types': ['Water'], '_v3': {}}, {})
+    check(S, 'Curse (não-Fantasma): +1 ATK, +1 DEF, −1 SPE',
+          _cn.get('stat_changes') == {'ATK': 1, 'DEF': 1, 'SPE': -1})
+    _ok5, _dmg5, _msgs5, _rem5 = appmod.effects.process_turn_start(
+        {'condition': 'amaldicoado', 'turns_active': 1}, 100)
+    check(S, 'maldição tica ⌊HPmáx/4⌋ por rodada', _dmg5 == 25)
+    # estágios canônicos multi-stat (Bulbapedia/pokemondb)
+    for _mv5, _esp5 in (('dragon dance', {'ATK': 1, 'SPE': 1}),
+                        ('calm mind', {'SPA': 1, 'SPD': 1}),
+                        ('swords dance', {'ATK': 2}),
+                        ('shell smash', {'ATK': 2, 'SPA': 2, 'SPE': 2, 'DEF': -1, 'SPD': -1})):
+        _r5 = appmod.effects.process_status_move(
+            appmod.MOVES_BY_NAME.get(_mv5), {'maxHp': 100, '_v3': {}}, {})
+        check(S, f'{_mv5}: estágios canônicos', _r5.get('stat_changes') == _esp5,
+              str(_r5.get('stat_changes')))
+    # dormir/congelar resolvem por d100 (Pokémon nunca rola d20)
+    _slept = appmod.effects.process_turn_start({'condition': 'dormindo', 'turns_active': 1}, 100)
+    check(S, 'checagem de acordar usa d100', any('d100' in m for m in _slept[2]))
+    check(S, 'nenhuma mensagem de status usa d20', not any('d20' in m for m in _slept[2]))
+    # Sheer Cold virou OHKO (como Fissure/Guillotine/Horn Drill)
+    _sc5 = appmod.effects.auto_detect_move_effect(appmod.MOVES_BY_NAME.get('sheer cold'))
+    check(S, 'Sheer Cold é OHKO (não congelamento)', (_sc5 or {}).get('type') == 'ohko')
+    # AUDITORIA AUTOMÁTICA: zero resíduo 5e nos dados e no motor de efeitos
+    import re as _re5
+    import json as _json5
+    _t5e = _re5.compile(r'CD ?\d+|[Ss]alvaguarda|Sabedoria|Constituição|Destreza|Carisma|d20|proficiência|DC ?\d+')
+    _sujos = [n for n, m in (appmod.MOVES_DB or {}).items()
+              if isinstance(m, dict) and _t5e.search(str(m.get('description', '')))]
+    check(S, 'nenhuma descrição de move com termos 5e', not _sujos, str(_sujos[:6]))
+    _mfx5 = _json5.load(open('server/data/move_effects.json'))
+    _saves5 = [n for n, v in _mfx5.items()
+               if isinstance((v or {}).get('effect'), dict) and 'save' in v['effect']]
+    check(S, "nenhum campo 'save' (5e) no move_effects.json", not _saves5, str(_saves5[:6]))
+    _src5 = open('status_effects.py').read()
+    check(S, "nenhum campo 'save' nas tabelas do motor", "'save':" not in _src5)
+    check(S, 'único d20 do motor de efeitos é a Resistência v3 do OHKO',
+          _src5.count('randint(1, 20)') <= 1)
 
     # ────────────────────────── RELATÓRIO ──────────────────────────
     print('\n' + '═' * 62)

@@ -327,11 +327,12 @@ def _v3_cooldown_left(poke, move_name):
     return int((st.get('cooldowns') or {}).get((move_name or '').lower(), 0))
 
 
-def _v3_register_use(st, move_lower, power):
+def _v3_register_use(st, move_lower, power, drain=0):
     """Registra o uso de um golpe: decrementa cooldowns (1 ação = 1 rodada do
     lado), atualiza momentum (+1 se variou, zera se repetiu; 1º golpe = 0) e
     streak (adaptação: 3ª repetição consecutiva → defensor +2). Retorna
-    (momentum_deste_ataque, adapt_bonus_contra_este_ataque)."""
+    (momentum_deste_ataque, adapt_bonus_contra_este_ataque).
+    `drain` (canônico > 0) entra na recarga de sustain (v3_move_cooldown)."""
     cds = st['cooldowns']
     for k in list(cds):
         cds[k] -= 1
@@ -352,7 +353,7 @@ def _v3_register_use(st, move_lower, power):
         st['momentum'] = min(bm_core.V3_MOMENTUM_MAX, st['momentum'] + 1)
     st['last_move'] = move_lower
     adapt = 2 if st['streak'] >= 3 else 0
-    cd = bm_core.v3_cooldown(power) if power else 0
+    cd = bm_core.v3_move_cooldown(power, drain) if power else 0
     if cd:
         cds[move_lower] = cd
     return st['momentum'], adapt
@@ -410,6 +411,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     canon = canon_move(move_name)
     power = canon.get('power') or bm_core.VARIABLE_POWER.get(move_name.lower())
     accuracy = canon.get('accuracy')
+    canon_drain = int(canon.get('drain') or 0)   # >0 = dreno (sustain → recarga)
 
     # ── F5: clima/terreno da batalha ajustam ACC e dados ──
     fld = field or {}
@@ -460,7 +462,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
         st.pop('charging', None)       # trocou de golpe — perde a carga
         st.pop('invulnerable', None)
 
-    _mom, _adapt = _v3_register_use(st, ml, power)
+    _mom, _adapt = _v3_register_use(st, ml, power, canon_drain)
     if momentum is None:
         momentum = _mom
     if adapt_bonus is None:
@@ -474,7 +476,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
         return {'hit': False, 'damage': 0, 'protected': True,
                 'message': f'{met}{dname} se protegeu!',
                 'attack_roll': 0, 'move_type_en': move_type_en,
-                'cooldown': bm_core.v3_cooldown(power) if power else 0,
+                'cooldown': bm_core.v3_move_cooldown(power, canon_drain) if power else 0,
                 'log': f'{met}🛡️ <strong>{dname}</strong> se PROTEGEU — o golpe foi bloqueado!'}
 
     # ── F5: Psychic Terrain bloqueia golpes de PRIORIDADE (+1 ou mais)
@@ -487,7 +489,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
             return {'hit': False, 'damage': 0,
                     'message': f'{met}O Psychic Terrain bloqueou o golpe de prioridade!',
                     'attack_roll': 0, 'move_type_en': move_type_en,
-                    'cooldown': bm_core.v3_cooldown(power) if power else 0,
+                    'cooldown': bm_core.v3_move_cooldown(power, canon_drain) if power else 0,
                     'log': f'{met}🔮 <strong>Psychic Terrain</strong> protege o alvo '
                            f'contra golpes de prioridade — {move_name} falhou!'}
 
@@ -500,7 +502,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
         return {'hit': False, 'damage': 0,
                 'message': f'{met}{dname} está {d_invuln} — fora de alcance!',
                 'attack_roll': 0, 'move_type_en': move_type_en,
-                'cooldown': bm_core.v3_cooldown(power) if power else 0,
+                'cooldown': bm_core.v3_move_cooldown(power, canon_drain) if power else 0,
                 'log': f'{met}🕳️ <strong>{dname}</strong> está {d_invuln} — '
                        f'{move_name} não alcança!'}
 
@@ -517,7 +519,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
         return {'hit': True, 'damage': 0, 'is_crit': False,
                 'message': f'{met}O alvo é IMUNE (0x)',
                 'attack_roll': 0, 'move_type_en': move_type_en,
-                'outcome': 'immune', 'cooldown': bm_core.v3_cooldown(power) if power else 0,
+                'outcome': 'immune', 'cooldown': bm_core.v3_move_cooldown(power, canon_drain) if power else 0,
                 'log': f'{met}⛔ IMUNE (0x) — {move_name} não afeta o alvo = <strong>0 dano</strong>'}
 
     # ── Camada 1: PRECISÃO (d100 vs ACC efetivo; certeiro conecta sempre) ──
@@ -671,7 +673,6 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
         dmg = bm_core.v3_certeiro_mult(dmg)
 
     # ── F5: recoil (⌊dano÷3⌋) e dreno (⌊dano÷2⌋) — o handler aplica no HP ──
-    canon_drain = int(canon.get('drain') or 0)
     recoil = bm_core.v3_recoil(dmg, canon_drain)
     drain_heal = bm_core.v3_drain_heal(dmg, canon_drain)
 
@@ -744,7 +745,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
             'is_crit': is_crit, 'log': log, 'outcome': outcome,
             'recoil': recoil, 'drain_heal': drain_heal,
             'self_status': self_status, 'self_ko': self_ko,
-            'cooldown': bm_core.v3_cooldown(power)}
+            'cooldown': bm_core.v3_move_cooldown(power, canon_drain)}
 
 
 def _field_of(container):
@@ -3926,9 +3927,19 @@ def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data
              proficiency=actor['pokemon'].get('proficiency',
                                               _prof_for_level(actor['pokemon'].get('level', 1))),
              maxHp=actor['maxHp'], currentHp=max(0, actor['hp']),
+             types=actor['pokemon'].get('types'),
              _v3=_v3_side_state(actor['pokemon'])),   # Protect: corrente/flag no dict real
         dict(target['pokemon'].get('stats', {}), level=target['pokemon'].get('level', 1),
              currentHp=max(0, target['hp'])))
+    # custo pago pelo próprio usuário (Curse fantasma: ⌊HPmáx/2⌋, nunca desmaia)
+    if result.get('self_damage') and result.get('effect_type') != 'fixed_damage':
+        actor['hp'] = max(1, actor['hp'] - int(result['self_damage']))
+    # v3: cura instantânea em recarga — não consome o turno (o ator escolhe
+    # outro golpe; a IA dos selvagens já evita moves em recarga na escolha)
+    if result.get('blocked'):
+        battle['log'].append({'type': 'info',
+                              'message': f"⏳ {actor['name']}: {result.get('message', move_name + ' em recarga')}"})
+        return
     # F5: clima/terreno de campo (Rain Dance, Grassy Terrain...)
     if result.get('effect_type') == 'field':
         _field_apply(battle, result.get('field_kind'), result.get('field_value'),
@@ -5456,13 +5467,35 @@ def api_process_status_move():
     move_name = data.get('move_name', '')
     attacker_stats = data.get('attacker_stats', {})
     target_stats = data.get('target_stats', {})
-    
+    side = data.get('side', 'player')   # 'player' | 'wild' (quem usa o move)
+
     # Get move data from database
     move_data = MOVES_DB.get(move_name) or MOVES_BY_NAME.get(move_name.lower())
     if not move_data:
         return jsonify({'success': False, 'message': f'Move {move_name} não encontrado'})
-    
-    result = effects.process_status_move(move_data, attacker_stats, target_stats)
+
+    # v3: recarga de cura instantânea vive no estado da batalha ativa — anexa
+    # o _v3 do lado que age (e persiste, senão a recarga evaporava no save).
+    game_state = get_game_state()
+    encounter = (game_state.get('active_encounters') or {}).get(str(current_user.id))
+    side_poke = None
+    if encounter:
+        side_poke = (encounter.get('pokemon') if side == 'wild'
+                     else encounter.get('player_pokemon'))
+    if isinstance(side_poke, dict):
+        attacker_stats = dict(attacker_stats, _v3=_v3_side_state(side_poke),
+                              types=side_poke.get('types'))
+        result = effects.process_status_move(move_data, attacker_stats, target_stats)
+        # custo pago pelo próprio usuário (Curse fantasma) — aplicado AQUI no
+        # estado autoritativo (o tick do cliente é clampado a ¼ e não serve)
+        if result.get('self_damage') and result.get('effect_type') != 'fixed_damage':
+            bs = encounter.get('battle_state') or {}
+            hp_key = 'wild_hp_current' if side == 'wild' else 'player_hp_current'
+            if hp_key in bs:
+                bs[hp_key] = max(1, int(bs[hp_key]) - int(result['self_damage']))
+        save_game_state(game_state)
+    else:
+        result = effects.process_status_move(move_data, attacker_stats, target_stats)
     return jsonify(result)
 
 @app.route('/player/pokedex/register', methods=['POST'])
@@ -5524,6 +5557,10 @@ def handle_set_auto_mode(data):
         state = get_game_state()
         state['wild_auto_mode'] = bool(data.get('enabled', True))
         save_game_state(state)
+        # Avisa a mesa inteira — vale imediatamente em batalhas em andamento
+        payload = {'enabled': state['wild_auto_mode']}
+        emit('auto_mode_changed', payload, room=f'players_{_tid()}')
+        emit('auto_mode_changed', payload, room=f'master_{_tid()}')
         print(f"[AUTO MODE] mesa={_tid()} {'ON' if state['wild_auto_mode'] else 'OFF'}")
 
 @socketio.on('connect')
@@ -5705,6 +5742,7 @@ def handle_initiative(data):
         'first_turn': first_turn,
         'on_enter_abilities': on_enter_msgs,
         'weather': encounter['battle_state'].get('weather'),
+        'wild_auto': _wild_auto_mode(game_state),
     }
 
     emit('initiative_result', result, room=f'master_{_tid()}')
@@ -5838,6 +5876,17 @@ def handle_battle_action(data):
             if battle_state.get('turn') and battle_state['turn'] != expected:
                 return
 
+        # Modo MANUAL (auto OFF): o turno do selvagem pertence ao MESTRE.
+        # O cliente do jogador dispara o auto-attack por conta própria — aqui
+        # o servidor descarta essa ação para o mestre poder conduzir.
+        if (action_type != 'apply_status' and action_by == 'master'
+                and current_user.role != 'master'
+                and not _wild_auto_mode(game_state)):
+            emit('action_blocked', {
+                'manual_wild': True,
+                'message': '🎭 Modo manual: aguarde o Mestre jogar o turno do selvagem.'})
+            return
+
         action_log = None
         server_calc = None  # populated when server recalculates attack
 
@@ -5866,9 +5915,19 @@ def handle_battle_action(data):
                     move_data or {'name': move_name},
                     dict(ppoke.get('stats', {}), level=ppoke.get('level', 1),
                          proficiency=ppoke.get('proficiency', _prof_for_level(ppoke.get('level', 1))),
-                         maxHp=ppoke.get('maxHp', 20),
+                         maxHp=ppoke.get('maxHp', 20), types=ppoke.get('types'),
                          _v3=_v3_side_state(ppoke)),   # Protect: corrente/flag no dict real
                     dict(wpoke.get('stats', {}), level=wpoke.get('level', encounter.get('level', 5))))
+                # v3: cura instantânea em recarga — não consome o turno
+                if sres.get('blocked'):
+                    emit('action_blocked', {'message': sres.get('message'),
+                                            'move_name': move_name,
+                                            'cooldown_left': sres.get('cooldown_left')})
+                    return
+                # custo pago pelo próprio usuário (Curse fantasma: ⌊HPmáx/2⌋)
+                if sres.get('self_damage'):
+                    battle_state['player_hp_current'] = max(
+                        1, battle_state['player_hp_current'] - int(sres['self_damage']))
                 action_log = sres.get('message', '')
                 message = sres.get('message', message)
                 # F5: clima/terreno de campo (Rain Dance, Grassy Terrain...)
@@ -5922,14 +5981,56 @@ def handle_battle_action(data):
             if server_calc.get('self_ko'):
                 battle_state['player_hp_current'] = 0
 
-        # Turno do SELVAGEM conduzido pelo cliente do jogador (modo AUTO):
-        # recalcula o dano no servidor — o cliente não é autoridade sobre o
-        # quanto o inimigo bate (fechava o cheat de "selvagem dá dano 0").
-        # Se o MESTRE conduz manualmente, mantém o valor enviado por ele.
-        if (action_type == 'attack' and action_by == 'master' and move_name
-                and current_user.role != 'master'):
+        # Turno do SELVAGEM: recalculado SEMPRE no servidor (motor v3) — tanto
+        # no modo AUTO (cliente do jogador conduz) quanto no manual (mestre
+        # escolhe o golpe). Cliente nenhum é autoridade sobre o dano.
+        if action_type == 'attack' and action_by == 'master' and move_name:
             wild_calc = _calc_wild_attack(encounter, move_name, None)   # v3: servidor rola o d100
-            if not wild_calc.get('is_status'):
+            if wild_calc.get('is_status') and current_user.role == 'master':
+                # Mestre escolheu um golpe de STATUS do selvagem: processa no
+                # motor (espelho do backstop do ataque do jogador acima).
+                damage = 0
+                move_data = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name)
+                ppoke = encounter.get('player_pokemon') or {}
+                wpoke = encounter.get('pokemon') or {}
+                sres = effects.process_status_move(
+                    move_data or {'name': move_name},
+                    dict(wpoke.get('stats', {}), level=wpoke.get('level', encounter.get('level', 5)),
+                         maxHp=battle_state.get('wild_hp_max', 20), types=wpoke.get('types'),
+                         _v3=_v3_side_state(wpoke)),
+                    dict(ppoke.get('stats', {}), level=ppoke.get('level', 1)))
+                # v3: cura do selvagem em recarga — avisa o mestre, turno fica
+                if sres.get('blocked'):
+                    emit('action_blocked', {'message': sres.get('message'),
+                                            'move_name': move_name,
+                                            'cooldown_left': sres.get('cooldown_left')})
+                    return
+                # custo pago pelo próprio selvagem (Curse fantasma)
+                if sres.get('self_damage'):
+                    battle_state['wild_hp_current'] = max(
+                        1, battle_state['wild_hp_current'] - int(sres['self_damage']))
+                action_log = sres.get('message', '')
+                message = sres.get('message', message)
+                server_calc = {'is_status': True, 'log': action_log, 'message': message}
+                if sres.get('effect_type') == 'field':
+                    _field_apply(battle_state, sres.get('field_kind'),
+                                 sres.get('field_value'), sres.get('duration'))
+                if (sres.get('status_applied')
+                        and not battle_state.get('player_status')
+                        and not effects.type_blocks_status(
+                            ppoke.get('types'), sres['status_applied'])):
+                    battle_state['player_status'] = {
+                        'condition': sres['status_applied'], 'turns_active': 0}
+                if sres.get('heal'):
+                    battle_state['wild_hp_current'] = min(
+                        battle_state['wild_hp_max'],
+                        battle_state['wild_hp_current'] + sres['heal'])
+                if sres.get('stat_changes'):
+                    tgt = ppoke if sres.get('effect_type') == 'debuff' else wpoke
+                    effects.apply_stat_changes(tgt, sres['stat_changes'])
+                    battle_state['wild_stat_stages'] = wpoke.get('stat_stages')
+                    battle_state['player_stat_stages'] = ppoke.get('stat_stages')
+            elif not wild_calc.get('is_status'):
                 damage = wild_calc.get('damage', 0)
                 move_type = wild_calc.get('move_type_en', move_type)
                 server_calc = wild_calc
@@ -6187,6 +6288,7 @@ def handle_battle_action(data):
             'server_calc': server_calc,  # full server-side calc details for client log
             'field_events': field_events,   # F5: chip de clima/cura/expiração
             'field': _field_of(battle_state),
+            'wild_auto': _wild_auto_mode(game_state),
         }
         
         # Notify both sides
@@ -6238,8 +6340,9 @@ def _auto_roll_initiative(player_id, game_state):
         'first_turn': first_turn,
         'on_enter_abilities': [],
         'weather': None,
+        'wild_auto': True,   # esta função só roda no modo AUTO
     }
-    
+
     socketio.emit('initiative_result', result, room=f'master_{_tid()}')
     socketio.emit('initiative_result', result, room=player_id)
     
@@ -7063,7 +7166,7 @@ def handle_master_force_npc_select(data):
             socketio.emit('pvp_battle_state', state, room=battle[opponent_key]['id'])
         _emit_pvp_to_master(battle, 'battle_started')
         if battle[battle['turn']].get('is_npc'):
-            handle_npc_turn(battle, battle['turn'])
+            handle_npc_turn(battle, battle['turn'], forced=True)
     else:
         _emit_pvp_to_master(battle, 'update')
     emit('master_force_npc_result', {'message': f'✅ NPC selecionou Pokémon!'})
@@ -7082,7 +7185,7 @@ def handle_master_force_npc(data):
         return
     if player_key not in ('player1', 'player2'):
         return
-    handle_npc_turn(battle, player_key)
+    handle_npc_turn(battle, player_key, forced=True)
     emit('master_force_npc_result', {'message': f'⚡ Ação forçada para {player_key}!'})
 
 
@@ -7282,11 +7385,30 @@ def _process_pvp_status_move(battle, attacker_key, move_name, move_data):
         move_data or {'name': move_name},
         dict(att_poke.get('stats', {}), level=att_poke.get('level', 1),
              proficiency=att_poke.get('proficiency', _prof_for_level(att_poke.get('level', 1))),
-             maxHp=att_poke.get('maxHp', 20),
+             maxHp=att_poke.get('maxHp', 20), types=att_poke.get('types'),
              currentHp=max(0, pvp._poke_hp(att_poke)),
              _v3=_v3_side_state(att_poke)),   # Protect: corrente/flag no dict real
         dict(def_poke.get('stats', {}), level=def_poke.get('level', 1),
              currentHp=max(0, pvp._poke_hp(def_poke))))
+
+    # custo pago pelo próprio usuário (Curse fantasma: ⌊HPmáx/2⌋, nunca desmaia)
+    if result.get('self_damage') and result.get('effect_type') != 'fixed_damage':
+        att_poke['currentHp'] = max(1, pvp._poke_hp(att_poke) - int(result['self_damage']))
+
+    # v3: cura instantânea em recarga — humano NÃO consome o turno (escolhe
+    # outro golpe); NPC (IA) perde a ação e o turno avança (hesitou).
+    if result.get('blocked'):
+        if battle[attacker_key].get('is_npc'):
+            battle['log'].append({'type': 'info',
+                                  'message': f'⏳ {move_name} em recarga — o NPC hesitou!'})
+            pvp.advance_turn(battle)
+            _broadcast_pvp_state(battle)
+        else:
+            socketio.emit('pvp_error', {
+                'battle_id': battle['id'],
+                'message': f'⏳ {result.get("message", move_name + " em recarga")}'
+            }, room=battle[attacker_key]['id'])
+        return result
 
     # Teleport em batalha de treinador falha (canon gens 1-7) — mensagem clara.
     if result.get('effect_type') == 'flee':
@@ -7384,8 +7506,21 @@ def _process_pvp_status_move(battle, attacker_key, move_name, move_data):
     return result
 
 
-def handle_npc_turn(battle, npc_key):
-    """Handle NPC's automatic turn (status próprio, escolha de move, ação)."""
+def handle_npc_turn(battle, npc_key, forced=False):
+    """Handle NPC's automatic turn (status próprio, escolha de move, ação).
+    forced=True: disparado pelo MESTRE (Forçar Ação) — ignora o modo manual."""
+    # Modo MANUAL (auto OFF): a IA do NPC não joga sozinha — o mestre conduz
+    # pelo "Forçar Ação" (master_force_npc_action).
+    if not forced and not _wild_auto_mode():
+        battle['log'].append({'type': 'info',
+                              'message': '🎭 Modo manual: NPC aguardando o Mestre (Forçar Ação).'})
+        _broadcast_pvp_state(battle)
+        socketio.emit('npc_awaiting_master', {
+            'battle_id': battle.get('id'), 'npc_key': npc_key,
+            'message': '🤖 NPC aguardando ação do Mestre (modo manual).'
+        }, room=f'master_{_tid()}')
+        return
+
     defender_key = 'player2' if npc_key == 'player1' else 'player1'
 
     npc_side  = battle[npc_key]

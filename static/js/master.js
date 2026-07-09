@@ -61,12 +61,14 @@ function statusLabel(key) {
     return key ? (STATUS_DISPLAY[key] || key) : '';
 }
 
-// Auto mode state
-let wildAutoMode = true;
+// Auto mode state — o template renderiza o valor persistido no checkbox;
+// lê de lá no boot (antes o JS assumia sempre true após um reload)
+let wildAutoMode = document.getElementById('wild-auto-mode')
+    ? document.getElementById('wild-auto-mode').checked : true;
 
-function toggleAutoMode(enabled) {
-    wildAutoMode = enabled;
+function _paintAutoModeLabel(enabled) {
     const label = document.getElementById('auto-mode-label');
+    if (!label) return;
     if (enabled) {
         label.textContent = '🤖 AUTO: ON — Wild/NPC atacam sozinhos';
         label.style.color = 'var(--success)';
@@ -74,9 +76,27 @@ function toggleAutoMode(enabled) {
         label.textContent = '🎮 MANUAL: OFF — Mestre controla Wild/NPC';
         label.style.color = 'var(--warning)';
     }
+}
+
+function toggleAutoMode(enabled) {
+    wildAutoMode = enabled;
+    _paintAutoModeLabel(enabled);
     // Notify server
     socket.emit('set_auto_mode', { enabled });
 }
+
+// Eco do servidor (confirma a troca e sincroniza outras abas do mestre)
+socket.on('auto_mode_changed', (data) => {
+    wildAutoMode = !!data.enabled;
+    const cb = document.getElementById('wild-auto-mode');
+    if (cb) cb.checked = wildAutoMode;
+    _paintAutoModeLabel(wildAutoMode);
+});
+
+// NPC em modo manual aguardando o mestre (Forçar Ação na aba PvP/NPC)
+socket.on('npc_awaiting_master', (data) => {
+    showNotification(data.message || '🤖 NPC aguardando ação do Mestre.', 'info');
+});
 
 // ============================================
 // ENCOUNTERS - MASTER BATTLE CONTROL
@@ -125,14 +145,21 @@ socket.on('battle_update', (data) => {
     if (wildHpText) wildHpText.textContent = `${bs.wild_hp_current}/${bs.wild_hp_max}`;
     if (playerHpText) playerHpText.textContent = `${bs.player_hp_current}/${bs.player_hp_max}`;
     
-    // Log the action
+    // Log the action — com o cálculo v3 do servidor, mostra o log das 3
+    // camadas (precisão → dano → resistência); senão, o resumo antigo
     if (log) {
         const who = data.action_by === 'player' ? '🟢 Jogador' : '🔴 Selvagem';
-        let msg = `${who} usou <strong>${data.move_name}</strong>`;
-        if (data.damage > 0) msg += ` → <strong>${data.damage} de dano!</strong>`;
-        if (data.heal > 0) msg += ` → curou ${data.heal} HP!`;
-        if (data.status_effect) msg += ` → aplicou <strong>${statusLabel(data.status_effect)}</strong>!`;
-        if (data.message) msg += ` <em>(${data.message})</em>`;
+        const v3log = data.action_log || (data.server_calc && data.server_calc.log);
+        let msg;
+        if (v3log) {
+            msg = `${who} — ${v3log}`;
+        } else {
+            msg = `${who} usou <strong>${data.move_name}</strong>`;
+            if (data.damage > 0) msg += ` → <strong>${data.damage} de dano!</strong>`;
+            if (data.heal > 0) msg += ` → curou ${data.heal} HP!`;
+            if (data.status_effect) msg += ` → aplicou <strong>${statusLabel(data.status_effect)}</strong>!`;
+            if (data.message) msg += ` <em>(${data.message})</em>`;
+        }
         log.innerHTML += `<p>${msg}</p>`;
         log.scrollTop = log.scrollHeight;
     }
@@ -325,115 +352,25 @@ function masterAttack(playerId, btn) {
     const card = btn.closest('.encounter-card-full');
     const moveName = card.querySelector('.wild-move-select').value;
     const status = card.querySelector('.wild-status-select').value;
-    
-    // Get wild pokemon data from the card's stored encounter
-    const encounter = window.activeEncounters?.[playerId];
-    if (!encounter) {
-        // Fallback: manual damage
-        const damage = parseInt(card.querySelector('.wild-damage-input').value) || 0;
+    if (!moveName && !status) return;
+
+    // v3: o SERVIDOR resolve tudo (d100 de precisão, dano, resistência d20,
+    // cooldown) via _calc_wild_attack — o mestre só escolhe o golpe. O log
+    // das 3 camadas volta no battle_update (action_log).
+    if (moveName) {
         socket.emit('battle_action', {
             player_id: playerId, action_by: 'master', action_type: 'attack',
-            move_name: moveName, damage, status_effect: status || null, message: ''
+            move_name: moveName, status_effect: status || null, message: ''
         });
-        card.querySelector('.wild-damage-input').value = '0';
-        card.querySelector('.wild-status-select').value = '';
-        return;
-    }
-    
-    const wildPoke = encounter.pokemon;
-    const playerPoke = encounter.player_pokemon || {};
-    const wildStats = wildPoke.stats || {};
-    const wildLevel = encounter.level || 5;
-    const moveData = window.masterMovesCache?.[moveName] || {};
-    const log = card.querySelector('.battle-log-master');
-
-    // ══ SISTEMA v2 (espelho de battle_math): d20 vs Accuracy; dano por Power ══
-    const powerNum = moveData.power_num ?? null;
-    const accuracy = moveData.accuracy ?? null;
-    const moveCategory = moveData.category || 'physical';
-
-    // Sem Power numérico = move de status/utilitário → o servidor processa
-    if (!powerNum) {
-        if (log) log.innerHTML += `<p>🔴 Selvagem usou <strong>${moveName}</strong> (status)</p>`;
+    } else {
+        // só condição, sem golpe (adjudicação direta do mestre)
         socket.emit('battle_action', {
             player_id: playerId, action_by: 'master', action_type: 'status',
-            move_name: moveName, damage: 0, status_effect: status || null, message: moveData.description || ''
+            move_name: '', damage: 0, status_effect: status,
+            message: 'Condição aplicada pelo Mestre'
         });
-        card.querySelector('.wild-status-select').value = '';
-        return;
     }
-
-    // Acerto: d20 vs accuracy do move
-    const attackRoll = Math.floor(Math.random() * 20) + 1;
-    const isCrit = attackRoll === 20;
-    const hits = BattleMath.rollHits(attackRoll, accuracy, 0, 0);
-    const thr = BattleMath.missThreshold(accuracy);
-    const accLabel = accuracy ? `Acc ${accuracy}%` : 'não erra';
-
-    if (!hits) {
-        if (log) log.innerHTML += `<p>🔴 <strong>${moveName}</strong> → d20(${attackRoll}) ≤ ${thr} (${accLabel}) ❌ Errou!</p>`;
-        socket.emit('battle_action', {
-            player_id: playerId, action_by: 'master', action_type: 'attack',
-            move_name: moveName, damage: 0, message: `Errou (d20 ${attackRoll} ≤ ${thr})`
-        });
-        if (log) log.scrollTop = log.scrollHeight;
-        card.querySelector('.wild-status-select').value = '';
-        return;
-    }
-
-    // Dano: dados(Power, nível) × razão Atk/Def × postura do defensor
-    const dice = BattleMath.diceForPower(powerNum, wildLevel);
-    let diceTotal = rollDamageMaster(dice);
-    if (isCrit) diceTotal += rollDamageMaster(dice);
-
-    const atkKey = moveCategory === 'special' ? 'SPA' : 'ATK';
-    const atkEff = Math.max(1, wildStats[atkKey] || 10);
-    const pMode = playerPoke.defense_mode || 1;
-    const defKey = BattleMath.defenseStatKey(moveCategory, pMode);
-    const defEff = Math.max(1, (playerPoke.stats || {})[defKey] || 10);
-    const tax = BattleMath.defenseTax(pMode);
-    const modeLabel = pMode !== 1 ? ` [${BattleMath.DEFENSE_MODES[pMode].label} ×${tax}]` : '';
-
-    // STAB ×1.5 + efetividade de tipo
-    const wildTypes = (wildPoke.types || []).map(t => t.toLowerCase());
-    const moveType = (moveData.type || '').toLowerCase();
-    const isStab = wildTypes.includes(moveType);
-    const pVulns = (playerPoke.vulnerabilities || []).map(t => t.toLowerCase());
-    const pResists = (playerPoke.resistances || []).map(t => t.toLowerCase());
-    const pImmunities = (playerPoke.immunities || []).map(t => t.toLowerCase());
-    let effectiveness = 1;
-    let effectLabel = '';
-    if (pImmunities.includes(moveType)) {
-        effectiveness = 0; effectLabel = '⛔ IMUNE (0x)';
-    } else {
-        if (pVulns.includes(moveType)) effectiveness *= 2;
-        if (pResists.includes(moveType)) effectiveness *= 0.5;
-    }
-    if (effectiveness > 1) effectLabel = `⚡ Super Efetivo (x${effectiveness})`;
-    else if (effectiveness < 1 && effectiveness > 0) effectLabel = `🛡️ Não Efetivo (x${effectiveness})`;
-
-    const damage = BattleMath.damage(diceTotal, atkEff, defEff, isStab, effectiveness, tax, false, null, wildLevel);
-    const ratio = Math.max(0.5, Math.min(2, atkEff / defEff)).toFixed(2);
-
-    if (log) log.innerHTML += `<p>🔴 <strong>${moveName}</strong> → d20(${attackRoll}) vs ${accLabel} ✅ → ${dice}(${diceTotal})${isCrit ? ' x2 CRIT' : ''} × ${atkKey}/${defKey}(${ratio})${modeLabel}${isStab ? ' × STAB(1.5)' : ''}${effectLabel ? ' ' + effectLabel : ''} = <strong>${damage} dano ${moveData.type || ''}</strong></p>`;
-
-    socket.emit('battle_action', {
-        player_id: playerId, action_by: 'master', action_type: 'attack',
-        move_name: moveName, damage, status_effect: status || null,
-        message: `d20(${attackRoll}) vs ${accLabel}${isCrit ? ' Crítico!' : ''}`
-    });
-
-    if (log) log.scrollTop = log.scrollHeight;
     card.querySelector('.wild-status-select').value = '';
-}
-
-function rollDamageMaster(diceStr) {
-    if (!diceStr) return 0;
-    const match = diceStr.match(/(\d+)d(\d+)/);
-    if (!match) return 0;
-    let total = 0;
-    for (let i = 0; i < parseInt(match[1]); i++) total += Math.floor(Math.random() * parseInt(match[2])) + 1;
-    return total;
 }
 
 function masterPassTurn(playerId) {
@@ -987,7 +924,6 @@ async function showPokemonDetail(number) {
                 ).join('')}
             </div>` : ''}
             
-            ${p.savingThrows ? `<p><strong>Saving Throws:</strong> ${p.savingThrows.join(', ')}</p>` : ''}
             ${p.skills ? `<p><strong>Skills:</strong> ${p.skills.join(', ')}</p>` : ''}
         </div>
     `;
