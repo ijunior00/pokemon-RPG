@@ -35,6 +35,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 - [[Bugs-Resolvidos/curse-alvo-errado]] — debuff aplicado no lado errado
 - [[Bugs-Resolvidos/leech-seed-como-absorb]] — auto-detecção virou cura instantânea
 - [[Bugs-Resolvidos/modo-manual-mestre-nao-funcionava]] — cliente do jogador auto-jogava o selvagem; caminho do mestre preso no v2
+- [[Bugs-Resolvidos/auditoria-qa-exploits-client-side]] — captura/HP/cura/status forjados + PvP hijack (Lote 1 pronto; concorrência pendente)
 
 ## Outras notas
 
