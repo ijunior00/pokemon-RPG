@@ -481,6 +481,9 @@ def get_stat_modifiers(pokemon_status):
 # A condição ativa (queimado/paralisado) também soma pelo mesmo caminho.
 # ============================================================
 STAGE_KEYS = ('ATK', 'DEF', 'SPA', 'SPD', 'SPE', 'AC', 'attack_roll')
+# Chave-bucket ÚNICA da recarga de cura instantânea (Recover/Roost/Soft-Boiled
+# etc. compartilham a MESMA recarga — senão rotacionar nomes driblava o limite)
+HEAL_SUSTAIN_KEY = '__heal_self__'
 # rótulos amigáveis p/ mensagens de buff/debuff (AC = evasão; attack_roll =
 # precisão — nomes herdados das CHAVES de estágio, não do sistema 5e)
 _STAGE_LABEL = {'AC': 'Evasão', 'attack_roll': 'Precisão', 'ATK': 'ATK',
@@ -971,16 +974,15 @@ def auto_detect_move_effect(move_data):
     return None
 
 
-def process_status_move(move_data, attacker_stats, target_stats):
+def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
     """Process a status move being used. Returns the effect result.
-    
-    Returns dict: {
-        'success': bool,
-        'effect_type': str,
-        'message': str,
-        'status_applied': str or None,
-        'stat_changes': dict or None
-    }
+
+    mutate=True (padrão, caminho autoritativo do socket): efeitos com estado
+    de lado (recarga de cura, corrente de Protect) MUTAM o `_v3` do usuário.
+    mutate=False (preview do REST /api/process-status-move): calcula o
+    resultado sem mutar o estado — evita processar 2× a mesma ação.
+
+    Returns dict: {'success','effect_type','message','status_applied','stat_changes'}
     """
     effect = auto_detect_move_effect(move_data)
     if not effect:
@@ -1000,15 +1002,17 @@ def process_status_move(move_data, attacker_stats, target_stats):
     # Sem save do alvo — a chance é fixa por move.
     import battle_math as _bm
 
-    # v3: cura instantânea tem RECARGA (v3_heal_cooldown) — bloqueia ANTES de
-    # processar e NÃO consome o turno (o caller trata 'blocked'). Só moves
-    # heal_self entram nesta tabela por aqui, então o lookup por nome basta.
+    # v3: cura instantânea tem RECARGA compartilhada — bloqueia ANTES de
+    # processar e NÃO consome o turno (o caller trata 'blocked'). A recarga é
+    # chaveada num BUCKET único (HEAL_SUSTAIN_KEY), não por nome do golpe:
+    # senão Recover→Roost→Soft-Boiled (todos heal_self ½) curariam 3 turnos
+    # seguidos, driblando a própria recarga.
     _user_v3 = (attacker_stats.get('_v3')
                 if isinstance(attacker_stats, dict)
                 and isinstance(attacker_stats.get('_v3'), dict) else None)
-    if _user_v3:
-        _cd_left = int((_user_v3.get('cooldowns') or {}).get(move_name.lower(), 0))
-        if _cd_left > 0 and effect.get('type') == 'heal_self':
+    if _user_v3 and effect.get('type') == 'heal_self':
+        _cd_left = int((_user_v3.get('cooldowns') or {}).get(HEAL_SUSTAIN_KEY, 0))
+        if _cd_left > 0:
             return {'success': False, 'effect_type': 'blocked', 'blocked': True,
                     'cooldown_left': _cd_left,
                     'message': f'{move_name} ainda está em recarga. Aguarde '
@@ -1109,17 +1113,19 @@ def process_status_move(move_data, attacker_stats, target_stats):
             heal = max_hp // 2
         else:
             heal = max_hp // 4
-        # v3: cura instantânea entra em recarga (moderada 1 / elevada 2) —
-        # registra no estado do lado (1 ação = 1 rodada: decrementa os outros)
+        # v3: cura instantânea entra em recarga (moderada 1 / elevada 2) na
+        # chave-bucket compartilhada. Só MUTA no caminho autoritativo (socket);
+        # o preview do REST passa mutate=False para não decrementar 2× (o
+        # cliente chamava REST + battle_action → cooldowns caíam em dobro).
         cd = _bm.v3_heal_cooldown(effect['amount'])
-        if _user_v3 is not None:
+        if _user_v3 is not None and mutate:
             cds = _user_v3.setdefault('cooldowns', {})
             for k in list(cds):
                 cds[k] -= 1
                 if cds[k] <= 0:
                     del cds[k]
             if cd:
-                cds[move_name.lower()] = cd
+                cds[HEAL_SUSTAIN_KEY] = cd
         return {
             'success': True,
             'effect_type': 'heal',
@@ -1139,7 +1145,7 @@ def process_status_move(move_data, attacker_stats, target_stats):
         chance = _bm.v3_protect_chance(chain)
         roll = random.randint(1, 100)
         if roll <= chance:
-            if st is not None:
+            if st is not None and mutate:
                 st['protect_chain'] = chain + 1
                 st['protected'] = True
             return {
@@ -1149,7 +1155,7 @@ def process_status_move(move_data, attacker_stats, target_stats):
                 'status_applied': None,
                 'stat_changes': None
             }
-        if st is not None:
+        if st is not None and mutate:
             st['protect_chain'] = 0
             st['protected'] = False
         return {

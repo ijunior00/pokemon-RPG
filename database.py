@@ -135,6 +135,23 @@ def get_users_in_table(table_id):
 # ============================================================
 # USERS
 # ============================================================
+def _user_fingerprint(u):
+    """Serialização estável de um usuário para detectar mudança no save."""
+    return json.dumps([
+        u.get('username'), u.get('password_hash'), u.get('role'),
+        u.get('table_id'), u.get('trainer_data', {})
+    ], sort_keys=True, default=str)
+
+
+class _UsersSnapshot(dict):
+    """dict de usuários que lembra o estado ORIGINAL de cada linha (no load).
+    Permite ao save_users gravar SÓ quem mudou — sem isso, save_users regravava
+    a tabela inteira a partir de um snapshot possivelmente obsoleto, e sob
+    concorrência (gevent) um handler revertia a alteração de OUTRO jogador que
+    nem estava na requisição (lost update / duplicação de economia)."""
+    __slots__ = ('_orig',)
+
+
 def get_users():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -142,21 +159,29 @@ def get_users():
     rows = cur.fetchall()
     cur.close()
     conn.close()
-    result = {}
+    result = _UsersSnapshot()
+    result._orig = {}
     for row in rows:
-        result[row['id']] = {
+        u = {
             'username': row['username'],
             'password_hash': row['password_hash'],
             'role': row['role'],
             'table_id': row.get('table_id'),
             'trainer_data': row['trainer_data'] or {}
         }
+        result[row['id']] = u
+        result._orig[row['id']] = _user_fingerprint(u)
     return result
 
 def save_users(users_dict):
+    # Grava só os usuários NOVOS ou ALTERADOS desde o load (compara a
+    # impressão digital). Um dict comum (ex.: chamado dos testes) grava todos.
+    orig = getattr(users_dict, '_orig', None)
     conn = get_conn()
     cur = conn.cursor()
     for uid, u in users_dict.items():
+        if orig is not None and orig.get(uid) == _user_fingerprint(u):
+            continue   # inalterado → não regrava (evita clobber cross-player)
         cur.execute('''
             INSERT INTO users (id, username, password_hash, role, table_id, trainer_data)
             VALUES (%s, %s, %s, %s, %s, %s)

@@ -310,6 +310,14 @@ def _resolve_metronome(move_name):
     return pick, f'{emoji} {move_name} → {pick}'
 
 
+# Guard de re-entrância do battle_action (por player_id) contra duplo-clique /
+# duas abas. Sob gevent (cooperativo) o check+add do set é atômico.
+_BATTLE_BUSY = set()
+# Idem para escrita de economia (compra/venda) — impede double-spend do MESMO
+# jogador em requisições paralelas (read-modify-write de dinheiro).
+_ECON_BUSY = set()
+
+
 def _v3_side_state(poke):
     """Estado v3 do lado (vive no dict do Pokémon em batalha — morre com ela):
     cooldowns por move, último golpe, streak (adaptação) e momentum."""
@@ -4304,12 +4312,27 @@ def pc_store_capture():
         return jsonify({'error': 'Muitas capturas em pouco tempo.'}), 429
     data = request.json or {}
     p = data.get('pokemon') or {}
-    base = POKEMON_BY_NAME.get((p.get('name') or '').lower()) \
-        or POKEMON_BY_NUMBER.get(p.get('number'))
-    if not base or not base.get('base_stats'):
-        return jsonify({'error': 'Espécie desconhecida'}), 400
 
-    level = max(1, min(100, int(p.get('level') or 1)))
+    # SEGURANÇA: só se pode capturar o SELVAGEM do encontro ATIVO do jogador —
+    # espécie, nível e shiny vêm do encounter (servidor), não do payload.
+    # Sem isto, dava para mandar Mewtwo Nv100 direto pro PC via devtools.
+    gs_cap = get_game_state()
+    enc_cap = (gs_cap.get('active_encounters') or {}).get(str(current_user.id))
+    if not enc_cap:
+        return jsonify({'error': 'Nenhum encontro ativo para capturar.'}), 400
+    wild_cap = enc_cap.get('pokemon') or {}
+    base = POKEMON_BY_NUMBER.get(wild_cap.get('number')) \
+        or POKEMON_BY_NAME.get((wild_cap.get('name') or '').lower())
+    if not base or not base.get('base_stats'):
+        return jsonify({'error': 'Espécie do encontro inválida'}), 400
+    # o selvagem precisa estar enfraquecido/desmaiado (não se captura em HP cheio)
+    _bs_cap = enc_cap.get('battle_state') or {}
+    _wc, _wm = int(_bs_cap.get('wild_hp_current') or 1), int(_bs_cap.get('wild_hp_max') or 1)
+    if _wc > 0 and _wc > _wm // 2:
+        return jsonify({'error': 'O Pokémon precisa estar enfraquecido para ser capturado.'}), 400
+
+    level = max(1, min(100, int(enc_cap.get('level') or wild_cap.get('level') or 1)))
+    p = dict(p, is_shiny=bool(enc_cap.get('is_shiny')))   # shiny é do encontro
     moves = [m for m in (p.get('moves') or [])
              if isinstance(m, str) and (m.lower() in MOVES_BY_NAME or m in MOVES_DB)][:4]
     is_shiny = bool(p.get('is_shiny'))
@@ -4628,6 +4651,15 @@ def friendship_evolve():
 @login_required
 def pokemon_center():
     """Heal all Pokémon to full HP and clear all status conditions."""
+    # Não pode curar o time no MEIO de uma batalha (era cura grátis a cada
+    # turno de um encontro/PvP em andamento).
+    _pid = str(current_user.id)
+    if (get_game_state().get('active_encounters') or {}).get(_pid):
+        return jsonify({'error': 'Não pode usar o Centro Pokémon durante uma batalha.'}), 400
+    if any(_pid in (b.get('player1', {}).get('id'), b.get('player2', {}).get('id'))
+           and b.get('phase') == 'battle' for b in ACTIVE_PVP.values()):
+        return jsonify({'error': 'Não pode usar o Centro Pokémon durante um PvP.'}), 400
+
     users = get_users()
     trainer = users[current_user.id].get('trainer_data', {})
     team = trainer.get('team', [])
@@ -4780,11 +4812,15 @@ def update_team():
         # Estado ANTERIOR do time (autoridade sobre nível/shiny): impede o
         # cliente de saltar para Nv.100 ou ligar shiny de graça. Casa por
         # (número, apelido); Pokémon novo (captura) não casa e é tratado à parte.
+        # Cada chave guarda uma LISTA (FIFO): dois Pokémon da mesma espécie SEM
+        # apelido não colidem — cada incoming consome um prev distinto (senão o
+        # shiny de um vazava para o outro / era ligado de graça).
         prev_team = users[current_user.id].get('trainer_data', {}).get('team', [])
         prev_by_key = {}
         for pp in prev_team:
             if isinstance(pp, dict):
-                prev_by_key[(pp.get('number'), (pp.get('nickname') or ''))] = pp
+                prev_by_key.setdefault(
+                    (pp.get('number'), (pp.get('nickname') or '')), []).append(pp)
         clean_team = []
         for p in team:
             if not isinstance(p, dict):
@@ -4795,7 +4831,8 @@ def update_team():
                 or POKEMON_BY_NUMBER.get(p.get('number'))
             if not base or not base.get('base_stats'):
                 continue   # espécie desconhecida → descarta (anti-forja)
-            prev = prev_by_key.get((p.get('number'), (p.get('nickname') or '')))
+            _pk_matches = prev_by_key.get((p.get('number'), (p.get('nickname') or '')))
+            prev = _pk_matches.pop(0) if _pk_matches else None   # consome 1:1
             level = max(1, min(100, int(p.get('level') or 1)))
             if prev is not None:
                 # Pokémon já existente: nível só sobe (e no máx. +5 por save,
@@ -5090,29 +5127,37 @@ def api_shop_buy():
     if not item:
         return jsonify({'error': 'Item não encontrado'}), 404
 
-    users = get_users()
-    trainer = users.get(current_user.id, {}).get('trainer_data', {})
-    cha = _influence_value(trainer)
-    buy_mult, _ = _cha_modifier(cha)
-    unit_price = max(1, int(item['price'] * buy_mult))
-    total_cost = unit_price * qty
+    # Guard anti double-spend (duplo-clique): read-modify-write de dinheiro
+    # protegido por um flag síncrono (atômico sob gevent).
+    if current_user.id in _ECON_BUSY:
+        return jsonify({'error': 'Operação em andamento, tente de novo.'}), 429
+    _ECON_BUSY.add(current_user.id)
+    try:
+        users = get_users()
+        trainer = users.get(current_user.id, {}).get('trainer_data', {})
+        cha = _influence_value(trainer)
+        buy_mult, _ = _cha_modifier(cha)
+        unit_price = max(1, int(item['price'] * buy_mult))
+        total_cost = unit_price * qty
 
-    money = trainer.get('money', 0)
-    if money < total_cost:
-        return jsonify({'error': f'Sem dinheiro suficiente! Precisa de ₽{total_cost}, tem ₽{money}'}), 400
+        money = trainer.get('money', 0)
+        if money < total_cost:
+            return jsonify({'error': f'Sem dinheiro suficiente! Precisa de ₽{total_cost}, tem ₽{money}'}), 400
 
-    trainer['money'] = money - total_cost
-    bag = trainer.get('bag', [])
-    existing = next((b for b in bag if isinstance(b, dict) and b.get('name', '').lower() == item['name'].lower()), None)
-    if existing:
-        existing['qty'] = existing.get('qty', 1) + qty
-    else:
-        bag.append({'name': item['name'], 'qty': qty, 'description': item['description']})
-    trainer['bag'] = bag
-    users[current_user.id]['trainer_data'] = trainer
-    save_users(users)
-    return jsonify({'success': True, 'money_left': trainer['money'], 'item': item,
-                    'qty': qty, 'unit_price': unit_price, 'cha_bonus': cha != 10})
+        trainer['money'] = money - total_cost
+        bag = trainer.get('bag', [])
+        existing = next((b for b in bag if isinstance(b, dict) and b.get('name', '').lower() == item['name'].lower()), None)
+        if existing:
+            existing['qty'] = existing.get('qty', 1) + qty
+        else:
+            bag.append({'name': item['name'], 'qty': qty, 'description': item['description']})
+        trainer['bag'] = bag
+        users[current_user.id]['trainer_data'] = trainer
+        save_users(users)
+        return jsonify({'success': True, 'money_left': trainer['money'], 'item': item,
+                        'qty': qty, 'unit_price': unit_price, 'cha_bonus': cha != 10})
+    finally:
+        _ECON_BUSY.discard(current_user.id)
 
 @app.route('/api/shop/sell', methods=['POST'])
 @login_required
@@ -5474,8 +5519,11 @@ def api_process_status_move():
     if not move_data:
         return jsonify({'success': False, 'message': f'Move {move_name} não encontrado'})
 
-    # v3: recarga de cura instantânea vive no estado da batalha ativa — anexa
-    # o _v3 do lado que age (e persiste, senão a recarga evaporava no save).
+    # PREVIEW puro (mutate=False): calcula o efeito para o cliente exibir, mas
+    # NÃO muta o estado nem persiste. A aplicação autoritativa (recarga, cura,
+    # status, self_damage) acontece só no handler de socket `battle_action`
+    # (senão a ação era processada 2× — cooldowns caíam em dobro). O _v3 real
+    # entra só para o preview da recarga refletir o cooldown atual.
     game_state = get_game_state()
     encounter = (game_state.get('active_encounters') or {}).get(str(current_user.id))
     side_poke = None
@@ -5485,17 +5533,8 @@ def api_process_status_move():
     if isinstance(side_poke, dict):
         attacker_stats = dict(attacker_stats, _v3=_v3_side_state(side_poke),
                               types=side_poke.get('types'))
-        result = effects.process_status_move(move_data, attacker_stats, target_stats)
-        # custo pago pelo próprio usuário (Curse fantasma) — aplicado AQUI no
-        # estado autoritativo (o tick do cliente é clampado a ¼ e não serve)
-        if result.get('self_damage') and result.get('effect_type') != 'fixed_damage':
-            bs = encounter.get('battle_state') or {}
-            hp_key = 'wild_hp_current' if side == 'wild' else 'player_hp_current'
-            if hp_key in bs:
-                bs[hp_key] = max(1, int(bs[hp_key]) - int(result['self_damage']))
-        save_game_state(game_state)
-    else:
-        result = effects.process_status_move(move_data, attacker_stats, target_stats)
+    result = effects.process_status_move(move_data, attacker_stats, target_stats,
+                                         mutate=False)
     return jsonify(result)
 
 @app.route('/player/pokedex/register', methods=['POST'])
@@ -5800,7 +5839,9 @@ def handle_set_defense_mode(data):
         battle = ACTIVE_PVP.get(data.get('battle_id'))
         if not battle or battle['phase'] != 'battle':
             return
-        player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
+        player_key = _pvp_my_key(battle)
+        if not player_key:
+            return
         if battle['turn'] != player_key:
             emit('pvp_error', {'message': 'Só pode mudar a postura no seu turno!'})
             return
@@ -5828,18 +5869,27 @@ def handle_set_defense_mode(data):
 @socketio.on('battle_action')
 def handle_battle_action(data):
     """Handle a battle action (attack, status move, etc.)."""
-    if current_user.is_authenticated:
-        action_by = data.get('action_by')  # 'player' or 'master' (for wild pokemon)
-        # Security: non-masters can only act for themselves. No modo AUTO o
-        # navegador do JOGADOR conduz o turno do selvagem (action_by='master')
-        # — permitido, mas o dano é RECALCULADO no servidor abaixo, então o
-        # cliente não consegue mandar o selvagem bater de graça (dano 0).
-        if current_user.role != 'master':
-            player_id = str(current_user.id)
-        else:
-            player_id = str(data.get('player_id', current_user.id))
-            if not _player_in_master_table(player_id, get_users(), _tid()):
-                return
+    if not current_user.is_authenticated:
+        return
+    action_by = data.get('action_by')  # 'player' or 'master' (for wild pokemon)
+    # Security: non-masters can only act for themselves. No modo AUTO o
+    # navegador do JOGADOR conduz o turno do selvagem (action_by='master')
+    # — permitido, mas o dano é RECALCULADO no servidor abaixo, então o
+    # cliente não consegue mandar o selvagem bater de graça (dano 0).
+    if current_user.role != 'master':
+        player_id = str(current_user.id)
+    else:
+        player_id = str(data.get('player_id', current_user.id))
+        if not _player_in_master_table(player_id, get_users(), _tid()):
+            return
+    # Guard de re-entrância (duplo-clique / duas abas): sob gevent o check+add é
+    # atômico (sem yield), então a 2ª ação concorrente do MESMO encontro é
+    # descartada — fecha o lost-update (dois battle_action lendo o mesmo turno
+    # e sobrescrevendo o HP/turno um do outro).
+    if player_id in _BATTLE_BUSY:
+        return
+    _BATTLE_BUSY.add(player_id)
+    try:
         action_type = data.get('action_type')  # 'attack', 'status', 'item'
         move_name = data.get('move_name', '')
         move_type = data.get('move_type', '')   # e.g. 'fire', 'ground'
@@ -5890,9 +5940,49 @@ def handle_battle_action(data):
         action_log = None
         server_calc = None  # populated when server recalculates attack
 
+        # ITEM X (X Attack/Defense/Speed/Sp.Atk...): aplica um ESTÁGIO real no
+        # Pokémon do jogador, server-autoritativo. Consome o item da bolsa no
+        # servidor (a bolsa do cliente não é fonte de verdade) e passa o turno.
+        if action_type == 'use_item' and action_by == 'player':
+            _xmap = {'x attack': ('ATK', '⚔️ Ataque'), 'x defense': ('DEF', '🛡️ Defesa'),
+                     'x speed': ('SPE', '💨 Velocidade'), 'x sp. atk': ('SPA', '✨ Atq. Esp.'),
+                     'x sp. def': ('SPD', '🔮 Def. Esp.'), 'x accuracy': ('attack_roll', '🎯 Precisão')}
+            _iname = str(data.get('item_name') or '')
+            _xk = _xmap.get(_iname.lower())
+            _users_x = get_users()
+            _bag_x = _users_x.get(current_user.id, {}).get('trainer_data', {}).get('bag', [])
+            _slot = next((it for it in _bag_x
+                          if str(it.get('name', '')).lower() == _iname.lower()
+                          and int(it.get('qty', 0)) > 0), None)
+            if not _xk or not _slot:
+                emit('action_blocked', {'message': f'{_iname} indisponível.'})
+                return
+            _slot['qty'] = int(_slot['qty']) - 1
+            _users_x[current_user.id]['trainer_data']['bag'] = [
+                it for it in _bag_x if int(it.get('qty', 0)) > 0]
+            save_users(_users_x)
+            ppoke_x = encounter.get('player_pokemon') or {}
+            effects.apply_stat_changes(ppoke_x, {_xk[0]: 1})
+            battle_state['player_stat_stages'] = ppoke_x.get('stat_stages')
+            action_log = f'🧪 <strong>{_iname}</strong> — {_xk[1]} +1 estágio!'
+            message = action_log
+            server_calc = {'is_item': True, 'log': action_log}
+            # cai no fluxo comum: troca de turno + broadcast abaixo
+
+        # Efeitos de status são DERIVADOS no servidor (não confiar no payload):
+        # zera heal/status/reset_stages/stage_op forjados; o motor abaixo
+        # preenche os valores reais. (Fecha cura/status/Haze forjados.)
+        srv_reset_stages = False
+        srv_stage_op = None
+        if action_type == 'status' and action_by == 'player':
+            heal = 0
+            status_effect = None
+            damage = 0   # dano de status vem só do motor (fixed_damage), nunca do payload
+
         # Server-side damage calculation for player attacks — prevents client from
-        # reporting arbitrary damage values against wild Pokémon.
-        if action_type == 'attack' and action_by == 'player' and move_name:
+        # reporting arbitrary damage values against wild Pokémon. Move de status
+        # emitido direto (action_type='status') também passa pelo motor.
+        if action_type in ('attack', 'status') and action_by == 'player' and move_name:
             # v3: o servidor rola o d100 (rolagem do cliente não é aceita —
             # senão dava para mandar sempre 1 e nunca errar)
             server_calc = _calc_player_attack(encounter, move_name, None)
@@ -5930,6 +6020,11 @@ def handle_battle_action(data):
                         1, battle_state['player_hp_current'] - int(sres['self_damage']))
                 action_log = sres.get('message', '')
                 message = sres.get('message', message)
+                # Dano fixo (Night Shade/Seismic Toss/Final Gambit/Pain Split):
+                # o servidor DERIVA o dano (o payload não é mais confiado) e o
+                # fluxo normal abaixo aplica no selvagem.
+                if sres.get('effect_type') in ('fixed_damage', 'pain_split') and sres.get('damage'):
+                    damage = int(sres['damage'])
                 # F5: clima/terreno de campo (Rain Dance, Grassy Terrain...)
                 if sres.get('effect_type') == 'field':
                     _field_apply(battle_state, sres.get('field_kind'),
@@ -5951,6 +6046,11 @@ def handle_battle_action(data):
                     effects.apply_stat_changes(tgt, sres['stat_changes'])
                     battle_state['wild_stat_stages'] = wpoke.get('stat_stages')
                     battle_state['player_stat_stages'] = ppoke.get('stat_stages')
+                # Haze / Psych Up etc. DERIVADOS do motor (não do payload)
+                if sres.get('effect_type') == 'reset_stages':
+                    srv_reset_stages = True
+                elif sres.get('effect_type') == 'stage_op':
+                    srv_stage_op = sres.get('op')
             elif not server_calc.get('hit', True):
                 damage = 0
             # On-hit status (Ember→queimado, Thunderbolt→paralisado etc.)
@@ -6102,13 +6202,24 @@ def handle_battle_action(data):
                         if ability_result['heal']:
                             battle_state['player_hp_current'] = min(battle_state['player_hp_max'], battle_state['player_hp_current'] + ability_result['heal'])
 
-        # Handle switch: reset player HP to new pokemon's HP
+        # Handle switch: HP do novo Pokémon vem do TIME REAL (servidor), nunca
+        # do payload — senão o cliente forjava HP infinito na troca.
         if action_type == 'switch' and action_by == 'player':
-            new_hp     = int(data.get('new_pokemon_hp', 0))
-            new_max_hp = int(data.get('new_pokemon_max_hp', new_hp or 20))
-            if new_hp > 0:
-                battle_state['player_hp_current'] = new_hp
-                battle_state['player_hp_max'] = new_max_hp
+            _sw_team = get_users().get(current_user.id, {}).get('trainer_data', {}).get('team', [])
+            try:
+                _sw_idx = int(data.get('new_index'))
+            except (TypeError, ValueError):
+                _sw_idx = -1
+            _sw_poke = _sw_team[_sw_idx] if 0 <= _sw_idx < len(_sw_team) else None
+            if isinstance(_sw_poke, dict):
+                new_max_hp = int(_sw_poke.get('maxHp') or 20)
+                cur = _sw_poke.get('currentHp')
+                new_hp = int(cur) if isinstance(cur, (int, float)) else new_max_hp
+                new_hp = max(0, min(new_max_hp, new_hp))
+                if new_hp > 0:
+                    battle_state['player_hp_current'] = new_hp
+                    battle_state['player_hp_max'] = new_max_hp
+                    encounter['player_pokemon'] = _sw_poke
             # trocar de pokémon zera os buffs/debuffs acumulados do lado do jogador
             ppoke_sw = encounter.get('player_pokemon')
             # sair de campo remove semente/prisão (Leech Seed/Bind)
@@ -6197,15 +6308,18 @@ def handle_battle_action(data):
                 if not battle_state.get('player_status'):
                     battle_state['player_status'] = status_dict
 
-        # Haze: anula os buffs/debuffs acumulados dos DOIS lados
-        if data.get('reset_stages'):
+        # Haze: anula os buffs/debuffs dos DOIS lados. A fonte é o MOTOR
+        # (srv_reset_stages), não o payload — exceto no caminho legado do
+        # mestre (action_by='master'), que ainda declara o efeito.
+        if srv_reset_stages or (action_by == 'master' and data.get('reset_stages')):
             effects.reset_stat_stages(encounter.get('pokemon') or {})
             effects.reset_stat_stages(encounter.get('player_pokemon') or {})
             battle_state['wild_stat_stages'] = None
             battle_state['player_stat_stages'] = None
 
-        # Operações sobre stages (Psych Up copy / Heart Swap swap / Topsy-Turvy invert)
-        stage_op = data.get('stage_op')
+        # Psych Up/Heart Swap/Topsy-Turvy — derivado do motor (payload só no
+        # caminho legado do mestre)
+        stage_op = srv_stage_op or (data.get('stage_op') if action_by == 'master' else None)
         if stage_op in ('copy', 'swap', 'invert'):
             wp = encounter.get('pokemon') or {}
             pp = encounter.get('player_pokemon') or {}
@@ -6300,6 +6414,8 @@ def handle_battle_action(data):
         # Wild auto-attack is handled client-side (player.js wildPokemonAutoAttack) to support
         # status damage, move variety, and status moves. Server-side auto-attack removed to
         # prevent race condition: server used stale encounter state and overwrote correct HP.
+    finally:
+        _BATTLE_BUSY.discard(player_id)
 
 def _auto_roll_initiative(player_id, game_state):
     """Auto-roll initiative when AUTO mode is ON."""
@@ -6350,25 +6466,10 @@ def _auto_roll_initiative(player_id, game_state):
 
 @socketio.on('apply_wild_status')
 def handle_apply_wild_status(data):
-    """Apply status to wild pokemon without switching turn (follow-up after on-hit status)."""
-    if not current_user.is_authenticated:
-        return
-    player_id = str(current_user.id)
-    status = data.get('status')
-    if not status:
-        return
-    game_state = get_game_state()
-    encounter = game_state['active_encounters'].get(player_id)
-    if not encounter:
-        return
-    battle_state = encounter['battle_state']
-    if not battle_state.get('wild_status'):
-        status_dict = status if isinstance(status, dict) else {'condition': status, 'turns_active': 0}
-        battle_state['wild_status'] = status_dict
-        encounter['battle_state'] = battle_state
-        game_state['active_encounters'][player_id] = encounter
-        save_game_state(game_state)
-        emit('wild_status_applied', {'status': status, 'player_id': player_id}, room=f'master_{_tid()}')
+    """DEPRECADO por segurança: o status on-hit no selvagem já é rolado no
+    SERVIDOR (accuracy/tipo) dentro de battle_action. Aceitar status cru do
+    cliente aqui deixava congelar/paralisar o selvagem 100% do tempo. No-op."""
+    return
 
 @socketio.on('status_resolved')
 def handle_status_resolved(data):
@@ -6382,15 +6483,26 @@ def handle_status_resolved(data):
     if not encounter:
         return
     battle_state = encounter['battle_state']
-    if target == 'player':
-        battle_state['player_status'] = None
-    elif target == 'wild':
-        battle_state['wild_status'] = None
-    else:
+    key = 'player_status' if target == 'player' else 'wild_status' if target == 'wild' else None
+    if not key:
         return
-    encounter['battle_state'] = battle_state
-    game_state['active_encounters'][player_id] = encounter
-    save_game_state(game_state)
+    # SEGURANÇA: o cliente só remove condições de auto-remoção NATURAL — sono/
+    # confusão (max_turns cumprido) ou sono/congelado (wake/thaw rolados pelo
+    # servidor em process_turn_start). Veneno/queimadura/paralisia são
+    # PERMANENTES até cura e NÃO podem ser zeradas pelo cliente (era o exploit:
+    # limpar o próprio debuff de graça a cada turno).
+    cur_status = battle_state.get(key)
+    if not cur_status:
+        return
+    cond = effects.STATUS_CONDITIONS.get((cur_status or {}).get('condition'), {})
+    max_turns = cond.get('max_turns')
+    turns = int((cur_status or {}).get('turns_active') or 0)
+    natural = cond.get('wake_check') or cond.get('thaw_check')
+    if natural or (max_turns is not None and turns >= int(max_turns)):
+        battle_state[key] = None
+        encounter['battle_state'] = battle_state
+        game_state['active_encounters'][player_id] = encounter
+        save_game_state(game_state)
 
 @socketio.on('end_encounter')
 def handle_end_encounter(data):
@@ -6766,6 +6878,19 @@ def handle_pvp_select(data):
         elif result == 'waiting_opponent':
             emit('pvp_waiting', {'message': 'Aguardando oponente escolher Pokémon...'})
 
+def _pvp_my_key(battle):
+    """player_key do current_user SE ele for participante da batalha, senão
+    None. Impede um terceiro de agir/encerrar batalha alheia (griefing)."""
+    if not battle:
+        return None
+    me = current_user.id
+    if battle.get('player1', {}).get('id') == me:
+        return 'player1'
+    if battle.get('player2', {}).get('id') == me:
+        return 'player2'
+    return None
+
+
 @socketio.on('pvp_attack')
 def handle_pvp_attack(data):
     """Player attacks in PVP battle."""
@@ -6781,7 +6906,9 @@ def handle_pvp_attack(data):
         if not battle or battle['phase'] != 'battle':
             return
 
-        player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
+        player_key = _pvp_my_key(battle)
+        if not player_key:
+            return   # não é participante desta batalha
         defender_key = 'player2' if player_key == 'player1' else 'player1'
 
         # Validate it's this player's turn
@@ -6972,7 +7099,9 @@ def handle_pvp_switch(data):
         if not battle:
             return
 
-        player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
+        player_key = _pvp_my_key(battle)
+        if not player_key:
+            return
 
         # Troca voluntária só no seu turno; forçada (ativo desmaiado) sempre pode
         side = battle[player_key]
@@ -7007,7 +7136,9 @@ def handle_pvp_pass(data):
         battle = ACTIVE_PVP.get(battle_id)
         if not battle:
             return
-        player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
+        player_key = _pvp_my_key(battle)
+        if not player_key:
+            return
         if battle['turn'] != player_key:
             return
         pvp.advance_turn(battle)
@@ -7109,7 +7240,9 @@ def handle_pvp_forfeit(data):
         battle = ACTIVE_PVP.get(battle_id)
         if not battle:
             return
-        player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
+        player_key = _pvp_my_key(battle)
+        if not player_key:
+            return   # só um participante pode desistir da própria batalha
         winner_key = 'player2' if player_key == 'player1' else 'player1'
         battle['phase'] = 'finished'
         battle['winner'] = winner_key
@@ -7664,6 +7797,11 @@ def handle_npc_turn(battle, npc_key, forced=False):
 
 def handle_pvp_victory(battle):
     """Handle battle end - distribute rewards."""
+    # Idempotência: forfeit + ataque fatal simultâneos chamavam isto 2× →
+    # prêmio/aposta/avanço de bracket em dobro. Uma liquidação só.
+    if battle.get('settled'):
+        return
+    battle['settled'] = True
     winner_key = battle['winner']
     loser_key = 'player2' if winner_key == 'player1' else 'player1'
     winner_id = battle[winner_key]['id']

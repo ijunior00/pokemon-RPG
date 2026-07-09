@@ -3681,11 +3681,11 @@ async function confirmSwitch(teamIdx) {
     // Reset faint flag so next battle_update doesn't re-trigger the faint message
     window._playerFaintLogged = false;
 
-    // Switching uses the action - pass turn. Send new poke's HP so server updates battle_state.
+    // Switching uses the action - pass turn. O servidor lê o HP do time REAL
+    // pelo new_index (o HP do payload não é confiado — era HP infinito forjado).
     socket.emit('battle_action', {
-        action_by: 'player', action_type: 'switch',
-        move_name: `Trocou → ${newPoke.name}`, damage: 0, message: 'Troca de Pokémon',
-        new_pokemon_hp: pHp, new_pokemon_max_hp: pMax
+        action_by: 'player', action_type: 'switch', new_index: teamIdx,
+        move_name: `Trocou → ${newPoke.name}`, damage: 0, message: 'Troca de Pokémon'
     });
     
     // Check mega for new pokemon
@@ -5693,10 +5693,12 @@ const BATTLE_ITEMS = {
     'Revive': { type: 'revive', heal_pct: 0.5, description: 'Revive com 50% HP' },
     'Max Revive': { type: 'revive', heal_pct: 1.0, description: 'Revive com 100% HP' },
     'Rare Candy': { type: 'level_up', description: 'Sobe 1 nível' },
-    'X Attack': { type: 'buff', stat: 'STR', value: 3, description: '+3 STR nesta batalha' },
-    'X Defense': { type: 'buff', stat: 'AC', value: 2, description: '+2 AC nesta batalha' },
-    'X Speed': { type: 'buff', stat: 'DEX', value: 3, description: '+3 DEX nesta batalha' },
-    'X Sp. Atk': { type: 'buff', stat: 'INT', value: 3, description: '+3 INT nesta batalha' },
+    // Itens X: o SERVIDOR aplica +1 estágio real (mapeado pelo nome do item)
+    'X Attack': { type: 'buff', description: '+1 estágio de Ataque nesta batalha' },
+    'X Defense': { type: 'buff', description: '+1 estágio de Defesa nesta batalha' },
+    'X Speed': { type: 'buff', description: '+1 estágio de Velocidade nesta batalha' },
+    'X Sp. Atk': { type: 'buff', description: '+1 estágio de Atq. Especial nesta batalha' },
+    'X Sp. Def': { type: 'buff', description: '+1 estágio de Def. Especial nesta batalha' },
 };
 
 function openBattleItems() {
@@ -5774,16 +5776,18 @@ function useBattleItem(itemName) {
             return;
         }
     } else if (info.type === 'buff') {
-        if (poke.stats && info.stat !== 'AC') {
-            poke.stats[info.stat] = (poke.stats[info.stat] || 10) + info.value;
-            addBattleLog(`🧪 Usou <strong>${itemName}</strong>! ${info.stat} +${info.value}!`);
-        } else if (info.stat === 'AC') {
-            poke.ac = (poke.ac || 13) + info.value;
-            addBattleLog(`🧪 Usou <strong>${itemName}</strong>! AC +${info.value}! (AC agora: ${poke.ac})`);
-        }
+        // Itens X aplicam um ESTÁGIO real no servidor (consome o turno, como
+        // nos jogos). Antes o cliente somava numa chave-lixo (STR/DEX/INT) sem
+        // efeito no dano, que é server-autoritativo.
+        addBattleLog(`🧪 Usou <strong>${itemName}</strong>!`);
+        socket.emit('battle_action', {
+            action_by: 'player', action_type: 'use_item', item_name: itemName,
+            player_status_damage: window._playerPreTurnStatusDamage || 0
+        });
+        return;   // servidor consome o item da bolsa e devolve o battle_update
     }
-    
-    // Consume item from bag
+
+    // Consume item from bag (itens de cura/status — não server-side)
     const bagIdx = window.bagItems.findIndex(i => i.name.toLowerCase() === itemName.toLowerCase());
     if (bagIdx >= 0) {
         window.bagItems[bagIdx].qty -= 1;
@@ -5900,19 +5904,13 @@ async function processStatusMove(moveName, attackerPoke, targetPoke) {
         }
         
         if (result.stat_changes) {
-            // Apply stat changes to target (enemy)
+            // Log apenas. A aplicação REAL é server-autoritativa (estágios em
+            // wild_stat_stages, que voltam no battle_update) — o cliente NÃO
+            // soma em targetPoke.stats (era double-count com os estágios).
             for (const [stat, value] of Object.entries(result.stat_changes)) {
-                if (stat === 'attack_roll') {
-                    // Store accuracy debuff
-                    window.wildAccuracyMod = (window.wildAccuracyMod || 0) + value;
-                    addBattleLog(`🎯 Precisão do selvagem: ${value} (total: ${window.wildAccuracyMod})`);
-                } else if (targetPoke?.stats && stat in targetPoke.stats) {
-                    targetPoke.stats[stat] = (targetPoke.stats[stat] || 10) + value;
-                    addBattleLog(`📊 ${stat} do selvagem: ${value > 0 ? '+' : ''}${value}`);
-                } else if (stat === 'AC') {
-                    if (targetPoke) targetPoke.ac = (targetPoke.ac || 13) + value;
-                    addBattleLog(`🛡️ AC do selvagem: ${value > 0 ? '+' : ''}${value} (agora ${targetPoke?.ac})`);
-                }
+                const nm = { attack_roll: 'Precisão', ATK: 'Ataque', DEF: 'Defesa',
+                             SPA: 'Atq.Esp.', SPD: 'Def.Esp.', SPE: 'Velocidade' }[stat] || stat;
+                addBattleLog(`📊 ${nm} do selvagem: ${value > 0 ? '+' : ''}${value} estágio`);
             }
         }
         
@@ -5929,21 +5927,12 @@ async function processStatusMove(moveName, attackerPoke, targetPoke) {
         }
         
         if (result.effect_type === 'buff' && result.stat_changes) {
-            // Buff self (player's pokemon)
-            const poke = window.currentBattleData?.playerPokemon;
-            if (poke) {
-                for (const [stat, value] of Object.entries(result.stat_changes)) {
-                    if (stat === 'AC') {
-                        poke.ac = (poke.ac || 13) + value;
-                        addBattleLog(`🛡️ Sua AC: +${value} (agora ${poke.ac})`);
-                    } else if (stat === 'STAB') {
-                        poke.stab = (poke.stab || 1) + value;
-                        addBattleLog(`⚡ Seu STAB: +${value}`);
-                    } else if (poke.stats && stat in poke.stats) {
-                        poke.stats[stat] = (poke.stats[stat] || 10) + value;
-                        addBattleLog(`📊 Seu ${stat}: +${value} (agora ${poke.stats[stat]})`);
-                    }
-                }
+            // Log apenas — a aplicação REAL é server-autoritativa (player_stat_stages
+            // no battle_update). O cliente não soma em poke.stats (era double-count).
+            for (const [stat, value] of Object.entries(result.stat_changes)) {
+                const nm = { ATK: 'Ataque', DEF: 'Defesa', SPA: 'Atq.Esp.',
+                             SPD: 'Def.Esp.', SPE: 'Velocidade' }[stat] || stat;
+                addBattleLog(`📊 Seu ${nm}: ${value > 0 ? '+' : ''}${value} estágio`);
             }
         }
         
