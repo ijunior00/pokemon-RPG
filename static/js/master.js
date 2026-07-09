@@ -924,7 +924,6 @@ async function showPokemonDetail(number) {
                 ).join('')}
             </div>` : ''}
             
-            ${p.savingThrows ? `<p><strong>Saving Throws:</strong> ${p.savingThrows.join(', ')}</p>` : ''}
             ${p.skills ? `<p><strong>Skills:</strong> ${p.skills.join(', ')}</p>` : ''}
         </div>
     `;

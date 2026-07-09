@@ -2285,6 +2285,51 @@ def main():
     _pick = appmod._npc_pick_move(_susA, _susD)
     check(S, 'IA evita golpe em recarga na escolha', _pick[0].lower() != 'giga drain')
 
+    # ══════════ MIGRAÇÃO 5e→v3 DOS MOVES (Curse, estágios canônicos, d100) ══════════
+    section('Migração 5e→v3 dos moves')
+    S = 'Migração 5e→v3'
+    _mdc = appmod.MOVES_BY_NAME.get('curse') or {'name': 'Curse'}
+    _cg = appmod.effects.process_status_move(_mdc, {'maxHp': 100, 'types': ['Ghost'], '_v3': {}}, {})
+    check(S, 'Curse (Fantasma): amaldiçoa o alvo e sacrifica ⌊HPmáx/2⌋',
+          _cg.get('status_applied') == 'amaldicoado' and _cg.get('self_damage') == 50)
+    _cn = appmod.effects.process_status_move(_mdc, {'maxHp': 100, 'types': ['Water'], '_v3': {}}, {})
+    check(S, 'Curse (não-Fantasma): +1 ATK, +1 DEF, −1 SPE',
+          _cn.get('stat_changes') == {'ATK': 1, 'DEF': 1, 'SPE': -1})
+    _ok5, _dmg5, _msgs5, _rem5 = appmod.effects.process_turn_start(
+        {'condition': 'amaldicoado', 'turns_active': 1}, 100)
+    check(S, 'maldição tica ⌊HPmáx/4⌋ por rodada', _dmg5 == 25)
+    # estágios canônicos multi-stat (Bulbapedia/pokemondb)
+    for _mv5, _esp5 in (('dragon dance', {'ATK': 1, 'SPE': 1}),
+                        ('calm mind', {'SPA': 1, 'SPD': 1}),
+                        ('swords dance', {'ATK': 2}),
+                        ('shell smash', {'ATK': 2, 'SPA': 2, 'SPE': 2, 'DEF': -1, 'SPD': -1})):
+        _r5 = appmod.effects.process_status_move(
+            appmod.MOVES_BY_NAME.get(_mv5), {'maxHp': 100, '_v3': {}}, {})
+        check(S, f'{_mv5}: estágios canônicos', _r5.get('stat_changes') == _esp5,
+              str(_r5.get('stat_changes')))
+    # dormir/congelar resolvem por d100 (Pokémon nunca rola d20)
+    _slept = appmod.effects.process_turn_start({'condition': 'dormindo', 'turns_active': 1}, 100)
+    check(S, 'checagem de acordar usa d100', any('d100' in m for m in _slept[2]))
+    check(S, 'nenhuma mensagem de status usa d20', not any('d20' in m for m in _slept[2]))
+    # Sheer Cold virou OHKO (como Fissure/Guillotine/Horn Drill)
+    _sc5 = appmod.effects.auto_detect_move_effect(appmod.MOVES_BY_NAME.get('sheer cold'))
+    check(S, 'Sheer Cold é OHKO (não congelamento)', (_sc5 or {}).get('type') == 'ohko')
+    # AUDITORIA AUTOMÁTICA: zero resíduo 5e nos dados e no motor de efeitos
+    import re as _re5
+    import json as _json5
+    _t5e = _re5.compile(r'CD ?\d+|[Ss]alvaguarda|Sabedoria|Constituição|Destreza|Carisma|d20|proficiência|DC ?\d+')
+    _sujos = [n for n, m in (appmod.MOVES_DB or {}).items()
+              if isinstance(m, dict) and _t5e.search(str(m.get('description', '')))]
+    check(S, 'nenhuma descrição de move com termos 5e', not _sujos, str(_sujos[:6]))
+    _mfx5 = _json5.load(open('server/data/move_effects.json'))
+    _saves5 = [n for n, v in _mfx5.items()
+               if isinstance((v or {}).get('effect'), dict) and 'save' in v['effect']]
+    check(S, "nenhum campo 'save' (5e) no move_effects.json", not _saves5, str(_saves5[:6]))
+    _src5 = open('status_effects.py').read()
+    check(S, "nenhum campo 'save' nas tabelas do motor", "'save':" not in _src5)
+    check(S, 'único d20 do motor de efeitos é a Resistência v3 do OHKO',
+          _src5.count('randint(1, 20)') <= 1)
+
     # ────────────────────────── RELATÓRIO ──────────────────────────
     print('\n' + '═' * 62)
     print('📊 SCORECARD FINAL')

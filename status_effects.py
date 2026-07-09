@@ -86,11 +86,11 @@ STATUS_CONDITIONS = {
         'color': '#6890f0',
         'turn_effect': 'skip',
         'can_act': False,
-        'wake_check': True,              # d20 >= 12 to wake up
-        'wake_dc': 12,
+        'wake_check': True,              # d100 ≤ 45% acorda (mesma prob. do antigo d20 ≥ 12)
+        'wake_chance': 45,
         'duration': 'turns',
         'max_turns': 3,
-        'description': 'Não pode agir. No início do turno, rola d20: ≥12 acorda.'
+        'description': 'Não pode agir. No início do turno, 45% de chance (d100) de acordar.'
     },
     'congelado': {
         'name': 'Congelado',
@@ -98,10 +98,10 @@ STATUS_CONDITIONS = {
         'color': '#98d8d8',
         'turn_effect': 'skip',
         'can_act': False,
-        'thaw_check': True,              # d20 >= 15 to thaw
-        'thaw_dc': 15,
+        'thaw_check': True,              # d100 ≤ 30% descongela (mesma prob. do antigo d20 ≥ 15)
+        'thaw_chance': 30,
         'duration': 'permanent',
-        'description': 'Não pode agir. No início do turno, rola d20: ≥15 descongela. Moves de fogo descongelam.'
+        'description': 'Não pode agir. No início do turno, 30% de chance (d100) de descongelar. Moves de fogo descongelam.'
     },
     'seeded': {
         'name': 'Semeado',
@@ -129,6 +129,17 @@ STATUS_CONDITIONS = {
         'max_turns': 4,                  # 4-5 turnos nos jogos → 4 fixo
         'description': 'Preso (Bind/Wrap/Fire Spin...): perde ⌊HPmáx/16⌋ por turno '
                        'por 4 turnos e não pode fugir.'
+    },
+    'amaldicoado': {
+        'name': 'Amaldiçoado',
+        'icon': '👻',
+        'color': '#705898',
+        'turn_effect': 'damage',
+        'damage_fraction': 4,            # ⌊HPmáx/4⌋ por turno (canônico)
+        'can_act': True,
+        'duration': 'permanent',
+        'description': 'Amaldiçoado (Curse de um Fantasma): perde ⌊HPmáx/4⌋ por '
+                       'turno. Sair de campo remove a maldição.'
     },
     'confuso': {
         'name': 'Confuso',
@@ -178,9 +189,9 @@ MOVE_STATUS_EFFECTS = {
     'Gunk Shot': {'status': 'badly_poisoned', 'chance': 0.30, 'on': 'hit'},
     'Cross Poison': {'status': 'badly_poisoned', 'chance': 0.10, 'on': 'hit'},
     'Poison Fang': {'status': 'badly_poisoned', 'chance': 0.50, 'on': 'hit'},
-    'Toxic': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'save_fail', 'save': 'CON'},
-    'Poison Powder': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'save_fail', 'save': 'CON'},
-    'Poison Gas': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'save_fail', 'save': 'CON'},
+    'Toxic': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'status_move'},
+    'Poison Powder': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'status_move'},
+    'Poison Gas': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'status_move'},
     'Sludge': {'status': 'badly_poisoned', 'chance': 0.30, 'on': 'hit'},
     'Mud Bomb': {'status': 'badly_poisoned', 'chance': 0.30, 'on': 'hit'},
     'Venom Drench': {'status': 'badly_poisoned', 'chance': 1.0, 'on': 'hit'},
@@ -198,13 +209,13 @@ MOVE_STATUS_EFFECTS = {
     'Scald': {'status': 'queimado', 'chance': 0.30, 'on': 'hit'},
     'Blaze Kick': {'status': 'queimado', 'chance': 0.10, 'on': 'hit'},
     'Sacred Fire': {'status': 'queimado', 'chance': 0.50, 'on': 'hit'},
-    'Will-O-Wisp': {'status': 'queimado', 'chance': 1.0, 'on': 'save_fail', 'save': 'DEX'},
+    'Will-O-Wisp': {'status': 'queimado', 'chance': 1.0, 'on': 'status_move'},
     'Inferno': {'status': 'queimado', 'chance': 1.0, 'on': 'hit'},
     'Beak Blast': {'status': 'queimado', 'chance': 1.0, 'on': 'contact'},
     
     # Paralysis moves
-    'Thunder Wave': {'status': 'paralisado', 'chance': 1.0, 'on': 'save_fail', 'save': 'CON'},
-    'Stun Spore': {'status': 'paralisado', 'chance': 1.0, 'on': 'save_fail', 'save': 'CON'},
+    'Thunder Wave': {'status': 'paralisado', 'chance': 1.0, 'on': 'status_move'},
+    'Stun Spore': {'status': 'paralisado', 'chance': 1.0, 'on': 'status_move'},
     'Nuzzle': {'status': 'paralisado', 'chance': 1.0, 'on': 'hit'},
     'Thunder': {'status': 'paralisado', 'chance': 0.30, 'on': 'hit'},
     'Thunderbolt': {'status': 'paralisado', 'chance': 0.10, 'on': 'hit'},
@@ -219,14 +230,14 @@ MOVE_STATUS_EFFECTS = {
     'Bolt Strike': {'status': 'paralisado', 'chance': 0.20, 'on': 'hit'},
     
     # Sleep moves
-    'Hypnosis': {'status': 'dormindo', 'chance': 1.0, 'on': 'save_fail', 'save': 'WIS'},
-    'Sleep Powder': {'status': 'dormindo', 'chance': 1.0, 'on': 'save_fail', 'save': 'CON'},
-    'Spore': {'status': 'dormindo', 'chance': 1.0, 'on': 'save_fail', 'save': 'CON'},
-    'Sing': {'status': 'dormindo', 'chance': 1.0, 'on': 'save_fail', 'save': 'WIS'},
-    'Grass Whistle': {'status': 'dormindo', 'chance': 1.0, 'on': 'save_fail', 'save': 'WIS'},
-    'Lovely Kiss': {'status': 'dormindo', 'chance': 1.0, 'on': 'save_fail', 'save': 'WIS'},
-    'Dark Void': {'status': 'dormindo', 'chance': 1.0, 'on': 'save_fail', 'save': 'WIS'},
-    'Yawn': {'status': 'dormindo', 'chance': 1.0, 'on': 'next_turn', 'save': 'CON'},
+    'Hypnosis': {'status': 'dormindo', 'chance': 1.0, 'on': 'status_move'},
+    'Sleep Powder': {'status': 'dormindo', 'chance': 1.0, 'on': 'status_move'},
+    'Spore': {'status': 'dormindo', 'chance': 1.0, 'on': 'status_move'},
+    'Sing': {'status': 'dormindo', 'chance': 1.0, 'on': 'status_move'},
+    'Grass Whistle': {'status': 'dormindo', 'chance': 1.0, 'on': 'status_move'},
+    'Lovely Kiss': {'status': 'dormindo', 'chance': 1.0, 'on': 'status_move'},
+    'Dark Void': {'status': 'dormindo', 'chance': 1.0, 'on': 'status_move'},
+    'Yawn': {'status': 'dormindo', 'chance': 1.0, 'on': 'next_turn'},
     'Relic Song': {'status': 'dormindo', 'chance': 0.10, 'on': 'hit'},
     
     # Freeze moves
@@ -245,7 +256,7 @@ MOVE_STATUS_EFFECTS = {
     'Clamp':     {'status': 'trapped', 'chance': 1.0, 'on': 'hit'},
     'Whirlpool': {'status': 'trapped', 'chance': 1.0, 'on': 'hit'},
     'Sand Tomb': {'status': 'trapped', 'chance': 1.0, 'on': 'hit'},
-    'Confuse Ray': {'status': 'confuso', 'chance': 1.0, 'on': 'save_fail', 'save': 'WIS'},
+    'Confuse Ray': {'status': 'confuso', 'chance': 1.0, 'on': 'status_move'},
     'Confusion': {'status': 'confuso', 'chance': 0.10, 'on': 'hit'},
     'Psybeam': {'status': 'confuso', 'chance': 0.10, 'on': 'hit'},
     'Signal Beam': {'status': 'confuso', 'chance': 0.10, 'on': 'hit'},
@@ -254,51 +265,51 @@ MOVE_STATUS_EFFECTS = {
     'Chatter': {'status': 'confuso', 'chance': 1.0, 'on': 'hit'},
     'Hurricane': {'status': 'confuso', 'chance': 0.30, 'on': 'hit'},
     'Water Pulse': {'status': 'confuso', 'chance': 0.20, 'on': 'hit'},
-    'Supersonic': {'status': 'confuso', 'chance': 1.0, 'on': 'save_fail', 'save': 'WIS'},
-    'Sweet Kiss': {'status': 'confuso', 'chance': 1.0, 'on': 'save_fail', 'save': 'WIS'},
-    'Swagger': {'status': 'confuso', 'chance': 1.0, 'on': 'save_fail', 'save': 'WIS'},
-    'Flatter': {'status': 'confuso', 'chance': 1.0, 'on': 'save_fail', 'save': 'WIS'},
-    'Teeter Dance': {'status': 'confuso', 'chance': 1.0, 'on': 'save_fail', 'save': 'WIS'},
+    'Supersonic': {'status': 'confuso', 'chance': 1.0, 'on': 'status_move'},
+    'Sweet Kiss': {'status': 'confuso', 'chance': 1.0, 'on': 'status_move'},
+    'Swagger': {'status': 'confuso', 'chance': 1.0, 'on': 'status_move'},
+    'Flatter': {'status': 'confuso', 'chance': 1.0, 'on': 'status_move'},
+    'Teeter Dance': {'status': 'confuso', 'chance': 1.0, 'on': 'status_move'},
     
     # Flinch/Stun moves (atordoado = loses next turn if hit)
-    'Air Slash': {'status': 'atordoado', 'chance': 0.30, 'on': 'nat15plus'},
-    'Astonish': {'status': 'atordoado', 'chance': 0.30, 'on': 'nat15plus'},
-    'Bite': {'status': 'atordoado', 'chance': 0.30, 'on': 'nat15plus'},
-    'Dark Pulse': {'status': 'atordoado', 'chance': 0.20, 'on': 'nat15plus'},
-    'Dragon Rush': {'status': 'atordoado', 'chance': 0.20, 'on': 'nat15plus'},
-    'Extrasensory': {'status': 'atordoado', 'chance': 0.10, 'on': 'nat15plus'},
+    'Air Slash': {'status': 'atordoado', 'chance': 0.30, 'on': 'hit'},
+    'Astonish': {'status': 'atordoado', 'chance': 0.30, 'on': 'hit'},
+    'Bite': {'status': 'atordoado', 'chance': 0.30, 'on': 'hit'},
+    'Dark Pulse': {'status': 'atordoado', 'chance': 0.20, 'on': 'hit'},
+    'Dragon Rush': {'status': 'atordoado', 'chance': 0.20, 'on': 'hit'},
+    'Extrasensory': {'status': 'atordoado', 'chance': 0.10, 'on': 'hit'},
     'Fake Out': {'status': 'atordoado', 'chance': 1.0, 'on': 'hit'},
-    'Fire Fang': {'status': 'atordoado', 'chance': 0.10, 'on': 'nat15plus'},
-    'Headbutt': {'status': 'atordoado', 'chance': 0.30, 'on': 'nat15plus'},
-    'Heart Stamp': {'status': 'atordoado', 'chance': 0.30, 'on': 'nat15plus'},
-    'Hyper Fang': {'status': 'atordoado', 'chance': 0.10, 'on': 'nat15plus'},
-    'Ice Fang': {'status': 'atordoado', 'chance': 0.10, 'on': 'nat15plus'},
-    'Icicle Crash': {'status': 'atordoado', 'chance': 0.30, 'on': 'nat15plus'},
-    'Iron Head': {'status': 'atordoado', 'chance': 0.30, 'on': 'nat15plus'},
-    'Needle Arm': {'status': 'atordoado', 'chance': 0.30, 'on': 'nat15plus'},
-    'Rock Slide': {'status': 'atordoado', 'chance': 0.30, 'on': 'nat15plus'},
-    'Rolling Kick': {'status': 'atordoado', 'chance': 0.30, 'on': 'nat15plus'},
-    'Sky Attack': {'status': 'atordoado', 'chance': 0.30, 'on': 'nat15plus'},
-    'Snore': {'status': 'atordoado', 'chance': 0.30, 'on': 'nat15plus'},
-    'Stomp': {'status': 'atordoado', 'chance': 0.30, 'on': 'nat15plus'},
-    'Thunder Fang': {'status': 'atordoado', 'chance': 0.10, 'on': 'nat15plus'},
-    'Twister': {'status': 'atordoado', 'chance': 0.20, 'on': 'nat15plus'},
-    'Waterfall': {'status': 'atordoado', 'chance': 0.20, 'on': 'nat15plus'},
-    'Zen Headbutt': {'status': 'atordoado', 'chance': 0.20, 'on': 'nat15plus'},
+    'Fire Fang': {'status': 'atordoado', 'chance': 0.10, 'on': 'hit'},
+    'Headbutt': {'status': 'atordoado', 'chance': 0.30, 'on': 'hit'},
+    'Heart Stamp': {'status': 'atordoado', 'chance': 0.30, 'on': 'hit'},
+    'Hyper Fang': {'status': 'atordoado', 'chance': 0.10, 'on': 'hit'},
+    'Ice Fang': {'status': 'atordoado', 'chance': 0.10, 'on': 'hit'},
+    'Icicle Crash': {'status': 'atordoado', 'chance': 0.30, 'on': 'hit'},
+    'Iron Head': {'status': 'atordoado', 'chance': 0.30, 'on': 'hit'},
+    'Needle Arm': {'status': 'atordoado', 'chance': 0.30, 'on': 'hit'},
+    'Rock Slide': {'status': 'atordoado', 'chance': 0.30, 'on': 'hit'},
+    'Rolling Kick': {'status': 'atordoado', 'chance': 0.30, 'on': 'hit'},
+    'Sky Attack': {'status': 'atordoado', 'chance': 0.30, 'on': 'hit'},
+    'Snore': {'status': 'atordoado', 'chance': 0.30, 'on': 'hit'},
+    'Stomp': {'status': 'atordoado', 'chance': 0.30, 'on': 'hit'},
+    'Thunder Fang': {'status': 'atordoado', 'chance': 0.10, 'on': 'hit'},
+    'Twister': {'status': 'atordoado', 'chance': 0.20, 'on': 'hit'},
+    'Waterfall': {'status': 'atordoado', 'chance': 0.20, 'on': 'hit'},
+    'Zen Headbutt': {'status': 'atordoado', 'chance': 0.20, 'on': 'hit'},
     
     # Stat modifiers (buffs/debuffs) - these don't apply a "condition" but modify stats
-    'Growl': {'status': 'debuff', 'stat': 'STR', 'value': -1, 'on': 'save_fail', 'save': 'WIS'},
-    'Leer': {'status': 'debuff', 'stat': 'AC', 'value': -1, 'on': 'save_fail', 'save': 'WIS'},
-    'Tail Whip': {'status': 'debuff', 'stat': 'AC', 'value': -1, 'on': 'save_fail', 'save': 'WIS'},
-    'Screech': {'status': 'debuff', 'stat': 'AC', 'value': -2, 'on': 'save_fail', 'save': 'CON'},
-    'Charm': {'status': 'debuff', 'stat': 'STR', 'value': -2, 'on': 'save_fail', 'save': 'WIS'},
-    'Scary Face': {'status': 'debuff', 'stat': 'DEX', 'value': -2, 'on': 'save_fail', 'save': 'WIS'},
-    'String Shot': {'status': 'debuff', 'stat': 'DEX', 'value': -2, 'on': 'save_fail', 'save': 'DEX'},
-    'Cotton Spore': {'status': 'debuff', 'stat': 'DEX', 'value': -3, 'on': 'save_fail', 'save': 'DEX'},
-    'Smokescreen': {'status': 'debuff', 'stat': 'attack_roll', 'value': -3, 'on': 'save_fail', 'save': 'CON'},
-    'Sand Attack': {'status': 'debuff', 'stat': 'attack_roll', 'value': -3, 'on': 'save_fail', 'save': 'DEX'},
-    'Flash': {'status': 'debuff', 'stat': 'attack_roll', 'value': -3, 'on': 'save_fail', 'save': 'CON'},
-    'Kinesis': {'status': 'debuff', 'stat': 'attack_roll', 'value': -2, 'on': 'save_fail', 'save': 'WIS'},
+    'Growl': {'status': 'debuff', 'stat': 'STR', 'value': -1, 'on': 'status_move'},
+    'Leer': {'status': 'debuff', 'stat': 'AC', 'value': -1, 'on': 'status_move'},
+    'Tail Whip': {'status': 'debuff', 'stat': 'AC', 'value': -1, 'on': 'status_move'},
+    'Screech': {'status': 'debuff', 'stat': 'AC', 'value': -2, 'on': 'status_move'},
+    'Charm': {'status': 'debuff', 'stat': 'STR', 'value': -2, 'on': 'status_move'},
+    'Scary Face': {'status': 'debuff', 'stat': 'DEX', 'value': -2, 'on': 'status_move'},
+    'String Shot': {'status': 'debuff', 'stat': 'DEX', 'value': -2, 'on': 'status_move'},
+    'Cotton Spore': {'status': 'debuff', 'stat': 'DEX', 'value': -3, 'on': 'status_move'},
+    'Smokescreen': {'status': 'debuff', 'stat': 'attack_roll', 'value': -3, 'on': 'status_move'},
+    'Sand Attack': {'status': 'debuff', 'stat': 'attack_roll', 'value': -3, 'on': 'status_move'},
+    'Flash': {'status': 'debuff', 'stat': 'attack_roll', 'value': -3, 'on': 'status_move'},
+    'Kinesis': {'status': 'debuff', 'stat': 'attack_roll', 'value': -2, 'on': 'status_move'},
 }
 
 
@@ -352,11 +363,8 @@ def check_status_on_hit(move_name, attack_roll, damage_dealt, defender=None):
     if trigger == 'hit' and damage_dealt > 0:
         if random.random() < chance:
             return effect['status'], True
-    elif trigger == 'nat15plus' and attack_roll >= 15 and damage_dealt > 0:
-        if random.random() < chance:
-            return effect['status'], True
-    elif trigger in ('save_fail', 'next_turn'):
-        # Aplica pela chance do move (sistema v2 — sem teste de resistência D&D)
+    elif trigger in ('status_move', 'next_turn'):
+        # Aplica pela chance canônica do move — sem teste de resistência 5e
         if random.random() < chance:
             return effect['status'], True
 
@@ -397,23 +405,23 @@ def process_turn_start(pokemon_status, max_hp):
     elif turn_effect == 'skip':
         can_act = False
         messages.append(f"{condition['icon']} {condition['name']}: Não pode agir!")
-        # Check wake/thaw
+        # Acordar/descongelar — d100 (Pokémon nunca rola d20; d20 é do treinador)
         if condition.get('wake_check'):
-            roll = random.randint(1, 20)
-            if roll >= condition['wake_dc']:
+            roll = random.randint(1, 100)
+            if roll <= condition['wake_chance']:
                 can_act = True
                 status_removed = True
-                messages.append(f"🎲 d20({roll}) ≥ {condition['wake_dc']} → Acordou!")
+                messages.append(f"🎲 d100({roll}) ≤ {condition['wake_chance']}% → Acordou!")
             else:
-                messages.append(f"🎲 d20({roll}) < {condition['wake_dc']} → Continua dormindo...")
+                messages.append(f"🎲 d100({roll}) > {condition['wake_chance']}% → Continua dormindo...")
         elif condition.get('thaw_check'):
-            roll = random.randint(1, 20)
-            if roll >= condition['thaw_dc']:
+            roll = random.randint(1, 100)
+            if roll <= condition['thaw_chance']:
                 can_act = True
                 status_removed = True
-                messages.append(f"🎲 d20({roll}) ≥ {condition['thaw_dc']} → Descongelou!")
+                messages.append(f"🎲 d100({roll}) ≤ {condition['thaw_chance']}% → Descongelou!")
             else:
-                messages.append(f"🎲 d20({roll}) < {condition['thaw_dc']} → Ainda congelado...")
+                messages.append(f"🎲 d100({roll}) > {condition['thaw_chance']}% → Ainda congelado...")
     
     elif turn_effect == 'skip_chance':
         skip_chance = condition.get('skip_chance', 0.25)
@@ -473,6 +481,10 @@ def get_stat_modifiers(pokemon_status):
 # A condição ativa (queimado/paralisado) também soma pelo mesmo caminho.
 # ============================================================
 STAGE_KEYS = ('ATK', 'DEF', 'SPA', 'SPD', 'SPE', 'AC', 'attack_roll')
+# rótulos amigáveis p/ mensagens de buff/debuff (AC = evasão; attack_roll =
+# precisão — nomes herdados das CHAVES de estágio, não do sistema 5e)
+_STAGE_LABEL = {'AC': 'Evasão', 'attack_roll': 'Precisão', 'ATK': 'ATK',
+                'DEF': 'DEF', 'SPA': 'SpA', 'SPD': 'SpD', 'SPE': 'SPE'}
 STAGE_CLAMP = 6
 # condição legada usa DEX; o sistema novo usa SPE
 _COND_STAT_ALIAS = {'DEX': 'SPE', 'STR': 'ATK', 'INT': 'SPA', 'WIS': 'SPD'}
@@ -600,95 +612,95 @@ def auto_detect_move_effect(move_data):
     # ========== KNOWN MOVES BY NAME (mapa curado, fallback) ==========
     KNOWN_EFFECTS = {
         # Confusion
-        'supersonic': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
-        'confuse ray': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
-        'swagger': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
-        'flatter': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
-        'sweet kiss': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
-        'teeter dance': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
+        'supersonic': {'type': 'inflict_status', 'status': 'confuso'},
+        'confuse ray': {'type': 'inflict_status', 'status': 'confuso'},
+        'swagger': {'type': 'inflict_status', 'status': 'confuso'},
+        'flatter': {'type': 'inflict_status', 'status': 'confuso'},
+        'sweet kiss': {'type': 'inflict_status', 'status': 'confuso'},
+        'teeter dance': {'type': 'inflict_status', 'status': 'confuso'},
         # Sleep
-        'hypnosis': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'WIS'},
-        'sleep powder': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'CON'},
-        'spore': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'CON'},
-        'sing': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'WIS'},
-        'grass whistle': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'WIS'},
-        'lovely kiss': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'WIS'},
-        'dark void': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'WIS'},
-        'yawn': {'type': 'inflict_status', 'status': 'dormindo', 'save': 'CON'},
+        'hypnosis': {'type': 'inflict_status', 'status': 'dormindo'},
+        'sleep powder': {'type': 'inflict_status', 'status': 'dormindo'},
+        'spore': {'type': 'inflict_status', 'status': 'dormindo'},
+        'sing': {'type': 'inflict_status', 'status': 'dormindo'},
+        'grass whistle': {'type': 'inflict_status', 'status': 'dormindo'},
+        'lovely kiss': {'type': 'inflict_status', 'status': 'dormindo'},
+        'dark void': {'type': 'inflict_status', 'status': 'dormindo'},
+        'yawn': {'type': 'inflict_status', 'status': 'dormindo'},
         # Paralysis
-        'thunder wave': {'type': 'inflict_status', 'status': 'paralisado', 'save': 'CON'},
-        'stun spore': {'type': 'inflict_status', 'status': 'paralisado', 'save': 'CON'},
-        'glare': {'type': 'inflict_status', 'status': 'paralisado', 'save': 'CON'},
-        'nuzzle': {'type': 'inflict_status', 'status': 'paralisado', 'save': 'CON'},
+        'thunder wave': {'type': 'inflict_status', 'status': 'paralisado'},
+        'stun spore': {'type': 'inflict_status', 'status': 'paralisado'},
+        'glare': {'type': 'inflict_status', 'status': 'paralisado'},
+        'nuzzle': {'type': 'inflict_status', 'status': 'paralisado'},
         # Poison
-        'toxic': {'type': 'inflict_status', 'status': 'badly_poisoned', 'save': 'CON'},
-        'poison powder': {'type': 'inflict_status', 'status': 'badly_poisoned', 'save': 'CON'},
-        'poison gas': {'type': 'inflict_status', 'status': 'badly_poisoned', 'save': 'CON'},
+        'toxic': {'type': 'inflict_status', 'status': 'badly_poisoned'},
+        'poison powder': {'type': 'inflict_status', 'status': 'badly_poisoned'},
+        'poison gas': {'type': 'inflict_status', 'status': 'badly_poisoned'},
         # Burn
-        'will-o-wisp': {'type': 'inflict_status', 'status': 'queimado', 'save': 'DEX'},
+        'will-o-wisp': {'type': 'inflict_status', 'status': 'queimado'},
         # Accuracy down
-        'smokescreen': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -3, 'save': 'CON', 'duration': 3},
-        'sand attack': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -3, 'save': 'DEX', 'duration': 3},
-        'flash': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -3, 'save': 'CON', 'duration': 3},
-        'kinesis': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 3},
-        'mud-slap': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'DEX', 'duration': 3},
-        'muddy water': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -1, 'save': 'DEX', 'duration': 2},
-        'octazooka': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'DEX', 'duration': 3},
+        'smokescreen': {'type': 'debuff_target', 'stats': {'attack_roll': -1}},
+        'sand attack': {'type': 'debuff_target', 'stats': {'attack_roll': -1}},
+        'flash': {'type': 'debuff_target', 'stats': {'attack_roll': -1}},
+        'kinesis': {'type': 'debuff_target', 'stats': {'attack_roll': -1}},
+        'mud-slap': {'type': 'debuff_target', 'stats': {'attack_roll': -1}},
+        'muddy water': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -1, 'duration': 2},
+        'octazooka': {'type': 'debuff_target', 'stats': {'attack_roll': -1}},
         # Attack down
-        'growl': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'WIS', 'duration': 3},
-        'charm': {'type': 'debuff_target', 'stat': 'ATK', 'value': -3, 'save': 'WIS', 'duration': 3},
-        'baby-doll eyes': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'WIS', 'duration': 3},
-        'feather dance': {'type': 'debuff_target', 'stat': 'ATK', 'value': -3, 'save': 'WIS', 'duration': 3},
-        'tickle': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'WIS', 'duration': 3},
+        'growl': {'type': 'debuff_target', 'stats': {'ATK': -1}},
+        'charm': {'type': 'debuff_target', 'stats': {'ATK': -2}},
+        'baby-doll eyes': {'type': 'debuff_target', 'stats': {'ATK': -1}},
+        'feather dance': {'type': 'debuff_target', 'stats': {'ATK': -2}},
+        'tickle': {'type': 'debuff_target', 'stats': {'ATK': -1, 'DEF': -1}},
         # Defense down
-        'leer': {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'save': 'WIS', 'duration': 3},
-        'tail whip': {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'save': 'WIS', 'duration': 3},
-        'screech': {'type': 'debuff_target', 'stat': 'DEF', 'value': -3, 'save': 'CON', 'duration': 3},
-        'fake tears': {'type': 'debuff_target', 'stat': 'SPD', 'value': -3, 'save': 'WIS', 'duration': 3},
-        'metal sound': {'type': 'debuff_target', 'stat': 'SPD', 'value': -3, 'save': 'CON', 'duration': 3},
+        'leer': {'type': 'debuff_target', 'stats': {'DEF': -1}},
+        'tail whip': {'type': 'debuff_target', 'stats': {'DEF': -1}},
+        'screech': {'type': 'debuff_target', 'stats': {'DEF': -2}},
+        'fake tears': {'type': 'debuff_target', 'stats': {'SPD': -2}},
+        'metal sound': {'type': 'debuff_target', 'stats': {'SPD': -2}},
         # Speed down
-        'scary face': {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'save': 'WIS', 'duration': 3},
-        'string shot': {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'save': 'DEX', 'duration': 3},
-        'cotton spore': {'type': 'debuff_target', 'stat': 'SPE', 'value': -4, 'save': 'DEX', 'duration': 3},
-        'sticky web': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'save': 'DEX', 'duration': 5},
-        'electroweb': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'save': 'DEX', 'duration': 3},
+        'scary face': {'type': 'debuff_target', 'stats': {'SPE': -2}},
+        'string shot': {'type': 'debuff_target', 'stats': {'SPE': -2}},
+        'cotton spore': {'type': 'debuff_target', 'stats': {'SPE': -2}},
+        'sticky web': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'duration': 5},
+        'electroweb': {'type': 'debuff_target', 'stats': {'SPE': -1}},
         # Flinch/Fear
-        'fake out': {'type': 'inflict_status', 'status': 'atordoado', 'save': 'CON'},
+        'fake out': {'type': 'inflict_status', 'status': 'atordoado'},
         # Self buffs - Attack
-        'swords dance': {'type': 'buff_self', 'stat': 'ATK', 'value': 4, 'duration': 3},
-        'howl': {'type': 'buff_self', 'stat': 'ATK', 'value': 2, 'duration': 3},
-        'hone claws': {'type': 'buff_self', 'stat': 'ATK', 'value': 2, 'duration': 3},
-        'work up': {'type': 'buff_self', 'stat': 'ATK', 'value': 2, 'duration': 3},
+        'swords dance': {'type': 'buff_self', 'stats': {'ATK': 2}},
+        'howl': {'type': 'buff_self', 'stats': {'ATK': 1}},
+        'hone claws': {'type': 'buff_self', 'stats': {'ATK': 1, 'attack_roll': 1}},
+        'work up': {'type': 'buff_self', 'stats': {'ATK': 1, 'SPA': 1}},
         'belly drum': {'type': 'buff_self', 'stat': 'ATK', 'value': 6, 'duration': 5},
-        'dragon dance': {'type': 'buff_self', 'stat': 'ATK', 'value': 2, 'duration': 3},
-        'bulk up': {'type': 'buff_self', 'stat': 'ATK', 'value': 2, 'duration': 3},
+        'dragon dance': {'type': 'buff_self', 'stats': {'ATK': 1, 'SPE': 1}},
+        'bulk up': {'type': 'buff_self', 'stats': {'ATK': 1, 'DEF': 1}},
         # Self buffs - Sp.Attack
-        'nasty plot': {'type': 'buff_self', 'stat': 'SPA', 'value': 4, 'duration': 3},
-        'calm mind': {'type': 'buff_self', 'stat': 'SPA', 'value': 2, 'duration': 3},
-        'quiver dance': {'type': 'buff_self', 'stat': 'SPA', 'value': 2, 'duration': 3},
-        'tail glow': {'type': 'buff_self', 'stat': 'SPA', 'value': 4, 'duration': 3},
+        'nasty plot': {'type': 'buff_self', 'stats': {'SPA': 2}},
+        'calm mind': {'type': 'buff_self', 'stats': {'SPA': 1, 'SPD': 1}},
+        'quiver dance': {'type': 'buff_self', 'stats': {'SPA': 1, 'SPD': 1, 'SPE': 1}},
+        'tail glow': {'type': 'buff_self', 'stats': {'SPA': 3}},
         # Self buffs - Defense
-        'barrier': {'type': 'buff_self', 'stat': 'DEF', 'value': 3, 'duration': 3},
-        'iron defense': {'type': 'buff_self', 'stat': 'DEF', 'value': 3, 'duration': 3},
-        'harden': {'type': 'buff_self', 'stat': 'DEF', 'value': 2, 'duration': 3},
-        'withdraw': {'type': 'buff_self', 'stat': 'DEF', 'value': 2, 'duration': 3},
-        'acid armor': {'type': 'buff_self', 'stat': 'DEF', 'value': 3, 'duration': 3},
-        'cotton guard': {'type': 'buff_self', 'stat': 'DEF', 'value': 4, 'duration': 3},
-        'defend order': {'type': 'buff_self', 'stat': 'DEF', 'value': 2, 'duration': 3},
-        'cosmic power': {'type': 'buff_self', 'stat': 'DEF', 'value': 2, 'duration': 3},
+        'barrier': {'type': 'buff_self', 'stats': {'DEF': 2}},
+        'iron defense': {'type': 'buff_self', 'stats': {'DEF': 2}},
+        'harden': {'type': 'buff_self', 'stats': {'DEF': 1}},
+        'withdraw': {'type': 'buff_self', 'stats': {'DEF': 1}},
+        'acid armor': {'type': 'buff_self', 'stats': {'DEF': 2}},
+        'cotton guard': {'type': 'buff_self', 'stats': {'DEF': 3}},
+        'defend order': {'type': 'buff_self', 'stats': {'DEF': 1, 'SPD': 1}},
+        'cosmic power': {'type': 'buff_self', 'stats': {'DEF': 1, 'SPD': 1}},
         # Self buffs - Sp.Defense
-        'amnesia': {'type': 'buff_self', 'stat': 'SPD', 'value': 3, 'duration': 3},
+        'amnesia': {'type': 'buff_self', 'stats': {'SPD': 2}},
         'light screen': {'type': 'buff_self', 'stat': 'SPD', 'value': 3, 'duration': 5},
         'reflect': {'type': 'buff_self', 'stat': 'DEF', 'value': 3, 'duration': 5},
         # Self buffs - Speed
-        'agility': {'type': 'buff_self', 'stat': 'SPE', 'value': 4, 'duration': 3},
-        'rock polish': {'type': 'buff_self', 'stat': 'SPE', 'value': 4, 'duration': 3},
-        'autotomize': {'type': 'buff_self', 'stat': 'SPE', 'value': 4, 'duration': 3},
-        'shell smash': {'type': 'buff_self', 'stat': 'SPE', 'value': 3, 'duration': 3},
-        'shift gear': {'type': 'buff_self', 'stat': 'SPE', 'value': 3, 'duration': 3},
+        'agility': {'type': 'buff_self', 'stats': {'SPE': 2}},
+        'rock polish': {'type': 'buff_self', 'stats': {'SPE': 2}},
+        'autotomize': {'type': 'buff_self', 'stats': {'SPE': 2}},
+        'shell smash': {'type': 'buff_self', 'stats': {'DEF': -1, 'SPD': -1, 'ATK': 2, 'SPA': 2, 'SPE': 2}},
+        'shift gear': {'type': 'buff_self', 'stats': {'ATK': 1, 'SPE': 2}},
         # Self buffs - Evasion/AC
-        'double team': {'type': 'buff_self', 'stat': 'AC', 'value': 2, 'duration': 3},
-        'minimize': {'type': 'buff_self', 'stat': 'AC', 'value': 3, 'duration': 3},
+        'double team': {'type': 'buff_self', 'stats': {'AC': 1}},
+        'minimize': {'type': 'buff_self', 'stats': {'AC': 2}},
         # Healing
         'recover': {'type': 'heal_self', 'amount': 'half'},
         'roost': {'type': 'heal_self', 'amount': 'half'},
@@ -728,20 +740,20 @@ def auto_detect_move_effect(move_data):
         'psychic terrain': {'type': 'terrain', 'terrain': 'psychic', 'duration': 5},
         'misty terrain': {'type': 'terrain', 'terrain': 'misty', 'duration': 5},
         # Taunt/Encore
-        'taunt': {'type': 'debuff_target', 'stat': 'no_status_moves', 'value': -1, 'save': 'WIS', 'duration': 3},
-        'encore': {'type': 'debuff_target', 'stat': 'locked_move', 'value': -1, 'save': 'WIS', 'duration': 3},
-        'disable': {'type': 'debuff_target', 'stat': 'locked_move', 'value': -1, 'save': 'WIS', 'duration': 3},
-        'torment': {'type': 'debuff_target', 'stat': 'locked_move', 'value': -1, 'save': 'WIS', 'duration': 3},
+        'taunt': {'type': 'debuff_target', 'stat': 'no_status_moves', 'value': -1, 'duration': 3},
+        'encore': {'type': 'debuff_target', 'stat': 'locked_move', 'value': -1, 'duration': 3},
+        'disable': {'type': 'debuff_target', 'stat': 'locked_move', 'value': -1, 'duration': 3},
+        'torment': {'type': 'debuff_target', 'stat': 'locked_move', 'value': -1, 'duration': 3},
         # Attract
-        'attract': {'type': 'inflict_status', 'status': 'amedrontado', 'save': 'WIS'},
+        'attract': {'type': 'inflict_status', 'status': 'amedrontado'},
         # Buffs de CA / ataque (5e homebrew)
-        'defense curl': {'type': 'buff_self', 'stat': 'AC', 'value': 4, 'duration': 1},
+        'defense curl': {'type': 'buff_self', 'stats': {'DEF': 1}},
         'focus energy': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 2, 'duration': 3},
-        'coil': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 1, 'duration': 3},
-        'meditate': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 1, 'duration': 3},
-        'sharpen': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 2, 'duration': 3},
-        'growth': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 2, 'duration': 3},
-        'sweet scent': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 3, 'duration': 2},
+        'coil': {'type': 'buff_self', 'stats': {'ATK': 1, 'DEF': 1, 'attack_roll': 1}},
+        'meditate': {'type': 'buff_self', 'stats': {'ATK': 1}},
+        'sharpen': {'type': 'buff_self', 'stats': {'ATK': 1}},
+        'growth': {'type': 'buff_self', 'stats': {'ATK': 1, 'SPA': 1}},
+        'sweet scent': {'type': 'buff_self', 'stats': {'AC': -2}},
         'laser focus': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 2, 'duration': 1},
         'lock-on': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 4, 'duration': 1},
         'mind reader': {'type': 'buff_self', 'stat': 'attack_roll', 'value': 4, 'duration': 1},
@@ -813,49 +825,51 @@ def auto_detect_move_effect(move_data):
         'ion deluge': {'type': 'buff_self', 'stat': 'SPA', 'value': 1, 'duration': 2},
         'recycle': {'type': 'heal_self', 'amount': 'quarter'},
         # Debuffs no alvo (homebrew p/ moves de manipulação)
-        'block': {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'save': 'CON', 'duration': 3},
-        'spider web': {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'save': 'DEX', 'duration': 3},
-        'fairy lock': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'save': 'WIS', 'duration': 2},
-        'quash': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'save': 'CON', 'duration': 2},
-        'trick room': {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'save': 'INT', 'duration': 3},
-        'speed swap': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'save': 'CON', 'duration': 3},
-        'gastro acid': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'CON', 'duration': 3},
-        'entrainment': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 3},
-        'skill swap': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'INT', 'duration': 3},
-        'imprison': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 3},
-        'destiny bond': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 3},
-        'grudge': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 3},
-        'powder': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'DEX', 'duration': 2},
-        'trick': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 2},
-        'switcheroo': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 2},
-        'bestow': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -1, 'save': 'WIS', 'duration': 2},
-        'soak': {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'save': 'CON', 'duration': 3},
-        "forest's curse": {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'save': 'WIS', 'duration': 3},
-        'trick-or-treat': {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'save': 'WIS', 'duration': 3},
-        'guard split': {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'save': 'CON', 'duration': 3},
-        'power split': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'CON', 'duration': 3},
-        'power swap': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'CON', 'duration': 3},
-        'simple beam': {'type': 'debuff_target', 'stat': 'SPA', 'value': -2, 'save': 'CON', 'duration': 3},
-        'electrify': {'type': 'debuff_target', 'stat': 'SPA', 'value': -2, 'save': 'CON', 'duration': 2},
-        'magic room': {'type': 'debuff_target', 'stat': 'SPD', 'value': -2, 'save': 'INT', 'duration': 3},
-        'wonder room': {'type': 'debuff_target', 'stat': 'SPD', 'value': -2, 'save': 'INT', 'duration': 3},
-        'gravity': {'type': 'debuff_target', 'stat': 'AC', 'value': -2, 'save': 'CON', 'duration': 3},
-        'telekinesis': {'type': 'debuff_target', 'stat': 'AC', 'value': -3, 'save': 'CON', 'duration': 3},
-        'spotlight': {'type': 'debuff_target', 'stat': 'AC', 'value': -2, 'save': 'WIS', 'duration': 1},
+        'block': {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'duration': 3},
+        'spider web': {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'duration': 3},
+        'fairy lock': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'duration': 2},
+        'quash': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'duration': 2},
+        'trick room': {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'duration': 3},
+        'speed swap': {'type': 'debuff_target', 'stat': 'SPE', 'value': -2, 'duration': 3},
+        'gastro acid': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'duration': 3},
+        'entrainment': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'duration': 3},
+        'skill swap': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'duration': 3},
+        'imprison': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'duration': 3},
+        'destiny bond': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'duration': 3},
+        'grudge': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'duration': 3},
+        'powder': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'duration': 2},
+        'trick': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'duration': 2},
+        'switcheroo': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'duration': 2},
+        'bestow': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -1, 'duration': 2},
+        'soak': {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'duration': 3},
+        "forest's curse": {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'duration': 3},
+        'trick-or-treat': {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'duration': 3},
+        'guard split': {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'duration': 3},
+        'power split': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'duration': 3},
+        'power swap': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'duration': 3},
+        'simple beam': {'type': 'debuff_target', 'stat': 'SPA', 'value': -2, 'duration': 3},
+        'electrify': {'type': 'debuff_target', 'stat': 'SPA', 'value': -2, 'duration': 2},
+        'magic room': {'type': 'debuff_target', 'stat': 'SPD', 'value': -2, 'duration': 3},
+        'wonder room': {'type': 'debuff_target', 'stat': 'SPD', 'value': -2, 'duration': 3},
+        'gravity': {'type': 'debuff_target', 'stat': 'AC', 'value': -2, 'duration': 3},
+        'telekinesis': {'type': 'debuff_target', 'stat': 'AC', 'value': -3, 'duration': 3},
+        'spotlight': {'type': 'debuff_target', 'stat': 'AC', 'value': -2, 'duration': 1},
         # Psycho Shift: transfere o mal-estar (homebrew: confunde o alvo)
-        'psycho shift': {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'},
+        'psycho shift': {'type': 'inflict_status', 'status': 'confuso'},
         # Splash: canonicamente inútil
         'splash': {'type': 'utility', 'message': '💦 Splash! Nada aconteceu... absolutamente nada!'},
         # Debuffs conhecidos
-        'noble roar': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'WIS', 'duration': 2},
-        'captivate': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'CHA', 'duration': 2},
-        'eerie impulse': {'type': 'debuff_target', 'stat': 'SPA', 'value': -3, 'save': 'CON', 'duration': 3},
-        'memento': {'type': 'debuff_target', 'stat': 'ATK', 'value': -4, 'save': 'WIS', 'duration': 3},
-        'parting shot': {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'WIS', 'duration': 2},
+        'noble roar': {'type': 'debuff_target', 'stats': {'ATK': -1, 'SPA': -1}},
+        'captivate': {'type': 'debuff_target', 'stats': {'SPA': -2}},
+        'eerie impulse': {'type': 'debuff_target', 'stats': {'SPA': -2}},
+        'memento': {'type': 'debuff_target', 'stats': {'ATK': -2, 'SPA': -2}},
+        'parting shot': {'type': 'debuff_target', 'stats': {'ATK': -1, 'SPA': -1}},
         # Curse (não-Ghost): auto-buff (+Atk/+Def, -Spe). Aproximado como +Atk no
         # usuário — antes debuffava a Velocidade do ALVO, o que estava errado.
-        'curse': {'type': 'buff_self', 'stat': 'ATK', 'value': 2, 'duration': 3},
-        'spite': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'save': 'WIS', 'duration': 2},
+        # Curse é DINÂMICO por tipo do usuário (Fantasma amaldiçoa; os demais
+        # ganham +ATK/+DEF/−SPE) — resolvido por um branch próprio no motor
+        'curse': {'type': 'curse'},
+        'spite': {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -2, 'duration': 2},
     }
     
     # Check by name first
@@ -866,47 +880,47 @@ def auto_detect_move_effect(move_data):
     
     # Confusion
     if any(kw in desc for kw in ['confus', 'confused', 'confusion']):
-        return {'type': 'inflict_status', 'status': 'confuso', 'save': 'WIS'}
+        return {'type': 'inflict_status', 'status': 'confuso'}
     
     # Sleep
     if any(kw in desc for kw in ['dormir', 'adormecer', 'sono', 'durma', 'sleep', 'asleep', 'drowsy']):
-        return {'type': 'inflict_status', 'status': 'dormindo', 'save': 'WIS'}
+        return {'type': 'inflict_status', 'status': 'dormindo'}
     
     # Paralysis
     if any(kw in desc for kw in ['paralis', 'paralyz', 'paralyze']):
-        return {'type': 'inflict_status', 'status': 'paralisado', 'save': 'CON'}
+        return {'type': 'inflict_status', 'status': 'paralisado'}
     
     # Poison
     if any(kw in desc for kw in ['envenenad', 'veneno', 'poison', 'toxic']):
-        return {'type': 'inflict_status', 'status': 'badly_poisoned', 'save': 'CON'}
+        return {'type': 'inflict_status', 'status': 'badly_poisoned'}
     
     # Burn
     if any(kw in desc for kw in ['queimad', 'queimadura', 'burn', 'burned']):
-        return {'type': 'inflict_status', 'status': 'queimado', 'save': 'DEX'}
+        return {'type': 'inflict_status', 'status': 'queimado'}
     
     # Freeze
     if any(kw in desc for kw in ['congel', 'frozen', 'freeze']):
-        return {'type': 'inflict_status', 'status': 'congelado', 'save': 'CON'}
+        return {'type': 'inflict_status', 'status': 'congelado'}
     
     # Fear/Flinch
     if any(kw in desc for kw in ['amedront', 'frightened', 'flinch', 'assustador']):
-        return {'type': 'inflict_status', 'status': 'amedrontado', 'save': 'WIS'}
+        return {'type': 'inflict_status', 'status': 'amedrontado'}
     
     # Accuracy debuffs
     if any(kw in desc for kw in ['fumaça', 'areia', 'cegar', 'blind', 'accuracy', 'precisão']):
-        return {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -3, 'save': 'CON', 'duration': 3}
+        return {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -3, 'duration': 3}
     
     # Attack debuffs
     if any(kw in desc for kw in ['ataque que fizer', 'attack.*lower', 'rosnado', 'intimidador']):
-        return {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'save': 'WIS', 'duration': 3}
+        return {'type': 'debuff_target', 'stat': 'ATK', 'value': -2, 'duration': 3}
     
     # Defense debuffs
     if any(kw in desc for kw in ['defesas', 'ataque que o alvo sofrer', 'defense.*lower']):
-        return {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'save': 'WIS', 'duration': 3}
+        return {'type': 'debuff_target', 'stat': 'DEF', 'value': -2, 'duration': 3}
     
     # Speed debuffs
     if any(kw in desc for kw in ['velocidade', 'speed']) and any(kw in desc for kw in ['reduz', 'diminui', 'lower', 'decrease']):
-        return {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'save': 'DEX', 'duration': 3}
+        return {'type': 'debuff_target', 'stat': 'SPE', 'value': -3, 'duration': 3}
     
     # Self speed buff
     if any(kw in desc for kw in ['velocidade', 'speed']) and any(kw in desc for kw in ['aument', 'increase', 'raise', 'percorrer']):
@@ -951,7 +965,7 @@ def auto_detect_move_effect(move_data):
 
     # Desvantagem no ataque do alvo
     if 'desvantagem na rolagem de ataque' in desc or 'desvantagem em suas rolagens de ataque' in desc:
-        return {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -3, 'save': 'WIS', 'duration': 2}
+        return {'type': 'debuff_target', 'stat': 'attack_roll', 'value': -3, 'duration': 2}
 
     # If nothing detected
     return None
@@ -1011,7 +1025,33 @@ def process_status_move(move_data, attacker_stats, target_stats):
         acc_label = 'certeiro' if acc_eff is None else f'ACC {acc_eff}%'
         return _bm.v3_connects(roll, acc_eff), roll, (acc_eff or 100), acc_label
 
-    if effect['type'] == 'inflict_status':
+    if effect['type'] == 'curse':
+        # CURSE (canônico, pokemondb): usuário FANTASMA sacrifica ⌊HPmáx/2⌋
+        # e amaldiçoa o alvo — ele perde ⌊HPmáx/4⌋ por turno até sair de
+        # campo. Qualquer outro tipo: +1 ATK, +1 DEF, −1 SPE no próprio
+        # usuário. Sem teste de acerto (ACC —, certeiro), sem d20.
+        user_types = [str(t).lower() for t in (attacker_stats.get('types') or [])]
+        if 'ghost' in user_types or 'fantasma' in user_types:
+            max_hp = int(attacker_stats.get('maxHp', 20) or 20)
+            cost = max(1, max_hp // 2)
+            return {
+                'success': True,
+                'effect_type': 'status',
+                'message': f"{move_name}! 👻 O usuário sacrifica {cost} HP e "
+                           f"AMALDIÇOA o alvo — perderá ⌊HPmáx/4⌋ por turno!",
+                'status_applied': 'amaldicoado',
+                'stat_changes': None,
+                'self_damage': cost
+            }
+        return {
+            'success': True,
+            'effect_type': 'buff',
+            'message': f"{move_name}! ATK +1, DEF +1, SPE −1 no usuário!",
+            'status_applied': None,
+            'stat_changes': {'ATK': 1, 'DEF': 1, 'SPE': -1}
+        }
+
+    elif effect['type'] == 'inflict_status':
         ok, roll, thr, acc_label = _accuracy_roll()
         if ok:
             return {
@@ -1030,14 +1070,17 @@ def process_status_move(move_data, attacker_stats, target_stats):
         }
 
     elif effect['type'] == 'debuff_target':
+        # 'stats' (multi-stat, estágios canônicos) ou 'stat'/'value' (legado)
+        changes = effect.get('stats') or {effect['stat']: effect['value']}
+        label = ', '.join(f'{_STAGE_LABEL.get(k, k)} {v:+d}' for k, v in changes.items())
         ok, roll, thr, acc_label = _accuracy_roll()
         if ok:
             return {
                 'success': True,
                 'effect_type': 'debuff',
-                'message': f"{move_name}! d100({roll}) ≤ {thr} ({acc_label}) → {effect['stat']} {effect['value']:+d}!",
+                'message': f"{move_name}! d100({roll}) ≤ {thr} ({acc_label}) → {label}!",
                 'status_applied': None,
-                'stat_changes': {effect['stat']: effect['value']}
+                'stat_changes': dict(changes)
             }
         return {
             'success': False,
@@ -1046,14 +1089,16 @@ def process_status_move(move_data, attacker_stats, target_stats):
             'status_applied': None,
             'stat_changes': None
         }
-    
+
     elif effect['type'] == 'buff_self':
+        changes = effect.get('stats') or {effect['stat']: effect['value']}
+        label = ', '.join(f'{_STAGE_LABEL.get(k, k)} {v:+d}' for k, v in changes.items())
         return {
             'success': True,
             'effect_type': 'buff',
-            'message': f"{move_name}! {effect['stat']} {effect['value']:+d}!",
+            'message': f"{move_name}! {label}!",
             'status_applied': None,
-            'stat_changes': {effect['stat']: effect['value']}
+            'stat_changes': dict(changes)
         }
     
     elif effect['type'] == 'heal_self':

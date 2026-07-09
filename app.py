@@ -3927,9 +3927,13 @@ def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data
              proficiency=actor['pokemon'].get('proficiency',
                                               _prof_for_level(actor['pokemon'].get('level', 1))),
              maxHp=actor['maxHp'], currentHp=max(0, actor['hp']),
+             types=actor['pokemon'].get('types'),
              _v3=_v3_side_state(actor['pokemon'])),   # Protect: corrente/flag no dict real
         dict(target['pokemon'].get('stats', {}), level=target['pokemon'].get('level', 1),
              currentHp=max(0, target['hp'])))
+    # custo pago pelo próprio usuário (Curse fantasma: ⌊HPmáx/2⌋, nunca desmaia)
+    if result.get('self_damage') and result.get('effect_type') != 'fixed_damage':
+        actor['hp'] = max(1, actor['hp'] - int(result['self_damage']))
     # v3: cura instantânea em recarga — não consome o turno (o ator escolhe
     # outro golpe; a IA dos selvagens já evita moves em recarga na escolha)
     if result.get('blocked'):
@@ -5479,8 +5483,16 @@ def api_process_status_move():
         side_poke = (encounter.get('pokemon') if side == 'wild'
                      else encounter.get('player_pokemon'))
     if isinstance(side_poke, dict):
-        attacker_stats = dict(attacker_stats, _v3=_v3_side_state(side_poke))
+        attacker_stats = dict(attacker_stats, _v3=_v3_side_state(side_poke),
+                              types=side_poke.get('types'))
         result = effects.process_status_move(move_data, attacker_stats, target_stats)
+        # custo pago pelo próprio usuário (Curse fantasma) — aplicado AQUI no
+        # estado autoritativo (o tick do cliente é clampado a ¼ e não serve)
+        if result.get('self_damage') and result.get('effect_type') != 'fixed_damage':
+            bs = encounter.get('battle_state') or {}
+            hp_key = 'wild_hp_current' if side == 'wild' else 'player_hp_current'
+            if hp_key in bs:
+                bs[hp_key] = max(1, int(bs[hp_key]) - int(result['self_damage']))
         save_game_state(game_state)
     else:
         result = effects.process_status_move(move_data, attacker_stats, target_stats)
@@ -5903,7 +5915,7 @@ def handle_battle_action(data):
                     move_data or {'name': move_name},
                     dict(ppoke.get('stats', {}), level=ppoke.get('level', 1),
                          proficiency=ppoke.get('proficiency', _prof_for_level(ppoke.get('level', 1))),
-                         maxHp=ppoke.get('maxHp', 20),
+                         maxHp=ppoke.get('maxHp', 20), types=ppoke.get('types'),
                          _v3=_v3_side_state(ppoke)),   # Protect: corrente/flag no dict real
                     dict(wpoke.get('stats', {}), level=wpoke.get('level', encounter.get('level', 5))))
                 # v3: cura instantânea em recarga — não consome o turno
@@ -5912,6 +5924,10 @@ def handle_battle_action(data):
                                             'move_name': move_name,
                                             'cooldown_left': sres.get('cooldown_left')})
                     return
+                # custo pago pelo próprio usuário (Curse fantasma: ⌊HPmáx/2⌋)
+                if sres.get('self_damage'):
+                    battle_state['player_hp_current'] = max(
+                        1, battle_state['player_hp_current'] - int(sres['self_damage']))
                 action_log = sres.get('message', '')
                 message = sres.get('message', message)
                 # F5: clima/terreno de campo (Rain Dance, Grassy Terrain...)
@@ -5980,7 +5996,7 @@ def handle_battle_action(data):
                 sres = effects.process_status_move(
                     move_data or {'name': move_name},
                     dict(wpoke.get('stats', {}), level=wpoke.get('level', encounter.get('level', 5)),
-                         maxHp=battle_state.get('wild_hp_max', 20),
+                         maxHp=battle_state.get('wild_hp_max', 20), types=wpoke.get('types'),
                          _v3=_v3_side_state(wpoke)),
                     dict(ppoke.get('stats', {}), level=ppoke.get('level', 1)))
                 # v3: cura do selvagem em recarga — avisa o mestre, turno fica
@@ -5989,6 +6005,10 @@ def handle_battle_action(data):
                                             'move_name': move_name,
                                             'cooldown_left': sres.get('cooldown_left')})
                     return
+                # custo pago pelo próprio selvagem (Curse fantasma)
+                if sres.get('self_damage'):
+                    battle_state['wild_hp_current'] = max(
+                        1, battle_state['wild_hp_current'] - int(sres['self_damage']))
                 action_log = sres.get('message', '')
                 message = sres.get('message', message)
                 server_calc = {'is_status': True, 'log': action_log, 'message': message}
@@ -7365,11 +7385,15 @@ def _process_pvp_status_move(battle, attacker_key, move_name, move_data):
         move_data or {'name': move_name},
         dict(att_poke.get('stats', {}), level=att_poke.get('level', 1),
              proficiency=att_poke.get('proficiency', _prof_for_level(att_poke.get('level', 1))),
-             maxHp=att_poke.get('maxHp', 20),
+             maxHp=att_poke.get('maxHp', 20), types=att_poke.get('types'),
              currentHp=max(0, pvp._poke_hp(att_poke)),
              _v3=_v3_side_state(att_poke)),   # Protect: corrente/flag no dict real
         dict(def_poke.get('stats', {}), level=def_poke.get('level', 1),
              currentHp=max(0, pvp._poke_hp(def_poke))))
+
+    # custo pago pelo próprio usuário (Curse fantasma: ⌊HPmáx/2⌋, nunca desmaia)
+    if result.get('self_damage') and result.get('effect_type') != 'fixed_damage':
+        att_poke['currentHp'] = max(1, pvp._poke_hp(att_poke) - int(result['self_damage']))
 
     # v3: cura instantânea em recarga — humano NÃO consome o turno (escolhe
     # outro golpe); NPC (IA) perde a ação e o turno avança (hesitou).
