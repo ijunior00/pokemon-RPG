@@ -24,6 +24,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 ## Decisões (por que o sistema é assim)
 
 - [[Decisoes/sistema-combate-v3]] — d20→d100, cooldown no lugar de PP, janela 5–10 rodadas
+- [[Decisoes/recarga-de-sustain]] — dreno/cura instantânea com cooldown 1-2 (detecção por mecânica)
 - [[Decisoes/evs-customizados]] — escolhido em vez de IVs/EVs canônicos
 - [[Decisoes/caminho-do-treinador]] — 4 caminhos, marcos 3/6/10
 - [[Decisoes/atributos-do-treinador]] — 6 atributos novos + point-buy 20 pts
@@ -33,6 +34,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 - [[Bugs-Resolvidos/agua-sem-super-efetivo]] — dado de matchup corrompido na fonte
 - [[Bugs-Resolvidos/curse-alvo-errado]] — debuff aplicado no lado errado
 - [[Bugs-Resolvidos/leech-seed-como-absorb]] — auto-detecção virou cura instantânea
+- [[Bugs-Resolvidos/modo-manual-mestre-nao-funcionava]] — cliente do jogador auto-jogava o selvagem; caminho do mestre preso no v2
 
 ## Outras notas
 
