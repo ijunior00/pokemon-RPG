@@ -59,3 +59,23 @@ de Def dominava o d20) — ver git log do PR #17.
   Terrain + Protect (a ordenação completa é adjudicação do mestre).
 
 Relacionadas: [[Sistemas/combate]], [[Decisoes/evs-customizados]]
+
+## Adendo (09/07/2026): migração 5e→v3 dos moves concluída
+
+Auditoria pedida pelo Junior (caso-guia: Curse) eliminou os últimos resquícios
+de D&D 5e nos moves:
+
+- **Curse canônico**: Fantasma sacrifica ⌊HPmáx/2⌋ e amaldiçoa (👻 condição
+  `amaldicoado`, ⌊HPmáx/4⌋/rodada, sai de campo remove); demais tipos
+  +1 ATK/+1 DEF/−1 SPE. Sem teste de Sabedoria.
+- **Estágios canônicos multi-stat**: 129 entradas de buff/debuff normalizadas
+  pelos `stat_changes` do dado canônico (Swords Dance +4→+2, Calm Mind
+  SpA+1/SpD+1, Shell Smash completo…). Schema novo: `{'stats': {...}}`.
+- **d100 único p/ Pokémon**: acordar 45% e descongelar 30% em d100 (mesmas
+  probabilidades dos antigos d20≥12/15); `nat15plus` (quebrado desde o v3:
+  attack_roll virou d100) removido; 195 campos `save` mortos expurgados;
+  Sheer Cold corrigido p/ OHKO; Hidden Power não envenena; 26 descrições
+  reescritas. Auditoria automática no stress trava regressão (zero termos 5e).
+- **Fronteira oficial**: d20 do POKÉMON existe só na camada de Resistência do
+  v3 (spec §5) e no OHKO (§17) — que É a Resistência. d20 fora disso = do
+  TREINADOR (perícias/caçada). Pokémon rola d100 para todo o resto.
