@@ -199,6 +199,19 @@ const BattleMath = (() => {
             + Math.floor(Math.max(1, attackerLevel | 0) / 10);
     }
     function v3Cooldown(power) { return V3_MASTER_TABLE[v3Tier(power)][4]; }
+    // ── Cooldown de SUSTAIN (dreno/cura instantânea) — espelho do Python ──
+    const V3_SUSTAIN_POW_HEAVY = 90;
+    function v3DrainCooldown(power, drain) {
+        if ((drain | 0) <= 0) return 0;
+        return (power | 0) >= V3_SUSTAIN_POW_HEAVY ? 2 : 1;
+    }
+    function v3HealCooldown(amount) {
+        if (amount === 'full' || amount === 'half') return 2;
+        return amount ? 1 : 0;
+    }
+    function v3MoveCooldown(power, drain = 0) {
+        return Math.max(v3Cooldown(power), v3DrainCooldown(power, drain));
+    }
     function v3MilestoneDice(level) { return Math.max(0, Math.min(4, Math.floor((level || 1) / 25))); }
     function v3StatusComponent(stat, atkStages = 0) {
         // Certeiro (ACC ∞) NÃO reduz o componente — compensação é v3CerteiroMult
@@ -383,6 +396,7 @@ const BattleMath = (() => {
         potentialPoints, trainingPoints, pointsBudget, statTierLocked,
         HIGH_CRIT_MOVES, critThreshold, critStageFor, VARIABLE_POWER,
         V3_MASTER_TABLE, V3_MOMENTUM_MAX, v3Tier, v3DiceBase, v3Tn, v3Cooldown,
+        v3DrainCooldown, v3HealCooldown, v3MoveCooldown,
         v3MilestoneDice, v3StatusComponent, v3LevelBonus, v3EffectivenessDiceDelta,
         v3BuildDice, v3StabFlat, v3AccEffective, v3Connects, v3CritChance,
         v3ResistanceTotal, v3ResistOutcome, v3ApplyOutcome, v3GrossDamage,

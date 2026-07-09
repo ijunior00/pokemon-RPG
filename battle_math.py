@@ -374,6 +374,42 @@ def v3_cooldown(power):
     return V3_MASTER_TABLE[v3_tier(power)][4]
 
 
+# ── Cooldown de SUSTAIN (dreno / cura instantânea) ─────────────────────────
+# Golpe que recupera HP na hora não pode ciclar todo turno (anulava o
+# desgaste natural da batalha). Detecção pela MECÂNICA, nunca por lista de
+# nomes: dano com drain canônico > 0, ou status heal_self. Recuperação
+# moderada → 1 rodada de recarga; elevada → 2. Combina com a recarga por
+# POW pelo MAIOR valor. Cura gradual (Leech Seed/Aqua Ring/Leftovers…) fica
+# de fora — já é balanceada por vir aos poucos.
+V3_SUSTAIN_POW_HEAVY = 90    # dreno com POW ≥ isto = recuperação elevada
+
+
+def v3_drain_cooldown(power, drain):
+    """Recarga de sustain de golpe de DANO com dreno (drain canônico > 0):
+    Absorb/Mega Drain/Giga Drain/Drain Punch… → 1; pesados (POW ≥ 90,
+    ex. Dream Eater, Bitter Blade) → 2."""
+    if int(drain or 0) <= 0:
+        return 0
+    return 2 if int(power or 0) >= V3_SUSTAIN_POW_HEAVY else 1
+
+
+def v3_heal_cooldown(amount):
+    """Recarga de move de STATUS de cura instantânea (heal_self).
+    'full'/'half' (≥50% do HP máx: Recover, Roost, Rest…) = elevada → 2;
+    frações menores (quarter…) = moderada → 1."""
+    if amount in ('full', 'half'):
+        return 2
+    if amount:
+        return 1
+    return 0
+
+
+def v3_move_cooldown(power, drain=0):
+    """Recarga total de um golpe de dano: o MAIOR entre a recarga por POW
+    (Tabela Mestra) e a recarga de sustain (dreno)."""
+    return max(v3_cooldown(power), v3_drain_cooldown(power, drain))
+
+
 def v3_milestone_dice(level):
     """Dados extras acumulados pelos marcos 25/50/75/100."""
     return max(0, min(4, int(level or 1) // 25))

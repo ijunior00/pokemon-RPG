@@ -1322,6 +1322,13 @@ async function useMove(moveName) {
     const VARIABLE_DMG = ['metronome', 'mirror move', 'copycat', 'assist', 'me first', 'mimic', 'sketch'];
     const isVariable = VARIABLE_DMG.includes(moveName.toLowerCase());
     if (!isVariable && (m.category === 'status' || !m.baseDamage || PLAYER_STATUS_MOVES.includes(moveName.toLowerCase()))) {
+        // v3: cura instantânea também tem recarga — checa antes de processar
+        const cdS = (window._playerCooldowns || {})[moveName.toLowerCase()] || 0;
+        if (cdS > 0) {
+            _unlockPlayerActions();
+            addBattleLog(`⏳ <strong>${moveName}</strong> em recarga (${cdS} rodada(s)) — escolha outro golpe.`);
+            return;
+        }
         await processStatusMove(moveName, poke, window.currentBattleData?.enemy);
         return;
     }
@@ -5826,11 +5833,20 @@ async function processStatusMove(moveName, attackerPoke, targetPoke) {
         const resp = await fetch('/api/process-status-move', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ move_name: moveName, attacker_stats: attackerStats, target_stats: targetStats })
+            body: JSON.stringify({ move_name: moveName, attacker_stats: attackerStats, target_stats: targetStats, side: 'player' })
         });
         const result = await resp.json();
 
+        // v3: cura instantânea em recarga — NÃO consome o turno; escolha outro
+        if (result.blocked) {
+            addBattleLog(`⏳ <strong>${moveName}</strong> — ${result.message}`);
+            _unlockPlayerActions();
+            return;
+        }
+
         addBattleLog(`▶️ <strong>${moveName}</strong> → ${result.message}`);
+        // recarga de cura instantânea: espelha nos botões (como os ataques)
+        if (result.cooldown) _trackPlayerMoveUse(moveName, result.cooldown);
 
         // Teleport: foge da batalha selvagem (ignora até prisão — teletransporte)
         if (result.effect_type === 'flee') {
@@ -5984,9 +6000,21 @@ async function processWildStatusMove(moveName) {
         const resp = await fetch('/api/process-status-move', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ move_name: moveName, attacker_stats: attackerStats, target_stats: targetStats })
+            body: JSON.stringify({ move_name: moveName, attacker_stats: attackerStats, target_stats: targetStats, side: 'wild' })
         });
         const result = await resp.json();
+
+        // v3: cura do selvagem em recarga — ele hesita e perde a ação
+        if (result.blocked) {
+            addBattleLog(`⏳ Selvagem tentou <strong>${moveName}</strong>, mas está em recarga — perdeu a ação!`);
+            socket.emit('battle_action', {
+                action_by: 'master', action_type: 'pass',
+                move_name: 'Passar', damage: 0,
+                wild_status_damage: window._wildPreTurnStatusDamage || 0,
+                message: `${moveName} em recarga — o selvagem hesitou`
+            });
+            return;
+        }
 
         addBattleLog(`🔴 Selvagem usou <strong>${moveName}</strong> → ${result.message}`);
 

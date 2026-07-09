@@ -327,11 +327,12 @@ def _v3_cooldown_left(poke, move_name):
     return int((st.get('cooldowns') or {}).get((move_name or '').lower(), 0))
 
 
-def _v3_register_use(st, move_lower, power):
+def _v3_register_use(st, move_lower, power, drain=0):
     """Registra o uso de um golpe: decrementa cooldowns (1 ação = 1 rodada do
     lado), atualiza momentum (+1 se variou, zera se repetiu; 1º golpe = 0) e
     streak (adaptação: 3ª repetição consecutiva → defensor +2). Retorna
-    (momentum_deste_ataque, adapt_bonus_contra_este_ataque)."""
+    (momentum_deste_ataque, adapt_bonus_contra_este_ataque).
+    `drain` (canônico > 0) entra na recarga de sustain (v3_move_cooldown)."""
     cds = st['cooldowns']
     for k in list(cds):
         cds[k] -= 1
@@ -352,7 +353,7 @@ def _v3_register_use(st, move_lower, power):
         st['momentum'] = min(bm_core.V3_MOMENTUM_MAX, st['momentum'] + 1)
     st['last_move'] = move_lower
     adapt = 2 if st['streak'] >= 3 else 0
-    cd = bm_core.v3_cooldown(power) if power else 0
+    cd = bm_core.v3_move_cooldown(power, drain) if power else 0
     if cd:
         cds[move_lower] = cd
     return st['momentum'], adapt
@@ -410,6 +411,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     canon = canon_move(move_name)
     power = canon.get('power') or bm_core.VARIABLE_POWER.get(move_name.lower())
     accuracy = canon.get('accuracy')
+    canon_drain = int(canon.get('drain') or 0)   # >0 = dreno (sustain → recarga)
 
     # ── F5: clima/terreno da batalha ajustam ACC e dados ──
     fld = field or {}
@@ -460,7 +462,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
         st.pop('charging', None)       # trocou de golpe — perde a carga
         st.pop('invulnerable', None)
 
-    _mom, _adapt = _v3_register_use(st, ml, power)
+    _mom, _adapt = _v3_register_use(st, ml, power, canon_drain)
     if momentum is None:
         momentum = _mom
     if adapt_bonus is None:
@@ -474,7 +476,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
         return {'hit': False, 'damage': 0, 'protected': True,
                 'message': f'{met}{dname} se protegeu!',
                 'attack_roll': 0, 'move_type_en': move_type_en,
-                'cooldown': bm_core.v3_cooldown(power) if power else 0,
+                'cooldown': bm_core.v3_move_cooldown(power, canon_drain) if power else 0,
                 'log': f'{met}🛡️ <strong>{dname}</strong> se PROTEGEU — o golpe foi bloqueado!'}
 
     # ── F5: Psychic Terrain bloqueia golpes de PRIORIDADE (+1 ou mais)
@@ -487,7 +489,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
             return {'hit': False, 'damage': 0,
                     'message': f'{met}O Psychic Terrain bloqueou o golpe de prioridade!',
                     'attack_roll': 0, 'move_type_en': move_type_en,
-                    'cooldown': bm_core.v3_cooldown(power) if power else 0,
+                    'cooldown': bm_core.v3_move_cooldown(power, canon_drain) if power else 0,
                     'log': f'{met}🔮 <strong>Psychic Terrain</strong> protege o alvo '
                            f'contra golpes de prioridade — {move_name} falhou!'}
 
@@ -500,7 +502,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
         return {'hit': False, 'damage': 0,
                 'message': f'{met}{dname} está {d_invuln} — fora de alcance!',
                 'attack_roll': 0, 'move_type_en': move_type_en,
-                'cooldown': bm_core.v3_cooldown(power) if power else 0,
+                'cooldown': bm_core.v3_move_cooldown(power, canon_drain) if power else 0,
                 'log': f'{met}🕳️ <strong>{dname}</strong> está {d_invuln} — '
                        f'{move_name} não alcança!'}
 
@@ -517,7 +519,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
         return {'hit': True, 'damage': 0, 'is_crit': False,
                 'message': f'{met}O alvo é IMUNE (0x)',
                 'attack_roll': 0, 'move_type_en': move_type_en,
-                'outcome': 'immune', 'cooldown': bm_core.v3_cooldown(power) if power else 0,
+                'outcome': 'immune', 'cooldown': bm_core.v3_move_cooldown(power, canon_drain) if power else 0,
                 'log': f'{met}⛔ IMUNE (0x) — {move_name} não afeta o alvo = <strong>0 dano</strong>'}
 
     # ── Camada 1: PRECISÃO (d100 vs ACC efetivo; certeiro conecta sempre) ──
@@ -671,7 +673,6 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
         dmg = bm_core.v3_certeiro_mult(dmg)
 
     # ── F5: recoil (⌊dano÷3⌋) e dreno (⌊dano÷2⌋) — o handler aplica no HP ──
-    canon_drain = int(canon.get('drain') or 0)
     recoil = bm_core.v3_recoil(dmg, canon_drain)
     drain_heal = bm_core.v3_drain_heal(dmg, canon_drain)
 
@@ -744,7 +745,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
             'is_crit': is_crit, 'log': log, 'outcome': outcome,
             'recoil': recoil, 'drain_heal': drain_heal,
             'self_status': self_status, 'self_ko': self_ko,
-            'cooldown': bm_core.v3_cooldown(power)}
+            'cooldown': bm_core.v3_move_cooldown(power, canon_drain)}
 
 
 def _field_of(container):
@@ -3929,6 +3930,12 @@ def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data
              _v3=_v3_side_state(actor['pokemon'])),   # Protect: corrente/flag no dict real
         dict(target['pokemon'].get('stats', {}), level=target['pokemon'].get('level', 1),
              currentHp=max(0, target['hp'])))
+    # v3: cura instantânea em recarga — não consome o turno (o ator escolhe
+    # outro golpe; a IA dos selvagens já evita moves em recarga na escolha)
+    if result.get('blocked'):
+        battle['log'].append({'type': 'info',
+                              'message': f"⏳ {actor['name']}: {result.get('message', move_name + ' em recarga')}"})
+        return
     # F5: clima/terreno de campo (Rain Dance, Grassy Terrain...)
     if result.get('effect_type') == 'field':
         _field_apply(battle, result.get('field_kind'), result.get('field_value'),
@@ -5456,13 +5463,27 @@ def api_process_status_move():
     move_name = data.get('move_name', '')
     attacker_stats = data.get('attacker_stats', {})
     target_stats = data.get('target_stats', {})
-    
+    side = data.get('side', 'player')   # 'player' | 'wild' (quem usa o move)
+
     # Get move data from database
     move_data = MOVES_DB.get(move_name) or MOVES_BY_NAME.get(move_name.lower())
     if not move_data:
         return jsonify({'success': False, 'message': f'Move {move_name} não encontrado'})
-    
-    result = effects.process_status_move(move_data, attacker_stats, target_stats)
+
+    # v3: recarga de cura instantânea vive no estado da batalha ativa — anexa
+    # o _v3 do lado que age (e persiste, senão a recarga evaporava no save).
+    game_state = get_game_state()
+    encounter = (game_state.get('active_encounters') or {}).get(str(current_user.id))
+    side_poke = None
+    if encounter:
+        side_poke = (encounter.get('pokemon') if side == 'wild'
+                     else encounter.get('player_pokemon'))
+    if isinstance(side_poke, dict):
+        attacker_stats = dict(attacker_stats, _v3=_v3_side_state(side_poke))
+        result = effects.process_status_move(move_data, attacker_stats, target_stats)
+        save_game_state(game_state)
+    else:
+        result = effects.process_status_move(move_data, attacker_stats, target_stats)
     return jsonify(result)
 
 @app.route('/player/pokedex/register', methods=['POST'])
@@ -5885,6 +5906,12 @@ def handle_battle_action(data):
                          maxHp=ppoke.get('maxHp', 20),
                          _v3=_v3_side_state(ppoke)),   # Protect: corrente/flag no dict real
                     dict(wpoke.get('stats', {}), level=wpoke.get('level', encounter.get('level', 5))))
+                # v3: cura instantânea em recarga — não consome o turno
+                if sres.get('blocked'):
+                    emit('action_blocked', {'message': sres.get('message'),
+                                            'move_name': move_name,
+                                            'cooldown_left': sres.get('cooldown_left')})
+                    return
                 action_log = sres.get('message', '')
                 message = sres.get('message', message)
                 # F5: clima/terreno de campo (Rain Dance, Grassy Terrain...)
@@ -5956,6 +5983,12 @@ def handle_battle_action(data):
                          maxHp=battle_state.get('wild_hp_max', 20),
                          _v3=_v3_side_state(wpoke)),
                     dict(ppoke.get('stats', {}), level=ppoke.get('level', 1)))
+                # v3: cura do selvagem em recarga — avisa o mestre, turno fica
+                if sres.get('blocked'):
+                    emit('action_blocked', {'message': sres.get('message'),
+                                            'move_name': move_name,
+                                            'cooldown_left': sres.get('cooldown_left')})
+                    return
                 action_log = sres.get('message', '')
                 message = sres.get('message', message)
                 server_calc = {'is_status': True, 'log': action_log, 'message': message}
@@ -7337,6 +7370,21 @@ def _process_pvp_status_move(battle, attacker_key, move_name, move_data):
              _v3=_v3_side_state(att_poke)),   # Protect: corrente/flag no dict real
         dict(def_poke.get('stats', {}), level=def_poke.get('level', 1),
              currentHp=max(0, pvp._poke_hp(def_poke))))
+
+    # v3: cura instantânea em recarga — humano NÃO consome o turno (escolhe
+    # outro golpe); NPC (IA) perde a ação e o turno avança (hesitou).
+    if result.get('blocked'):
+        if battle[attacker_key].get('is_npc'):
+            battle['log'].append({'type': 'info',
+                                  'message': f'⏳ {move_name} em recarga — o NPC hesitou!'})
+            pvp.advance_turn(battle)
+            _broadcast_pvp_state(battle)
+        else:
+            socketio.emit('pvp_error', {
+                'battle_id': battle['id'],
+                'message': f'⏳ {result.get("message", move_name + " em recarga")}'
+            }, room=battle[attacker_key]['id'])
+        return result
 
     # Teleport em batalha de treinador falha (canon gens 1-7) — mensagem clara.
     if result.get('effect_type') == 'flee':

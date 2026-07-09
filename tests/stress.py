@@ -2239,6 +2239,52 @@ def main():
     check(S, 'Sunny Day resolve para efeito de campo (sol)',
           rrd.get('effect_type') == 'field' and rrd.get('field_value') == 'sun')
 
+    # ══════════ COOLDOWN DE SUSTAIN (dreno / cura instantânea) ══════════
+    section('Cooldown de dreno/cura instantânea')
+    S = 'Sustain/Recarga'
+    check(S, 'Giga Drain (POW 75, dreno) → recarga 1', appmod.bm_core.v3_move_cooldown(75, 50) == 1)
+    check(S, 'Absorb (POW 20, dreno) → recarga 1', appmod.bm_core.v3_move_cooldown(20, 50) == 1)
+    check(S, 'Dream Eater (POW 100, dreno) → recarga 2', appmod.bm_core.v3_move_cooldown(100, 50) == 2)
+    check(S, 'POW 90 sem dreno segue a Tabela Mestra (1)', appmod.bm_core.v3_move_cooldown(90, 0) == 1)
+    check(S, 'Hyper Beam (150) mantém recarga 3', appmod.bm_core.v3_move_cooldown(150, 0) == 3)
+    check(S, 'cura de metade/total → recarga 2; um quarto → 1',
+          appmod.bm_core.v3_heal_cooldown('half') == 2 and appmod.bm_core.v3_heal_cooldown('full') == 2
+          and appmod.bm_core.v3_heal_cooldown('quarter') == 1)
+    # detecção pela MECÂNICA (drain canônico), sem lista fixa
+    check(S, 'dreno detectado no dado canônico (giga drain: drain>0)',
+          int(appmod.canon_move('giga drain').get('drain') or 0) > 0)
+    # fluxo real: usar → bloquear → outro golpe destrava
+    _susA = make_poke('Venusaur', 30)
+    _susD = make_poke('Snorlax', 30)
+    _r1 = appmod._calc_attack_core(_susA, _susD, 'Giga Drain')
+    check(S, 'Giga Drain conecta e anuncia recarga 1',
+          _r1.get('cooldown') == 1 and _susA['_v3']['cooldowns'].get('giga drain') == 1)
+    _r2 = appmod._calc_attack_core(_susA, _susD, 'Giga Drain')
+    check(S, 'reuso imediato é BLOQUEADO (não cicla cura todo turno)',
+          _r2.get('blocked') is True)
+    _r3 = appmod._calc_attack_core(_susA, _susD, 'Vine Whip')
+    check(S, 'outro golpe passa e a recarga expira (1 ação = 1 rodada)',
+          _r3.get('hit') and 'giga drain' not in _susA['_v3']['cooldowns'])
+    # cura instantânea de status (Recover): recarga 2, bloqueio sem consumir
+    _v3h = {}
+    _md_rec = appmod.MOVES_BY_NAME.get('recover') or {'name': 'Recover'}
+    _h1 = appmod.effects.process_status_move(_md_rec, {'maxHp': 100, '_v3': _v3h}, {})
+    check(S, 'Recover cura metade e entra em recarga 2',
+          _h1.get('heal') == 50 and _h1.get('cooldown') == 2)
+    _h2 = appmod.effects.process_status_move(_md_rec, {'maxHp': 100, '_v3': _v3h}, {})
+    check(S, 'Recover em recarga é bloqueado com a mensagem canônica',
+          _h2.get('blocked') is True and 'recarga' in _h2.get('message', ''))
+    # exceção: cura GRADUAL não ganha recarga (Leech Seed é condição por turno)
+    _md_ls = appmod.MOVES_BY_NAME.get('leech seed') or {'name': 'Leech Seed'}
+    _dls = appmod.effects.auto_detect_move_effect(_md_ls)
+    check(S, 'exceção: Leech Seed (gradual) não é heal_self',
+          (_dls or {}).get('type') != 'heal_self')
+    # IA: selvagem/NPC não escolhe golpe em recarga
+    _susA['_v3']['cooldowns']['giga drain'] = 2
+    _susA['moves'] = ['Giga Drain', 'Vine Whip']
+    _pick = appmod._npc_pick_move(_susA, _susD)
+    check(S, 'IA evita golpe em recarga na escolha', _pick[0].lower() != 'giga drain')
+
     # ────────────────────────── RELATÓRIO ──────────────────────────
     print('\n' + '═' * 62)
     print('📊 SCORECARD FINAL')

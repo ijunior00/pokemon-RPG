@@ -986,6 +986,21 @@ def process_status_move(move_data, attacker_stats, target_stats):
     # Sem save do alvo — a chance é fixa por move.
     import battle_math as _bm
 
+    # v3: cura instantânea tem RECARGA (v3_heal_cooldown) — bloqueia ANTES de
+    # processar e NÃO consome o turno (o caller trata 'blocked'). Só moves
+    # heal_self entram nesta tabela por aqui, então o lookup por nome basta.
+    _user_v3 = (attacker_stats.get('_v3')
+                if isinstance(attacker_stats, dict)
+                and isinstance(attacker_stats.get('_v3'), dict) else None)
+    if _user_v3:
+        _cd_left = int((_user_v3.get('cooldowns') or {}).get(move_name.lower(), 0))
+        if _cd_left > 0 and effect.get('type') == 'heal_self':
+            return {'success': False, 'effect_type': 'blocked', 'blocked': True,
+                    'cooldown_left': _cd_left,
+                    'message': f'{move_name} ainda está em recarga. Aguarde '
+                               f'{_cd_left} rodada(s) para utilizá-lo novamente.',
+                    'status_applied': None, 'stat_changes': None}
+
     def _accuracy_roll():
         """v3: d100 vs ACC do move de status (Thunder Wave 90, Sing 55...).
         Retorna (ok, roll, acc_efetivo, label). O 3º campo é o ACC (era o
@@ -1049,13 +1064,26 @@ def process_status_move(move_data, attacker_stats, target_stats):
             heal = max_hp // 2
         else:
             heal = max_hp // 4
+        # v3: cura instantânea entra em recarga (moderada 1 / elevada 2) —
+        # registra no estado do lado (1 ação = 1 rodada: decrementa os outros)
+        cd = _bm.v3_heal_cooldown(effect['amount'])
+        if _user_v3 is not None:
+            cds = _user_v3.setdefault('cooldowns', {})
+            for k in list(cds):
+                cds[k] -= 1
+                if cds[k] <= 0:
+                    del cds[k]
+            if cd:
+                cds[move_name.lower()] = cd
         return {
             'success': True,
             'effect_type': 'heal',
-            'message': f"{move_name}! Recuperou {heal} HP!",
+            'message': f"{move_name}! Recuperou {heal} HP!"
+                       + (f' ⏳ Recarga: {cd} rodada(s).' if cd else ''),
             'status_applied': None,
             'stat_changes': None,
-            'heal': heal
+            'heal': heal,
+            'cooldown': cd
         }
     
     elif effect['type'] == 'protect':
