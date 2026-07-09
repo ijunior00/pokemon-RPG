@@ -3681,11 +3681,11 @@ async function confirmSwitch(teamIdx) {
     // Reset faint flag so next battle_update doesn't re-trigger the faint message
     window._playerFaintLogged = false;
 
-    // Switching uses the action - pass turn. Send new poke's HP so server updates battle_state.
+    // Switching uses the action - pass turn. O servidor lê o HP do time REAL
+    // pelo new_index (o HP do payload não é confiado — era HP infinito forjado).
     socket.emit('battle_action', {
-        action_by: 'player', action_type: 'switch',
-        move_name: `Trocou → ${newPoke.name}`, damage: 0, message: 'Troca de Pokémon',
-        new_pokemon_hp: pHp, new_pokemon_max_hp: pMax
+        action_by: 'player', action_type: 'switch', new_index: teamIdx,
+        move_name: `Trocou → ${newPoke.name}`, damage: 0, message: 'Troca de Pokémon'
     });
     
     // Check mega for new pokemon

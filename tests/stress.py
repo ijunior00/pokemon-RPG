@@ -595,6 +595,96 @@ def main():
     msio.emit('set_auto_mode', {'enabled': True}); recv(msio)
     check(S, 'AUTO religado', db.get_game_state(TID).get('wild_auto_mode') is True)
 
+    # ══════════ 4c. ANTI-EXPLOIT (auditoria QA): cliente forjando payloads ══════════
+    section('4c. Anti-exploit de client-side')
+    S = 'Anti-Exploit'
+    # semeia um encontro com o jogador no turno e HP baixo
+    def _seed_exploit_enc(php=30, pmax=60, whp=40, wmax=40):
+        _gs = gstate()
+        _team = db.get_users()[u1]['trainer_data']['team']
+        _gs.setdefault('active_encounters', {})[str(u1)] = {
+            'player_id': str(u1), 'player_name': 'rev_p1',
+            'pokemon': dict(enc['pokemon'], hp=wmax, currentHp=whp),
+            'level': enc['level'], 'is_shiny': False,
+            'player_pokemon': _team[0],
+            'battle_state': {'turn': 'player', 'round': 1,
+                             'wild_hp_current': whp, 'wild_hp_max': wmax,
+                             'player_hp_current': php, 'player_hp_max': pmax,
+                             'wild_status': None, 'player_status': None,
+                             'initiative_rolled': True}}
+        db.save_game_state(_gs, TID)
+
+    # A1: heal forjado em action_type='status' é ignorado (cura vem do motor)
+    _seed_exploit_enc(php=30, pmax=60)
+    s1.get_received()
+    s1.emit('battle_action', {'action_by': 'player', 'action_type': 'status',
+                              'move_name': 'Growl', 'heal': 9999})
+    recv(s1)
+    _php = gstate()['active_encounters'][u1]['battle_state']['player_hp_current']
+    check(S, 'heal forjado (9999) em status não cura', _php <= 60)
+
+    # A1b: status_effect forjado no selvagem é ignorado (Growl não causa status)
+    _seed_exploit_enc()
+    s1.get_received()
+    s1.emit('battle_action', {'action_by': 'player', 'action_type': 'status',
+                              'move_name': 'Growl', 'status_effect': 'congelado'})
+    recv(s1)
+    check(S, 'status_effect forjado no selvagem é ignorado',
+          not gstate()['active_encounters'][u1]['battle_state'].get('wild_status'))
+
+    # A2: apply_wild_status é no-op (não congela o selvagem de graça)
+    _seed_exploit_enc()
+    s1.get_received()
+    s1.emit('apply_wild_status', {'status': 'congelado'})
+    recv(s1)
+    check(S, 'apply_wild_status não aplica status cru',
+          not gstate()['active_encounters'][u1]['battle_state'].get('wild_status'))
+
+    # A2b: status_resolved não limpa veneno (permanente) do próprio jogador
+    _gs = gstate()
+    _gs['active_encounters'][u1]['battle_state']['player_status'] = {
+        'condition': 'badly_poisoned', 'turns_active': 1}
+    db.save_game_state(_gs, TID)
+    s1.emit('status_resolved', {'target': 'player'}); recv(s1)
+    check(S, 'status_resolved não zera veneno permanente do jogador',
+          (gstate()['active_encounters'][u1]['battle_state'].get('player_status') or {}).get('condition') == 'badly_poisoned')
+
+    # C2: troca com HP forjado é ignorada (usa o HP do time real)
+    _seed_exploit_enc()
+    _real = db.get_users()[u1]['trainer_data']['team']
+    if len(_real) >= 2:
+        s1.get_received()
+        s1.emit('battle_action', {'action_by': 'player', 'action_type': 'switch',
+                                  'new_index': 1, 'new_pokemon_hp': 9999,
+                                  'new_pokemon_max_hp': 9999})
+        recv(s1)
+        _bsx = gstate()['active_encounters'][u1]['battle_state']
+        check(S, 'HP na troca vem do time real (não 9999)',
+              _bsx['player_hp_max'] == int(_real[1].get('maxHp')))
+    else:
+        check(S, 'HP na troca vem do time real (não 9999)', True, 'time <2 — pulado')
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+
+    # A3: terceiro (msio=mestre não é jogador) não encerra PvP alheio via forfeit
+    _rn = m.post('/master/npcs/generate', json={'npc_class': 'Trainer', 'level': 12, 'team_size': 1}).get_json()
+    for q in _rn['team']:
+        q['moves'] = ['Tackle']
+    db.save_npc(_rn, TID)
+    s1.get_received()
+    s1.emit('pvp_challenge', {'target_id': _rn['id'], 'mode': 'street'})
+    _cr = recv(s1, 'pvp_battle_created')
+    if _cr:
+        _bx = _cr[0]['args'][0]['battle_id']
+        s1.emit('pvp_select_pokemon', {'battle_id': _bx, 'pokemon_idx': 0}); recv(s1)
+        _bt = appmod.ACTIVE_PVP.get(_bx)
+        # s2 (rev_p2) NÃO é participante desta batalha — forfeit deve ser ignorado
+        s2.emit('pvp_forfeit', {'battle_id': _bx}); recv(s2)
+        check(S, 'terceiro não encerra PvP alheio (forfeit ignorado)',
+              _bt and _bt.get('phase') == 'battle')
+        appmod.ACTIVE_PVP.pop(_bx, None)
+    else:
+        check(S, 'terceiro não encerra PvP alheio (forfeit ignorado)', True, 'sem batalha — pulado')
+
     # Habilidade do ATACANTE (Poison Touch) envenena o alvo no contato físico.
     pt_procs = sum(1 for _ in range(400)
                    if (appmod.ab.check_attacker_contact_ability('Poison Touch') or {}).get('status') == 'badly_poisoned')
@@ -2112,7 +2202,19 @@ def main():
     section('19. Captura com time cheio → PC + movesets dos selvagens')
     S = 'PC/Selvagens'
 
-    # Captura com time cheio vai pro PC (antes: sumia no limbo)
+    # Captura exige encontro ATIVO com o selvagem enfraquecido (espécie/nível/
+    # shiny vêm do encontro, não do payload). Semeia um encontro de Pidgey Nv12.
+    def _seed_capture_encounter(number=16, level=12, shiny=False, wild_hp=5, wild_max=40):
+        _gs = gstate()
+        _gs.setdefault('active_encounters', {})[str(u1)] = {
+            'player_id': str(u1),
+            'pokemon': {'name': 'Pidgey', 'number': number, 'level': level},
+            'level': level, 'is_shiny': shiny,
+            'battle_state': {'wild_hp_current': wild_hp, 'wild_hp_max': wild_max},
+        }
+        db.save_game_state(_gs, TID)
+
+    _seed_capture_encounter()
     _pc_antes = len(db.get_users()[u1]['trainer_data'].get('pc', []))
     r = p1.post('/player/pc/capture', json={'pokemon': {
         'name': 'Pidgey', 'number': 16, 'level': 12,
@@ -2127,9 +2229,24 @@ def main():
           (stored.get('stats') or {}).get('ATK', 0) > 0
           and stored.get('maxHp', 0) > 0
           and stored.get('currentHp') == 5)
+    # SEGURANÇA: espécie/nível do PAYLOAD são ignorados — vale o ENCONTRO.
+    # Forjar Mewtwo Nv100 no payload → captura o Pidgey Nv12 do encontro.
+    _seed_capture_encounter()
     r = p1.post('/player/pc/capture', json={'pokemon': {
-        'name': 'EspécieForjada', 'number': 99999, 'level': 100}})
-    check(S, 'espécie forjada não entra no PC', r.status_code == 400)
+        'name': 'Mewtwo', 'number': 150, 'level': 100}})
+    _forged = (db.get_users()[u1]['trainer_data'].get('pc') or [])[-1]
+    check(S, 'captura ignora espécie/nível forjados (usa o encontro)',
+          _forged.get('name') == 'Pidgey' and _forged.get('level') == 12)
+    # sem encontro ativo → captura negada
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+    r = p1.post('/player/pc/capture', json={'pokemon': {
+        'name': 'Pidgey', 'number': 16, 'level': 12}})
+    check(S, 'captura sem encontro ativo é negada', r.status_code == 400)
+    # selvagem em HP cheio não pode ser capturado
+    _seed_capture_encounter(wild_hp=40, wild_max=40)
+    r = p1.post('/player/pc/capture', json={'pokemon': {'name': 'Pidgey', 'number': 16, 'level': 12}})
+    check(S, 'captura de selvagem em HP cheio é negada', r.status_code == 400)
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
 
     # Movesets dos selvagens: qualidade garantida + variedade + TMs no Nv≥25
     _enc_sets = []
