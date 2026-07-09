@@ -499,6 +499,102 @@ def main():
     check(S, 'espectador: fim da batalha chega com finished=True',
           any(p['args'][0].get('finished') for p in _spec if p.get('args')))
 
+    # ══════════ 4b. MODO MANUAL (AUTO OFF): mestre conduz wild/NPC ══════════
+    section('4b. Modo manual (AUTO OFF)')
+    S = 'Modo Manual'
+    msio.get_received(); s1.get_received()
+    msio.emit('set_auto_mode', {'enabled': False})
+    _amc = recv(msio, 'auto_mode_changed')
+    check(S, 'toggle OFF re-emite auto_mode_changed',
+          any((p['args'][0] or {}).get('enabled') is False for p in _amc if p.get('args')))
+    # mestre libera novo encontro e o jogador inicia
+    msio.emit('master_action', {'type': 'forced_encounter', 'player_id': u1,
+                                'pokemon': enc['pokemon'], 'level': enc['level'],
+                                'wild_moves': ['Tackle']})
+    recv(msio); s1.get_received()
+    s1.emit('start_encounter', {'pokemon': dict(enc['pokemon'], hp=enc['pokemon'].get('maxHp', enc['pokemon'].get('hp', 30))),
+                                'level': enc['level'], 'is_shiny': False, 'route_id': 'route1',
+                                'player_pokemon': 'Charmander', 'player_pokemon_idx': 0,
+                                'wild_moves': ['Tackle']})
+    recv(s1)
+    check(S, 'com AUTO OFF a iniciativa NÃO rola sozinha',
+          not gstate()['active_encounters'][u1]['battle_state'].get('initiative_rolled'))
+    # mestre rola a iniciativa manualmente
+    msio.get_received(); s1.get_received()
+    msio.emit('roll_initiative', {'player_id': u1})
+    _init = recv(s1, 'initiative_result')
+    check(S, 'initiative_result (manual) chega ao jogador com wild_auto=False',
+          any((p['args'][0] or {}).get('wild_auto') is False for p in _init if p.get('args')))
+    # força o turno do selvagem para testar o gate
+    _gs = gstate()
+    _bsm = _gs['active_encounters'][u1]['battle_state']
+    _bsm['turn'] = 'wild'
+    db.save_game_state(_gs, TID)
+    _hp_antes = _bsm['player_hp_current']
+    # JOGADOR tenta conduzir o selvagem (é o que o cliente antigo fazia) → bloqueado
+    s1.get_received()
+    s1.emit('battle_action', {'action_by': 'master', 'action_type': 'attack',
+                              'move_name': 'Tackle', 'damage': 50})
+    _blk = recv(s1, 'action_blocked')
+    check(S, 'ação de selvagem vinda do JOGADOR é bloqueada no modo manual',
+          any((p['args'][0] or {}).get('manual_wild') for p in _blk if p.get('args')))
+    _bsm2 = gstate()['active_encounters'][u1]['battle_state']
+    check(S, 'HP e turno intactos após o bloqueio',
+          _bsm2['player_hp_current'] == _hp_antes and _bsm2['turn'] == 'wild')
+    # MESTRE conduz: dano forjado (999) é ignorado — o v3 recalcula no servidor
+    msio.get_received()
+    msio.emit('battle_action', {'player_id': u1, 'action_by': 'master',
+                                'action_type': 'attack', 'move_name': 'Tackle',
+                                'damage': 999})
+    _upd = [p['args'][0] for p in recv(msio, 'battle_update') if p.get('args')]
+    _mup = next((u for u in _upd if u.get('server_calc')), None)
+    check(S, 'ataque do mestre é recalculado no motor v3 (server_calc)', _mup is not None)
+    _bsm3 = gstate()['active_encounters'][u1]['battle_state']
+    check(S, 'dano aplicado é do motor, não o forjado',
+          (_mup or {}).get('damage') != 999 and _hp_antes - _bsm3['player_hp_current'] < 999)
+    check(S, 'battle_update carrega wild_auto=False',
+          (_mup or {}).get('wild_auto') is False)
+    check(S, 'turno voltou ao jogador após a ação do mestre', _bsm3['turn'] == 'player')
+    s1.emit('end_encounter', {'result': 'fled'}); recv(s1)
+
+    # NPC também respeita o modo manual: IA não age; mestre usa Forçar Ação
+    r = m.post('/master/npcs/generate', json={'npc_class': 'Trainer', 'level': 12, 'team_size': 1})
+    _npcm = r.get_json()
+    for q in _npcm['team']:
+        q['moves'] = ['Tackle']
+    db.save_npc(_npcm, TID)
+    s1.get_received(); msio.get_received()
+    s1.emit('pvp_challenge', {'target_id': _npcm['id'], 'mode': 'street'})
+    _cr = recv(s1, 'pvp_battle_created')
+    _bidm = _cr[0]['args'][0]['battle_id'] if _cr else None
+    check(S, 'desafio a NPC criado (modo manual)', _bidm is not None)
+    if _bidm:
+        s1.emit('pvp_select_pokemon', {'battle_id': _bidm, 'pokemon_idx': 0}); recv(s1)
+        _btm = appmod.ACTIVE_PVP.get(_bidm)
+        _npck = 'player2' if _btm['player2'].get('is_npc') else 'player1'
+        _plk = 'player1' if _npck == 'player2' else 'player2'
+        # se o jogador começa, ataca uma vez para passar o turno ao NPC
+        if _btm['turn'] == _plk:
+            _pk = _btm[_plk]['team'][_btm[_plk]['active_idx']]
+            s1.emit('pvp_attack', {'battle_id': _bidm, 'move_name': dmg_move(_pk),
+                                   'attack_roll': random.randint(1, 20)})
+            recv(s1)
+        check(S, 'NPC NÃO age sozinho no modo manual (turno preso no NPC)',
+              _btm['turn'] == _npck and _btm['phase'] == 'battle')
+        check(S, 'mestre é avisado (npc_awaiting_master)',
+              bool(recv(msio, 'npc_awaiting_master')))
+        check(S, 'log da batalha registra a espera pelo mestre',
+              any('aguardando o Mestre' in (e.get('message') or '') for e in _btm['log']))
+        # Forçar Ação destrava: a IA joga UMA vez a mando do mestre
+        msio.emit('master_force_npc_action', {'battle_id': _bidm, 'player_key': _npck})
+        recv(msio)
+        check(S, 'Forçar Ação do mestre faz o NPC agir', _btm['turn'] == _plk
+              or _btm['phase'] != 'battle')
+        appmod.ACTIVE_PVP.pop(_bidm, None)
+    # religa o AUTO para o resto da suíte
+    msio.emit('set_auto_mode', {'enabled': True}); recv(msio)
+    check(S, 'AUTO religado', db.get_game_state(TID).get('wild_auto_mode') is True)
+
     # Habilidade do ATACANTE (Poison Touch) envenena o alvo no contato físico.
     pt_procs = sum(1 for _ in range(400)
                    if (appmod.ab.check_attacker_contact_ability('Poison Touch') or {}).get('status') == 'badly_poisoned')

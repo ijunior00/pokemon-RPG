@@ -5524,6 +5524,10 @@ def handle_set_auto_mode(data):
         state = get_game_state()
         state['wild_auto_mode'] = bool(data.get('enabled', True))
         save_game_state(state)
+        # Avisa a mesa inteira — vale imediatamente em batalhas em andamento
+        payload = {'enabled': state['wild_auto_mode']}
+        emit('auto_mode_changed', payload, room=f'players_{_tid()}')
+        emit('auto_mode_changed', payload, room=f'master_{_tid()}')
         print(f"[AUTO MODE] mesa={_tid()} {'ON' if state['wild_auto_mode'] else 'OFF'}")
 
 @socketio.on('connect')
@@ -5705,6 +5709,7 @@ def handle_initiative(data):
         'first_turn': first_turn,
         'on_enter_abilities': on_enter_msgs,
         'weather': encounter['battle_state'].get('weather'),
+        'wild_auto': _wild_auto_mode(game_state),
     }
 
     emit('initiative_result', result, room=f'master_{_tid()}')
@@ -5838,6 +5843,17 @@ def handle_battle_action(data):
             if battle_state.get('turn') and battle_state['turn'] != expected:
                 return
 
+        # Modo MANUAL (auto OFF): o turno do selvagem pertence ao MESTRE.
+        # O cliente do jogador dispara o auto-attack por conta própria — aqui
+        # o servidor descarta essa ação para o mestre poder conduzir.
+        if (action_type != 'apply_status' and action_by == 'master'
+                and current_user.role != 'master'
+                and not _wild_auto_mode(game_state)):
+            emit('action_blocked', {
+                'manual_wild': True,
+                'message': '🎭 Modo manual: aguarde o Mestre jogar o turno do selvagem.'})
+            return
+
         action_log = None
         server_calc = None  # populated when server recalculates attack
 
@@ -5922,14 +5938,46 @@ def handle_battle_action(data):
             if server_calc.get('self_ko'):
                 battle_state['player_hp_current'] = 0
 
-        # Turno do SELVAGEM conduzido pelo cliente do jogador (modo AUTO):
-        # recalcula o dano no servidor — o cliente não é autoridade sobre o
-        # quanto o inimigo bate (fechava o cheat de "selvagem dá dano 0").
-        # Se o MESTRE conduz manualmente, mantém o valor enviado por ele.
-        if (action_type == 'attack' and action_by == 'master' and move_name
-                and current_user.role != 'master'):
+        # Turno do SELVAGEM: recalculado SEMPRE no servidor (motor v3) — tanto
+        # no modo AUTO (cliente do jogador conduz) quanto no manual (mestre
+        # escolhe o golpe). Cliente nenhum é autoridade sobre o dano.
+        if action_type == 'attack' and action_by == 'master' and move_name:
             wild_calc = _calc_wild_attack(encounter, move_name, None)   # v3: servidor rola o d100
-            if not wild_calc.get('is_status'):
+            if wild_calc.get('is_status') and current_user.role == 'master':
+                # Mestre escolheu um golpe de STATUS do selvagem: processa no
+                # motor (espelho do backstop do ataque do jogador acima).
+                damage = 0
+                move_data = MOVES_BY_NAME.get(move_name.lower()) or MOVES_DB.get(move_name)
+                ppoke = encounter.get('player_pokemon') or {}
+                wpoke = encounter.get('pokemon') or {}
+                sres = effects.process_status_move(
+                    move_data or {'name': move_name},
+                    dict(wpoke.get('stats', {}), level=wpoke.get('level', encounter.get('level', 5)),
+                         maxHp=battle_state.get('wild_hp_max', 20),
+                         _v3=_v3_side_state(wpoke)),
+                    dict(ppoke.get('stats', {}), level=ppoke.get('level', 1)))
+                action_log = sres.get('message', '')
+                message = sres.get('message', message)
+                server_calc = {'is_status': True, 'log': action_log, 'message': message}
+                if sres.get('effect_type') == 'field':
+                    _field_apply(battle_state, sres.get('field_kind'),
+                                 sres.get('field_value'), sres.get('duration'))
+                if (sres.get('status_applied')
+                        and not battle_state.get('player_status')
+                        and not effects.type_blocks_status(
+                            ppoke.get('types'), sres['status_applied'])):
+                    battle_state['player_status'] = {
+                        'condition': sres['status_applied'], 'turns_active': 0}
+                if sres.get('heal'):
+                    battle_state['wild_hp_current'] = min(
+                        battle_state['wild_hp_max'],
+                        battle_state['wild_hp_current'] + sres['heal'])
+                if sres.get('stat_changes'):
+                    tgt = ppoke if sres.get('effect_type') == 'debuff' else wpoke
+                    effects.apply_stat_changes(tgt, sres['stat_changes'])
+                    battle_state['wild_stat_stages'] = wpoke.get('stat_stages')
+                    battle_state['player_stat_stages'] = ppoke.get('stat_stages')
+            elif not wild_calc.get('is_status'):
                 damage = wild_calc.get('damage', 0)
                 move_type = wild_calc.get('move_type_en', move_type)
                 server_calc = wild_calc
@@ -6187,6 +6235,7 @@ def handle_battle_action(data):
             'server_calc': server_calc,  # full server-side calc details for client log
             'field_events': field_events,   # F5: chip de clima/cura/expiração
             'field': _field_of(battle_state),
+            'wild_auto': _wild_auto_mode(game_state),
         }
         
         # Notify both sides
@@ -6238,8 +6287,9 @@ def _auto_roll_initiative(player_id, game_state):
         'first_turn': first_turn,
         'on_enter_abilities': [],
         'weather': None,
+        'wild_auto': True,   # esta função só roda no modo AUTO
     }
-    
+
     socketio.emit('initiative_result', result, room=f'master_{_tid()}')
     socketio.emit('initiative_result', result, room=player_id)
     
@@ -7063,7 +7113,7 @@ def handle_master_force_npc_select(data):
             socketio.emit('pvp_battle_state', state, room=battle[opponent_key]['id'])
         _emit_pvp_to_master(battle, 'battle_started')
         if battle[battle['turn']].get('is_npc'):
-            handle_npc_turn(battle, battle['turn'])
+            handle_npc_turn(battle, battle['turn'], forced=True)
     else:
         _emit_pvp_to_master(battle, 'update')
     emit('master_force_npc_result', {'message': f'✅ NPC selecionou Pokémon!'})
@@ -7082,7 +7132,7 @@ def handle_master_force_npc(data):
         return
     if player_key not in ('player1', 'player2'):
         return
-    handle_npc_turn(battle, player_key)
+    handle_npc_turn(battle, player_key, forced=True)
     emit('master_force_npc_result', {'message': f'⚡ Ação forçada para {player_key}!'})
 
 
@@ -7384,8 +7434,21 @@ def _process_pvp_status_move(battle, attacker_key, move_name, move_data):
     return result
 
 
-def handle_npc_turn(battle, npc_key):
-    """Handle NPC's automatic turn (status próprio, escolha de move, ação)."""
+def handle_npc_turn(battle, npc_key, forced=False):
+    """Handle NPC's automatic turn (status próprio, escolha de move, ação).
+    forced=True: disparado pelo MESTRE (Forçar Ação) — ignora o modo manual."""
+    # Modo MANUAL (auto OFF): a IA do NPC não joga sozinha — o mestre conduz
+    # pelo "Forçar Ação" (master_force_npc_action).
+    if not forced and not _wild_auto_mode():
+        battle['log'].append({'type': 'info',
+                              'message': '🎭 Modo manual: NPC aguardando o Mestre (Forçar Ação).'})
+        _broadcast_pvp_state(battle)
+        socketio.emit('npc_awaiting_master', {
+            'battle_id': battle.get('id'), 'npc_key': npc_key,
+            'message': '🤖 NPC aguardando ação do Mestre (modo manual).'
+        }, room=f'master_{_tid()}')
+        return
+
     defender_key = 'player2' if npc_key == 'player1' else 'player1'
 
     npc_side  = battle[npc_key]

@@ -950,8 +950,27 @@ socket.on('initiative_result', (data) => {
     }
     window.currentTurn = data.first_turn;
     updateTurnUI();
+    if (data.wild_auto !== undefined) window._wildAuto = !!data.wild_auto;
     if (data.first_turn === 'wild') {
-        setTimeout(() => wildPokemonAutoAttack(), 1500);
+        if (window._wildAuto === false) {
+            addBattleLog('⏳ <em>Modo manual: aguardando o Mestre jogar o turno do selvagem…</em>');
+        } else {
+            setTimeout(() => wildPokemonAutoAttack(), 1500);
+        }
+    }
+});
+
+// Mestre ligou/desligou o modo automático no meio da sessão
+socket.on('auto_mode_changed', (data) => {
+    window._wildAuto = !!data.enabled;
+    if (battleActive) {
+        addBattleLog(data.enabled
+            ? '🤖 <em>Modo automático religado — o selvagem volta a agir sozinho.</em>'
+            : '🎭 <em>Modo manual: o Mestre passa a conduzir o selvagem.</em>');
+        // se já era o turno do selvagem, destrava o auto-attack agora
+        if (data.enabled && window.currentTurn === 'wild') {
+            setTimeout(() => wildPokemonAutoAttack(), 800);
+        }
     }
 });
 
@@ -1051,9 +1070,14 @@ socket.on('battle_update', (data) => {
     window.currentTurn = bs.turn;
     updateTurnUI();
 
-    // Wild Pokemon auto-attack when it's their turn
+    // Wild Pokemon auto-attack when it's their turn (modo manual: o Mestre conduz)
+    if (data.wild_auto !== undefined) window._wildAuto = !!data.wild_auto;
     if (bs.turn === 'wild' && bs.wild_hp_current > 0 && bs.player_hp_current > 0 && !window.wildFainted && !window._wildIsActing) {
-        setTimeout(() => wildPokemonAutoAttack(), 1200);
+        if (window._wildAuto === false) {
+            addBattleLog('⏳ <em>Aguardando o Mestre jogar o turno do selvagem…</em>');
+        } else {
+            setTimeout(() => wildPokemonAutoAttack(), 1200);
+        }
     }
 
     // Badges de buff/debuff acumulados (fonte: servidor)
@@ -5161,6 +5185,8 @@ updateTurnUI = async function() {
 async function wildPokemonAutoAttack() {
     if (!battleActive || !window.currentBattleData || window.wildFainted) return;
     if (window.currentTurn !== 'wild') return;
+    // Modo manual (auto OFF): o MESTRE conduz o selvagem — o cliente não age
+    if (window._wildAuto === false) return;
     // Prevent re-entry: if the wild is already acting, exit
     if (window._wildIsActing) return;
     window._wildIsActing = true;
