@@ -1237,21 +1237,21 @@ def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
 
     elif effect['type'] == 'ohko':
         # OHKO (Fissure/Guillotine/Horn Drill) — v3: ACC 30 fixo (ignora
-        # estágios); se conectar, o alvo rola Resistência vs TN 22 — QUALQUER
-        # sucesso anula o golpe inteiro; falha total = nocaute (doc §17).
+        # estágios); se conectar, o alvo rola Resistência (d100) vs TN 110 —
+        # QUALQUER sucesso anula o golpe inteiro; falha total = nocaute (§17).
         ok, roll, thr, acc_label = _accuracy_roll()
         if ok:
-            d20 = random.randint(1, 20)
+            d100_def = random.randint(1, 100)
             tgt_def = int(target_stats.get('DEF') or target_stats.get('def') or 10)
             tgt_level = int(target_stats.get('level') or 1)
-            total = _bm.v3_resistance_total(d20, tgt_def, tgt_level)
+            total = _bm.v3_resistance_total(d100_def, tgt_def, tgt_level)
             tn = _bm.v3_ohko_resist_tn()
             if total >= tn:
                 return {
                     'success': False,
                     'effect_type': 'resisted',
                     'message': f"{move_name}! d100({roll}) conecta, mas o alvo RESISTE ao "
-                               f"golpe fatal: d20({d20})+{total - d20} = {total} ≥ TN {tn} → anulado!",
+                               f"golpe fatal: d100({d100_def})+{total - d100_def} = {total} ≥ TN {tn} → anulado!",
                     'status_applied': None,
                     'stat_changes': None
                 }

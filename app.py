@@ -581,10 +581,10 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
         defender_faster_tie = def_spe > atk_spe
 
     def _resist(gross, pw):
-        """Camada 3: Resistência do defensor → (dano_final, linha de log)."""
-        d20 = random.randint(1, 20)
+        """Camada 3: Resistência do defensor (d100) → (dano_final, linha de log)."""
+        d100_def = random.randint(1, 100)
         total = bm_core.v3_resistance_total(
-            d20, def_stat, def_level, def_stages,
+            d100_def, def_stat, def_level, def_stages,
             crit=is_crit, extra=adapt_bonus + weather_resist,
             crit_zeroes_defense=sniper)
         tn = bm_core.v3_tn(pw, level)
@@ -592,9 +592,9 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
         final = bm_core.v3_apply_outcome(gross, outcome)
         tag = {'full': '💥 dano CHEIO', 'half': '🛡️ resistiu (metade)',
                'negate': '💨 ANULOU'}[outcome]
-        line = (f' · resistência d20({d20})+{total - d20} = {total} vs TN {tn}'
-                f'{" (adaptação +2)" if adapt_bonus else ""}'
-                f'{" (clima +2)" if weather_resist else ""} → {tag}')
+        line = (f' · resistência d100({d100_def})+{total - d100_def} = {total} vs TN {tn}'
+                f'{" (adaptação +10)" if adapt_bonus else ""}'
+                f'{" (clima +10)" if weather_resist else ""} → {tag}')
         return final, outcome, line
 
     if not power:
@@ -5630,8 +5630,8 @@ def handle_initiative(data):
     wild_mod = bm_core.initiative_bonus(wild_spe)
     player_mod = bm_core.initiative_bonus(player_spe) + player_extra
 
-    nat_player = random.randint(1, 20)
-    nat_wild = random.randint(1, 20)
+    nat_player = random.randint(1, 100)
+    nat_wild = random.randint(1, 100)
     winner, player_init, wild_init, init_upset = bm_core.initiative_winner(
         nat_player, nat_wild, player_spe, wild_spe, extra_a=player_extra)
 
@@ -6335,7 +6335,7 @@ def _auto_roll_initiative(player_id, game_state):
     player_mod = bm_core.initiative_bonus(player_spe) + player_extra
 
     winner, player_init, wild_init, init_upset = bm_core.initiative_winner(
-        random.randint(1, 20), random.randint(1, 20),
+        random.randint(1, 100), random.randint(1, 100),
         player_spe, wild_spe, extra_a=player_extra)
     first_turn = 'player' if winner == 'a' else 'wild'
 
@@ -6840,8 +6840,8 @@ def handle_pvp_select(data):
                         import random as _r
                         battle['phase'] = 'battle'
                         battle['round'] = 1
-                        i1 = _r.randint(1, 20)
-                        i2 = _r.randint(1, 20)
+                        i1 = _r.randint(1, 100)
+                        i2 = _r.randint(1, 100)
                         battle['turn'] = 'player1' if i1 >= i2 else 'player2'
                         result = 'battle_start'
 

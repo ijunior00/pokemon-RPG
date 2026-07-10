@@ -784,12 +784,16 @@ def main():
           appmod.ab.check_attacker_contact_ability('Overgrow') is None)
 
     # Venoshock: dano dobra contra alvo envenenado (sinergia de veneno).
+    # (atacante FRESCO por chamada — Venoshock POW 65 agora tem recarga 1)
     import statistics as _stat
-    _enc_base = {'player_pokemon': make_poke('Croagunk', 30), 'pokemon': make_poke('Rattata', 20),
-                 'level': 20, 'battle_state': {'wild_status': None}}
-    _clean = [appmod._calc_player_attack({**_enc_base, 'battle_state': {'wild_status': None}}, 'Venoshock', 18)['damage']
-              for _ in range(150)]
-    _pois = [appmod._calc_player_attack({**_enc_base, 'battle_state': {'wild_status': {'condition': 'badly_poisoned', 'turns_active': 0}}}, 'Venoshock', 18)['damage']
+
+    def _veno(status):
+        _enc = {'player_pokemon': make_poke('Croagunk', 30),
+                'pokemon': make_poke('Rattata', 20), 'level': 20,
+                'battle_state': {'wild_status': status}}
+        return appmod._calc_player_attack(_enc, 'Venoshock', 18)['damage']
+    _clean = [_veno(None) for _ in range(150)]
+    _pois = [_veno({'condition': 'badly_poisoned', 'turns_active': 0})
              for _ in range(150)]
     check(S, 'Venoshock x2 vs alvo envenenado',
           _stat.mean(_pois) > 1.6 * max(1, _stat.mean(_clean)),
@@ -1275,34 +1279,40 @@ def main():
     check(S, 'sem treinador (NPC/selvagem) → sem bônus',
           appmod._stamp_tatica([make_poke('Rattata', 5)], None) == 0)
     _rolls = [appmod.pvp.roll_initiative(_poke_i) for _ in range(40)]
-    check(S, 'roll_initiative devolve (d20 natural, SPE_eff, tática)',
-          all(1 <= n <= 20 for n, _, _ in _rolls)
+    check(S, 'roll_initiative devolve (d100 natural, SPE_eff, tática)',
+          all(1 <= n <= 100 for n, _, _ in _rolls)
           and all(s == _poke_i['stats']['SPE'] for _, s, _ in _rolls)
           and all(t == 2 for _, _, t in _rolls))
     _spe_b = bmm.initiative_bonus(_poke_i['stats']['SPE'])
-    check(S, 'initiative_bonus = SPE_eff//5',
-          _spe_b == _poke_i['stats']['SPE'] // 5)
-    # initiative_winner: totais, upset 20vs1 e desempates
-    _w, _ta, _tb, _up = bmm.initiative_winner(10, 10, 50, 100)
+    check(S, 'initiative_bonus (d100) = SPE_eff inteiro',
+          _spe_b == _poke_i['stats']['SPE'])
+    # initiative_winner (d100): totais, upset ≥96 vs ≤5 e desempates
+    _w, _ta, _tb, _up = bmm.initiative_winner(50, 50, 50, 100)
     check(S, 'iniciativa: empate de natural → mais rápido vence',
-          _w == 'b' and _ta == 20 and _tb == 30 and not _up)
-    _w, _ta, _tb, _up = bmm.initiative_winner(20, 1, 30, 200)
-    check(S, 'iniciativa: upset 20vs1 — lento com 20 vence rápido com 1',
+          _w == 'b' and _ta == 100 and _tb == 150 and not _up)
+    _w, _ta, _tb, _up = bmm.initiative_winner(97, 3, 30, 200)
+    check(S, 'iniciativa: upset — lento com ≥96 vence rápido com ≤5',
           _w == 'a' and _up is True)
-    _w, _, _, _up = bmm.initiative_winner(1, 20, 30, 200)
-    check(S, 'iniciativa: 20 natural do RÁPIDO não é upset',
+    _w, _, _, _up = bmm.initiative_winner(3, 97, 30, 200)
+    check(S, 'iniciativa: natural alto do RÁPIDO não é upset',
           _w == 'b' and _up is False)
-    _w, _, _, _up = bmm.initiative_winner(20, 1, 200, 30)
-    check(S, 'iniciativa: 20vs1 na direção errada não dispara upset',
+    _w, _, _, _up = bmm.initiative_winner(97, 3, 200, 30)
+    check(S, 'iniciativa: upset na direção errada não dispara',
           _w == 'a' and _up is False)
-    _w, _ta, _tb, _ = bmm.initiative_winner(15, 10, 50, 75)
+    check(S, 'iniciativa: 96/5 são os limiares exatos do upset',
+          bmm.initiative_winner(96, 5, 30, 200)[3] is True
+          and bmm.initiative_winner(95, 5, 30, 200)[3] is False
+          and bmm.initiative_winner(96, 6, 30, 200)[3] is False)
+    _w, _ta, _tb, _ = bmm.initiative_winner(75, 50, 50, 75)
     check(S, 'iniciativa: empate de total → maior SPE primeiro',
-          _ta == _tb == 25 and _w == 'b')
+          _ta == _tb == 125 and _w == 'b')
     check(S, 'iniciativa: empate completo → a (jogador/player1)',
-          bmm.initiative_winner(10, 10, 60, 60)[0] == 'a')
-    check(S, 'iniciativa: tática entra como extra',
-          bmm.initiative_winner(10, 10, 60, 60, extra_a=2)[0] == 'a'
-          and bmm.initiative_winner(10, 10, 60, 60, extra_b=2)[0] == 'b')
+          bmm.initiative_winner(50, 50, 60, 60)[0] == 'a')
+    check(S, 'iniciativa: tática entra como extra (×5 na escala d100)',
+          bmm.initiative_winner(50, 50, 60, 60, extra_a=2)[0] == 'a'
+          and bmm.initiative_winner(50, 50, 60, 60, extra_a=2)[1]
+              == bmm.initiative_winner(50, 50, 60, 60)[1] + 10
+          and bmm.initiative_winner(50, 50, 60, 60, extra_b=2)[0] == 'b')
 
     # ── Caminho do Treinador (4 caminhos, marcos 3/6/10) ──
     def _afinidade():
@@ -2156,12 +2166,14 @@ def main():
           f"{appmod._v3_cooldown_left(char, 'Fire Blast')}")
 
     # Momentum: variar +1 (máx 3); repetir zera
+    # (rotação termina em Ember, POW 40 sem recarga, para o repeat não ser
+    # bloqueado pelo cooldown novo dos POW 55-80)
     c2, b2 = fresh('Charizard', 50), fresh('Blastoise', 50)
-    for mv in ('Ember', 'Wing Attack', 'Slash', 'Ember', 'Wing Attack', 'Slash'):
+    for mv in ('Wing Attack', 'Slash', 'Ember', 'Wing Attack', 'Slash', 'Ember'):
         appmod._calc_attack_core(c2, b2, mv, attack_roll=10, field={})
     check(S, 'momentum acumula variando (máx 3)', c2['_v3']['momentum'] == 3,
           f"{c2['_v3']['momentum']}")
-    appmod._calc_attack_core(c2, b2, 'Slash', attack_roll=10, field={})
+    appmod._calc_attack_core(c2, b2, 'Ember', attack_roll=10, field={})
     check(S, 'repetir o golpe zera o momentum', c2['_v3']['momentum'] == 0)
 
     # Adaptação: 3ª repetição consecutiva → defensor +2 na Resistência
@@ -2169,8 +2181,8 @@ def main():
     appmod._calc_attack_core(c3, b3, 'Ember', attack_roll=10, field={})
     appmod._calc_attack_core(c3, b3, 'Ember', attack_roll=10, field={})
     r3 = appmod._calc_attack_core(c3, b3, 'Ember', attack_roll=10, field={})
-    check(S, 'adaptação na 3ª repetição (+2 defensor)',
-          'adaptação +2' in (r3.get('log') or ''), (r3.get('log') or '')[:90])
+    check(S, 'adaptação na 3ª repetição (+10 na Resistência d100)',
+          'adaptação +10' in (r3.get('log') or ''), (r3.get('log') or '')[:90])
 
     # Clima: Sol → Thunder ACC 50; Chuva → Surf +1 dado; Névoa −10
     c4, b4 = fresh('Charizard', 50), fresh('Blastoise', 50)
@@ -2255,7 +2267,7 @@ def main():
                                    attack_roll=10, field={'weather': 'sun'})
     check(S, 'Solar Beam no Sol dispara direto', not r9c.get('charging'))
 
-    # OHKO: ACC 30 + Resistência TN 22 (nunca vira certeza)
+    # OHKO: ACC 30 + Resistência d100 vs TN 110 (nunca vira certeza)
     ko = resisted = 0
     for _ in range(200):
         ro = se.process_status_move({'name': 'Fissure', 'category': 'status'},
@@ -2266,7 +2278,7 @@ def main():
             ko += 1
         elif 'RESISTE' in (ro.get('message') or ''):
             resisted += 1
-    check(S, 'OHKO: raro e resistível (ACC30 × TN22)',
+    check(S, 'OHKO: raro e resistível (ACC30 × Resistência d100/TN110)',
           0 < ko < 70 and resisted > 0, f'ko={ko} resist={resisted}')
 
     # Campo expira quando a duração zera
@@ -2297,10 +2309,10 @@ def main():
 
     # Certeiro: componente CHEIO (sem os antigos 60%) e ×0,90 no dano final
     c10 = fresh('Charizard', 50)
-    _comp_cheio = max(1, int(c10['stats']['ATK']) // 8)
+    _comp_cheio = max(1, int(c10['stats']['ATK']) // bmm.V3_STATUS_DIVISOR)
     r10b = appmod._calc_attack_core(c10, fresh('Blastoise', 50), 'Aerial Ace',
                                     attack_roll=None, field={})
-    check(S, 'certeiro usa componente cheio (⌊ATK/8⌋ sem redução)',
+    check(S, 'certeiro usa componente cheio (⌊ATK/divisor⌋ sem redução)',
           f'comp {_comp_cheio}' in (r10b.get('log') or ''),
           (r10b.get('log') or '')[:70])
     ok_mult = all('×0,9' in (rr.get('log') or '') or rr.get('damage', 0) == 0
@@ -2659,8 +2671,14 @@ def main():
     check(S, "nenhum campo 'save' (5e) no move_effects.json", not _saves5, str(_saves5[:6]))
     _src5 = open('status_effects.py').read()
     check(S, "nenhum campo 'save' nas tabelas do motor", "'save':" not in _src5)
-    check(S, 'único d20 do motor de efeitos é a Resistência v3 do OHKO',
-          _src5.count('randint(1, 20)') <= 1)
+    # d100 TOTAL no combate de Pokémon: zero d20 no motor de efeitos e no
+    # núcleo matemático (o d20 que resta no app.py é perícia de TREINADOR —
+    # /api/roll, caçada, testes de atributo — fora do combate).
+    check(S, 'zero d20 no motor de efeitos (combate 100% d100)',
+          _src5.count('randint(1, 20)') == 0)
+    _srcbm = open('battle_math.py').read()
+    check(S, 'zero d20 no núcleo matemático v3',
+          _srcbm.count('randint(1, 20)') == 0)
 
     # ────────────────────────── RELATÓRIO ──────────────────────────
     print('\n' + '═' * 62)

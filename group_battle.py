@@ -18,14 +18,15 @@ def _poke_hp(p):
 
 
 def _init_roll(pokemon):
-    # Iniciativa v3: d20 + SPE_efetivo//5 + mod(Tática)//2 do treinador.
+    # Iniciativa v3 (d100): d100 + SPE_efetivo + Tática×5 do treinador.
     # Devolve (total, spe_eff) — o SPE desempata na ordenação. A regra de
-    # upset 20vs1 não se aplica aqui (só faz sentido em duelo 1v1).
+    # upset (≥96 vs ≤5) não se aplica aqui (só faz sentido em duelo 1v1).
     import battle_math as bm
     import status_effects as effects
     spe = effects.effective_stat(pokemon, 'SPE') if isinstance(pokemon, dict) else 10
     tatica = int(pokemon.get('trainer_init_bonus') or 0) if isinstance(pokemon, dict) else 0
-    return random.randint(1, 20) + bm.initiative_bonus(spe) + tatica, spe
+    return (random.randint(1, 100) + bm.initiative_bonus(spe)
+            + bm.INIT_EXTRA_STEP * tatica, spe)
 
 
 def build_battle(allies, wilds, hunt_mode='normal', route_id=None, table_id=None):

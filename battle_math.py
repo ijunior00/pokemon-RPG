@@ -289,28 +289,34 @@ def stage_mult(n):
     return (2 + n) / 2 if n >= 0 else 2 / (2 - n)
 
 
-# ── Iniciativa ────────────────────────────────────────────────────────────
+# ── Iniciativa (escala d100 — o combate de Pokémon não usa d20) ────────────
+INIT_UPSET_HIGH = 96   # "virada lendária": lento rola ≥96 natural…
+INIT_UPSET_LOW = 5     # …e o rápido rola ≤5 natural (5%×5% = 0,25% = 1/400)
+INIT_EXTRA_STEP = 5    # Tática do treinador: cada ponto clássico vale 5
+
+
 def initiative_bonus(spe_eff):
-    """Bônus de iniciativa: d20 + SPE_efetivo//5 (Speed decide; o dado é a
+    """Bônus de iniciativa: d100 + SPE_efetivo (Speed decide; o dado é a
     imprevisibilidade, não o fator principal)."""
-    return int(spe_eff) // 5
+    return int(spe_eff)
 
 
 def initiative_winner(nat_a, nat_b, spe_a, spe_b, extra_a=0, extra_b=0):
-    """Decide a iniciativa entre 'a' e 'b' a partir dos d20 naturais.
+    """Decide a iniciativa entre 'a' e 'b' a partir dos d100 naturais.
     Retorna (vencedor 'a'|'b', total_a, total_b, upset).
     Ordem das regras:
-      1. Upset 20vs1: se o mais LENTO tira 20 natural e o mais rápido tira 1
-         natural, o lento age primeiro independente dos modificadores (1/400).
-      2. Maior total (natural + SPE_eff//5 + extra).
+      1. Upset: se o mais LENTO tira ≥96 natural e o mais rápido tira ≤5
+         natural, o lento age primeiro independente dos modificadores
+         (0,25% — a "virada lendária").
+      2. Maior total (natural + SPE_eff + Tática×5).
       3. Empate de total → maior SPE_eff.
       4. Empate completo → 'a' (jogador/player1)."""
     spe_a, spe_b = int(spe_a), int(spe_b)
-    total_a = int(nat_a) + initiative_bonus(spe_a) + int(extra_a or 0)
-    total_b = int(nat_b) + initiative_bonus(spe_b) + int(extra_b or 0)
-    if spe_a < spe_b and nat_a == 20 and nat_b == 1:
+    total_a = int(nat_a) + initiative_bonus(spe_a) + INIT_EXTRA_STEP * int(extra_a or 0)
+    total_b = int(nat_b) + initiative_bonus(spe_b) + INIT_EXTRA_STEP * int(extra_b or 0)
+    if spe_a < spe_b and nat_a >= INIT_UPSET_HIGH and nat_b <= INIT_UPSET_LOW:
         return 'a', total_a, total_b, True
-    if spe_b < spe_a and nat_b == 20 and nat_a == 1:
+    if spe_b < spe_a and nat_b >= INIT_UPSET_HIGH and nat_a <= INIT_UPSET_LOW:
         return 'b', total_a, total_b, True
     if total_a != total_b:
         return ('a' if total_a > total_b else 'b'), total_a, total_b, False
@@ -336,16 +342,20 @@ def fixed_damage_for(move_name_lower, level, target_current_hp=None):
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SISTEMA v3 — "d100/ACC": Precisão (d100) → Dano (Status+POW) → Resistência
-# (d20 do defensor). Documento de design: docs/sistema-combate-d100.md.
+# (d100 do defensor). Documento de design: docs/sistema-combate-d100.md.
+# O combate de Pokémon é 100% d100; o d20 restante no código é só perícia
+# de TREINADOR (D&D de mesa, fora do combate).
 # As funções v2 acima permanecem até o cutover completo do motor.
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Alavancas de calibração (alvo: batalhas de 5-10 turnos — battle_sweep_v3)
-V3_STATUS_DIVISOR = 8     # Componente de Status = stat // divisor
-V3_TN_SHIFT = 0           # desloca a coluna de TN inteira
-V3_DEF_BONUS_CAP = 12     # teto do bônus de Defesa na Resistência: ⌊def/10⌋
-                          # chega a +20 no Nv100 e dominaria o d20 (anulação
-                          # eterna, batalhas de 13+ rodadas)
+# Alavancas de calibração (alvo: batalhas de 4-6 turnos, até 8 nas
+# naturalmente longas — battle_sweep_v3 + battle_matrix_v3)
+V3_STATUS_DIVISOR = 10    # Componente de Status = stat // divisor
+V3_TN_SHIFT = 0           # desloca a coluna de TN inteira (escala d100:
+                          # passos de ±5)
+V3_DEF_BONUS_CAP = 50     # teto do bônus de Defesa na Resistência: ⌊def/2⌋
+                          # (escala d100; sem teto dominaria a rolagem e o
+                          # endgame virava guerra de anulação)
 V3_STAB_DIE_LEVEL = 25    # STAB: +1 dado a partir do 1º marco; antes disso
                           # +2 fixo no bruto (dobrar dados no early game
                           # derrubava o L15 para 4 rodadas)
@@ -355,17 +365,27 @@ V3_CRIT_BASE, V3_CRIT_PER_STAGE, V3_CRIT_CAP = 5, 10, 50
 V3_MOMENTUM_MAX = 3
 V3_CERTEIRO_DAMAGE_MULT = 0.90   # ACC ∞: dano final ×0,90 (compensa a
                                  # confiabilidade — não há outra penalidade)
+V3_RESIST_STAGE_STEP = 5         # cada estágio de DEF/SpD vale ±5 na
+                                 # Resistência (escala d100)
+V3_RESIST_EXTRA_STEP = 5         # adaptação/clima: cada ponto "clássico"
+                                 # vira 5 na escala d100
 
-# TABELA MESTRA: (pow_máx, nº dados, lados, TN, cooldown em rodadas)
+# TABELA MESTRA: (pow_máx, nº dados, lados, TN d100, cooldown em rodadas)
+# Progressão suave definida pelo usuário: dados sobem ~1 nível por faixa,
+# recarga a partir de POW 55, topo 4d10. POW > 150 (160-250) cai no último
+# degrau. Nota: 3d8 (média 13,5) e 4d6 (14,0) quase empatam — o degrau
+# 115-125 se diferencia pelo TN maior, mínimo maior (4) e variância menor.
 V3_MASTER_TABLE = (
-    (35,        1, 6,  10, 0),
-    (50,        1, 8,  12, 0),
-    (65,        1, 10, 14, 0),
-    (80,        2, 6,  16, 0),
-    (95,        2, 8,  18, 1),
-    (110,       3, 6,  20, 2),
-    (125,       3, 8,  22, 3),
-    (10 ** 9,   3, 10, 24, 3),
+    (20,        1, 6,  50,  0),
+    (35,        1, 8,  60,  0),
+    (50,        1, 10, 70,  0),
+    (65,        2, 6,  80,  1),
+    (80,        2, 8,  90,  1),
+    (95,        3, 6,  100, 1),
+    (110,       3, 8,  110, 2),
+    (125,       4, 6,  120, 2),
+    (140,       3, 10, 130, 3),
+    (10 ** 9,   4, 10, 140, 3),
 )
 
 
@@ -385,11 +405,11 @@ def v3_dice_base(power):
 
 
 def v3_tn(power, attacker_level=1):
-    """TN Efetiva = TN da tabela + ⌊nível do atacante/10⌋ + shift de calibração.
-    O termo do atacante cancela o ⌊nível/10⌋ do defensor em níveis iguais —
+    """TN Efetiva (escala d100) = TN da tabela + ⌊nível do atacante/2⌋ + shift.
+    O termo do atacante cancela o ⌊nível/2⌋ do defensor em níveis iguais —
     sem ele, em nível alto o defensor anularia tudo."""
     return (V3_MASTER_TABLE[v3_tier(power)][3] + V3_TN_SHIFT
-            + max(1, int(attacker_level or 1)) // 10)
+            + max(1, int(attacker_level or 1)) // 2)
 
 
 def v3_cooldown(power):
@@ -434,8 +454,8 @@ def v3_move_cooldown(power, drain=0):
 
 
 def v3_milestone_dice(level):
-    """Dados extras acumulados pelos marcos 25/50/75/100."""
-    return max(0, min(4, int(level or 1) // 25))
+    """Dados extras acumulados pelos marcos 20/40/60/80/100."""
+    return max(0, min(5, int(level or 1) // 20))
 
 
 def v3_status_component(stat, atk_stages=0):
@@ -503,27 +523,34 @@ def v3_crit_chance(crit_stages=0):
     return min(V3_CRIT_CAP, V3_CRIT_BASE + V3_CRIT_PER_STAGE * int(crit_stages or 0))
 
 
-def v3_resistance_total(d20, defense_stat, level, def_stages=0,
+def v3_resistance_total(d100, defense_stat, level, def_stages=0,
                         crit=False, extra=0, crit_zeroes_defense=False):
-    """Total da Resistência do defensor. Crítico FURA a defesa: o bônus de
-    Defesa (⌊def/10⌋ + estágios positivos) conta pela metade (Sniper: zero)."""
-    bonus = min(V3_DEF_BONUS_CAP, int(defense_stat or 10) // 10) + int(def_stages or 0)
+    """Total da Resistência do defensor (escala d100): d100 + min(60, ⌊def/2⌋)
+    + 5/estágio de DEF + ⌊nível/2⌋ + extra×5. Os estágios e o `extra`
+    (adaptação/clima) continuam chegando em pontos "clássicos" — a conversão
+    ×5 é feita aqui. Crítico FURA a defesa: o bônus de Defesa (stat +
+    estágios) conta pela metade (Sniper: zero)."""
+    bonus = (min(V3_DEF_BONUS_CAP, int(defense_stat or 10) // 2)
+             + V3_RESIST_STAGE_STEP * int(def_stages or 0))
     if crit:
         bonus = 0 if crit_zeroes_defense else (bonus // 2 if bonus > 0 else bonus)
-    return int(d20) + bonus + v3_level_bonus(level) + int(extra or 0)
+    return (int(d100) + bonus + max(1, int(level or 1)) // 2
+            + V3_RESIST_EXTRA_STEP * int(extra or 0))
 
 
 def v3_resist_outcome(result, tn, defender_faster=False):
-    """'full' | 'half' | 'negate'. Empate técnico: a exatamente 1 ponto da
-    faixa superior (TN−1 ou TN+9), defensor mais rápido sobe de faixa."""
+    """'full' | 'half' | 'negate' (escala d100: anula em TN+50).
+    Empate técnico: a até 5 pontos da faixa superior (TN−5..TN−1 ou
+    TN+45..TN+49), defensor mais rápido sobe de faixa — mesma probabilidade
+    do ponto único que existia no d20."""
     result, tn = int(result), int(tn)
-    if result >= tn + 10:
+    if result >= tn + 50:
         return 'negate'
     if result >= tn:
-        if defender_faster and result == tn + 9:
+        if defender_faster and result >= tn + 45:
             return 'negate'
         return 'half'
-    if defender_faster and result == tn - 1:
+    if defender_faster and result >= tn - 5:
         return 'half'
     return 'full'
 
@@ -703,9 +730,9 @@ def v3_protect_chance(chain):
 
 
 def v3_ohko_resist_tn():
-    """OHKO (Fissure/Guillotine): Resistência vs TN 22 — qualquer sucesso
-    anula o golpe inteiro."""
-    return 22
+    """OHKO (Fissure/Guillotine): Resistência vs TN 110 (escala d100) —
+    qualquer sucesso anula o golpe inteiro."""
+    return 110
 
 
 # ── ACC ∞ (certeiros) e estados de invulnerabilidade (spec de precisão) ────
