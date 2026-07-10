@@ -34,9 +34,12 @@ Convenções do cofre:
 
 - `battle_math.py` e `static/js/battle_math.js` são **espelhos 1:1** — mudou
   um, mude o outro (o stress tem teste de paridade).
-- Testes: `tests/stress.py` (323 checks) **só em banco descartável**
-  (`DATABASE_URL` de teste); ritmo de combate validado por
-  `tools/battle_sweep_v3.py` (mediana 5–10 rodadas por faixa, exit 1 se furar).
+- Testes: `tests/stress.py` (465 checks) **só em banco descartável**
+  (`DATABASE_URL` de teste); ritmo de combate validado por dois gates:
+  `tools/battle_sweep_v3.py` (calibrador rápido — mediana 4–6 rodadas por
+  faixa, até 8 nos confrontos naturalmente longos) e
+  `tools/battle_matrix_v3.py` (matriz de arquétipos com espécies reais —
+  invariantes de duração, DoT e winrate). Ambos exit 1 se furar.
 - Toda query de estado de jogo passa por `_tid()` (multi-mesa) — query sem
   escopo de mesa é bug de segurança.
 - Documentação e commits em PT-BR.

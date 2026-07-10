@@ -208,9 +208,10 @@ def check_contact_ability(ability, defender_prof: int) -> dict | None:
     key = normalize_ability(ability)
     prof = max(1, int(defender_prof or 2))
 
-    if key == 'static' and _r.random() < 0.25:
-        return {'damage': prof, 'status': None,
-                'message': f'⚡ Static: o atacante levou {prof} de dano elétrico!'}
+    if key == 'static' and _r.random() < 0.30:
+        # canon: contato tem 30% de PARALISAR o atacante (não é dano)
+        return {'damage': 0, 'status': 'paralisado',
+                'message': '⚡ Static: o atacante foi paralisado pelo contato!'}
     if key == 'flame body' and _r.random() < 0.25:
         return {'damage': 0, 'status': 'queimado',
                 'message': '🔥 Flame Body: o atacante foi queimado!'}
@@ -320,8 +321,10 @@ def _cond_ability_mult(pokemon):
     if key == 'slow start' and pokemon.get('slow_start_active'):
         out['ATK'] = out.get('ATK', 1.0) * 0.5
         out['SPE'] = out.get('SPE', 1.0) * 0.5
-    if key == 'solar power':          # sem clima: bônus permanente de SpA modesto
-        out['SPA'] = out.get('SPA', 1.0) * 1.3
+    if key == 'solar power' and pokemon.get('_weather') == 'sun':
+        # canon: SpA ×1,5 SÓ sob Sol (o custo de 1/8 HP/turno é aplicado
+        # junto do chip de clima em _field_chip)
+        out['SPA'] = out.get('SPA', 1.0) * 1.5
     if key == 'guts' and statused:
         out['ATK'] = out.get('ATK', 1.0) * 1.5
     if key == 'marvel scale' and statused:

@@ -160,20 +160,22 @@ const BattleMath = (() => {
         return n >= 0 ? (2 + n) / 2 : 2 / (2 - n);
     }
 
-    // ── Iniciativa ──
+    // ── Iniciativa (escala d100 — combate de Pokémon não usa d20) ──
+    const INIT_UPSET_HIGH = 96, INIT_UPSET_LOW = 5, INIT_EXTRA_STEP = 5;
     function initiativeBonus(speEff) {
-        return Math.floor(speEff / 5);
+        return Math.trunc(speEff);
     }
 
     // Decide a iniciativa entre 'a' e 'b' (espelho de initiative_winner):
-    // 1) upset 20vs1 (lento tira 20 natural, rápido tira 1) → lento primeiro;
-    // 2) maior total; 3) empate → maior SPE_eff; 4) empate completo → 'a'.
+    // 1) upset (lento tira ≥96 natural, rápido tira ≤5) → lento primeiro (0,25%);
+    // 2) maior total (d100 + SPE_eff + Tática×5); 3) empate → maior SPE_eff;
+    // 4) empate completo → 'a'.
     function initiativeWinner(natA, natB, speA, speB, extraA = 0, extraB = 0) {
         speA = Math.trunc(speA); speB = Math.trunc(speB);
-        const totalA = Math.trunc(natA) + initiativeBonus(speA) + Math.trunc(extraA || 0);
-        const totalB = Math.trunc(natB) + initiativeBonus(speB) + Math.trunc(extraB || 0);
-        if (speA < speB && natA === 20 && natB === 1) return ['a', totalA, totalB, true];
-        if (speB < speA && natB === 20 && natA === 1) return ['b', totalA, totalB, true];
+        const totalA = Math.trunc(natA) + initiativeBonus(speA) + INIT_EXTRA_STEP * Math.trunc(extraA || 0);
+        const totalB = Math.trunc(natB) + initiativeBonus(speB) + INIT_EXTRA_STEP * Math.trunc(extraB || 0);
+        if (speA < speB && natA >= INIT_UPSET_HIGH && natB <= INIT_UPSET_LOW) return ['a', totalA, totalB, true];
+        if (speB < speA && natB >= INIT_UPSET_HIGH && natA <= INIT_UPSET_LOW) return ['b', totalA, totalB, true];
         if (totalA !== totalB) return [totalA > totalB ? 'a' : 'b', totalA, totalB, false];
         if (speA !== speB) return [speA > speB ? 'a' : 'b', totalA, totalB, false];
         return ['a', totalA, totalB, false];
@@ -189,17 +191,21 @@ const BattleMath = (() => {
     }
 
     // ═════════════════════════════════════════════════════════════════════
-    // SISTEMA v3 — d100/ACC → Dano → Resistência d20 (espelho de battle_math.py)
+    // SISTEMA v3 — d100/ACC → Dano → Resistência d100 (espelho de battle_math.py)
     // ═════════════════════════════════════════════════════════════════════
-    const V3_STATUS_DIVISOR = 8, V3_TN_SHIFT = 0;
-    const V3_DEF_BONUS_CAP = 12, V3_STAB_DIE_LEVEL = 25, V3_STAB_FLAT = 2;
+    const V3_STATUS_DIVISOR = 10, V3_TN_SHIFT = 0;
+    const V3_DEF_BONUS_CAP = 50, V3_STAB_DIE_LEVEL = 25, V3_STAB_FLAT = 2;
     const V3_ACC_CAP = 100, V3_ACC_FLOOR = 5;
     const V3_CRIT_BASE = 5, V3_CRIT_PER_STAGE = 10, V3_CRIT_CAP = 50;
     const V3_MOMENTUM_MAX = 3, V3_CERTEIRO_DAMAGE_MULT = 0.90;
-    // (pow_máx, nº dados, lados, TN, cooldown)
+    const V3_RESIST_STAGE_STEP = 5, V3_RESIST_EXTRA_STEP = 5;
+    // (pow_máx, nº dados, lados, TN d100, cooldown) — tabela do usuário:
+    // dados sobem ~1 nível por faixa, recarga a partir de POW 55, topo 4d10
     const V3_MASTER_TABLE = [
-        [35, 1, 6, 10, 0], [50, 1, 8, 12, 0], [65, 1, 10, 14, 0], [80, 2, 6, 16, 0],
-        [95, 2, 8, 18, 1], [110, 3, 6, 20, 2], [125, 3, 8, 22, 3], [1e9, 3, 10, 24, 3],
+        [20, 1, 6, 50, 0], [35, 1, 8, 60, 0], [50, 1, 10, 70, 0],
+        [65, 2, 6, 80, 1], [80, 2, 8, 90, 1], [95, 3, 6, 100, 1],
+        [110, 3, 8, 110, 2], [125, 4, 6, 120, 2],
+        [140, 3, 10, 130, 3], [1e9, 4, 10, 140, 3],
     ];
     function v3Tier(power) {
         const p = Math.max(1, power | 0 || 40);
@@ -210,7 +216,7 @@ const BattleMath = (() => {
     function v3DiceBase(power) { const r = V3_MASTER_TABLE[v3Tier(power)]; return [r[1], r[2]]; }
     function v3Tn(power, attackerLevel = 1) {
         return V3_MASTER_TABLE[v3Tier(power)][3] + V3_TN_SHIFT
-            + Math.floor(Math.max(1, attackerLevel | 0) / 10);
+            + Math.floor(Math.max(1, attackerLevel | 0) / 2);
     }
     function v3Cooldown(power) { return V3_MASTER_TABLE[v3Tier(power)][4]; }
     // ── Cooldown de SUSTAIN (dreno/cura instantânea) — espelho do Python ──
@@ -220,13 +226,18 @@ const BattleMath = (() => {
         return (power | 0) >= V3_SUSTAIN_POW_HEAVY ? 2 : 1;
     }
     function v3HealCooldown(amount) {
-        if (amount === 'full' || amount === 'half') return 2;
+        if (amount === 'full' || amount === 'half') return 3;
         return amount ? 1 : 0;
     }
     function v3MoveCooldown(power, drain = 0) {
         return Math.max(v3Cooldown(power), v3DrainCooldown(power, drain));
     }
-    function v3MilestoneDice(level) { return Math.max(0, Math.min(4, Math.floor((level || 1) / 25))); }
+    // Retorno decrescente anti-stall: cada cura instantânea na mesma batalha
+    // vale metade da anterior (½ → ¼ → ⅛ …, piso 1) — espelho do Python.
+    function v3DecayedHeal(heal, uses) {
+        return Math.max(1, Math.floor((heal | 0) / Math.pow(2, Math.min(uses | 0, 6))));
+    }
+    function v3MilestoneDice(level) { return Math.max(0, Math.min(5, Math.floor((level || 1) / 20))); }
     function v3StatusComponent(stat, atkStages = 0) {
         // Certeiro (ACC ∞) NÃO reduz o componente — compensação é v3CerteiroMult
         const c = Math.floor((stat || 10) / V3_STATUS_DIVISOR) + 2 * (atkStages | 0);
@@ -258,16 +269,20 @@ const BattleMath = (() => {
     }
     function v3Connects(d100, accEff) { return accEff == null || (d100 | 0) <= accEff; }
     function v3CritChance(stages = 0) { return Math.min(V3_CRIT_CAP, V3_CRIT_BASE + V3_CRIT_PER_STAGE * (stages | 0)); }
-    function v3ResistanceTotal(d20, defenseStat, level, defStages = 0, crit = false, extra = 0, critZeroes = false) {
-        let bonus = Math.min(V3_DEF_BONUS_CAP, Math.floor((defenseStat || 10) / 10)) + (defStages | 0);
+    // Resistência em escala d100: estágios/extra chegam em pontos clássicos
+    // e são convertidos ×5 aqui (espelho de v3_resistance_total)
+    function v3ResistanceTotal(d100, defenseStat, level, defStages = 0, crit = false, extra = 0, critZeroes = false) {
+        let bonus = Math.min(V3_DEF_BONUS_CAP, Math.floor((defenseStat || 10) / 2))
+            + V3_RESIST_STAGE_STEP * (defStages | 0);
         if (crit) bonus = critZeroes ? 0 : (bonus > 0 ? Math.floor(bonus / 2) : bonus);
-        return (d20 | 0) + bonus + v3LevelBonus(level) + (extra | 0);
+        return (d100 | 0) + bonus + Math.floor(Math.max(1, level | 0) / 2)
+            + V3_RESIST_EXTRA_STEP * (extra | 0);
     }
     function v3ResistOutcome(result, tn, defenderFaster = false) {
         result |= 0; tn |= 0;
-        if (result >= tn + 10) return 'negate';
-        if (result >= tn) return (defenderFaster && result === tn + 9) ? 'negate' : 'half';
-        return (defenderFaster && result === tn - 1) ? 'half' : 'full';
+        if (result >= tn + 50) return 'negate';
+        if (result >= tn) return (defenderFaster && result >= tn + 45) ? 'negate' : 'half';
+        return (defenderFaster && result >= tn - 5) ? 'half' : 'full';
     }
     function v3ApplyOutcome(gross, outcome) {
         if (outcome === 'negate') return 0;
@@ -410,7 +425,7 @@ const BattleMath = (() => {
         potentialPoints, trainingPoints, pointsBudget, statTierLocked,
         HIGH_CRIT_MOVES, critThreshold, critStageFor, VARIABLE_POWER,
         V3_MASTER_TABLE, V3_MOMENTUM_MAX, v3Tier, v3DiceBase, v3Tn, v3Cooldown,
-        v3DrainCooldown, v3HealCooldown, v3MoveCooldown,
+        v3DrainCooldown, v3HealCooldown, v3MoveCooldown, v3DecayedHeal,
         v3MilestoneDice, v3StatusComponent, v3LevelBonus, v3EffectivenessDiceDelta,
         v3BuildDice, v3StabFlat, v3AccEffective, v3Connects, v3CritChance,
         v3ResistanceTotal, v3ResistOutcome, v3ApplyOutcome, v3GrossDamage,

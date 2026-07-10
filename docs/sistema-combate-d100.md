@@ -1,46 +1,64 @@
-# Sistema de Combate Pokémon RPG — v3 "d100/ACC"
-### Precisão (d100) → Dano (Status + POW) → Resistência (d20)
+# Sistema de Combate Pokémon RPG — v3.1 "d100 total"
+### Precisão (d100) → Dano (Status + POW) → Resistência (d100)
 
-> **Prompt definitivo** consolidando a transição d20 → d100. O d20 deixa de ser
-> a camada de acerto e passa a ser exclusivamente a camada **defensiva**
-> (Resistência/Esquiva). A precisão agora é do **golpe** (ACC canônico vs d100).
-> Vale igualmente para selvagens, PvP e NPCs — a fórmula não distingue quem
-> ataca, só os status e o nível envolvidos.
+> **Prompt definitivo** do combate 100% d100. O d20 saiu COMPLETAMENTE do
+> combate de Pokémon: precisão, Resistência e iniciativa rolam d100. O único
+> d20 restante no app é a perícia do TREINADOR (caçada, testes de atributo,
+> rolagem livre) — D&D de mesa, fora do combate. Vale igualmente para
+> selvagens, PvP e NPCs — a fórmula não distingue quem ataca, só os status e
+> o nível envolvidos.
 
 ---
 
 ## 0. Identidade do sistema (o que mudou e por quê)
 
-| Antes (d20) | Agora (v3) |
+| Antes (d20) | Agora (v3.1) |
 |---|---|
 | d20 decidia acerto E crítico | **d100 vs ACC** decide se o golpe *conecta* |
-| Defesa era denominador do dano | **d20 + Defesa + Nível** decide *quanto* do golpe é sentido |
+| Defesa era denominador do dano | **d100 + Defesa + Nível** decide *quanto* do golpe é sentido |
 | Uma rolagem concorria com a accuracy | Duas camadas independentes e complementares |
+| Iniciativa no d20 | **d100 + SPE efetivo** (Speed decide, dado é o imprevisto) |
 
 Um Fire Blast pode acertar — e mesmo assim "fazer cócegas" num alvo tanque.
 **100% de acerto significa que o golpe conecta, nunca que machuca garantidamente.**
+
+**Meta de duração:** mediana de **4–6 rodadas** nos confrontos equilibrados;
+**até 8** nos naturalmente longos (tanques, defensivos, ACC baixa). Validada
+por `tools/battle_sweep_v3.py` (calibrador) e `tools/battle_matrix_v3.py`
+(matriz de cenários com espécies reais — gate permanente).
 
 ---
 
 ## 1. TABELA MESTRA (POW → dados, TN, cooldown)
 
-Tudo no sistema deriva desta única tabela. 8 degraus, monotônica
-(média dos dados sempre cresce: 3,5 → 4,5 → 5,5 → 7 → 9 → 10,5 → 13,5 → 16,5).
+Tudo no sistema deriva desta única tabela. 10 degraus, progressão suave
+(média dos dados: 3,5 → 4,5 → 5,5 → 7 → 9 → 10,5 → 13,5 → 14 → 16,5 → 22).
 
-| POW do golpe | Dados de dano | TN de Resistência | Cooldown |
+| POW do golpe | Dados de dano | TN de Resistência (d100) | Recarga |
 |---|---|---|---|
-| ≤ 35 (fraco) | **1d6** | 10 | — |
-| 36–50 | **1d8** | 12 | — |
-| 51–65 | **1d10** | 14 | — |
-| 66–80 (médio) | **2d6** | 16 | — |
-| 81–95 (médio-alto) | **2d8** | 18 | **1 rodada** |
-| 96–110 (alto) | **3d6** | 20 | **2 rodadas** |
-| 111–125 (devastador) | **3d8** | 22 | **3 rodadas** |
-| 126+ (cataclísmico) | **3d10** | 24 | **3 rodadas** |
+| 10–20 (mínimo) | **1d6** | 50 | — |
+| 25–35 (fraco) | **1d8** | 60 | — |
+| 40–50 | **1d10** | 70 | — |
+| 55–65 | **2d6** | 80 | **1 rodada** |
+| 70–80 (médio) | **2d8** | 90 | **1 rodada** |
+| 85–95 (médio-alto) | **3d6** | 100 | **1 rodada** |
+| 100–110 (alto) | **3d8** | 110 | **2 rodadas** |
+| 115–125 (devastador) | **4d6** | 120 | **2 rodadas** |
+| 130–140 (cataclísmico) | **3d10** | 130 | **3 rodadas** |
+| 145+ (lendário; inclui 160–250) | **4d10** | 140 | **3 rodadas** |
 
-Exemplos canônicos: Tackle 40 → 1d8 · Aerial Ace 60 → 1d10 · Slash 70 → 2d6 ·
-Flamethrower 90 → 2d8 · Earthquake 100 / Thunder 110 / Fire Blast 110 → 3d6 ·
-Future Sight 120 → 3d8 · Hyper Beam 150 → 3d10.
+Exemplos canônicos: Tackle 40 → 1d10 · Aerial Ace 60 → 2d6 · Slash 70 → 2d8 ·
+Flamethrower 90 → 3d6 · Earthquake 100 / Thunder 110 / Fire Blast 110 → 3d8 ·
+Future Sight 120 → 4d6 · Hyper Beam 150 → 4d10.
+
+> **Nota do quase-empate 3d8/4d6:** as médias 13,5 (3d8) e 14,0 (4d6) quase
+> empatam — o degrau 115–125 se diferencia pelo TN maior (o defensor resiste
+> menos), pelo mínimo maior (4) e pela variância menor: é o degrau
+> "consistente". Mantido fiel à tabela definida pelo dono do projeto.
+
+> **Recarga a partir de POW 55:** ~metade dos golpes do jogo tem recarga 1 —
+> rotação de golpes é parte do jogo desde o mid-game. Todo moveset gerado
+> (selvagem/NPC) garante ≥1 golpe de dano POW ≤ 50 (sem recarga).
 
 ---
 
@@ -80,9 +98,11 @@ Dano Bruto = Componente de Status + Bônus de Nível + Rolagem de Dados + Moment
 
 ### 3.1 Componente de Status
 ```
-Componente = ⌊(Ataque ou Ataque Especial relevante) ÷ 8⌋   (mínimo 1)
+Componente = ⌊(Ataque ou Ataque Especial relevante) ÷ 10⌋   (mínimo 1)
 ```
-O divisor **8** é a constante-mestra de calibração (Seção 20).
+O divisor **10** é a constante-mestra de calibração (Seção 20). Com ele, os
+DADOS são a parcela majoritária do dano em todos os níveis (47–75%) e o
+status escala sem sobrepor o move (~39% do bruto no Nv 100).
 
 ### 3.2 Bônus de Nível (curva suave)
 ```
@@ -93,7 +113,7 @@ Bônus de Nível = ⌊Nível ÷ 10⌋
 Dados-base pela **Tabela Mestra** + modificadores, nesta ordem:
 
 1. **Certeiro?** rebaixa 1 degrau (Seção 8)
-2. **Marcos de nível** (acumulativo): Nv 25 → +1 dado · Nv 50 → +2 · Nv 75 → +3 · Nv 100 → +4
+2. **Marcos de nível** (acumulativo): Nv 20 → +1 dado · Nv 40 → +2 · Nv 60 → +3 · Nv 80 → +4 · Nv 100 → +5
 3. **STAB** (tipo do golpe = tipo do usuário): **+1 dado a partir do Nv 25**
    (1º marco). Antes do Nv 25, STAB = **+2 fixo no Dano Bruto** — dobrar os
    dados no early game derrubava as batalhas de nível baixo para ~4 rodadas
@@ -111,15 +131,20 @@ dividido por 2 (arredondado para baixo, mínimo 1).* Os dados extras são sempre
 
 ---
 
-## 4. Camada 3 — Resistência/Esquiva (d20 do defensor)
+## 4. Camada 3 — Resistência/Esquiva (d100 do defensor)
 
-Todo golpe que conecta ainda passa pelo teste do defensor:
+Todo golpe que conecta ainda passa pelo teste do defensor (escala d100 —
+migração ×5 fiel do antigo d20, probabilidades preservadas com granularidade
+maior):
 
 ```
-Resultado = 1d20 + ⌊Defesa relevante ÷ 10⌋ + ⌊Nível ÷ 10⌋ + estágios de DEF/SpD ± modificadores
+Resultado = 1d100 + min(50, ⌊Defesa relevante ÷ 2⌋) + ⌊Nível ÷ 2⌋
+          + 5 × estágios de DEF/SpD ± modificadores (adaptação/clima: ×5)
 ```
 - **Defesa** contra golpes físicos; **Defesa Especial** contra especiais.
-- **TN Efetiva = TN da Tabela Mestra + ⌊Nível do ATACANTE ÷ 10⌋.**
+- **Teto do bônus de Defesa: 50** — sem ele o endgame virava guerra de
+  anulação (batalhas de 10+ rodadas).
+- **TN Efetiva = TN da Tabela Mestra + ⌊Nível do ATACANTE ÷ 2⌋.**
   Sem este termo, o bônus do defensor (Defesa+Nível) cresce com o nível
   enquanto a TN fica parada — em nível alto TUDO viraria anulação e as
   batalhas nunca terminariam. Com ele, os termos de nível dos dois lados se
@@ -128,18 +153,19 @@ Resultado = 1d20 + ⌊Defesa relevante ÷ 10⌋ + ⌊Nível ÷ 10⌋ + estágios
 
 | Resultado vs TN | Efeito |
 |---|---|
-| ≥ TN + 10 | **Esquiva/Anulação total** — dano 0 |
-| ≥ TN (até +9) | **Resistência parcial** — dano ÷ 2 (arred. p/ baixo) |
+| ≥ TN + 50 | **Esquiva/Anulação total** — dano 0 |
+| ≥ TN (até +49) | **Resistência parcial** — dano ÷ 2 (arred. p/ baixo) |
 | < TN | **Falha** — dano cheio |
 
-**Empate técnico (Speed importa):** se o resultado ficar a **exatamente 1 ponto
-da faixa superior** (TN−1, quase-parcial; ou TN+9, quase-anulação), compara-se
-Speed: **defensor mais rápido** que o atacante → sobe para a faixa superior.
-Caso contrário, vale a faixa normal. *(Corrigido: a versão anterior falava em
-"cair na TN", que tornaria o empate melhor que passar com folga.)*
+**Empate técnico (Speed importa):** se o resultado ficar a **até 5 pontos da
+faixa superior** (TN−5..TN−1, quase-parcial; ou TN+45..TN+49, quase-anulação),
+compara-se Speed: **defensor mais rápido** que o atacante → sobe para a faixa
+superior. (Janela de 5 pontos no d100 = mesma probabilidade do ponto único
+que existia no d20.)
 
 **Dano mínimo:** se a faixa for "cheio" ou "parcial", o dano final nunca é
-menor que 1.
+menor que 1. **OHKO** (Fissure/Guillotine): Resistência vs **TN 110** —
+qualquer sucesso anula o golpe inteiro (Seção 17).
 
 ---
 
@@ -195,36 +221,38 @@ Speed; empate de Speed → 1d20 de desempate.
 caem pela metade: 100% → 50% → 25%… (teste no d100). Errou = falhou e a corrente
 reinicia.
 
-### 7.1 Iniciativa (quem começa a batalha)
+### 7.1 Iniciativa (quem começa a batalha) — escala d100
 
-**Fórmula:** `1d20 + ⌊SPE_efetivo / 5⌋ (+ Tática do treinador, 0 a +2)`
+**Fórmula:** `1d100 + SPE_efetivo (+ Tática do treinador × 5)`
 
 O SPE efetivo entra com estágios, paralisia (×0,5), natureza e treino — um
 Pokémon paralisado ou com a Speed rebaixada realmente perde iniciativa.
+(Migração ×5 fiel do antigo `d20 + ⌊SPE/5⌋` — mesmas probabilidades,
+granularidade maior, zero d20 no combate.)
 
 Ordem de decisão:
 
-1. **Upset 20 vs 1** — se o mais LENTO tira **20 natural** e o mais rápido tira
-   **1 natural**, o lento age primeiro, ignorando modificadores (1/400 ≈ 0,25%).
-   É a "virada lendária": rara, mas sempre possível.
+1. **Upset (virada lendária)** — se o mais LENTO tira **≥ 96 natural** e o
+   mais rápido tira **≤ 5 natural**, o lento age primeiro, ignorando
+   modificadores (5% × 5% = 0,25% = 1/400). Rara, mas sempre possível.
 2. Maior **total**.
 3. Empate de total → maior **SPE efetivo**.
 4. Empate completo → jogador (ou player1 no PvP).
 
-Por que ⌊SPE/5⌋ (antes era ⌊SPE/10⌋): o d20 tem amplitude 19; com /10 o bônus
-típico (+1 a +9 nos níveis 10-30) deixava a sorte decidir a ordem. Com /5 a
-Speed vira o fator principal e o dado vira o imprevisto. Probabilidade de o
-mais lento agir primeiro, por gap `g` de bônus — `P = (19−g)(20−g)/800`:
+Por que SPE inteiro (antes era ⌊SPE/10⌋ num d20): a sorte decidia a ordem nos
+níveis 10-30. Agora a Speed é o fator principal e o dado é o imprevisto.
+Probabilidade de o mais lento agir primeiro, por gap `g` de SPE efetivo —
+`P ≈ (99−g)(100−g)/20000`:
 
-| Diferença de Speed base (Nv 50) | Gap de bônus | P(lento primeiro) |
+| Diferença de Speed base (Nv 50) | Gap de SPE | P(lento primeiro) |
 |---|---|---|
-| ±15 (ex.: 75 vs 90) | ~3 | ~34% — disputa equilibrada |
-| ±30 (ex.: 60 vs 90) | ~6 | ~23% — favorece o rápido |
-| ±60 (ex.: 30 vs 90) | ~12 | ~7% — rápido domina |
-| ±100+ (ex.: 30 vs 150) | ≥19 | 0,25% — só pela regra do 20 vs 1 |
+| ±15 (ex.: 75 vs 90) | ~15 | ~35% — disputa equilibrada |
+| ±30 (ex.: 60 vs 90) | ~30 | ~24% — favorece o rápido |
+| ±60 (ex.: 30 vs 90) | ~60 | ~8% — rápido domina |
+| ±100+ (ex.: 30 vs 150) | ≥99 | 0,25% — só pelo upset ≥96/≤5 |
 
-**Batalha em grupo:** cada combatente rola `1d20 + ⌊SPE_eff/5⌋ + Tática` e a
-ordem é decrescente; empate de total → maior SPE efetivo. A regra do 20 vs 1
+**Batalha em grupo:** cada combatente rola `1d100 + SPE_eff + Tática×5` e a
+ordem é decrescente; empate de total → maior SPE efetivo. A regra do upset
 não se aplica (só faz sentido em duelo).
 
 ---
@@ -311,7 +339,10 @@ ordem de ação.** Assim todas usam a mesma matemática. Mapeamento de referênc
 | Battle Armor / Shell Armor | imune a crítico |
 | Sturdy | com HP cheio, sobrevive a 1 HP de um golpe fatal |
 | Levitate | imune a golpes de Terra |
-| Static / Flame Body / Poison Point | 25% de aplicar a condição em quem acerta golpe de contato (d100) |
+| Static | 30% de PARALISAR quem acerta golpe de contato (d100) |
+| Flame Body / Poison Point | 25% de aplicar a condição em quem acerta golpe de contato (d100) |
+| — status de contato | respeitam as imunidades canônicas: tipo (Elétrico não paralisa, Fogo não queima…) e habilidade (Limber, Immunity…) |
+| Solar Power | sob Sol: SpA ×1,5 e perde ⌊HPmáx/8⌋ por rodada; sem Sol, nada |
 | Speed Boost | +1 estágio de Speed ao fim de cada rodada |
 | Swift Swim / Chlorophyll / Sand Rush / Slush Rush | Speed em dobro no clima correspondente |
 | Technician | golpes de POW ≤ 60: +1 dado |
@@ -323,14 +354,28 @@ ordem de ação.** Assim todas usam a mesma matemática. Mapeamento de referênc
 
 | Condição | Efeito no sistema |
 |---|---|
-| **Burn** | ⌊HPmáx/16⌋ por rodada; **Componente de Status físico pela metade** |
-| **Poison** | ⌊HPmáx/10⌋ por rodada |
-| **Toxic** | ⌊HPmáx/16⌋ na 1ª rodada, **+⌊HPmáx/16⌋ acumulando** a cada rodada |
+| **Burn** | DoT ESCALONADO: ⌊HPmáx·turno/16⌋ (1/16, 2/16, 3/16…) com **teto ⌊HPmáx/4⌋ por rodada** (atinge no 4º turno); **Componente de Status físico pela metade** |
+| **Poison/Toxic** | mesmo DoT escalonado do Burn: 1/16 evoluindo, teto ¼/rodada |
+| **Leech Seed** | portador perde ⌊HPmáx/16⌋ por rodada e o oponente CURA o mesmo tanto; Grama imune; sair de campo/Rapid Spin remove |
+| **Curse (fantasma)** | usuário sacrifica ⌊HPmáx/2⌋; alvo perde ⌊HPmáx/4⌋ por rodada até sair de campo |
+| **Traps (Bind/Wrap/Fire Spin…)** | ⌊HPmáx/16⌋ por rodada por 4 rodadas; não pode fugir |
 | **Paralysis** | Speed pela metade; a cada ação, d100 ≤ 25 → perde a ação |
 | **Sleep** | dorme 1d3 rodadas, sem agir |
 | **Freeze** | não age; a cada rodada d100 ≤ 20 → descongela; golpe de Fogo recebido descongela na hora |
 | **Confusion** | dura 1d3 rodadas; antes de agir, d100 ≤ 33 → acerta a si mesmo (1d6 + metade do próprio Componente físico, sem Resistência) |
 | **Flinch** | perde a ação da rodada (só funciona se o causador agiu antes) |
+
+**Régua do DoT (batalhas de 4–6 turnos):** desgaste pressiona como um golpe
+forte diluído no tempo — nunca substitui os golpes ofensivos. O teto de
+⌊HPmáx/4⌋ por rodada garante isso nos confrontos de até 8 turnos.
+
+**Cura instantânea (Recover/Roost/Rest…):** ½ HP (Rest = total) com recarga
+**3** na recarga-bucket única de cura, e **retorno decrescente anti-stall**:
+cada cura na MESMA batalha vale metade da anterior (½ → ¼ → ⅛…) — a primeira
+é forte, o ciclo morre sozinho. Zera em batalha nova; troca NÃO zera.
+Drenos (Giga Drain & cia) curam ⌊dano/2⌋ com recarga 1 (POW ≥ 90: 2).
+Strength Sap cura o usuário pelo ATK efetivo do alvo (e ATK do alvo −1),
+na mesma recarga-bucket.
 
 Imunidades canônicas valem (Elétrico não paralisa, Fogo não queima,
 Veneno/Aço não envenenam etc.), assim como passivas (Limber, Water Veil,
@@ -469,15 +514,15 @@ qualquer fórmula.
 - **Precisão:** ACC 100 puro → conecta sem rolar.
 - **Crítico:** d100 → 47 vs 5% → não crita.
 - **Dano Bruto:**
-  - Componente: Sp.ATK 109 → ⌊109/8⌋ = **13**
+  - Componente: Sp.ATK 109 → ⌊109/10⌋ = **10**
   - Bônus de Nível: ⌊50/10⌋ = **5**
-  - Dados: POW 90 → 2d8 base **+2 marcos** (Nv 25 e 50) **+1 STAB** = **5d8** → rola **22**
+  - Dados: POW 90 → 3d6 base **+2 marcos** (Nv 20 e 40) **+1 STAB** = **6d6** → rola **21**
   - Momentum: **+1**
-  - Bruto = 13 + 5 + 22 + 1 = **41**
-- **Resistência do Snorlax:** d20(12) + ⌊65/10⌋=6 + ⌊50/10⌋=5 = **23**
-  vs TN Efetiva 18 + ⌊50/10⌋ = **23** (POW 81–95, atacante Nv 50)
-  → faixa 23–32 → **parcial: dano ÷ 2**
-- **Dano final: 20.** Flamethrower entra em **cooldown de 1 rodada**.
+  - Bruto = 10 + 5 + 21 + 1 = **37**
+- **Resistência do Snorlax:** d100(58) + min(50, ⌊65/2⌋)=32 + ⌊50/2⌋=25 = **115**
+  vs TN Efetiva 100 + ⌊50/2⌋ = **125** (POW 85–95, atacante Nv 50)
+  → 115 < 125 → **falha: dano CHEIO**
+- **Dano final: 37.** Flamethrower entra em **recarga de 1 rodada**.
 
 Mesmo um golpe ACC 100 / POW alto foi sentido pela metade graças à Sp.DEF e ao
 nível do Snorlax — exatamente o equilíbrio pedido.
@@ -486,33 +531,51 @@ nível do Snorlax — exatamente o equilíbrio pedido.
 
 ## 20. Calibração (as únicas alavancas livres)
 
-1. **Divisor 8** do Componente de Status (Seção 3.1).
-2. **Coluna de TN** da Tabela Mestra (deslocá-la inteira ±2).
-3. **Redutor do ACC ∞** (`V3_CERTEIRO_DAMAGE_MULT`): padrão **0,90**;
+1. **Divisor 10** do Componente de Status (Seção 3.1).
+2. **Coluna de TN** da Tabela Mestra e `V3_TN_SHIFT` (escala d100: passos de ±5).
+3. **Teto do bônus de Defesa** (`V3_DEF_BONUS_CAP`, padrão 50).
+4. **Marcos de dados** (`v3_milestone_dice`: //20, teto 5).
+5. **Redutor do ACC ∞** (`V3_CERTEIRO_DAMAGE_MULT`): padrão **0,90**;
    conservador 0,95; competitivo 0,85 (Seção 8).
 
-**Alvo oficial da mesa: batalhas de 5 a 10 turnos** (mediana por faixa de
-nível, validada por `tools/battle_sweep_v3.py` — 500 batalhas completas por
-cenário, com precisão, crítico e resistência dos dois lados):
+**Alvo oficial da mesa: mediana de 4–6 turnos (até 8 nos naturalmente
+longos)**, validado por DOIS gates:
+- `tools/battle_sweep_v3.py` — calibrador rápido (500 batalhas/cenário, com
+  iniciativa d100, precisão, crítico, Resistência d100 e RECARGA com rotação
+  golpe principal + apoio POW 40);
+- `tools/battle_matrix_v3.py` — matriz com ESPÉCIES REAIS: 17 cenários
+  (arquétipos, níveis, evoluções e mecânicas em espelho — buff, debuff,
+  cura, Toxic, burn, Leech Seed, Curse, habilidades), com invariantes de
+  duração, anti-loop, teto de DoT, relevância de golpe fraco e bandas de
+  winrate por mecânica.
 
-| Cenário | Mediana | p10–p90 |
+| Cenário do sweep | Mediana | Janela |
 |---|---|---|
 | Nv 15 iniciais (POW 60) | 5,0 | 4–6 |
 | Nv 40 equilibrados (POW 90) | 5,0 | 4–6 |
-| Nv 40 sweeper vs tanque | 6,0 | 5–7 |
-| Nv 60 fortes (POW 100) | 6,0 | 5–7 |
-| Nv 80 endgame (POW 110, ACC 85) | 8,0 | 6–10 |
-| Nv 100 lendários (POW 120, ACC 90) | 6,0 | 5–8 |
+| Nv 40 sweeper vs tanque | 5,0 | 4–8 |
+| Nv 60 fortes (POW 100) | 6,0 | 4–6 |
+| Nv 80 endgame (POW 110, ACC 85) | 7,0 | 4–8 |
+| Nv 100 lendários (POW 120, ACC 90) | 7,0 | 4–8 |
 
 Calibrações que fizeram a janela fechar (documentadas nas seções 3.3 e 4):
-- **Teto de +12 no bônus de Defesa** da Resistência — ⌊def/10⌋ chegava a +20
-  no Nv 100 e dominava o d20 (anulação eterna, batalhas de 13+ rodadas).
+- **Divisor do Componente 8 → 10** — o status chegava a 44% do bruto no
+  Nv 100 e sobrepunha o move; com 10, dados são sempre majoritários.
+- **Marcos //25 → //20 (teto 5)** — o endgame ficava lento com as recargas
+  novas; mais dados nos níveis altos compensam os turnos de rotação.
+- **Teto de +50 no bônus de Defesa** (escala d100) — sem teto, anulação
+  eterna e batalhas de 10+ rodadas no endgame.
 - **STAB pré-Nv 25 = +2 fixo** (o dado extra chega no 1º marco) — dobrar dados
   no early game derrubava o Nv 15 para 4 rodadas.
+- **Cura decrescente** (Seção 11) — sem ela, Recover-stall vencia 99% no
+  espelho da matriz; com ela, 48,5%. Vale para TODA cura instantânea,
+  inclusive Strength Sap (`battle_math.v3_decayed_heal`, fonte única usada
+  pelo motor e pelos gates).
+- **Leech Seed ⌊HP/16⌋** — a 1/8 era o DoT mais forte do jogo E curava junto.
+  A matriz simula pelo `seed_drain` do motor (espelho de Venusaur: winrate
+  42,8% na banda; a duração alonga para mediana ~9 — sustain mútuo).
 
-Ajuste **uma alavanca por vez** (V3_STATUS_DIVISOR, V3_TN_SHIFT,
-V3_DEF_BONUS_CAP) e re-rode o sweep até a mediana de todos os cenários cair
-na janela.
+Ajuste **uma alavanca por vez** e re-rode sweep + matriz até tudo verde.
 
 Regras de ouro do balanceamento:
 - Nenhum efeito cria matemática própria: tudo passa por **estágios, dados, ACC,

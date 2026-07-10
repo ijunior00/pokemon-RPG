@@ -46,6 +46,9 @@ def create_pvp_battle(mode, player1_id, player2_id, bets=None):
 
 def set_team(battle, player_key, team):
     """Set a player's team for the battle."""
+    # batalha NOVA: zera estado por-batalha (heal_uses, _weather) — fonte única
+    import status_effects as effects
+    effects.new_battle_reset(team)
     battle[player_key]['team'] = team
 
 
@@ -85,12 +88,12 @@ def select_pokemon(battle, player_key, pokemon_idx):
 
 
 def roll_initiative(pokemon):
-    """Rola o d20 natural de iniciativa e devolve (natural, SPE_eff, tática).
-    A decisão fica com battle_math.initiative_winner (d20 + SPE_eff//5 +
-    Tática//2, upset 20vs1, desempate por SPE)."""
+    """Rola o d100 natural de iniciativa e devolve (natural, SPE_eff, tática).
+    A decisão fica com battle_math.initiative_winner (d100 + SPE_eff +
+    Tática×5, upset ≥96 vs ≤5, desempate por SPE)."""
     spe = effects.effective_stat(pokemon, 'SPE') if isinstance(pokemon, dict) else 10
     tatica = int(pokemon.get('trainer_init_bonus') or 0) if isinstance(pokemon, dict) else 0
-    return random.randint(1, 20), spe, tatica
+    return random.randint(1, 100), spe, tatica
 
 
 def _poke_hp(p):

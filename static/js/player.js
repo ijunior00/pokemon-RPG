@@ -1145,24 +1145,37 @@ async function loadMovesData(moveNames) {
     }
 }
 
+// Linha mecânica v3 gerada em RUNTIME a partir da Tabela Mestra (sempre
+// sincronizada com battle_math; o texto antigo do move vira flavor).
+function moveMechanicsLine(m) {
+    if (!m || !m.power_num) return '';
+    const [n, sides] = BattleMath.v3DiceBase(m.power_num);
+    // recarga REAL do servidor: máx(POW, sustain do dreno) — Mega Drain
+    // (POW 40) tem recarga 1 pelo dreno mesmo abaixo do degrau de POW 55
+    const cd = BattleMath.v3MoveCooldown(m.power_num, m.drain || 0);
+    const acc = (m.accuracy == null) ? 'certeiro' : `ACC ${m.accuracy}%`;
+    return `v3: POW ${m.power_num} → ${n}d${sides} · ${acc}`
+         + (cd ? ` · recarga ${cd}` : '');
+}
+
 function getMoveTooltip(moveName) {
     const m = MOVES_CACHE[moveName];
     if (!m) return moveName;
     let tip = `<strong>${m.name}</strong> [${m.type}]`;
-    if (m.power) tip += `\nPoder: ${m.power}`;
-    if (m.baseDamage) tip += `\nDano: ${m.baseDamage} + MOVE`;
-    if (m.pp) tip += ` | PP: ${m.pp}`;
+    const mech = moveMechanicsLine(m);
+    if (mech) tip += `\n${mech}`;
     if (m.range) tip += `\nAlcance: ${m.range}`;
-    if (m.time) tip += ` | ${m.time}`;
     if (m.description) tip += `\n${m.description}`;
-    if (m.higherLevels) tip += `\n[Níveis Sup.] ${m.higherLevels}`;
     return tip;
 }
 
 function renderMoveButton(moveName, clickable) {
     const m = MOVES_CACHE[moveName] || {};
     const typeClass = m.type ? `type-${m.type.toLowerCase()}` : '';
-    const dmgLabel = m.baseDamage ? ` (${m.baseDamage})` : '';
+    // dados derivados da Tabela Mestra v3 (não do baseDamage 5e antigo)
+    const dmgLabel = m.power_num
+        ? ` (${BattleMath.v3DiceBase(m.power_num).join('d')})`
+        : (m.baseDamage ? ` (${m.baseDamage})` : '');
     const catIcon = m.category === 'special' ? '✨' : m.category === 'status' ? '◉' : '⚔️';
     const escapedName = moveName.replace(/'/g, "\\'");
     // v3: badge/trava de cooldown
@@ -6062,9 +6075,15 @@ async function processWildStatusMove(moveName) {
             addBattleLog(`🔒 ${moveName} prendeu seu Pokémon! Não pode trocar.`);
         }
 
+        if (result.heal) {
+            // drain_stat_heal (Strength Sap): effect_type 'debuff' + heal —
+            // sem este campo o servidor nunca aplicava a cura do selvagem
+            addBattleLog(`💚 Selvagem recuperou ${result.heal} HP!`);
+        }
         socket.emit('battle_action', {
             action_by: 'master', action_type: 'status',
             move_name: moveName, damage: 0,
+            heal: result.heal || 0,
             wild_status_damage: window._wildPreTurnStatusDamage || 0,
             status_effect: result.status_applied || null,
             message: result.message

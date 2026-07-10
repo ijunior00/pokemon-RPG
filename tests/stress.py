@@ -784,12 +784,16 @@ def main():
           appmod.ab.check_attacker_contact_ability('Overgrow') is None)
 
     # Venoshock: dano dobra contra alvo envenenado (sinergia de veneno).
+    # (atacante FRESCO por chamada — Venoshock POW 65 agora tem recarga 1)
     import statistics as _stat
-    _enc_base = {'player_pokemon': make_poke('Croagunk', 30), 'pokemon': make_poke('Rattata', 20),
-                 'level': 20, 'battle_state': {'wild_status': None}}
-    _clean = [appmod._calc_player_attack({**_enc_base, 'battle_state': {'wild_status': None}}, 'Venoshock', 18)['damage']
-              for _ in range(150)]
-    _pois = [appmod._calc_player_attack({**_enc_base, 'battle_state': {'wild_status': {'condition': 'badly_poisoned', 'turns_active': 0}}}, 'Venoshock', 18)['damage']
+
+    def _veno(status):
+        _enc = {'player_pokemon': make_poke('Croagunk', 30),
+                'pokemon': make_poke('Rattata', 20), 'level': 20,
+                'battle_state': {'wild_status': status}}
+        return appmod._calc_player_attack(_enc, 'Venoshock', 18)['damage']
+    _clean = [_veno(None) for _ in range(150)]
+    _pois = [_veno({'condition': 'badly_poisoned', 'turns_active': 0})
              for _ in range(150)]
     check(S, 'Venoshock x2 vs alvo envenenado',
           _stat.mean(_pois) > 1.6 * max(1, _stat.mean(_clean)),
@@ -1275,34 +1279,40 @@ def main():
     check(S, 'sem treinador (NPC/selvagem) → sem bônus',
           appmod._stamp_tatica([make_poke('Rattata', 5)], None) == 0)
     _rolls = [appmod.pvp.roll_initiative(_poke_i) for _ in range(40)]
-    check(S, 'roll_initiative devolve (d20 natural, SPE_eff, tática)',
-          all(1 <= n <= 20 for n, _, _ in _rolls)
+    check(S, 'roll_initiative devolve (d100 natural, SPE_eff, tática)',
+          all(1 <= n <= 100 for n, _, _ in _rolls)
           and all(s == _poke_i['stats']['SPE'] for _, s, _ in _rolls)
           and all(t == 2 for _, _, t in _rolls))
     _spe_b = bmm.initiative_bonus(_poke_i['stats']['SPE'])
-    check(S, 'initiative_bonus = SPE_eff//5',
-          _spe_b == _poke_i['stats']['SPE'] // 5)
-    # initiative_winner: totais, upset 20vs1 e desempates
-    _w, _ta, _tb, _up = bmm.initiative_winner(10, 10, 50, 100)
+    check(S, 'initiative_bonus (d100) = SPE_eff inteiro',
+          _spe_b == _poke_i['stats']['SPE'])
+    # initiative_winner (d100): totais, upset ≥96 vs ≤5 e desempates
+    _w, _ta, _tb, _up = bmm.initiative_winner(50, 50, 50, 100)
     check(S, 'iniciativa: empate de natural → mais rápido vence',
-          _w == 'b' and _ta == 20 and _tb == 30 and not _up)
-    _w, _ta, _tb, _up = bmm.initiative_winner(20, 1, 30, 200)
-    check(S, 'iniciativa: upset 20vs1 — lento com 20 vence rápido com 1',
+          _w == 'b' and _ta == 100 and _tb == 150 and not _up)
+    _w, _ta, _tb, _up = bmm.initiative_winner(97, 3, 30, 200)
+    check(S, 'iniciativa: upset — lento com ≥96 vence rápido com ≤5',
           _w == 'a' and _up is True)
-    _w, _, _, _up = bmm.initiative_winner(1, 20, 30, 200)
-    check(S, 'iniciativa: 20 natural do RÁPIDO não é upset',
+    _w, _, _, _up = bmm.initiative_winner(3, 97, 30, 200)
+    check(S, 'iniciativa: natural alto do RÁPIDO não é upset',
           _w == 'b' and _up is False)
-    _w, _, _, _up = bmm.initiative_winner(20, 1, 200, 30)
-    check(S, 'iniciativa: 20vs1 na direção errada não dispara upset',
+    _w, _, _, _up = bmm.initiative_winner(97, 3, 200, 30)
+    check(S, 'iniciativa: upset na direção errada não dispara',
           _w == 'a' and _up is False)
-    _w, _ta, _tb, _ = bmm.initiative_winner(15, 10, 50, 75)
+    check(S, 'iniciativa: 96/5 são os limiares exatos do upset',
+          bmm.initiative_winner(96, 5, 30, 200)[3] is True
+          and bmm.initiative_winner(95, 5, 30, 200)[3] is False
+          and bmm.initiative_winner(96, 6, 30, 200)[3] is False)
+    _w, _ta, _tb, _ = bmm.initiative_winner(75, 50, 50, 75)
     check(S, 'iniciativa: empate de total → maior SPE primeiro',
-          _ta == _tb == 25 and _w == 'b')
+          _ta == _tb == 125 and _w == 'b')
     check(S, 'iniciativa: empate completo → a (jogador/player1)',
-          bmm.initiative_winner(10, 10, 60, 60)[0] == 'a')
-    check(S, 'iniciativa: tática entra como extra',
-          bmm.initiative_winner(10, 10, 60, 60, extra_a=2)[0] == 'a'
-          and bmm.initiative_winner(10, 10, 60, 60, extra_b=2)[0] == 'b')
+          bmm.initiative_winner(50, 50, 60, 60)[0] == 'a')
+    check(S, 'iniciativa: tática entra como extra (×5 na escala d100)',
+          bmm.initiative_winner(50, 50, 60, 60, extra_a=2)[0] == 'a'
+          and bmm.initiative_winner(50, 50, 60, 60, extra_a=2)[1]
+              == bmm.initiative_winner(50, 50, 60, 60)[1] + 10
+          and bmm.initiative_winner(50, 50, 60, 60, extra_b=2)[0] == 'b')
 
     # ── Caminho do Treinador (4 caminhos, marcos 3/6/10) ──
     def _afinidade():
@@ -1624,6 +1634,71 @@ def main():
     check(S, 'STAB boost Blaze a 25% HP', ab.stab_multiplier('Blaze', 'fire', 5, 40) == 2)
     r = p1.post('/api/moves/batch', json={'moves': ['Ember', 'Growl']})
     check(S, 'batch de moves', len(r.get_json() or {}) == 2)
+    check(S, 'batch traz power_num/accuracy canônicos (linha mecânica da UI)',
+          (r.get_json() or {}).get('Ember', {}).get('power_num') == 40)
+
+    # ── Fidelidade de efeitos (v3.1): Static, Solar Power, Strength Sap ──
+    _static_hits = [ab.check_contact_ability('Static', 3) for _ in range(300)]
+    _static_hits = [h for h in _static_hits if h]
+    check(S, 'Static PARALISA em contato (30%, sem dano)',
+          _static_hits and all(h['status'] == 'paralisado' and h['damage'] == 0
+                               for h in _static_hits)
+          and 45 <= len(_static_hits) <= 140, f'{len(_static_hits)}/300')
+    _sp_sun = ab.stat_multiplier_for({'ability': 'Solar Power', '_weather': 'sun'}, 'SPA')
+    _sp_dry = ab.stat_multiplier_for({'ability': 'Solar Power'}, 'SPA')
+    check(S, 'Solar Power: SpA ×1,5 SÓ sob Sol', _sp_sun == 1.5 and _sp_dry == 1.0)
+    _fld_sun = {'field': {'weather': 'sun', 'weather_left': 3}}
+    _d, _m = appmod._field_chip(_fld_sun, {'ability': 'Solar Power', 'types': ['Grass']}, 80, 'X')
+    check(S, 'Solar Power: custa ⌊HP/8⌋ por rodada sob Sol',
+          _d == -10 and 'Solar Power' in (_m or ''))
+    _ss = appmod.effects.process_status_move(
+        {'name': 'Strength Sap', 'category': 'status'},
+        {'maxHp': 100, '_v3': {}}, {'ATK': 60, 'level': 30})
+    check(S, 'Strength Sap: cura = ATK do alvo + ATK do alvo −1 (com recarga)',
+          _ss.get('heal') == 60 and _ss.get('stat_changes') == {'ATK': -1}
+          and _ss.get('effect_type') == 'debuff' and _ss.get('cooldown') == 3)
+    # retorno decrescente também vale para drain_stat_heal (anti heal-stall)
+    _ss_v3 = {'_v3': {}}
+    _s1 = appmod.effects.process_status_move(
+        {'name': 'Strength Sap', 'category': 'status'},
+        dict({'maxHp': 100}, **_ss_v3), {'ATK': 60, 'level': 30})
+    _ss_v3['_v3'].get('cooldowns', {}).clear()   # espera a recarga passar
+    _s2 = appmod.effects.process_status_move(
+        {'name': 'Strength Sap', 'category': 'status'},
+        dict({'maxHp': 100}, **_ss_v3), {'ATK': 60, 'level': 30})
+    check(S, 'Strength Sap decai: 60 → 30 (heal_uses compartilhado)',
+          _s1.get('heal') == 60 and _s2.get('heal') == 30
+          and _ss_v3['_v3'].get('heal_uses') == 2)
+    _se = appmod.effects.process_status_move(
+        {'name': 'Strength Sap', 'category': 'status'},
+        {'maxHp': 200, '_v3': {}}, {'ATK': 60, 'ATK_eff': 90, 'level': 30})
+    check(S, 'Strength Sap usa ATK EFETIVO do alvo quando o caller passa',
+          _se.get('heal') == 90)
+    # imunidade a status de CONTATO: Elétrico não paralisa; Limber idem
+    check(S, 'contact_status_blocked: Elétrico/Limber imunes à paralisia de Static',
+          appmod.effects.contact_status_blocked({'types': ['Electric']}, 'paralisado')
+          and appmod.effects.contact_status_blocked(
+              {'types': ['Normal'], 'ability': 'Limber'}, 'paralisado')
+          and not appmod.effects.contact_status_blocked({'types': ['Normal']}, 'paralisado'))
+    # dreno POW≤50 (Mega Drain) tem recarga de sustain → NÃO serve de filler
+    check(S, 'filler de moveset ignora drenos (Mega Drain tem recarga)',
+          not appmod._move_sem_recarga('Mega Drain')
+          and appmod._move_sem_recarga('Ember')
+          and 'Ember' in appmod._ensure_filler_move(['Mega Drain', 'Giga Drain'],
+                                                    ['Mega Drain', 'Ember', 'Giga Drain']))
+    check(S, 'v3_decayed_heal: 50 → 25 → 12 (fonte única motor+gates)',
+          bmm.v3_decayed_heal(50, 0) == 50 and bmm.v3_decayed_heal(50, 1) == 25
+          and bmm.v3_decayed_heal(50, 2) == 12)
+    check(S, 'batch traz drain canônico (recarga real no tooltip)',
+          (p1.post('/api/moves/batch', json={'moves': ['Mega Drain']})
+           .get_json() or {}).get('Mega Drain', {}).get('drain') == 50)
+    _et = appmod.effects.auto_detect_move_effect({'name': 'Electric Terrain',
+                                                  'category': 'status'})
+    check(S, 'Electric Terrain é TERRENO (chave duplicada removida)',
+          (_et or {}).get('type') == 'terrain' and (_et or {}).get('terrain') == 'electric')
+    check(S, 'Infestation/Magma Storm prendem (auditoria de efeitos)',
+          appmod.effects.check_status_on_hit('Infestation', 50, 10)[0] == 'trapped'
+          and appmod.effects.check_status_on_hit('Magma Storm', 50, 10)[0] == 'trapped')
 
     # ── Habilidades passivas (expansão): 100% conhecidas + mecânicas ──
     _names = set()
@@ -2156,12 +2231,14 @@ def main():
           f"{appmod._v3_cooldown_left(char, 'Fire Blast')}")
 
     # Momentum: variar +1 (máx 3); repetir zera
+    # (rotação termina em Ember, POW 40 sem recarga, para o repeat não ser
+    # bloqueado pelo cooldown novo dos POW 55-80)
     c2, b2 = fresh('Charizard', 50), fresh('Blastoise', 50)
-    for mv in ('Ember', 'Wing Attack', 'Slash', 'Ember', 'Wing Attack', 'Slash'):
+    for mv in ('Wing Attack', 'Slash', 'Ember', 'Wing Attack', 'Slash', 'Ember'):
         appmod._calc_attack_core(c2, b2, mv, attack_roll=10, field={})
     check(S, 'momentum acumula variando (máx 3)', c2['_v3']['momentum'] == 3,
           f"{c2['_v3']['momentum']}")
-    appmod._calc_attack_core(c2, b2, 'Slash', attack_roll=10, field={})
+    appmod._calc_attack_core(c2, b2, 'Ember', attack_roll=10, field={})
     check(S, 'repetir o golpe zera o momentum', c2['_v3']['momentum'] == 0)
 
     # Adaptação: 3ª repetição consecutiva → defensor +2 na Resistência
@@ -2169,8 +2246,8 @@ def main():
     appmod._calc_attack_core(c3, b3, 'Ember', attack_roll=10, field={})
     appmod._calc_attack_core(c3, b3, 'Ember', attack_roll=10, field={})
     r3 = appmod._calc_attack_core(c3, b3, 'Ember', attack_roll=10, field={})
-    check(S, 'adaptação na 3ª repetição (+2 defensor)',
-          'adaptação +2' in (r3.get('log') or ''), (r3.get('log') or '')[:90])
+    check(S, 'adaptação na 3ª repetição (+10 na Resistência d100)',
+          'adaptação +10' in (r3.get('log') or ''), (r3.get('log') or '')[:90])
 
     # Clima: Sol → Thunder ACC 50; Chuva → Surf +1 dado; Névoa −10
     c4, b4 = fresh('Charizard', 50), fresh('Blastoise', 50)
@@ -2255,7 +2332,7 @@ def main():
                                    attack_roll=10, field={'weather': 'sun'})
     check(S, 'Solar Beam no Sol dispara direto', not r9c.get('charging'))
 
-    # OHKO: ACC 30 + Resistência TN 22 (nunca vira certeza)
+    # OHKO: ACC 30 + Resistência d100 vs TN 110 (nunca vira certeza)
     ko = resisted = 0
     for _ in range(200):
         ro = se.process_status_move({'name': 'Fissure', 'category': 'status'},
@@ -2266,7 +2343,7 @@ def main():
             ko += 1
         elif 'RESISTE' in (ro.get('message') or ''):
             resisted += 1
-    check(S, 'OHKO: raro e resistível (ACC30 × TN22)',
+    check(S, 'OHKO: raro e resistível (ACC30 × Resistência d100/TN110)',
           0 < ko < 70 and resisted > 0, f'ko={ko} resist={resisted}')
 
     # Campo expira quando a duração zera
@@ -2297,10 +2374,10 @@ def main():
 
     # Certeiro: componente CHEIO (sem os antigos 60%) e ×0,90 no dano final
     c10 = fresh('Charizard', 50)
-    _comp_cheio = max(1, int(c10['stats']['ATK']) // 8)
+    _comp_cheio = max(1, int(c10['stats']['ATK']) // bmm.V3_STATUS_DIVISOR)
     r10b = appmod._calc_attack_core(c10, fresh('Blastoise', 50), 'Aerial Ace',
                                     attack_roll=None, field={})
-    check(S, 'certeiro usa componente cheio (⌊ATK/8⌋ sem redução)',
+    check(S, 'certeiro usa componente cheio (⌊ATK/divisor⌋ sem redução)',
           f'comp {_comp_cheio}' in (r10b.get('log') or ''),
           (r10b.get('log') or '')[:70])
     ok_mult = all('×0,9' in (rr.get('log') or '') or rr.get('damage', 0) == 0
@@ -2495,11 +2572,16 @@ def main():
     import status_effects as se_mod
 
     # Leech Seed vira condição 'seeded' (não é mais cura instantânea!)
+    # ACC 90 → o d100 interno pode errar; re-rola até conectar (o teste é
+    # sobre O QUE acontece ao acertar, não sobre a taxa de acerto).
     _venu = fresh('Venusaur', 50)
     _lax = fresh('Snorlax', 50)
-    rs = se_mod.process_status_move({'name': 'Leech Seed', 'category': 'status'},
-                                    dict(_venu['stats'], level=50, maxHp=120, currentHp=120),
-                                    dict(_lax['stats'], level=50, currentHp=120))
+    for _ in range(50):
+        rs = se_mod.process_status_move({'name': 'Leech Seed', 'category': 'status'},
+                                        dict(_venu['stats'], level=50, maxHp=120, currentHp=120),
+                                        dict(_lax['stats'], level=50, currentHp=120))
+        if rs.get('status_applied'):
+            break
     check(S, 'Leech Seed aplica semente (sem cura instantânea)',
           rs.get('status_applied') == 'seeded' and not rs.get('heal'))
     check(S, 'tipo Grama é imune à semente',
@@ -2579,8 +2661,8 @@ def main():
     check(S, 'Dream Eater (POW 100, dreno) → recarga 2', appmod.bm_core.v3_move_cooldown(100, 50) == 2)
     check(S, 'POW 90 sem dreno segue a Tabela Mestra (1)', appmod.bm_core.v3_move_cooldown(90, 0) == 1)
     check(S, 'Hyper Beam (150) mantém recarga 3', appmod.bm_core.v3_move_cooldown(150, 0) == 3)
-    check(S, 'cura de metade/total → recarga 2; um quarto → 1',
-          appmod.bm_core.v3_heal_cooldown('half') == 2 and appmod.bm_core.v3_heal_cooldown('full') == 2
+    check(S, 'cura de metade/total → recarga 3 (jogo de 4-6 turnos); um quarto → 1',
+          appmod.bm_core.v3_heal_cooldown('half') == 3 and appmod.bm_core.v3_heal_cooldown('full') == 3
           and appmod.bm_core.v3_heal_cooldown('quarter') == 1)
     # detecção pela MECÂNICA (drain canônico), sem lista fixa
     check(S, 'dreno detectado no dado canônico (giga drain: drain>0)',
@@ -2597,15 +2679,28 @@ def main():
     _r3 = appmod._calc_attack_core(_susA, _susD, 'Vine Whip')
     check(S, 'outro golpe passa e a recarga expira (1 ação = 1 rodada)',
           _r3.get('hit') and 'giga drain' not in _susA['_v3']['cooldowns'])
-    # cura instantânea de status (Recover): recarga 2, bloqueio sem consumir
+    # cura instantânea de status (Recover): recarga 3, bloqueio sem consumir
     _v3h = {}
     _md_rec = appmod.MOVES_BY_NAME.get('recover') or {'name': 'Recover'}
     _h1 = appmod.effects.process_status_move(_md_rec, {'maxHp': 100, '_v3': _v3h}, {})
-    check(S, 'Recover cura metade e entra em recarga 2',
-          _h1.get('heal') == 50 and _h1.get('cooldown') == 2)
+    check(S, 'Recover cura metade e entra em recarga 3',
+          _h1.get('heal') == 50 and _h1.get('cooldown') == 3)
     _h2 = appmod.effects.process_status_move(_md_rec, {'maxHp': 100, '_v3': _v3h}, {})
     check(S, 'Recover em recarga é bloqueado com a mensagem canônica',
           _h2.get('blocked') is True and 'recarga' in _h2.get('message', ''))
+    # retorno DECRESCENTE anti-stall: 2ª cura na mesma batalha vale metade
+    _v3h['cooldowns'].pop(appmod.effects.HEAL_SUSTAIN_KEY, None)
+    _h3 = appmod.effects.process_status_move(_md_rec, {'maxHp': 100, '_v3': _v3h}, {})
+    _v3h['cooldowns'].pop(appmod.effects.HEAL_SUSTAIN_KEY, None)
+    _h4 = appmod.effects.process_status_move(_md_rec, {'maxHp': 100, '_v3': _v3h}, {})
+    check(S, 'cura decrescente: 50 → 25 → 12 na mesma batalha (anti-loop)',
+          _h3.get('heal') == 25 and _h4.get('heal') == 12
+          and 'decrescente' in _h3.get('message', ''))
+    appmod._v3_new_battle([{'_v3': _v3h}])
+    check(S, 'batalha nova zera o retorno decrescente',
+          'heal_uses' not in _v3h)
+    check(S, 'Leech Seed drena ⌊HP/16⌋ (régua nova de DoT)',
+          appmod.effects.seed_drain(160) == 10 and appmod.effects.seed_drain(320) == 20)
     # exceção: cura GRADUAL não ganha recarga (Leech Seed é condição por turno)
     _md_ls = appmod.MOVES_BY_NAME.get('leech seed') or {'name': 'Leech Seed'}
     _dls = appmod.effects.auto_detect_move_effect(_md_ls)
@@ -2630,6 +2725,14 @@ def main():
     _ok5, _dmg5, _msgs5, _rem5 = appmod.effects.process_turn_start(
         {'condition': 'amaldicoado', 'turns_active': 1}, 100)
     check(S, 'maldição tica ⌊HPmáx/4⌋ por rodada', _dmg5 == 25)
+    # DoT escalonado (decisão do usuário): burn/toxic começam 1/16 e evoluem
+    # (2/16, 3/16…) com TETO de ⌊HP/4⌋ por turno
+    for _cond5 in ('queimado', 'badly_poisoned'):
+        _t1 = appmod.effects.process_turn_start({'condition': _cond5, 'turns_active': 0}, 160)[1]
+        _t2 = appmod.effects.process_turn_start({'condition': _cond5, 'turns_active': 1}, 160)[1]
+        _t9 = appmod.effects.process_turn_start({'condition': _cond5, 'turns_active': 8}, 160)[1]
+        check(S, f'{_cond5}: escala 1/16 → 2/16 com teto ¼ (10/20/40 de HP160)',
+              _t1 == 10 and _t2 == 20 and _t9 == 40, f'{_t1}/{_t2}/{_t9}')
     # estágios canônicos multi-stat (Bulbapedia/pokemondb)
     for _mv5, _esp5 in (('dragon dance', {'ATK': 1, 'SPE': 1}),
                         ('calm mind', {'SPA': 1, 'SPD': 1}),
@@ -2659,8 +2762,14 @@ def main():
     check(S, "nenhum campo 'save' (5e) no move_effects.json", not _saves5, str(_saves5[:6]))
     _src5 = open('status_effects.py').read()
     check(S, "nenhum campo 'save' nas tabelas do motor", "'save':" not in _src5)
-    check(S, 'único d20 do motor de efeitos é a Resistência v3 do OHKO',
-          _src5.count('randint(1, 20)') <= 1)
+    # d100 TOTAL no combate de Pokémon: zero d20 no motor de efeitos e no
+    # núcleo matemático (o d20 que resta no app.py é perícia de TREINADOR —
+    # /api/roll, caçada, testes de atributo — fora do combate).
+    check(S, 'zero d20 no motor de efeitos (combate 100% d100)',
+          _src5.count('randint(1, 20)') == 0)
+    _srcbm = open('battle_math.py').read()
+    check(S, 'zero d20 no núcleo matemático v3',
+          _srcbm.count('randint(1, 20)') == 0)
 
     # ────────────────────────── RELATÓRIO ──────────────────────────
     print('\n' + '═' * 62)

@@ -49,26 +49,30 @@ def move_accuracy(move_name):
 # ============================================================
 # STATUS CONDITIONS
 # ============================================================
+# Teto do DoT escalonado (burn/toxic): nunca passa de ⌊HPmáx/4⌋ por turno —
+# um golpe forte vale ~25% do HP; o veneno pressiona, não decide sozinho.
+DOT_SCALING_CAP_DIV = 4
+
 STATUS_CONDITIONS = {
     'badly_poisoned': {
         'name': 'Envenenado',
         'icon': '☠️',
         'color': '#7030a0',
         'turn_effect': 'scaling_damage',
-        'base_fraction': 8,               # 1/8, 2/8, 3/8...
+        'base_fraction': 16,              # 1/16, 2/16, 3/16... (teto ¼/turno)
         'can_act': True,
         'duration': 'permanent',
-        'description': 'Perde HP crescente (1/8, 2/8, 3/8...). Dura até ser curado.'
+        'description': 'Perde HP crescente (1/16, 2/16, 3/16... até ¼ por turno). Dura até ser curado.'
     },
     'queimado': {
         'name': 'Queimado',
         'icon': '🔥',
         'color': '#f08030',
         'turn_effect': 'scaling_damage',
-        'base_fraction': 8,               # 1/8, 2/8, 3/8...
+        'base_fraction': 16,              # 1/16, 2/16, 3/16... (teto ¼/turno)
         'can_act': True,
         'duration': 'permanent',
-        'description': 'Perde HP crescente (1/8, 2/8...) e o dano FÍSICO é cortado pela metade. Dura até ser curado.'
+        'description': 'Perde HP crescente (1/16, 2/16... até ¼ por turno) e o dano FÍSICO é cortado pela metade. Dura até ser curado.'
     },
     'paralisado': {
         'name': 'Paralisado',
@@ -103,6 +107,9 @@ STATUS_CONDITIONS = {
         'duration': 'permanent',
         'description': 'Não pode agir. No início do turno, 30% de chance (d100) de descongelar. Moves de fogo descongelam.'
     },
+    # drain 1/16: coerência com a régua nova de DoT (burn/toxic começam em
+    # 1/16) — a 1/8 o Leech Seed era o DoT mais forte do jogo E ainda curava
+    # o usuário pelo mesmo valor (validado na battle_matrix_v3)
     'seeded': {
         'name': 'Semeado',
         'icon': '🌱',
@@ -111,10 +118,10 @@ STATUS_CONDITIONS = {
         # — processado nos hooks de rodada dos 3 modos, não pelo pipeline
         # genérico (que não tem canal de cura para o outro lado).
         'turn_effect': None,
-        'drain_fraction': 8,             # ⌊HPmáx/8⌋ por rodada
+        'drain_fraction': 16,            # ⌊HPmáx/16⌋ por rodada
         'can_act': True,
         'duration': 'permanent',
-        'description': 'Semente de Leech Seed: perde ⌊HPmáx/8⌋ por rodada e o '
+        'description': 'Semente de Leech Seed: perde ⌊HPmáx/16⌋ por rodada e o '
                        'oponente CURA o mesmo tanto. Sai de campo ou Rapid Spin remove. '
                        'Tipo Grama é imune.'
     },
@@ -371,6 +378,37 @@ def check_status_on_hit(move_name, attack_roll, damage_dealt, defender=None):
     return None, False
 
 
+def seed_drain(max_hp):
+    """Dreno do Leech Seed por rodada (fonte única — os 3 modos usam)."""
+    frac = STATUS_CONDITIONS['seeded'].get('drain_fraction', 16)
+    return max(1, int(max_hp or frac) // frac)
+
+
+def new_battle_reset(pokes):
+    """Batalha NOVA: zera o estado por-batalha que NÃO deve atravessar
+    batalhas — retorno decrescente de cura (heal_uses) e clima carimbado
+    (_weather). Troca DENTRO da batalha não zera (anti-stall, como
+    cooldowns). Fonte única: selvagem, PvP e grupo chamam aqui."""
+    for p in (pokes or []):
+        if not isinstance(p, dict):
+            continue
+        p.pop('_weather', None)
+        if isinstance(p.get('_v3'), dict):
+            p['_v3'].pop('heal_uses', None)
+
+
+def contact_status_blocked(target_poke, status_key):
+    """Imunidade a status vindos de CONTATO (Static, Flame Body, Poison
+    Touch…): mesma régua do caminho normal — tipo (Elétrico não paralisa,
+    Fogo não queima…) e habilidade (Limber, Immunity…)."""
+    if not status_key:
+        return True
+    if type_blocks_status((target_poke or {}).get('types'), status_key):
+        return True
+    import abilities as _ab
+    return _ab.is_status_immune(target_poke or {}, status_key)
+
+
 def process_turn_start(pokemon_status, max_hp):
     """Process status effects at the start of a pokemon's turn.
     Returns (can_act: bool, damage: int, messages: list, status_removed: bool).
@@ -398,8 +436,12 @@ def process_turn_start(pokemon_status, max_hp):
         messages.append(f"{condition['icon']} {condition['name']}: -{damage} HP")
     
     elif turn_effect == 'scaling_damage':
+        # DoT escalonado (burn/toxic): 1/16, 2/16, 3/16… com TETO de ¼ do HP
+        # por turno (atingido no turno 4) — chip damage pressiona, mas nunca
+        # substitui os golpes ofensivos principais.
         fraction = condition.get('base_fraction', 16)
-        damage = max(1, (max_hp * turns_active) // fraction)
+        damage = max(1, min(max_hp // DOT_SCALING_CAP_DIV,
+                            (max_hp * turns_active) // fraction))
         messages.append(f"{condition['icon']} {condition['name']}: -{damage} HP (turno {turns_active})")
     
     elif turn_effect == 'skip':
@@ -824,7 +866,9 @@ def auto_detect_move_effect(move_data):
         'rage powder': {'type': 'buff_self', 'stat': 'DEF', 'value': 2, 'duration': 1},
         'mud sport': {'type': 'buff_self', 'stat': 'SPD', 'value': 2, 'duration': 3},
         'water sport': {'type': 'buff_self', 'stat': 'SPD', 'value': 2, 'duration': 3},
-        'electric terrain': {'type': 'buff_self', 'stat': 'SPA', 'value': 2, 'duration': 3},
+        # ('electric terrain' NÃO entra aqui de novo: a chave duplicada fazia
+        # o terreno virar auto-buff de SpA — o terreno real está na seção de
+        # campo acima, linha ~750)
         'ion deluge': {'type': 'buff_self', 'stat': 'SPA', 'value': 1, 'duration': 2},
         'recycle': {'type': 'heal_self', 'amount': 'quarter'},
         # Debuffs no alvo (homebrew p/ moves de manipulação)
@@ -1010,7 +1054,7 @@ def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
     _user_v3 = (attacker_stats.get('_v3')
                 if isinstance(attacker_stats, dict)
                 and isinstance(attacker_stats.get('_v3'), dict) else None)
-    if _user_v3 and effect.get('type') == 'heal_self':
+    if _user_v3 and effect.get('type') in ('heal_self', 'drain_stat_heal'):
         _cd_left = int((_user_v3.get('cooldowns') or {}).get(HEAL_SUSTAIN_KEY, 0))
         if _cd_left > 0:
             return {'success': False, 'effect_type': 'blocked', 'blocked': True,
@@ -1113,12 +1157,19 @@ def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
             heal = max_hp // 2
         else:
             heal = max_hp // 4
-        # v3: cura instantânea entra em recarga (moderada 1 / elevada 2) na
+        # RETORNO DECRESCENTE anti-stall: cada cura instantânea na MESMA
+        # batalha vale metade da anterior (½ → ¼ → ⅛ do valor cheio) — a
+        # primeira Recover é forte, o CICLO de cura morre sozinho
+        # (battle_matrix_v3 valida; sem isso o healer vencia 99% no espelho).
+        _uses = int((_user_v3 or {}).get('heal_uses', 0))
+        heal = _bm.v3_decayed_heal(heal, _uses)
+        # v3: cura instantânea entra em recarga (moderada 1 / elevada 3) na
         # chave-bucket compartilhada. Só MUTA no caminho autoritativo (socket);
         # o preview do REST passa mutate=False para não decrementar 2× (o
         # cliente chamava REST + battle_action → cooldowns caíam em dobro).
         cd = _bm.v3_heal_cooldown(effect['amount'])
         if _user_v3 is not None and mutate:
+            _user_v3['heal_uses'] = _uses + 1
             cds = _user_v3.setdefault('cooldowns', {})
             for k in list(cds):
                 cds[k] -= 1
@@ -1130,13 +1181,52 @@ def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
             'success': True,
             'effect_type': 'heal',
             'message': f"{move_name}! Recuperou {heal} HP!"
+                       + (' 📉 (retorno decrescente)' if _uses else '')
                        + (f' ⏳ Recarga: {cd} rodada(s).' if cd else ''),
             'status_applied': None,
             'stat_changes': None,
             'heal': heal,
             'cooldown': cd
         }
-    
+
+    elif effect['type'] == 'drain_stat_heal':
+        # Strength Sap (canon): cura o USUÁRIO pelo valor do stat do ALVO
+        # (ATK efetivo — os callers passam `ATK_eff` com estágios/habilidade
+        # aplicados; sem ele, cai no stat cru) e reduz esse stat em 1 estágio.
+        # Cura instantânea → MESMA recarga-bucket dos heals e MESMO retorno
+        # decrescente (senão Strength Sap driblaria o anti-stall do Recover).
+        stat_key = effect.get('stat', 'ATK')
+        drained = max(1, int(target_stats.get(stat_key + '_eff')
+                             or target_stats.get(stat_key)
+                             or target_stats.get(stat_key.lower()) or 10))
+        max_hp = int(attacker_stats.get('maxHp', 20) or 20)
+        _uses = int((_user_v3 or {}).get('heal_uses', 0))
+        heal = _bm.v3_decayed_heal(min(drained, max_hp), _uses)
+        cd = _bm.v3_heal_cooldown('half' if heal >= max_hp // 2 else 'quarter')
+        if _user_v3 is not None and mutate:
+            _user_v3['heal_uses'] = _uses + 1
+            cds = _user_v3.setdefault('cooldowns', {})
+            for k in list(cds):
+                cds[k] -= 1
+                if cds[k] <= 0:
+                    del cds[k]
+            if cd:
+                cds[HEAL_SUSTAIN_KEY] = cd
+        # effect_type 'debuff' → os callers aplicam stat_changes no ALVO;
+        # o campo 'heal' é aplicado no usuário em todos os caminhos.
+        return {
+            'success': True,
+            'effect_type': 'debuff',
+            'message': f"{move_name}! Drenou a força do alvo: recuperou {heal} HP "
+                       f"e {stat_key} do alvo −1!"
+                       + (' 📉 (retorno decrescente)' if _uses else '')
+                       + (f' ⏳ Recarga: {cd} rodada(s).' if cd else ''),
+            'status_applied': None,
+            'stat_changes': {stat_key: -1},
+            'heal': heal,
+            'cooldown': cd
+        }
+
     elif effect['type'] == 'protect':
         # v3 F5: usos CONSECUTIVOS caem pela metade (100→50→25…). A corrente
         # (protect_chain) vive no _v3 do Pokémon — o caller passa o dict real.
@@ -1237,21 +1327,21 @@ def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
 
     elif effect['type'] == 'ohko':
         # OHKO (Fissure/Guillotine/Horn Drill) — v3: ACC 30 fixo (ignora
-        # estágios); se conectar, o alvo rola Resistência vs TN 22 — QUALQUER
-        # sucesso anula o golpe inteiro; falha total = nocaute (doc §17).
+        # estágios); se conectar, o alvo rola Resistência (d100) vs TN 110 —
+        # QUALQUER sucesso anula o golpe inteiro; falha total = nocaute (§17).
         ok, roll, thr, acc_label = _accuracy_roll()
         if ok:
-            d20 = random.randint(1, 20)
+            d100_def = random.randint(1, 100)
             tgt_def = int(target_stats.get('DEF') or target_stats.get('def') or 10)
             tgt_level = int(target_stats.get('level') or 1)
-            total = _bm.v3_resistance_total(d20, tgt_def, tgt_level)
+            total = _bm.v3_resistance_total(d100_def, tgt_def, tgt_level)
             tn = _bm.v3_ohko_resist_tn()
             if total >= tn:
                 return {
                     'success': False,
                     'effect_type': 'resisted',
                     'message': f"{move_name}! d100({roll}) conecta, mas o alvo RESISTE ao "
-                               f"golpe fatal: d20({d20})+{total - d20} = {total} ≥ TN {tn} → anulado!",
+                               f"golpe fatal: d100({d100_def})+{total - d100_def} = {total} ≥ TN {tn} → anulado!",
                     'status_applied': None,
                     'stat_changes': None
                 }
