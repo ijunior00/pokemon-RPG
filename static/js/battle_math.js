@@ -199,13 +199,14 @@ const BattleMath = (() => {
     const V3_CRIT_BASE = 5, V3_CRIT_PER_STAGE = 10, V3_CRIT_CAP = 50;
     const V3_MOMENTUM_MAX = 3, V3_CERTEIRO_DAMAGE_MULT = 0.90;
     const V3_RESIST_STAGE_STEP = 5, V3_RESIST_EXTRA_STEP = 5;
-    // (pow_máx, nº dados, lados, TN d100, cooldown) — tabela do usuário:
-    // dados sobem ~1 nível por faixa, recarga a partir de POW 55, topo 4d10
+    // (pow_máx, nº dados, lados, TN d100, cooldown) — tabela do usuário
+    // (revisão pós-mesa): recarga só a partir do degrau 70-80; degraus
+    // altos com 5d6/6d6 (médias monotônicas até 4d10 = 22)
     const V3_MASTER_TABLE = [
         [20, 1, 6, 50, 0], [35, 1, 8, 60, 0], [50, 1, 10, 70, 0],
-        [65, 2, 6, 80, 1], [80, 2, 8, 90, 1], [95, 3, 6, 100, 1],
-        [110, 3, 8, 110, 2], [125, 4, 6, 120, 2],
-        [140, 3, 10, 130, 3], [1e9, 4, 10, 140, 3],
+        [65, 2, 6, 80, 0], [80, 2, 8, 90, 1], [95, 3, 6, 100, 1],
+        [110, 3, 8, 110, 2], [125, 5, 6, 120, 2],
+        [140, 6, 6, 130, 3], [1e9, 4, 10, 140, 3],
     ];
     function v3Tier(power) {
         const p = Math.max(1, power | 0 || 40);

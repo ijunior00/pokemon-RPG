@@ -371,20 +371,20 @@ V3_RESIST_EXTRA_STEP = 5         # adaptação/clima: cada ponto "clássico"
                                  # vira 5 na escala d100
 
 # TABELA MESTRA: (pow_máx, nº dados, lados, TN d100, cooldown em rodadas)
-# Progressão suave definida pelo usuário: dados sobem ~1 nível por faixa,
-# recarga a partir de POW 55, topo 4d10. POW > 150 (160-250) cai no último
-# degrau. Nota: 3d8 (média 13,5) e 4d6 (14,0) quase empatam — o degrau
-# 115-125 se diferencia pelo TN maior, mínimo maior (4) e variância menor.
+# Tabela definida pelo usuário (revisão pós-mesa): recarga só a partir do
+# degrau 70-80 (com recarga desde POW 55, movesets médios ficavam sem ação),
+# e degraus altos com 5d6/6d6 — médias monotônicas 3,5 → 4,5 → 5,5 → 7 → 9
+# → 10,5 → 13,5 → 17,5 → 21 → 22. POW > 150 (160-250) cai no último degrau.
 V3_MASTER_TABLE = (
     (20,        1, 6,  50,  0),
     (35,        1, 8,  60,  0),
     (50,        1, 10, 70,  0),
-    (65,        2, 6,  80,  1),
+    (65,        2, 6,  80,  0),
     (80,        2, 8,  90,  1),
     (95,        3, 6,  100, 1),
     (110,       3, 8,  110, 2),
-    (125,       4, 6,  120, 2),
-    (140,       3, 10, 130, 3),
+    (125,       5, 6,  120, 2),
+    (140,       6, 6,  130, 3),
     (10 ** 9,   4, 10, 140, 3),
 )
 
@@ -413,7 +413,8 @@ def v3_tn(power, attacker_level=1):
 
 
 def v3_cooldown(power):
-    """Rodadas de espera após usar o golpe (0 = sem cooldown)."""
+    """Rodadas de espera após usar o golpe (0 = sem cooldown).
+    Recarga só a partir do degrau 70-80 (coluna da Tabela Mestra)."""
     return V3_MASTER_TABLE[v3_tier(power)][4]
 
 
