@@ -113,6 +113,12 @@ socket.on('encounter_ended', (data) => {
     checkEmptyEncounters();
 });
 
+// Foco de evolução: a tela do mestre também roda o overlay quando qualquer
+// Pokémon da mesa evolui (showEvolutionFocus/queueEvolutionFocus em app.js).
+socket.on('evolution_focus', (data) => {
+    queueEvolutionFocus(data);
+});
+
 socket.on('initiative_result', (data) => {
     const log = document.querySelector(`[data-encounter-player="${data.player_id}"] .battle-log-master`);
     if (log) {

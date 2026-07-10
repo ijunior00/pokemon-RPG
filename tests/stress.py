@@ -1473,28 +1473,129 @@ def main():
     S = 'XP/Evolução'
     r = m.post('/master/xp', json={'player_id': u2, 'xp': 2500})
     check(S, 'XP de treinador', r.status_code == 200)
-    team2 = db.get_users()[u2]['trainer_data']['team']
-    check(S, 'time nivela + evolui por nível',
-          any(p['name'] in ('Ivysaur', 'Venusaur') for p in team2), f"{[p['name'] for p in team2]}")
     r = m.post('/master/pokemon-xp', json={'player_id': u1, 'pokemon_idx': 0, 'xp': 4000})
     check(S, 'XP direto no pokémon (tabela real)', (r.get_json() or {}).get('leveled_up'))
+
+    # Evolução por NÍVEL DO POKÉMON (escala canon = 5e×5): Bulbasaur Nv15 → Ivysaur
     users = db.get_users()
-    users[u1]['trainer_data']['bag'].append({'name': 'Thunder Stone', 'qty': 1})
-    users[u1]['trainer_data']['team'].append(make_poke('Pikachu', 20))
+    users[u1]['trainer_data']['team'].append(make_poke('Bulbasaur', 15, is_shiny=True, nickname='Bulbi'))
     db.save_users(users)
     idx = len(users[u1]['trainer_data']['team']) - 1
+    s2.get_received(); msio.get_received()
+    r = p1.post('/player/level-evolve', json={'slot': idx})
+    d = r.get_json() or {}
+    _evo = d.get('pokemon') or {}
+    check(S, 'nível do Pokémon: Bulbasaur Nv15 → Ivysaur',
+          d.get('evolved') and _evo.get('name') == 'Ivysaur', str(d)[:120])
+    check(S, 'evoluído preserva shiny/nickname + immunities e stats recalculados',
+          _evo.get('is_shiny') is True and _evo.get('nickname') == 'Bulbi'
+          and 'immunities' in _evo and 'phys_ac' in _evo
+          and (_evo.get('stats') or {}).get('HP', 0) > 0)
+    _f2 = recv(s2, 'evolution_focus')
+    _fm = recv(msio, 'evolution_focus')
+    check(S, 'evolution_focus: outro jogador E mestre recebem (com shiny)',
+          _f2 and _fm and _f2[0]['args'][0].get('shiny') is True
+          and _f2[0]['args'][0].get('new_name') == 'Ivysaur')
+
+    users = db.get_users()
+    users[u1]['trainer_data']['team'].append(make_poke('Charmander', 14))
+    db.save_users(users)
+    idx = len(users[u1]['trainer_data']['team']) - 1
+    d = p1.post('/player/level-evolve', json={'slot': idx}).get_json() or {}
+    check(S, 'abaixo do limiar (14 < 15) não evolui', not d.get('evolved'))
+
+    # espécie com pedra no texto NÃO evolui de graça por nível
+    users = db.get_users()
+    users[u1]['trainer_data']['team'].append(make_poke('Pikachu', 60))
+    db.save_users(users)
+    idx = len(users[u1]['trainer_data']['team']) - 1
+    d = p1.post('/player/level-evolve', json={'slot': idx}).get_json() or {}
+    check(S, 'ramo com pedra não vira evolução por nível (Pikachu Nv60)', not d.get('evolved'))
+    users = db.get_users()
+    users[u1]['trainer_data']['bag'].append({'name': 'Thunder Stone', 'qty': 1})
+    db.save_users(users)
     r = p1.post('/player/use-stone', json={'pokemon_idx': idx, 'item_name': 'Thunder Stone'})
     d = r.get_json() or {}
     check(S, 'evolução por pedra (Pikachu→Raichu)',
           (d.get('ok') or d.get('success')) and 'Raichu' in str(d), f'{d}')
+    check(S, 'pedra usa o builder único (immunities presentes no evoluído)',
+          'immunities' in (d.get('pokemon') or {})
+          and 'phys_ac' in (d.get('pokemon') or {}))
+
+    # pedra errada → 400 e NÃO consome item
     users = db.get_users()
-    users[u1]['trainer_data']['team'].append(make_poke('Golbat', 30, battle_wins=10))
+    users[u1]['trainer_data']['team'].append(make_poke('Eevee', 10))
+    users[u1]['trainer_data']['bag'].append({'name': 'Dawn Stone', 'qty': 1})
     db.save_users(users)
     idx = len(users[u1]['trainer_data']['team']) - 1
-    r = p1.post('/player/friendship-evolve', json={'pokemon_idx': idx})
-    d = r.get_json() or {}
-    check(S, 'evolução por amizade (Golbat→Crobat)',
-          (d.get('ok') or d.get('success')) and 'Crobat' in str(d), f'{list(d.keys())}')
+    r = p1.post('/player/use-stone', json={'pokemon_idx': idx, 'item_name': 'Dawn Stone'})
+    _bag = [b for b in db.get_users()[u1]['trainer_data']['bag'] if b.get('name') == 'Dawn Stone']
+    check(S, 'pedra errada → 400 sem consumir', r.status_code == 400 and _bag and _bag[0]['qty'] == 1)
+
+    # Tabela tudo-pedra: Eevee, Gloom (chaves mortas consertadas), Tyrogue, ex-amizade/move
+    check(S, 'Eevee: Sun→Espeon, Moon→Umbreon, Shiny→Sylveon',
+          scaling.get_special_evolution('Eevee', 'Sun Stone') == ('Espeon', True)
+          and scaling.get_special_evolution('Eevee', 'Moon Stone') == ('Umbreon', True)
+          and scaling.get_special_evolution('Eevee', 'Shiny Stone') == ('Sylveon', True))
+    check(S, 'Gloom: Leaf→Vileplume, Sun→Bellossom',
+          scaling.get_special_evolution('Gloom', 'Leaf Stone') == ('Vileplume', True)
+          and scaling.get_special_evolution('Gloom', 'Sun Stone') == ('Bellossom', True))
+    check(S, 'Tyrogue: Sun/Moon/Dawn → Hitmonlee/chan/top',
+          scaling.get_special_evolution('Tyrogue', 'Sun Stone') == ('Hitmonlee', True)
+          and scaling.get_special_evolution('Tyrogue', 'Moon Stone') == ('Hitmonchan', True)
+          and scaling.get_special_evolution('Tyrogue', 'Dawn Stone') == ('Hitmontop', True))
+    check(S, 'ex-amizade/move viraram pedra (Golbat/Lickitung/Riolu)',
+          scaling.get_special_evolution('Golbat', 'Dusk Stone') == ('Crobat', True)
+          and scaling.get_special_evolution('Lickitung', 'Moon Stone') == ('Lickilicky', True)
+          and scaling.get_special_evolution('Riolu', 'Dawn Stone') == ('Lucario', True))
+    check(S, 'condições antigas (amizade/move) não evoluem mais nada',
+          scaling.get_special_evolution('Golbat', battle_wins=99) == (None, False)
+          and scaling.get_special_evolution('Lickitung', moves=['Rollout']) == (None, False))
+    check(S, 'endpoint de amizade removido (404)',
+          p1.post('/player/friendship-evolve', json={'pokemon_idx': 0}).status_code == 404)
+
+    # Recompensas de batalha server-side: XP + battle_wins por SLOT + evolução + foco
+    users = db.get_users()
+    users[u1]['trainer_data']['team'] = [
+        make_poke('Squirtle', 14, nickname='A'),
+        make_poke('Squirtle', 14, nickname='B',
+                  totalXp=scaling.total_xp_for_level(14)),
+    ]
+    db.save_users(users)
+    gs = gstate()
+    gs['active_encounters'][u1] = {
+        'player_id': u1, 'level': 30,
+        'pokemon': {'name': 'Rattata', 'number': 19, 'hp': 30, 'level': 30},
+        'player_pokemon_idx': 1,
+        'player_pokemon': users[u1]['trainer_data']['team'][1],
+        'battle_state': {'turn': 'player', 'round': 3, 'wild_hp_current': 0,
+                         'wild_hp_max': 30, 'player_hp_current': 20,
+                         'player_hp_max': 30, 'initiative_rolled': True},
+    }
+    db.save_game_state(gs, TID)
+    s1.get_received(); s2.get_received(); msio.get_received()
+    s1.emit('end_encounter', {'result': 'defeated'})
+    _r1 = recv(s1)
+    _rw = [p for p in _r1 if p['name'] == 'battle_rewards']
+    check(S, 'battle_rewards: XP server-side no slot certo',
+          _rw and _rw[0]['args'][0].get('slot') == 1
+          and _rw[0]['args'][0].get('xp_gained', 0) > 0,
+          str([p['name'] for p in _r1]))
+    team = db.get_users()[u1]['trainer_data']['team']
+    check(S, 'battle_wins/XP no índice 1 (não vaza pro homônimo do slot 0)',
+          team[1].get('battle_wins') == 1 and team[1].get('totalXp', 0) > 0
+          and team[0].get('battle_wins', 0) == 0 and team[0].get('totalXp', 0) == 0)
+    check(S, 'level-up + evolução server-side no fim da batalha (Squirtle→Wartortle)',
+          team[1].get('name') == 'Wartortle' and team[1].get('level', 0) >= 15,
+          f"{team[1].get('name')} Nv{team[1].get('level')}")
+    _f2 = recv(s2, 'evolution_focus')
+    check(S, 'evolution_focus da batalha chega à mesa (source=battle)',
+          _f2 and _f2[0]['args'][0].get('source') == 'battle')
+    s1.emit('end_encounter', {'result': 'defeated'})
+    recv(s1)
+    check(S, 'sem encontro ativo não há recompensa (anti-farm)',
+          db.get_users()[u1]['trainer_data']['team'][1].get('battle_wins') == 1)
+
     r = p1.post('/player/pokemon-center', json={})
     check(S, 'centro pokémon cura o time', r.status_code == 200)
 

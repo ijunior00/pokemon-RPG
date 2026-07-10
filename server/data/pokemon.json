@@ -97726,7 +97726,7 @@
       "name": "Thick Fat",
       "description": "This Pokemon takes half the damage it otherwise would from Ice and Fire damage."
     },
-    "evolutionInfo": "Alolan Rattata can evolve into Alolan Raticate at level 6 and above. When it evolves, its health increases by double its level, and it gains 10 points to add to its ability scores (max 20).",
+    "evolutionInfo": "",
     "startingMoves": [
       "Take Down",
       "Mist",
