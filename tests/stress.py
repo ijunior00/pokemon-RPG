@@ -2668,6 +2668,21 @@ def main():
     check(S, 'dados novos dos degraus altos: 120→5d6, 135→6d6, 150→4d10',
           bmm.v3_dice_base(120) == (5, 6) and bmm.v3_dice_base(135) == (6, 6)
           and bmm.v3_dice_base(150) == (4, 10))
+    # RODADA DE FÔLEGO: moveset todo em recarga destrava sozinho
+    _fol = {'name': 'Preso', 'moves': ['Fire Blast', 'Hyper Beam'],
+            '_v3': {'cooldowns': {'fire blast': 2, 'hyper beam': 1}}}
+    check(S, 'sem_opcao detecta moveset todo em recarga',
+          appmod._v3_sem_opcao(_fol)
+          and not appmod._v3_sem_opcao({'name': 'X', 'moves': ['Ember'],
+                                        '_v3': {'cooldowns': {}}}))
+    _msg_fol = appmod._v3_folego(_fol)
+    check(S, 'fôlego: recargas caem 1 e o moveset destrava',
+          'fôlego' in _msg_fol
+          and _fol['_v3']['cooldowns'] == {'fire blast': 1}
+          and not appmod._v3_sem_opcao(_fol))
+    check(S, 'sem_opcao conta a recarga-bucket para golpes de cura',
+          appmod._v3_sem_opcao({'name': 'H', 'moves': ['Recover'],
+                                '_v3': {'cooldowns': {appmod.effects.HEAL_SUSTAIN_KEY: 2}}}))
     check(S, 'cura de metade/total → recarga 3 (jogo de 4-6 turnos); um quarto → 1',
           appmod.bm_core.v3_heal_cooldown('half') == 3 and appmod.bm_core.v3_heal_cooldown('full') == 3
           and appmod.bm_core.v3_heal_cooldown('quarter') == 1)

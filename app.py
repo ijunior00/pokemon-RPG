@@ -335,6 +335,41 @@ def _v3_cooldown_left(poke, move_name):
     return int((st.get('cooldowns') or {}).get((move_name or '').lower(), 0))
 
 
+def _v3_sem_opcao(poke, moves=None):
+    """True se NENHUM golpe do moveset está utilizável — todos em recarga
+    (golpes de cura contam a recarga-bucket compartilhada). É o gatilho da
+    RODADA DE FÔLEGO: como recargas só caem quando o Pokémon age, um moveset
+    de poucos golpes fortes podia travar para sempre."""
+    mvs = [m for m in (moves or (poke or {}).get('moves') or []) if m]
+    if not mvs:
+        return False
+    cds = ((poke or {}).get('_v3') or {}).get('cooldowns') or {}
+    bucket = int(cds.get(effects.HEAL_SUSTAIN_KEY, 0))
+    for m in mvs:
+        if _v3_cooldown_left(poke, m) > 0:
+            continue
+        if bucket > 0:
+            md = MOVES_BY_NAME.get(m.lower()) or MOVES_DB.get(m) or {}
+            det = effects.auto_detect_move_effect(md) if _is_status_move(md) else None
+            if det and det.get('type') in ('heal_self', 'drain_stat_heal'):
+                continue
+        return False   # há golpe livre — sem fôlego, ação bloqueada normal
+    return True
+
+
+def _v3_folego(poke, nome=''):
+    """RODADA DE FÔLEGO: sem golpes disponíveis, a ação vira descanso — o
+    turno passa e TODAS as recargas caem 1. Retorna a mensagem para o log."""
+    st = _v3_side_state(poke)
+    cds = st.setdefault('cooldowns', {})
+    for k in list(cds):
+        cds[k] -= 1
+        if cds[k] <= 0:
+            del cds[k]
+    return (f'😮‍💨 {nome or (poke or {}).get("name", "Pokémon")} está sem golpes '
+            f'disponíveis e recupera o fôlego — recargas −1!')
+
+
 def _v3_register_use(st, move_lower, power, drain=0):
     """Registra o uso de um golpe: decrementa cooldowns (1 ação = 1 rodada do
     lado), atualiza momentum (+1 se variou, zera se repetiu; 1º golpe = 0) e
@@ -4045,11 +4080,16 @@ def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data
     # v3: cura instantânea em recarga — não consome o turno do JOGADOR (ele
     # escolhe outro golpe). Selvagem bloqueado AVANÇA o turno: a IA re-escolhe
     # no próximo round; sem isso o loop de turnos automáticos travava a
-    # batalha com o selvagem preso como combatente atual.
+    # batalha com o selvagem preso como combatente atual. Aliado SEM NENHUM
+    # golpe disponível ganha a rodada de fôlego (turno passa, recargas −1).
     if result.get('blocked'):
         battle['log'].append({'type': 'info',
                               'message': f"⏳ {actor['name']}: {result.get('message', move_name + ' em recarga')}"})
         if actor.get('side') == 'wild':
+            gb.advance_turn(battle)
+        elif _v3_sem_opcao(actor['pokemon'], actor['moves']):
+            battle['log'].append({'type': 'info',
+                                  'message': _v3_folego(actor['pokemon'], actor['name'])})
             gb.advance_turn(battle)
         return
     # F5: clima/terreno de campo (Rain Dance, Grassy Terrain...)
@@ -4330,12 +4370,20 @@ def handle_group_battle_action(data):
         calc = _calc_pvp_attack(att_poke, tgt_poke, move_name, None,
                                 field=_field_of(battle))   # v3: servidor rola o d100
         if calc.get('blocked'):
-            emit('group_battle_error', {'message': calc.get('message')})
-            return
-        msg = f"{cur['name']} usou {move_name} em {target['name']} — {calc.get('message','')}"
-        msg += _group_apply_recoil_drain(battle, cur, calc)
-        gb.apply_damage(battle, cur['cid'], target_cid, calc.get('damage', 0),
-                        move_name, msg, hit=calc.get('hit', True))
+            if _v3_sem_opcao(cur['pokemon'], cur['moves']):
+                # RODADA DE FÔLEGO: nada disponível — descansa, turno passa
+                battle['log'].append({'type': 'info',
+                                      'message': _v3_folego(cur['pokemon'], cur['name'])})
+                gb.advance_turn(battle)
+                # segue para o pós-fluxo comum (selvagens + broadcast)
+            else:
+                emit('group_battle_error', {'message': calc.get('message')})
+                return
+        else:
+            msg = f"{cur['name']} usou {move_name} em {target['name']} — {calc.get('message','')}"
+            msg += _group_apply_recoil_drain(battle, cur, calc)
+            gb.apply_damage(battle, cur['cid'], target_cid, calc.get('damage', 0),
+                            move_name, msg, hit=calc.get('hit', True))
 
     # Turnos automáticos dos selvagens (se AUTO ligado)
     if _wild_auto_mode():
@@ -5954,11 +6002,19 @@ def handle_battle_action(data):
             # senão dava para mandar sempre 1 e nunca errar)
             server_calc = _calc_player_attack(encounter, move_name, None)
             if server_calc.get('blocked'):
-                # golpe em cooldown: NÃO consome o turno — o jogador escolhe outro
-                emit('action_blocked', {'message': server_calc.get('message'),
-                                        'move_name': move_name,
-                                        'cooldown_left': server_calc.get('cooldown_left')})
-                return
+                ppoke_f = encounter.get('player_pokemon') or {}
+                if _v3_sem_opcao(ppoke_f):
+                    # RODADA DE FÔLEGO: nada disponível — descansa, turno passa
+                    message = action_log = _v3_folego(ppoke_f)
+                    damage, heal, status_effect = 0, 0, None
+                    server_calc = {'hit': False, 'is_status': False,
+                                   'damage': 0, 'log': message}
+                else:
+                    # golpe em cooldown: NÃO consome o turno — escolha outro
+                    emit('action_blocked', {'message': server_calc.get('message'),
+                                            'move_name': move_name,
+                                            'cooldown_left': server_calc.get('cooldown_left')})
+                    return
             damage = server_calc.get('damage', 0)
             move_type = server_calc.get('move_type_en', move_type)
             # Backstop: move de status nunca causa dano no selvagem. Processa
@@ -5977,11 +6033,17 @@ def handle_battle_action(data):
                     dict(wpoke.get('stats', {}), level=wpoke.get('level', encounter.get('level', 5)),
                          ATK_eff=effects.effective_stat(wpoke, 'ATK')))
                 # v3: cura instantânea em recarga — não consome o turno
+                # (a menos que NADA esteja disponível → rodada de fôlego)
                 if sres.get('blocked'):
-                    emit('action_blocked', {'message': sres.get('message'),
-                                            'move_name': move_name,
-                                            'cooldown_left': sres.get('cooldown_left')})
-                    return
+                    ppoke_f = encounter.get('player_pokemon') or {}
+                    if _v3_sem_opcao(ppoke_f):
+                        sres = {'success': True, 'effect_type': 'utility',
+                                'message': _v3_folego(ppoke_f)}
+                    else:
+                        emit('action_blocked', {'message': sres.get('message'),
+                                                'move_name': move_name,
+                                                'cooldown_left': sres.get('cooldown_left')})
+                        return
                 # custo pago pelo próprio usuário (Curse fantasma: ⌊HPmáx/2⌋)
                 if sres.get('self_damage'):
                     battle_state['player_hp_current'] = max(
@@ -6069,11 +6131,16 @@ def handle_battle_action(data):
                     dict(ppoke.get('stats', {}), level=ppoke.get('level', 1),
                          ATK_eff=effects.effective_stat(ppoke, 'ATK')))
                 # v3: cura do selvagem em recarga — avisa o mestre, turno fica
+                # (a menos que NADA esteja disponível → rodada de fôlego)
                 if sres.get('blocked'):
-                    emit('action_blocked', {'message': sres.get('message'),
-                                            'move_name': move_name,
-                                            'cooldown_left': sres.get('cooldown_left')})
-                    return
+                    if _v3_sem_opcao(wpoke, encounter.get('wild_moves')):
+                        sres = {'success': True, 'effect_type': 'utility',
+                                'message': _v3_folego(wpoke, wpoke.get('name', 'Selvagem'))}
+                    else:
+                        emit('action_blocked', {'message': sres.get('message'),
+                                                'move_name': move_name,
+                                                'cooldown_left': sres.get('cooldown_left')})
+                        return
                 # custo pago pelo próprio selvagem (Curse fantasma)
                 if sres.get('self_damage'):
                     battle_state['wild_hp_current'] = max(
@@ -6998,6 +7065,16 @@ def handle_pvp_attack(data):
         calc = _calc_pvp_attack(att_poke, def_poke, move_name, None,
                                 field=_field_of(battle))   # v3: servidor rola o d100
         if calc.get('blocked'):
+            if _v3_sem_opcao(att_poke):
+                # RODADA DE FÔLEGO: nada disponível — descansa, turno passa
+                battle['log'].append({'type': 'info',
+                                      'message': _v3_folego(att_poke)})
+                pvp.advance_turn(battle)
+                _broadcast_pvp_state(battle)
+                next_key = battle['turn']
+                if battle['phase'] == 'battle' and battle[next_key].get('is_npc'):
+                    handle_npc_turn(battle, next_key)
+                return
             # golpe em cooldown: não consome o turno — escolha outro
             emit('pvp_error', {'message': calc.get('message')})
             return
@@ -7614,6 +7691,11 @@ def _process_pvp_status_move(battle, attacker_key, move_name, move_data):
         if battle[attacker_key].get('is_npc'):
             battle['log'].append({'type': 'info',
                                   'message': f'⏳ {move_name} em recarga — o NPC hesitou!'})
+            pvp.advance_turn(battle)
+            _broadcast_pvp_state(battle)
+        elif _v3_sem_opcao(att_poke):
+            # RODADA DE FÔLEGO (humano): nada disponível — descansa, turno passa
+            battle['log'].append({'type': 'info', 'message': _v3_folego(att_poke)})
             pvp.advance_turn(battle)
             _broadcast_pvp_state(battle)
         else:

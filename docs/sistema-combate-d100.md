@@ -58,6 +58,13 @@ Future Sight 120 → 5d6 · Blast Burn 150 / Hyper Beam 150 → 4d10.
 > de espera). Todo moveset gerado (selvagem/NPC/presente) garante ≥1 golpe
 > de dano sem recarga alguma.
 
+> **Rodada de FÔLEGO (anti-trava):** como as recargas só caem quando o
+> Pokémon age, um moveset com TODOS os golpes em recarga travaria para
+> sempre. Nesse caso (e SÓ nesse caso), a tentativa bloqueada vira descanso:
+> o turno passa e todas as recargas caem 1 ("😮‍💨 recupera o fôlego").
+> Se houver qualquer golpe livre, a ação bloqueada continua não consumindo
+> o turno. Vale nos 3 modos (selvagem, PvP e grupo).
+
 ---
 
 ## 2. Camada 1 — Precisão (d100 vs ACC)

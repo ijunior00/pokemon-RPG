@@ -1145,6 +1145,15 @@ async function loadMovesData(moveNames) {
     }
 }
 
+// v3: TODOS os golpes em recarga? A ação deve chegar ao servidor, que a
+// converte em RODADA DE FÔLEGO (turno passa, recargas −1) — sem isso um
+// moveset de poucos golpes fortes travava para sempre.
+function _allMovesOnCooldown(moves, cds) {
+    const list = (moves || []).filter(Boolean);
+    if (!list.length) return false;
+    return list.every(mv => ((cds || {})[mv.toLowerCase()] || 0) > 0);
+}
+
 // Linha mecânica v3 gerada em RUNTIME a partir da Tabela Mestra (sempre
 // sincronizada com battle_math; o texto antigo do move vira flavor).
 function moveMechanicsLine(m) {
@@ -1182,8 +1191,11 @@ function renderMoveButton(moveName, clickable) {
     const cdLeft = (window._playerCooldowns || {})[moveName.toLowerCase()] || 0;
 
     if (clickable && cdLeft > 0) {
-        return `<span class="move-btn ${typeClass}" style="opacity:0.45;cursor:not-allowed;"
+        // continua clicável: com outros golpes livres o clique só avisa a
+        // recarga; com TUDO em recarga vira a rodada de FÔLEGO no servidor
+        return `<span class="move-btn ${typeClass}" style="opacity:0.45;"
                       data-move="${moveName}"
+                      onclick="handleMoveTap('${escapedName}')"
                       onmouseenter="showMoveTooltip(event, '${escapedName}')"
                       onmouseleave="hideMoveTooltip()"
                       title="Em cooldown: ${cdLeft} rodada(s)"
@@ -1330,21 +1342,28 @@ async function useMove(moveName) {
     // (_calc_player_attack), então seguem pelo caminho de ataque normal.
     const VARIABLE_DMG = ['metronome', 'mirror move', 'copycat', 'assist', 'me first', 'mimic', 'sketch'];
     const isVariable = VARIABLE_DMG.includes(moveName.toLowerCase());
+    // v3: se TODOS os golpes estão em recarga, a ação PASSA ao servidor —
+    // ele converte em RODADA DE FÔLEGO (turno passa, recargas −1)
+    const _semOpcao = _allMovesOnCooldown(poke?.moves, window._playerCooldowns);
+
     if (!isVariable && (m.category === 'status' || !m.baseDamage || PLAYER_STATUS_MOVES.includes(moveName.toLowerCase()))) {
         // v3: cura instantânea também tem recarga — checa antes de processar
         const cdS = (window._playerCooldowns || {})[moveName.toLowerCase()] || 0;
-        if (cdS > 0) {
+        if (cdS > 0 && !_semOpcao) {
             _unlockPlayerActions();
             addBattleLog(`⏳ <strong>${moveName}</strong> em recarga (${cdS} rodada(s)) — escolha outro golpe.`);
             return;
         }
-        await processStatusMove(moveName, poke, window.currentBattleData?.enemy);
-        return;
+        if (cdS === 0) {
+            await processStatusMove(moveName, poke, window.currentBattleData?.enemy);
+            return;
+        }
+        // sem opção: cai no caminho de ataque — o servidor decide o fôlego
     }
 
     // v3: golpe em cooldown não pode ser escolhido (o servidor também valida)
     const cdLeft = (window._playerCooldowns || {})[moveName.toLowerCase()] || 0;
-    if (cdLeft > 0) {
+    if (cdLeft > 0 && !_semOpcao) {
         _unlockPlayerActions();
         addBattleLog(`⏳ <strong>${moveName}</strong> em cooldown (${cdLeft} rodada(s)) — escolha outro golpe.`);
         return;
@@ -4397,9 +4416,11 @@ async function pvpUseMove(moveName) {
         return;
     }
 
-    // v3: cooldown local (o servidor também valida e recusa sem gastar o turno)
+    // v3: cooldown local (o servidor também valida e recusa sem gastar o
+    // turno) — a menos que TUDO esteja em recarga: aí a ação passa ao
+    // servidor, que converte em rodada de fôlego
     const _pvpCd = (myActive._v3?.cooldowns || {})[moveName.toLowerCase()] || 0;
-    if (_pvpCd > 0) {
+    if (_pvpCd > 0 && !_allMovesOnCooldown(myActive.moves, myActive._v3?.cooldowns)) {
         alert(`⏳ ${moveName} em cooldown (${_pvpCd} rodada(s)) — escolha outro golpe.`);
         return;
     }
