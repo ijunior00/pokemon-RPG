@@ -2537,11 +2537,16 @@ def main():
     import status_effects as se_mod
 
     # Leech Seed vira condição 'seeded' (não é mais cura instantânea!)
+    # ACC 90 → o d100 interno pode errar; re-rola até conectar (o teste é
+    # sobre O QUE acontece ao acertar, não sobre a taxa de acerto).
     _venu = fresh('Venusaur', 50)
     _lax = fresh('Snorlax', 50)
-    rs = se_mod.process_status_move({'name': 'Leech Seed', 'category': 'status'},
-                                    dict(_venu['stats'], level=50, maxHp=120, currentHp=120),
-                                    dict(_lax['stats'], level=50, currentHp=120))
+    for _ in range(50):
+        rs = se_mod.process_status_move({'name': 'Leech Seed', 'category': 'status'},
+                                        dict(_venu['stats'], level=50, maxHp=120, currentHp=120),
+                                        dict(_lax['stats'], level=50, currentHp=120))
+        if rs.get('status_applied'):
+            break
     check(S, 'Leech Seed aplica semente (sem cura instantânea)',
           rs.get('status_applied') == 'seeded' and not rs.get('heal'))
     check(S, 'tipo Grama é imune à semente',
