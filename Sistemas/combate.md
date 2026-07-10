@@ -50,9 +50,12 @@
 - A troca de Pokémon zera momentum/streak mas **mantém cooldowns e heal_uses**
   (regra); heal_uses só zera em batalha NOVA.
 - Golpe bloqueado (cooldown/protect indisponível) **não consome o turno** —
-  eventos `action_blocked`/`pvp_error`/`group_battle_error`.
+  eventos `action_blocked`/`pvp_error`/`group_battle_error`. EXCEÇÃO: se
+  TODOS os golpes estão em recarga, vira **rodada de FÔLEGO** — o turno
+  passa e todas as recargas caem 1 (`_v3_sem_opcao`/`_v3_folego` no app.py;
+  o cliente deixa a ação chegar ao servidor via `_allMovesOnCooldown`).
+  Impossível travar por recarga.
 - Cópias rasas de dicts de Pokémon (grupo!) precisam garantir `_v3` ANTES do
   `dict()` pra compartilhar o estado aninhado.
-- Recargas só caem quando o Pokémon AGE (1 ação = 1 rodada) — moveset com
-  poucos golpes, todos fortes, pode ficar todo em recarga (aceito como caso
-  raro após o piso subir para o degrau 70–80).
+- Recargas só caem quando o Pokémon AGE (1 ação = 1 rodada) — a rodada de
+  fôlego é o único "descanso" que também as decrementa.
