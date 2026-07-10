@@ -54,7 +54,7 @@ def side(species, level, power, acc=100, kind='physical', plan='attack',
 def _new_state(s):
     return {'hp': s['max_hp'], 'atk_st': 0, 'def_st': 0, 'status': None,
             'seeded': False, 'cursed': False, 'cd': 0, 'heal_cd': 0,
-            'heal_uses': 0, 'did_setup': False, 'dot_total': 0,
+            'heal_uses': 0, 'did_setup': False,
             'item_left': 1 if s['item'] else 0}
 
 
@@ -93,12 +93,12 @@ def _tick_dot(st, max_hp, opp_st, opp_max):
         st['status_turns'] = cond['turns_active']
         dmg += d
     if st['seeded']:
-        drain = max(1, max_hp // 8)
+        drain = se.seed_drain(max_hp)   # fonte única do motor (⌊HP/16⌋)
         dmg += drain
         opp_st['hp'] = min(opp_max, opp_st['hp'] + drain)
     if st['cursed']:
-        dmg += max(1, max_hp // 4)
-    st['dot_total'] += dmg
+        _curse_frac = se.STATUS_CONDITIONS['amaldicoado'].get('damage_fraction', 4)
+        dmg += max(1, max_hp // _curse_frac)
     return dmg
 
 
@@ -135,8 +135,8 @@ def _act(att, a_st, dfd, d_st):
         d_st['cursed'] = True
         return 0
     if plan == 'healer' and a_st['heal_cd'] <= 0 and a_st['hp'] < att['max_hp'] // 2:
-        # retorno decrescente do motor: cada cura vale metade da anterior
-        heal = max(1, (att['max_hp'] // 2) >> min(a_st['heal_uses'], 6))
+        # retorno decrescente: MESMA fórmula do motor (fonte única)
+        heal = bm.v3_decayed_heal(att['max_hp'] // 2, a_st['heal_uses'])
         a_st['heal_uses'] += 1
         a_st['hp'] = min(att['max_hp'], a_st['hp'] + heal)
         a_st['heal_cd'] = bm.v3_heal_cooldown('half')
@@ -150,7 +150,7 @@ def _act(att, a_st, dfd, d_st):
 
 
 def battle(a, b):
-    """Retorna (rodadas, vencedor 'a'|'b', dot_max_turno_a+b, dot_total)."""
+    """Retorna (rodadas, vencedor 'a'|'b', dot_máx_por_turno)."""
     sa, sb = _new_state(a), _new_state(b)
     if a['ability'] == 'intimidate':
         sb['atk_st'] -= 1
@@ -176,8 +176,8 @@ def battle(a, b):
             d_st['hp'] -= _act(att, a_st, dfd, d_st)
         if sa['hp'] <= 0 or sb['hp'] <= 0:
             winner = 'a' if sb['hp'] <= 0 and sa['hp'] > 0 else 'b'
-            return rnd, winner, dot_max, sa['dot_total'] + sb['dot_total']
-    return MAX_ROUNDS, 'a', dot_max, sa['dot_total'] + sb['dot_total']
+            return rnd, winner, dot_max
+    return MAX_ROUNDS, 'a', dot_max
 
 
 # (nome, janela_mediana, lado_a, lado_b, banda_winrate_a ou None)
@@ -227,7 +227,9 @@ MATRIX = [
     ('Burn vs físico (espelho Machamp L50)', (4, 8),
      side('Machamp', 50, 100, kind='physical', plan='burn'),
      side('Machamp', 50, 100, kind='physical', item=True), (35, 90)),
-    ('Leech Seed (espelho Venusaur L50)', (4, 8),
+    # Leech 1/16 (fonte única seed_drain): sustain mútuo alonga o espelho —
+    # janela maior é esperada; o winrate na banda é o que valida a mecânica.
+    ('Leech Seed (espelho Venusaur L50)', (4, 10),
      side('Venusaur', 50, 80, kind='special', plan='leech'),
      side('Venusaur', 50, 80, kind='special', item=True), (35, 90)),
     ('Curse fantasma (espelho Gengar L50)', (3, 8),
@@ -247,14 +249,13 @@ def run():
           f'TN_shift={bm.V3_TN_SHIFT} (mediana 4-6; ≤8 nos longos)\n')
     all_ok = True
     for name, window, a, b, band in MATRIX:
-        rounds, wins_a, dotmax, dots = [], 0, 0, []
+        rounds, wins_a, dotmax = [], 0, 0
         timeouts = 0
         for _ in range(N_BATTLES):
-            r, w, dm, dt = battle(a, b)
+            r, w, dm = battle(a, b)
             rounds.append(r)
             wins_a += (w == 'a')
             dotmax = max(dotmax, dm)
-            dots.append(dt)
             timeouts += (r >= MAX_ROUNDS)
         med = statistics.median(rounds)
         wr = 100 * wins_a / N_BATTLES

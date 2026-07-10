@@ -454,6 +454,13 @@ def v3_move_cooldown(power, drain=0):
     return max(v3_cooldown(power), v3_drain_cooldown(power, drain))
 
 
+def v3_decayed_heal(heal, uses):
+    """RETORNO DECRESCENTE anti-stall: cada cura instantânea na MESMA batalha
+    vale metade da anterior (½ → ¼ → ⅛ …, piso 1). `uses` = curas já feitas
+    nesta batalha (heal_uses do _v3). Fonte única — motor e gates usam."""
+    return max(1, int(heal) // (2 ** min(int(uses or 0), 6)))
+
+
 def v3_milestone_dice(level):
     """Dados extras acumulados pelos marcos 20/40/60/80/100."""
     return max(0, min(5, int(level or 1) // 20))
@@ -526,7 +533,7 @@ def v3_crit_chance(crit_stages=0):
 
 def v3_resistance_total(d100, defense_stat, level, def_stages=0,
                         crit=False, extra=0, crit_zeroes_defense=False):
-    """Total da Resistência do defensor (escala d100): d100 + min(60, ⌊def/2⌋)
+    """Total da Resistência do defensor (escala d100): d100 + min(50, ⌊def/2⌋)
     + 5/estágio de DEF + ⌊nível/2⌋ + extra×5. Os estágios e o `extra`
     (adaptação/clima) continuam chegando em pontos "clássicos" — a conversão
     ×5 é feita aqui. Crítico FURA a defesa: o bônus de Defesa (stat +

@@ -384,6 +384,31 @@ def seed_drain(max_hp):
     return max(1, int(max_hp or frac) // frac)
 
 
+def new_battle_reset(pokes):
+    """Batalha NOVA: zera o estado por-batalha que NÃO deve atravessar
+    batalhas — retorno decrescente de cura (heal_uses) e clima carimbado
+    (_weather). Troca DENTRO da batalha não zera (anti-stall, como
+    cooldowns). Fonte única: selvagem, PvP e grupo chamam aqui."""
+    for p in (pokes or []):
+        if not isinstance(p, dict):
+            continue
+        p.pop('_weather', None)
+        if isinstance(p.get('_v3'), dict):
+            p['_v3'].pop('heal_uses', None)
+
+
+def contact_status_blocked(target_poke, status_key):
+    """Imunidade a status vindos de CONTATO (Static, Flame Body, Poison
+    Touch…): mesma régua do caminho normal — tipo (Elétrico não paralisa,
+    Fogo não queima…) e habilidade (Limber, Immunity…)."""
+    if not status_key:
+        return True
+    if type_blocks_status((target_poke or {}).get('types'), status_key):
+        return True
+    import abilities as _ab
+    return _ab.is_status_immune(target_poke or {}, status_key)
+
+
 def process_turn_start(pokemon_status, max_hp):
     """Process status effects at the start of a pokemon's turn.
     Returns (can_act: bool, damage: int, messages: list, status_removed: bool).
@@ -1137,7 +1162,7 @@ def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
         # primeira Recover é forte, o CICLO de cura morre sozinho
         # (battle_matrix_v3 valida; sem isso o healer vencia 99% no espelho).
         _uses = int((_user_v3 or {}).get('heal_uses', 0))
-        heal = max(1, heal >> min(_uses, 6))
+        heal = _bm.v3_decayed_heal(heal, _uses)
         # v3: cura instantânea entra em recarga (moderada 1 / elevada 3) na
         # chave-bucket compartilhada. Só MUTA no caminho autoritativo (socket);
         # o preview do REST passa mutate=False para não decrementar 2× (o
@@ -1166,15 +1191,20 @@ def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
 
     elif effect['type'] == 'drain_stat_heal':
         # Strength Sap (canon): cura o USUÁRIO pelo valor do stat do ALVO
-        # (ATK efetivo) e reduz esse stat em 1 estágio. Cura instantânea →
-        # entra na MESMA recarga-bucket dos heals (elevada se ≥ ½ HP máx).
+        # (ATK efetivo — os callers passam `ATK_eff` com estágios/habilidade
+        # aplicados; sem ele, cai no stat cru) e reduz esse stat em 1 estágio.
+        # Cura instantânea → MESMA recarga-bucket dos heals e MESMO retorno
+        # decrescente (senão Strength Sap driblaria o anti-stall do Recover).
         stat_key = effect.get('stat', 'ATK')
-        drained = max(1, int(target_stats.get(stat_key)
+        drained = max(1, int(target_stats.get(stat_key + '_eff')
+                             or target_stats.get(stat_key)
                              or target_stats.get(stat_key.lower()) or 10))
         max_hp = int(attacker_stats.get('maxHp', 20) or 20)
-        heal = min(drained, max_hp)
+        _uses = int((_user_v3 or {}).get('heal_uses', 0))
+        heal = _bm.v3_decayed_heal(min(drained, max_hp), _uses)
         cd = _bm.v3_heal_cooldown('half' if heal >= max_hp // 2 else 'quarter')
         if _user_v3 is not None and mutate:
+            _user_v3['heal_uses'] = _uses + 1
             cds = _user_v3.setdefault('cooldowns', {})
             for k in list(cds):
                 cds[k] -= 1
@@ -1189,6 +1219,7 @@ def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
             'effect_type': 'debuff',
             'message': f"{move_name}! Drenou a força do alvo: recuperou {heal} HP "
                        f"e {stat_key} do alvo −1!"
+                       + (' 📉 (retorno decrescente)' if _uses else '')
                        + (f' ⏳ Recarga: {cd} rodada(s).' if cd else ''),
             'status_applied': None,
             'stat_changes': {stat_key: -1},

@@ -341,6 +341,7 @@ ordem de ação.** Assim todas usam a mesma matemática. Mapeamento de referênc
 | Levitate | imune a golpes de Terra |
 | Static | 30% de PARALISAR quem acerta golpe de contato (d100) |
 | Flame Body / Poison Point | 25% de aplicar a condição em quem acerta golpe de contato (d100) |
+| — status de contato | respeitam as imunidades canônicas: tipo (Elétrico não paralisa, Fogo não queima…) e habilidade (Limber, Immunity…) |
 | Solar Power | sob Sol: SpA ×1,5 e perde ⌊HPmáx/8⌋ por rodada; sem Sol, nada |
 | Speed Boost | +1 estágio de Speed ao fim de cada rodada |
 | Swift Swim / Chlorophyll / Sand Rush / Slush Rush | Speed em dobro no clima correspondente |
@@ -567,8 +568,12 @@ Calibrações que fizeram a janela fechar (documentadas nas seções 3.3 e 4):
 - **STAB pré-Nv 25 = +2 fixo** (o dado extra chega no 1º marco) — dobrar dados
   no early game derrubava o Nv 15 para 4 rodadas.
 - **Cura decrescente** (Seção 11) — sem ela, Recover-stall vencia 99% no
-  espelho da matriz; com ela, 48,5%.
+  espelho da matriz; com ela, 48,5%. Vale para TODA cura instantânea,
+  inclusive Strength Sap (`battle_math.v3_decayed_heal`, fonte única usada
+  pelo motor e pelos gates).
 - **Leech Seed ⌊HP/16⌋** — a 1/8 era o DoT mais forte do jogo E curava junto.
+  A matriz simula pelo `seed_drain` do motor (espelho de Venusaur: winrate
+  42,8% na banda; a duração alonga para mediana ~9 — sustain mútuo).
 
 Ajuste **uma alavanca por vez** e re-rode sweep + matriz até tudo verde.
 

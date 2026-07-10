@@ -46,10 +46,9 @@ def create_pvp_battle(mode, player1_id, player2_id, bets=None):
 
 def set_team(battle, player_key, team):
     """Set a player's team for the battle."""
-    # batalha NOVA: zera o retorno decrescente de cura de cada Pokémon
-    for p in (team or []):
-        if isinstance(p, dict) and isinstance(p.get('_v3'), dict):
-            p['_v3'].pop('heal_uses', None)
+    # batalha NOVA: zera estado por-batalha (heal_uses, _weather) — fonte única
+    import status_effects as effects
+    effects.new_battle_reset(team)
     battle[player_key]['team'] = team
 
 

@@ -232,6 +232,11 @@ const BattleMath = (() => {
     function v3MoveCooldown(power, drain = 0) {
         return Math.max(v3Cooldown(power), v3DrainCooldown(power, drain));
     }
+    // Retorno decrescente anti-stall: cada cura instantânea na mesma batalha
+    // vale metade da anterior (½ → ¼ → ⅛ …, piso 1) — espelho do Python.
+    function v3DecayedHeal(heal, uses) {
+        return Math.max(1, Math.floor((heal | 0) / Math.pow(2, Math.min(uses | 0, 6))));
+    }
     function v3MilestoneDice(level) { return Math.max(0, Math.min(5, Math.floor((level || 1) / 20))); }
     function v3StatusComponent(stat, atkStages = 0) {
         // Certeiro (ACC ∞) NÃO reduz o componente — compensação é v3CerteiroMult
@@ -420,7 +425,7 @@ const BattleMath = (() => {
         potentialPoints, trainingPoints, pointsBudget, statTierLocked,
         HIGH_CRIT_MOVES, critThreshold, critStageFor, VARIABLE_POWER,
         V3_MASTER_TABLE, V3_MOMENTUM_MAX, v3Tier, v3DiceBase, v3Tn, v3Cooldown,
-        v3DrainCooldown, v3HealCooldown, v3MoveCooldown,
+        v3DrainCooldown, v3HealCooldown, v3MoveCooldown, v3DecayedHeal,
         v3MilestoneDice, v3StatusComponent, v3LevelBonus, v3EffectivenessDiceDelta,
         v3BuildDice, v3StabFlat, v3AccEffective, v3Connects, v3CritChance,
         v3ResistanceTotal, v3ResistOutcome, v3ApplyOutcome, v3GrossDamage,

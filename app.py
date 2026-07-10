@@ -373,15 +373,15 @@ V3_CRASH_MOVES = ('jump kick', 'high jump kick')             # errou → se mach
 V3_SELF_KO_MOVES = ('explosion', 'self-destruct', 'self destruct')
 # golpes cujo stat_change canônico NEGATIVO é no PRÓPRIO usuário (recuo)
 V3_SELF_DEBUFF_MOVES = ('overheat', 'psycho boost', 'superpower', 'close combat',
-                        'draco meteor', 'leaf storm', 'hammer arm', 'v-create')
+                        'draco meteor', 'leaf storm', 'hammer arm', 'v-create',
+                        'fleur cannon', 'dragon ascent', 'ice hammer',
+                        'clanging scales', 'hyperspace fury', 'armor cannon')
 
 
 def _v3_new_battle(pokes):
-    """Batalha NOVA: zera o retorno decrescente de cura (heal_uses) de cada
-    Pokémon. Troca DENTRO da batalha não zera (anti-stall, como cooldowns)."""
-    for p in (pokes or []):
-        if isinstance(p, dict) and isinstance(p.get('_v3'), dict):
-            p['_v3'].pop('heal_uses', None)
+    """Batalha NOVA: zera o estado por-batalha (heal_uses, _weather) —
+    fonte única em status_effects.new_battle_reset (PvP/grupo também usam)."""
+    effects.new_battle_reset(pokes)
 
 
 def _v3_reset_battle_flow(poke):
@@ -2638,6 +2638,8 @@ def generate_npc():
         move_pool = list(dict.fromkeys(move_pool))
         move_pool = [m for m in move_pool if m.lower() in MOVES_BY_NAME or m in MOVES_DB]
         moves = move_pool[-4:] if len(move_pool) > 4 else (move_pool if move_pool else ['Tackle'])
+        # mesma garantia dos selvagens: ≥1 golpe de dano sem recarga
+        moves = _ensure_filler_move(moves, move_pool)
 
         # Stats escalados pelo nível (igual aos encontros selvagens)
         scaled = scaling.calculate_pokemon_stats(poke, poke_level)
@@ -2691,7 +2693,7 @@ def _build_gift_pokemon(base, level, is_shiny=False, nickname=''):
             move_pool.extend(moves)
     move_pool = list(dict.fromkeys(
         m for m in move_pool if m.lower() in MOVES_BY_NAME or m in MOVES_DB))
-    moves = move_pool[-4:] if move_pool else ['Tackle']
+    moves = _ensure_filler_move(move_pool[-4:] if move_pool else ['Tackle'], move_pool)
     scaled = scaling.calculate_pokemon_stats(base, level, is_shiny=is_shiny)
     poke = {
         'name': base['name'],
@@ -3324,13 +3326,48 @@ def api_pokemon_learnset(number):
 
 
 def _move_with_canon(name, move):
-    """Move local + power/accuracy/priority canônicos (sistema v2)."""
+    """Move local + power/accuracy/priority/drain canônicos (sistema v2)."""
     canon = canon_move(name)
     out = dict(move)
     out['power_num'] = canon.get('power')
     out['accuracy'] = canon.get('accuracy')
     out['priority'] = canon.get('priority', 0)
+    out['drain'] = canon.get('drain', 0)   # >0 = dreno → recarga de sustain
     return out
+
+
+def _canon_power(m):
+    """POW canônico de um move (0 se status/desconhecido)."""
+    try:
+        return int(canon_move(m).get('power') or 0) or \
+            int(bm_core.VARIABLE_POWER.get(m.lower(), 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _move_sem_recarga(m):
+    """True se é golpe de dano SEM recarga alguma: POW ≤ 50 E sem dreno
+    (Absorb/Mega Drain têm POW baixo mas recarga de sustain)."""
+    p = _canon_power(m)
+    if not (0 < p <= 50):
+        return False
+    try:
+        drain = int(canon_move(m).get('drain') or 0)
+    except (TypeError, ValueError):
+        drain = 0
+    return bm_core.v3_move_cooldown(p, drain) == 0
+
+
+def _ensure_filler_move(moves, move_pool):
+    """Garante ≥1 golpe de dano sem recarga no moveset (Tabela Mestra: recarga
+    a partir de POW 55) — senão a IA fica sem ação nas rodadas de espera.
+    Usado pelos geradores de selvagem, NPC e presente."""
+    moves = [m for m in (moves or []) if m]
+    if any(_move_sem_recarga(m) for m in moves):
+        return moves[:4] if moves else ['Tackle']
+    filler = next((m for m in sorted(move_pool or [], key=_canon_power)
+                   if _move_sem_recarga(m)), 'Tackle')
+    return ([filler] + [m for m in moves if m != filler])[:4]
 
 
 @app.route('/api/moves')
@@ -3582,13 +3619,9 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
         wild_moves = (['Tackle'] + wild_moves)[:4]
     if not wild_moves:
         wild_moves = ['Tackle']
-    # garantia de RECARGA: com a Tabela Mestra nova (recarga a partir de
-    # POW 55), o moveset precisa de ≥1 golpe de dano SEM recarga (POW ≤ 50)
-    # — senão a IA fica sem ação nas rodadas de espera.
-    if not any(0 < _mv_power(m) <= 50 for m in wild_moves):
-        filler = next((m for m in sorted(move_pool, key=_mv_power)
-                       if 0 < _mv_power(m) <= 50), 'Tackle')
-        wild_moves = ([filler] + [m for m in wild_moves if m != filler])[:4]
+    # garantia de RECARGA: ≥1 golpe de dano sem recarga (drenos contam como
+    # COM recarga mesmo abaixo de POW 50 — recarga de sustain)
+    wild_moves = _ensure_filler_move(wild_moves, move_pool)
     
     # Calculate scaled stats for the wild pokemon.
     # Shiny: +35% nos atributos BASE antes do escalonamento (SHINY_MULT em
@@ -4004,15 +4037,20 @@ def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data
              types=actor['pokemon'].get('types'),
              _v3=_v3_side_state(actor['pokemon'])),   # Protect: corrente/flag no dict real
         dict(target['pokemon'].get('stats', {}), level=target['pokemon'].get('level', 1),
-             currentHp=max(0, target['hp'])))
+             currentHp=max(0, target['hp']),
+             ATK_eff=effects.effective_stat(target['pokemon'], 'ATK')))
     # custo pago pelo próprio usuário (Curse fantasma: ⌊HPmáx/2⌋, nunca desmaia)
     if result.get('self_damage') and result.get('effect_type') != 'fixed_damage':
         actor['hp'] = max(1, actor['hp'] - int(result['self_damage']))
-    # v3: cura instantânea em recarga — não consome o turno (o ator escolhe
-    # outro golpe; a IA dos selvagens já evita moves em recarga na escolha)
+    # v3: cura instantânea em recarga — não consome o turno do JOGADOR (ele
+    # escolhe outro golpe). Selvagem bloqueado AVANÇA o turno: a IA re-escolhe
+    # no próximo round; sem isso o loop de turnos automáticos travava a
+    # batalha com o selvagem preso como combatente atual.
     if result.get('blocked'):
         battle['log'].append({'type': 'info',
                               'message': f"⏳ {actor['name']}: {result.get('message', move_name + ' em recarga')}"})
+        if actor.get('side') == 'wild':
+            gb.advance_turn(battle)
         return
     # F5: clima/terreno de campo (Rain Dance, Grassy Terrain...)
     if result.get('effect_type') == 'field':
@@ -4119,7 +4157,7 @@ def _group_field_round_hook(battle):
     if rnd <= int(battle.get('_field_round_done') or 0):
         return
     battle['_field_round_done'] = rnd
-    # 🌱 Leech Seed: portador perde ⌊HPmáx/8⌋; um oponente vivo cura o mesmo
+    # 🌱 Leech Seed: portador perde seed_drain (⌊HPmáx/16⌋); um oponente vivo cura o mesmo
     for c in battle['combatants'].values():
         if c.get('fainted') or c['hp'] <= 0:
             continue
@@ -5649,12 +5687,14 @@ def handle_initiative(data):
     wild_pokemon = encounter['pokemon']
     player_pokemon = encounter.get('player_pokemon') or {}
     
-    # Iniciativa v3: d20 + SPE_eff//5; upset 20vs1; desempate por SPE
+    # Iniciativa v3.1: d100 + SPE_eff + Tática×5; upset ≥96 vs ≤5; desempate por SPE
     wild_spe = effects.effective_stat(wild_pokemon, 'SPE')
     player_spe = effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10
     player_extra = int((player_pokemon or {}).get('trainer_init_bonus') or 0)
     wild_mod = bm_core.initiative_bonus(wild_spe)
-    player_mod = bm_core.initiative_bonus(player_spe) + player_extra
+    # mod exibido = o que soma de verdade no total (Tática entra ×INIT_EXTRA_STEP)
+    player_mod = (bm_core.initiative_bonus(player_spe)
+                  + bm_core.INIT_EXTRA_STEP * player_extra)
 
     nat_player = random.randint(1, 100)
     nat_wild = random.randint(1, 100)
@@ -5934,7 +5974,8 @@ def handle_battle_action(data):
                          proficiency=ppoke.get('proficiency', _prof_for_level(ppoke.get('level', 1))),
                          maxHp=ppoke.get('maxHp', 20), types=ppoke.get('types'),
                          _v3=_v3_side_state(ppoke)),   # Protect: corrente/flag no dict real
-                    dict(wpoke.get('stats', {}), level=wpoke.get('level', encounter.get('level', 5))))
+                    dict(wpoke.get('stats', {}), level=wpoke.get('level', encounter.get('level', 5)),
+                         ATK_eff=effects.effective_stat(wpoke, 'ATK')))
                 # v3: cura instantânea em recarga — não consome o turno
                 if sres.get('blocked'):
                     emit('action_blocked', {'message': sres.get('message'),
@@ -6025,7 +6066,8 @@ def handle_battle_action(data):
                     dict(wpoke.get('stats', {}), level=wpoke.get('level', encounter.get('level', 5)),
                          maxHp=battle_state.get('wild_hp_max', 20), types=wpoke.get('types'),
                          _v3=_v3_side_state(wpoke)),
-                    dict(ppoke.get('stats', {}), level=ppoke.get('level', 1)))
+                    dict(ppoke.get('stats', {}), level=ppoke.get('level', 1),
+                         ATK_eff=effects.effective_stat(ppoke, 'ATK')))
                 # v3: cura do selvagem em recarga — avisa o mestre, turno fica
                 if sres.get('blocked'):
                     emit('action_blocked', {'message': sres.get('message'),
@@ -6192,6 +6234,9 @@ def handle_battle_action(data):
                     # selvagem defendeu → atacante (jogador) sofre a reação
                     wild_lv = int(wild_poke.get('level') or encounter.get('level') or 5)
                     res = ab.check_contact_ability(wild_poke.get('ability'), _prof_for_level(wild_lv))
+                    # imunidade do atacante (tipo/habilidade) anula a reação de status
+                    if res and res.get('status') and effects.contact_status_blocked(p_poke, res['status']):
+                        res = None
                     if res:
                         contact_trigger = res
                         if res['damage']:
@@ -6201,12 +6246,16 @@ def handle_battle_action(data):
                             battle_state['player_status'] = {'condition': res['status'], 'turns_active': 0}
                     # Habilidade do ATACANTE (jogador): Poison Touch etc. envenenam o selvagem
                     ares = ab.check_attacker_contact_ability(p_poke.get('ability'))
-                    if ares and ares.get('status') and not battle_state.get('wild_status'):
+                    if (ares and ares.get('status') and not battle_state.get('wild_status')
+                            and not effects.contact_status_blocked(wild_poke, ares['status'])):
                         battle_state['wild_status'] = {'condition': ares['status'], 'turns_active': 0}
                         contact_trigger = contact_trigger or ares
                 else:
                     # pokémon do jogador defendeu → selvagem sofre a reação
                     res = ab.check_contact_ability(p_poke.get('ability'), p_poke.get('proficiency') or 2)
+                    # imunidade do atacante (tipo/habilidade) anula a reação de status
+                    if res and res.get('status') and effects.contact_status_blocked(wild_poke, res['status']):
+                        res = None
                     if res:
                         contact_trigger = res
                         if res['damage']:
@@ -6216,7 +6265,8 @@ def handle_battle_action(data):
                             battle_state['wild_status'] = {'condition': res['status'], 'turns_active': 0}
                     # Habilidade do ATACANTE (selvagem): Poison Touch etc. envenenam o jogador
                     ares = ab.check_attacker_contact_ability(wild_poke.get('ability'))
-                    if ares and ares.get('status') and not battle_state.get('player_status'):
+                    if (ares and ares.get('status') and not battle_state.get('player_status')
+                            and not effects.contact_status_blocked(p_poke, ares['status'])):
                         battle_state['player_status'] = {'condition': ares['status'], 'turns_active': 0}
                         contact_trigger = contact_trigger or ares
 
@@ -6268,7 +6318,7 @@ def handle_battle_action(data):
         field_events = []
         if battle_state['turn'] == 'player':
             battle_state['round'] += 1
-            # 🌱 Leech Seed: o portador perde ⌊HPmáx/8⌋ e o OUTRO lado cura
+            # 🌱 Leech Seed: o portador perde seed_drain (⌊HPmáx/16⌋) e o OUTRO lado cura
             # o mesmo tanto (dreno canônico por rodada; nunca nocauteia)
             for holder_st, h_hp, h_max, o_hp, o_max, h_label, o_label in (
                     (battle_state.get('player_status'), 'player_hp_current',
@@ -6358,7 +6408,9 @@ def _auto_roll_initiative(player_id, game_state):
     player_spe = effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10
     player_extra = int((player_pokemon or {}).get('trainer_init_bonus') or 0)
     wild_mod = bm_core.initiative_bonus(wild_spe)
-    player_mod = bm_core.initiative_bonus(player_spe) + player_extra
+    # mod exibido = o que soma de verdade no total (Tática entra ×INIT_EXTRA_STEP)
+    player_mod = (bm_core.initiative_bonus(player_spe)
+                  + bm_core.INIT_EXTRA_STEP * player_extra)
 
     winner, player_init, wild_init, init_upset = bm_core.initiative_winner(
         random.randint(1, 100), random.randint(1, 100),
@@ -6866,9 +6918,14 @@ def handle_pvp_select(data):
                         import random as _r
                         battle['phase'] = 'battle'
                         battle['round'] = 1
-                        i1 = _r.randint(1, 100)
-                        i2 = _r.randint(1, 100)
-                        battle['turn'] = 'player1' if i1 >= i2 else 'player2'
+                        # mesma regra do caminho normal: d100 + SPE_eff (fonte única)
+                        _p1 = battle['player1']['team'][battle['player1'].get('active_idx', 0)]
+                        _p2 = battle['player2']['team'][battle['player2'].get('active_idx', 0)]
+                        _w, _, _, _ = bm_core.initiative_winner(
+                            _r.randint(1, 100), _r.randint(1, 100),
+                            effects.effective_stat(_p1, 'SPE'),
+                            effects.effective_stat(_p2, 'SPE'))
+                        battle['turn'] = 'player1' if _w == 'a' else 'player2'
                         result = 'battle_start'
 
         if result == 'battle_start':
@@ -7029,6 +7086,9 @@ def handle_pvp_attack(data):
         # Habilidade de contato do defensor (Static, Rough Skin...)
         if damage > 0 and (MOVES_BY_NAME.get(move_name.lower()) or {}).get('category', 'physical') == 'physical':
             cres = ab.check_contact_ability(def_poke.get('ability'), def_poke.get('proficiency') or 2)
+            # imunidade do atacante (tipo/habilidade) anula a reação de status
+            if cres and cres.get('status') and effects.contact_status_blocked(att_poke, cres['status']):
+                cres = None
             if cres:
                 if cres['damage']:
                     att_poke['currentHp'] = max(-999, att_poke.get('currentHp', 0) - cres['damage'])
@@ -7037,7 +7097,8 @@ def handle_pvp_attack(data):
                 battle['log'].append({'type': 'ability', 'message': cres['message']})
             # Habilidade do ATACANTE (Poison Touch...) envenena o defensor no contato
             ares = ab.check_attacker_contact_ability(att_poke.get('ability'))
-            if ares and ares.get('status') and not def_poke.get('status'):
+            if (ares and ares.get('status') and not def_poke.get('status')
+                    and not effects.contact_status_blocked(def_poke, ares['status'])):
                 def_poke['status'] = {'condition': ares['status'], 'turns_active': 0}
                 battle['log'].append({'type': 'ability', 'message': ares['message']})
 
@@ -7380,7 +7441,7 @@ def _pvp_field_round_hook(battle):
     if rnd <= int(battle.get('_field_round_done') or 0):
         return
     battle['_field_round_done'] = rnd
-    # 🌱 Leech Seed: portador perde ⌊HPmáx/8⌋, o lado oposto cura o mesmo
+    # 🌱 Leech Seed: portador perde seed_drain (⌊HPmáx/16⌋), o lado oposto cura o mesmo
     for key, other in (('player1', 'player2'), ('player2', 'player1')):
         side = battle[key]
         poke = side['team'][side['active_idx']]
@@ -7473,9 +7534,16 @@ def _npc_pick_move(attacker_poke, defender_poke, defender_has_status=False):
 
         if _is_status_move(md):
             detected = effects.auto_detect_move_effect(md)
+            # a recarga de cura vive num BUCKET compartilhado ('__heal_self__'),
+            # não no nome do golpe — sem este filtro a IA insistia num heal
+            # bloqueado e o loop de turnos automáticos não avançava
+            if (detected and detected.get('type') in ('heal_self', 'drain_stat_heal')
+                    and int(((attacker_poke.get('_v3') or {}).get('cooldowns') or {})
+                            .get(effects.HEAL_SUSTAIN_KEY, 0)) > 0):
+                continue
             if not detected:
                 score = 2
-            elif detected['type'] == 'heal_self':
+            elif detected['type'] in ('heal_self', 'drain_stat_heal'):
                 score = 60 if hp_ratio < 0.35 else 1
             elif detected['type'] == 'inflict_status':
                 score = 0 if defender_has_status else 22
@@ -7533,7 +7601,8 @@ def _process_pvp_status_move(battle, attacker_key, move_name, move_data):
              currentHp=max(0, pvp._poke_hp(att_poke)),
              _v3=_v3_side_state(att_poke)),   # Protect: corrente/flag no dict real
         dict(def_poke.get('stats', {}), level=def_poke.get('level', 1),
-             currentHp=max(0, pvp._poke_hp(def_poke))))
+             currentHp=max(0, pvp._poke_hp(def_poke)),
+             ATK_eff=effects.effective_stat(def_poke, 'ATK')))
 
     # custo pago pelo próprio usuário (Curse fantasma: ⌊HPmáx/2⌋, nunca desmaia)
     if result.get('self_damage') and result.get('effect_type') != 'fixed_damage':
@@ -7772,6 +7841,9 @@ def handle_npc_turn(battle, npc_key, forced=False):
     # Habilidade de contato do defensor reage ao golpe físico do NPC
     if damage > 0 and (MOVES_BY_NAME.get(move.lower()) or {}).get('category', 'physical') == 'physical':
         cres = ab.check_contact_ability(def_poke.get('ability'), def_poke.get('proficiency') or 2)
+        # imunidade do atacante (tipo/habilidade) anula a reação de status
+        if cres and cres.get('status') and effects.contact_status_blocked(npc_poke, cres['status']):
+            cres = None
         if cres:
             if cres['damage']:
                 npc_poke['currentHp'] = max(-999, npc_poke.get('currentHp', 0) - cres['damage'])
@@ -7780,7 +7852,8 @@ def handle_npc_turn(battle, npc_key, forced=False):
             battle['log'].append({'type': 'ability', 'message': cres['message']})
         # Habilidade do ATACANTE (NPC com Poison Touch...) envenena o defensor
         ares = ab.check_attacker_contact_ability(npc_poke.get('ability'))
-        if ares and ares.get('status') and not def_poke.get('status'):
+        if (ares and ares.get('status') and not def_poke.get('status')
+                and not effects.contact_status_blocked(def_poke, ares['status'])):
             def_poke['status'] = {'condition': ares['status'], 'turns_active': 0}
             battle['log'].append({'type': 'ability', 'message': ares['message']})
 

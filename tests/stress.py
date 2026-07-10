@@ -1657,6 +1657,41 @@ def main():
     check(S, 'Strength Sap: cura = ATK do alvo + ATK do alvo −1 (com recarga)',
           _ss.get('heal') == 60 and _ss.get('stat_changes') == {'ATK': -1}
           and _ss.get('effect_type') == 'debuff' and _ss.get('cooldown') == 3)
+    # retorno decrescente também vale para drain_stat_heal (anti heal-stall)
+    _ss_v3 = {'_v3': {}}
+    _s1 = appmod.effects.process_status_move(
+        {'name': 'Strength Sap', 'category': 'status'},
+        dict({'maxHp': 100}, **_ss_v3), {'ATK': 60, 'level': 30})
+    _ss_v3['_v3'].get('cooldowns', {}).clear()   # espera a recarga passar
+    _s2 = appmod.effects.process_status_move(
+        {'name': 'Strength Sap', 'category': 'status'},
+        dict({'maxHp': 100}, **_ss_v3), {'ATK': 60, 'level': 30})
+    check(S, 'Strength Sap decai: 60 → 30 (heal_uses compartilhado)',
+          _s1.get('heal') == 60 and _s2.get('heal') == 30
+          and _ss_v3['_v3'].get('heal_uses') == 2)
+    _se = appmod.effects.process_status_move(
+        {'name': 'Strength Sap', 'category': 'status'},
+        {'maxHp': 200, '_v3': {}}, {'ATK': 60, 'ATK_eff': 90, 'level': 30})
+    check(S, 'Strength Sap usa ATK EFETIVO do alvo quando o caller passa',
+          _se.get('heal') == 90)
+    # imunidade a status de CONTATO: Elétrico não paralisa; Limber idem
+    check(S, 'contact_status_blocked: Elétrico/Limber imunes à paralisia de Static',
+          appmod.effects.contact_status_blocked({'types': ['Electric']}, 'paralisado')
+          and appmod.effects.contact_status_blocked(
+              {'types': ['Normal'], 'ability': 'Limber'}, 'paralisado')
+          and not appmod.effects.contact_status_blocked({'types': ['Normal']}, 'paralisado'))
+    # dreno POW≤50 (Mega Drain) tem recarga de sustain → NÃO serve de filler
+    check(S, 'filler de moveset ignora drenos (Mega Drain tem recarga)',
+          not appmod._move_sem_recarga('Mega Drain')
+          and appmod._move_sem_recarga('Ember')
+          and 'Ember' in appmod._ensure_filler_move(['Mega Drain', 'Giga Drain'],
+                                                    ['Mega Drain', 'Ember', 'Giga Drain']))
+    check(S, 'v3_decayed_heal: 50 → 25 → 12 (fonte única motor+gates)',
+          bmm.v3_decayed_heal(50, 0) == 50 and bmm.v3_decayed_heal(50, 1) == 25
+          and bmm.v3_decayed_heal(50, 2) == 12)
+    check(S, 'batch traz drain canônico (recarga real no tooltip)',
+          (p1.post('/api/moves/batch', json={'moves': ['Mega Drain']})
+           .get_json() or {}).get('Mega Drain', {}).get('drain') == 50)
     _et = appmod.effects.auto_detect_move_effect({'name': 'Electric Terrain',
                                                   'category': 'status'})
     check(S, 'Electric Terrain é TERRENO (chave duplicada removida)',

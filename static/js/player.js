@@ -1150,7 +1150,9 @@ async function loadMovesData(moveNames) {
 function moveMechanicsLine(m) {
     if (!m || !m.power_num) return '';
     const [n, sides] = BattleMath.v3DiceBase(m.power_num);
-    const cd = BattleMath.v3Cooldown(m.power_num);
+    // recarga REAL do servidor: máx(POW, sustain do dreno) — Mega Drain
+    // (POW 40) tem recarga 1 pelo dreno mesmo abaixo do degrau de POW 55
+    const cd = BattleMath.v3MoveCooldown(m.power_num, m.drain || 0);
     const acc = (m.accuracy == null) ? 'certeiro' : `ACC ${m.accuracy}%`;
     return `v3: POW ${m.power_num} → ${n}d${sides} · ${acc}`
          + (cd ? ` · recarga ${cd}` : '');
@@ -6073,9 +6075,15 @@ async function processWildStatusMove(moveName) {
             addBattleLog(`🔒 ${moveName} prendeu seu Pokémon! Não pode trocar.`);
         }
 
+        if (result.heal) {
+            // drain_stat_heal (Strength Sap): effect_type 'debuff' + heal —
+            // sem este campo o servidor nunca aplicava a cura do selvagem
+            addBattleLog(`💚 Selvagem recuperou ${result.heal} HP!`);
+        }
         socket.emit('battle_action', {
             action_by: 'master', action_type: 'status',
             move_name: moveName, damage: 0,
+            heal: result.heal || 0,
             wild_status_damage: window._wildPreTurnStatusDamage || 0,
             status_effect: result.status_applied || null,
             message: result.message

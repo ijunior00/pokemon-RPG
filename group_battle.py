@@ -39,10 +39,10 @@ def build_battle(allies, wilds, hunt_mode='normal', route_id=None, table_id=None
     combatants = {}
     order_pairs = []  # (init, cid)
 
+    import status_effects as effects
     for i, a in enumerate(allies):
         poke = dict(a['pokemon'])
-        if isinstance(poke.get('_v3'), dict):
-            poke['_v3'].pop('heal_uses', None)   # batalha nova: cura decrescente zera
+        effects.new_battle_reset([poke])   # batalha nova: heal_uses/_weather zeram
         maxhp = int(poke.get('maxHp') or poke.get('hp') or 20)
         curhp = int(_poke_hp(poke)) if _poke_hp(poke) else maxhp
         cid = f'a{i}'
