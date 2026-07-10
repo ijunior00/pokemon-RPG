@@ -31,34 +31,32 @@ por `tools/battle_sweep_v3.py` (calibrador) e `tools/battle_matrix_v3.py`
 
 ## 1. TABELA MESTRA (POW → dados, TN, cooldown)
 
-Tudo no sistema deriva desta única tabela. 10 degraus, progressão suave
-(média dos dados: 3,5 → 4,5 → 5,5 → 7 → 9 → 10,5 → 13,5 → 14 → 16,5 → 22).
+Tudo no sistema deriva desta única tabela. 10 degraus, progressão MONOTÔNICA
+(média dos dados: 3,5 → 4,5 → 5,5 → 7 → 9 → 10,5 → 13,5 → 17,5 → 21 → 22).
 
 | POW do golpe | Dados de dano | TN de Resistência (d100) | Recarga |
 |---|---|---|---|
 | 10–20 (mínimo) | **1d6** | 50 | — |
 | 25–35 (fraco) | **1d8** | 60 | — |
 | 40–50 | **1d10** | 70 | — |
-| 55–65 | **2d6** | 80 | **1 rodada** |
+| 55–65 | **2d6** | 80 | — |
 | 70–80 (médio) | **2d8** | 90 | **1 rodada** |
 | 85–95 (médio-alto) | **3d6** | 100 | **1 rodada** |
 | 100–110 (alto) | **3d8** | 110 | **2 rodadas** |
-| 115–125 (devastador) | **4d6** | 120 | **2 rodadas** |
-| 130–140 (cataclísmico) | **3d10** | 130 | **3 rodadas** |
+| 115–125 (devastador) | **5d6** | 120 | **2 rodadas** |
+| 130–140 (cataclísmico) | **6d6** | 130 | **3 rodadas** |
 | 145+ (lendário; inclui 160–250) | **4d10** | 140 | **3 rodadas** |
 
 Exemplos canônicos: Tackle 40 → 1d10 · Aerial Ace 60 → 2d6 · Slash 70 → 2d8 ·
 Flamethrower 90 → 3d6 · Earthquake 100 / Thunder 110 / Fire Blast 110 → 3d8 ·
-Future Sight 120 → 4d6 · Hyper Beam 150 → 4d10.
+Future Sight 120 → 5d6 · Blast Burn 150 / Hyper Beam 150 → 4d10.
 
-> **Nota do quase-empate 3d8/4d6:** as médias 13,5 (3d8) e 14,0 (4d6) quase
-> empatam — o degrau 115–125 se diferencia pelo TN maior (o defensor resiste
-> menos), pelo mínimo maior (4) e pela variância menor: é o degrau
-> "consistente". Mantido fiel à tabela definida pelo dono do projeto.
-
-> **Recarga a partir de POW 55:** ~metade dos golpes do jogo tem recarga 1 —
-> rotação de golpes é parte do jogo desde o mid-game. Todo moveset gerado
-> (selvagem/NPC) garante ≥1 golpe de dano POW ≤ 50 (sem recarga).
+> **Recarga só a partir do degrau 70–80:** os quatro primeiros degraus
+> (POW ≤ 65) não têm recarga por potência — só os drenos mantêm a recarga
+> de sustain (Seção 11). No lançamento do v3.1 a recarga começava em POW 55;
+> subiu por feedback da mesa (movesets médios ficavam sem ação nas rodadas
+> de espera). Todo moveset gerado (selvagem/NPC/presente) garante ≥1 golpe
+> de dano sem recarga alguma.
 
 ---
 
@@ -551,7 +549,7 @@ longos)**, validado por DOIS gates:
 
 | Cenário do sweep | Mediana | Janela |
 |---|---|---|
-| Nv 15 iniciais (POW 60) | 5,0 | 4–6 |
+| Nv 15 iniciais (POW 60) | 4,0 | 4–6 |
 | Nv 40 equilibrados (POW 90) | 5,0 | 4–6 |
 | Nv 40 sweeper vs tanque | 5,0 | 4–8 |
 | Nv 60 fortes (POW 100) | 6,0 | 4–6 |
@@ -574,6 +572,12 @@ Calibrações que fizeram a janela fechar (documentadas nas seções 3.3 e 4):
 - **Leech Seed ⌊HP/16⌋** — a 1/8 era o DoT mais forte do jogo E curava junto.
   A matriz simula pelo `seed_drain` do motor (espelho de Venusaur: winrate
   42,8% na banda; a duração alonga para mediana ~9 — sustain mútuo).
+- **Recarga a partir do degrau 70–80 + 5d6/6d6 nos devastadores** (revisão
+  pós-mesa) — com recarga desde POW 55, movesets médios ficavam sem ação
+  ("cooldown infinito" percebido, já que recarga só cai quando o Pokémon
+  age); POW ≤ 65 ficou livre e os degraus 115–125/130–140 subiram para
+  5d6/6d6 (médias monotônicas). Sweep e matriz seguiram verdes sem mexer
+  em outra alavanca (Nv 15 caiu de 5,0 para 4,0 — ainda na janela).
 
 Ajuste **uma alavanca por vez** e re-rode sweep + matriz até tudo verde.
 

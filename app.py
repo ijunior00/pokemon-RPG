@@ -3346,10 +3346,10 @@ def _canon_power(m):
 
 
 def _move_sem_recarga(m):
-    """True se é golpe de dano SEM recarga alguma: POW ≤ 50 E sem dreno
-    (Absorb/Mega Drain têm POW baixo mas recarga de sustain)."""
+    """True se é golpe de dano SEM recarga alguma: POW ≤ 65 (Tabela Mestra)
+    E sem dreno (Absorb/Mega Drain têm POW baixo mas recarga de sustain)."""
     p = _canon_power(m)
-    if not (0 < p <= 50):
+    if p <= 0:
         return False
     try:
         drain = int(canon_move(m).get('drain') or 0)
@@ -3360,8 +3360,8 @@ def _move_sem_recarga(m):
 
 def _ensure_filler_move(moves, move_pool):
     """Garante ≥1 golpe de dano sem recarga no moveset (Tabela Mestra: recarga
-    a partir de POW 55) — senão a IA fica sem ação nas rodadas de espera.
-    Usado pelos geradores de selvagem, NPC e presente."""
+    a partir do degrau 70-80) — senão a IA fica sem ação nas rodadas de
+    espera. Usado pelos geradores de selvagem, NPC e presente."""
     moves = [m for m in (moves or []) if m]
     if any(_move_sem_recarga(m) for m in moves):
         return moves[:4] if moves else ['Tackle']

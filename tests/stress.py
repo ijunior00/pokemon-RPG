@@ -784,7 +784,7 @@ def main():
           appmod.ab.check_attacker_contact_ability('Overgrow') is None)
 
     # Venoshock: dano dobra contra alvo envenenado (sinergia de veneno).
-    # (atacante FRESCO por chamada — Venoshock POW 65 agora tem recarga 1)
+    # (atacante FRESCO por chamada — isola o estado _v3 entre os cenários)
     import statistics as _stat
 
     def _veno(status):
@@ -2232,7 +2232,7 @@ def main():
 
     # Momentum: variar +1 (máx 3); repetir zera
     # (rotação termina em Ember, POW 40 sem recarga, para o repeat não ser
-    # bloqueado pelo cooldown novo dos POW 55-80)
+    # bloqueado pela recarga dos POW ≥ 70)
     c2, b2 = fresh('Charizard', 50), fresh('Blastoise', 50)
     for mv in ('Wing Attack', 'Slash', 'Ember', 'Wing Attack', 'Slash', 'Ember'):
         appmod._calc_attack_core(c2, b2, mv, attack_roll=10, field={})
@@ -2661,6 +2661,13 @@ def main():
     check(S, 'Dream Eater (POW 100, dreno) → recarga 2', appmod.bm_core.v3_move_cooldown(100, 50) == 2)
     check(S, 'POW 90 sem dreno segue a Tabela Mestra (1)', appmod.bm_core.v3_move_cooldown(90, 0) == 1)
     check(S, 'Hyper Beam (150) mantém recarga 3', appmod.bm_core.v3_move_cooldown(150, 0) == 3)
+    # recarga por POW só a partir do degrau 70-80 (jogabilidade de mesa)
+    check(S, 'recarga por POW: 55-65 livre, degrau 70-80 tem recarga 1',
+          bmm.v3_cooldown(60) == 0 and bmm.v3_cooldown(65) == 0
+          and bmm.v3_cooldown(70) == 1 and bmm.v3_cooldown(80) == 1)
+    check(S, 'dados novos dos degraus altos: 120→5d6, 135→6d6, 150→4d10',
+          bmm.v3_dice_base(120) == (5, 6) and bmm.v3_dice_base(135) == (6, 6)
+          and bmm.v3_dice_base(150) == (4, 10))
     check(S, 'cura de metade/total → recarga 3 (jogo de 4-6 turnos); um quarto → 1',
           appmod.bm_core.v3_heal_cooldown('half') == 3 and appmod.bm_core.v3_heal_cooldown('full') == 3
           and appmod.bm_core.v3_heal_cooldown('quarter') == 1)
