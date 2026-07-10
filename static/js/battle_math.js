@@ -162,7 +162,21 @@ const BattleMath = (() => {
 
     // ── Iniciativa ──
     function initiativeBonus(speEff) {
-        return Math.floor(speEff / 10);
+        return Math.floor(speEff / 5);
+    }
+
+    // Decide a iniciativa entre 'a' e 'b' (espelho de initiative_winner):
+    // 1) upset 20vs1 (lento tira 20 natural, rápido tira 1) → lento primeiro;
+    // 2) maior total; 3) empate → maior SPE_eff; 4) empate completo → 'a'.
+    function initiativeWinner(natA, natB, speA, speB, extraA = 0, extraB = 0) {
+        speA = Math.trunc(speA); speB = Math.trunc(speB);
+        const totalA = Math.trunc(natA) + initiativeBonus(speA) + Math.trunc(extraA || 0);
+        const totalB = Math.trunc(natB) + initiativeBonus(speB) + Math.trunc(extraB || 0);
+        if (speA < speB && natA === 20 && natB === 1) return ['a', totalA, totalB, true];
+        if (speB < speA && natB === 20 && natA === 1) return ['b', totalA, totalB, true];
+        if (totalA !== totalB) return [totalA > totalB ? 'a' : 'b', totalA, totalB, false];
+        if (speA !== speB) return [speA > speB ? 'a' : 'b', totalA, totalB, false];
+        return ['a', totalA, totalB, false];
     }
 
     // ── Dano fixo ──
@@ -391,7 +405,7 @@ const BattleMath = (() => {
         RATIO_CLAMP, STAB_MULT, damageScale, TRAINING_POINTS_PER_LEVEL, TRAINING_CAP,
         DEFENSE_MODES, statAtLevel, hpAtLevel, trainingBudget, trainingCap,
         missThreshold, rollHits, levelTierMult, diceForPower, defenseStatKey,
-        defenseTax, damage, stageMult, initiativeBonus, fixedDamageFor,
+        defenseTax, damage, stageMult, initiativeBonus, initiativeWinner, fixedDamageFor,
         TRAINING_STATS, parseEvolutionStage, statCost, nextPointCost, trainingSpent,
         potentialPoints, trainingPoints, pointsBudget, statTierLocked,
         HIGH_CRIT_MOVES, critThreshold, critStageFor, VARIABLE_POWER,

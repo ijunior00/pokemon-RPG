@@ -393,30 +393,41 @@ def get_growth_rate(pokemon):
 # ============================================================
 # SPECIAL EVOLUTION TABLE
 # Maps base pokemon name (lowercase) → evolution condition dict
-# condition types: 'stone', 'level', 'friendship', 'move', 'stat_check'
+# TODA condição especial é 'stone' (troca/amizade/golpe/stat foram
+# convertidas para pedras — decisão de design para simplificar a mesa).
 # ============================================================
 SPECIAL_EVOLUTIONS = {
     # ── Fire Stone ─────────────────────────────────────────
     'vulpix':    {'into': 'Ninetales',  'type': 'stone', 'stone': 'Fire Stone'},
     'growlithe': {'into': 'Arcanine',   'type': 'stone', 'stone': 'Fire Stone'},
     'pansear':   {'into': 'Simisear',   'type': 'stone', 'stone': 'Fire Stone'},
-    'eevee_fire':{'into': 'Flareon',    'type': 'stone', 'stone': 'Fire Stone'},   # see eevee routing below
+    'magby':     {'into': 'Magmar',     'type': 'stone', 'stone': 'Fire Stone'},    # ex-amizade
 
     # ── Water Stone ────────────────────────────────────────
     'shellder':  {'into': 'Cloyster',   'type': 'stone', 'stone': 'Water Stone'},
     'staryu':    {'into': 'Starmie',    'type': 'stone', 'stone': 'Water Stone'},
     'lombre':    {'into': 'Ludicolo',   'type': 'stone', 'stone': 'Water Stone'},
     'panpour':   {'into': 'Simipour',   'type': 'stone', 'stone': 'Water Stone'},
+    'azurill':   {'into': 'Marill',     'type': 'stone', 'stone': 'Water Stone'},   # ex-amizade
+    'pyukumuku': {'into': 'Silvally',   'type': 'stone', 'stone': 'Water Stone'},   # ex-lealdade (dado do banco)
 
     # ── Thunder Stone ──────────────────────────────────────
     'pikachu':   {'into': 'Raichu',     'type': 'stone', 'stone': 'Thunder Stone'},
-    'eevee_thunder': {'into': 'Jolteon','type': 'stone', 'stone': 'Thunder Stone'},
+    'pichu':     {'into': 'Pikachu',    'type': 'stone', 'stone': 'Thunder Stone'}, # ex-amizade
+    'elekid':    {'into': 'Electabuzz', 'type': 'stone', 'stone': 'Thunder Stone'}, # ex-amizade
+    'charjabug': {'into': 'Vikavolt',   'type': 'stone', 'stone': 'Thunder Stone'}, # texto do banco pede Thunder Stone
+    'eelektrik': {'into': 'Eelektross', 'type': 'stone', 'stone': 'Thunder Stone'}, # texto do banco
 
     # ── Leaf Stone ─────────────────────────────────────────
-    'gloom_leaf':{'into': 'Vileplume',  'type': 'stone', 'stone': 'Leaf Stone'},
     'weepinbell':{'into': 'Victreebel', 'type': 'stone', 'stone': 'Leaf Stone'},
     'exeggcute': {'into': 'Exeggutor',  'type': 'stone', 'stone': 'Leaf Stone'},
     'nuzleaf':   {'into': 'Shiftry',    'type': 'stone', 'stone': 'Leaf Stone'},
+    'pansage':   {'into': 'Simisage',   'type': 'stone', 'stone': 'Leaf Stone'},    # texto do banco
+    'tangela':   {'into': 'Tangrowth',  'type': 'stone', 'stone': 'Leaf Stone'},    # ex-move
+    'steenee':   {'into': 'Tsareena',   'type': 'stone', 'stone': 'Leaf Stone'},    # ex-move (órfã)
+    'bonsly':    {'into': 'Sudowoodo',  'type': 'stone', 'stone': 'Leaf Stone'},    # ex-move (órfã)
+    'budew':     {'into': 'Roselia',    'type': 'stone', 'stone': 'Leaf Stone'},    # ex-amizade
+    'swadloon':  {'into': 'Leavanny',   'type': 'stone', 'stone': 'Leaf Stone'},    # ex-lealdade
 
     # ── Moon Stone ─────────────────────────────────────────
     'nidorina':  {'into': 'Nidoqueen',  'type': 'stone', 'stone': 'Moon Stone'},
@@ -424,41 +435,79 @@ SPECIAL_EVOLUTIONS = {
     'clefairy':  {'into': 'Clefable',   'type': 'stone', 'stone': 'Moon Stone'},
     'jigglypuff':{'into': 'Wigglytuff', 'type': 'stone', 'stone': 'Moon Stone'},
     'munna':     {'into': 'Musharna',   'type': 'stone', 'stone': 'Moon Stone'},
-    'eevee_moon':{'into': 'Sylveon',    'type': 'stone', 'stone': 'Moon Stone'},  # simplified for RPG
+    'cleffa':    {'into': 'Clefairy',   'type': 'stone', 'stone': 'Moon Stone'},    # ex-amizade
+    'igglybuff': {'into': 'Jigglypuff', 'type': 'stone', 'stone': 'Moon Stone'},    # ex-amizade
+    'buneary':   {'into': 'Lopunny',    'type': 'stone', 'stone': 'Moon Stone'},    # ex-amizade
+    'munchlax':  {'into': 'Snorlax',    'type': 'stone', 'stone': 'Moon Stone'},    # ex-amizade
+    'lickitung': {'into': 'Lickilicky', 'type': 'stone', 'stone': 'Moon Stone'},    # ex-move
+    'skitty':    {'into': 'Delcatty',   'type': 'stone', 'stone': 'Moon Stone'},    # texto do banco pede Moon Stone
+    'happiny':   {'into': 'Chansey',    'type': 'stone', 'stone': 'Moon Stone'},    # ex-Oval Stone (não existe no jogo)
 
     # ── Sun Stone ──────────────────────────────────────────
     'sunkern':   {'into': 'Sunflora',   'type': 'stone', 'stone': 'Sun Stone'},
-    'gloom_sun': {'into': 'Bellossom',  'type': 'stone', 'stone': 'Sun Stone'},
     'helioptile':{'into': 'Heliolisk',  'type': 'stone', 'stone': 'Sun Stone'},
     'cottonee':  {'into': 'Whimsicott', 'type': 'stone', 'stone': 'Sun Stone'},
     'petilil':   {'into': 'Lilligant',  'type': 'stone', 'stone': 'Sun Stone'},
+    'yanma':     {'into': 'Yanmega',    'type': 'stone', 'stone': 'Sun Stone'},     # ex-move
 
     # ── Shiny Stone ────────────────────────────────────────
     'togetic':   {'into': 'Togekiss',   'type': 'stone', 'stone': 'Shiny Stone'},
     'roselia':   {'into': 'Roserade',   'type': 'stone', 'stone': 'Shiny Stone'},
     'minccino':  {'into': 'Cinccino',   'type': 'stone', 'stone': 'Shiny Stone'},
+    'togepi':    {'into': 'Togetic',    'type': 'stone', 'stone': 'Shiny Stone'},   # ex-amizade
+    'chansey':   {'into': 'Blissey',    'type': 'stone', 'stone': 'Shiny Stone'},   # ex-amizade
+    'aipom':     {'into': 'Ambipom',    'type': 'stone', 'stone': 'Shiny Stone'},   # ex-move
+    'spritzee':  {'into': 'Aromatisse', 'type': 'stone', 'stone': 'Shiny Stone'},   # ex-Sachet (não existe no jogo)
+    'swirlix':   {'into': 'Slurpuff',   'type': 'stone', 'stone': 'Shiny Stone'},   # ex-Whipped Dream (não existe no jogo)
+    'floette':   {'into': 'Florges',    'type': 'stone', 'stone': 'Shiny Stone'},   # texto do banco
 
     # ── Dusk Stone ─────────────────────────────────────────
     'misdreavus':{'into': 'Mismagius',  'type': 'stone', 'stone': 'Dusk Stone'},
     'murkrow':   {'into': 'Honchkrow',  'type': 'stone', 'stone': 'Dusk Stone'},
     'doublade':  {'into': 'Aegislash',  'type': 'stone', 'stone': 'Dusk Stone'},
+    'golbat':    {'into': 'Crobat',     'type': 'stone', 'stone': 'Dusk Stone'},    # ex-amizade
+    'woobat':    {'into': 'Swoobat',    'type': 'stone', 'stone': 'Dusk Stone'},    # ex-amizade
+    'lampent':   {'into': 'Chandelure', 'type': 'stone', 'stone': 'Dusk Stone'},    # texto do banco
 
     # ── Dawn Stone ─────────────────────────────────────────
     'snorunt':   {'into': 'Froslass',   'type': 'stone', 'stone': 'Dawn Stone'},
+    'riolu':     {'into': 'Lucario',    'type': 'stone', 'stone': 'Dawn Stone'},    # ex-amizade
+    'mime jr.':  {'into': 'Mr. Mime',   'type': 'stone', 'stone': 'Dawn Stone'},    # ex-move (órfã)
 
     # ── Ice Stone ──────────────────────────────────────────
     'sandshrew': {'into': 'Sandslash',  'type': 'stone', 'stone': 'Ice Stone'},
+    'piloswine': {'into': 'Mamoswine',  'type': 'stone', 'stone': 'Ice Stone'},     # ex-move
+    'smoochum':  {'into': 'Jynx',       'type': 'stone', 'stone': 'Ice Stone'},     # ex-amizade
 
-    # ── Eevee (handled separately — stone determines branch) ─
+    # ── Gloom (a pedra escolhe o ramo) ─────────────────────
+    'gloom': [
+        {'into': 'Vileplume',  'type': 'stone', 'stone': 'Leaf Stone'},
+        {'into': 'Bellossom',  'type': 'stone', 'stone': 'Sun Stone'},
+    ],
+
+    # ── Eevee (a pedra escolhe o ramo; ex-amizade → Sun/Moon) ─
     'eevee': [
         {'into': 'Flareon',   'type': 'stone', 'stone': 'Fire Stone'},
         {'into': 'Vaporeon',  'type': 'stone', 'stone': 'Water Stone'},
         {'into': 'Jolteon',   'type': 'stone', 'stone': 'Thunder Stone'},
         {'into': 'Leafeon',   'type': 'stone', 'stone': 'Leaf Stone'},
         {'into': 'Glaceon',   'type': 'stone', 'stone': 'Ice Stone'},
-        {'into': 'Espeon',    'type': 'friendship'},
-        {'into': 'Umbreon',   'type': 'friendship'},
-        {'into': 'Sylveon',   'type': 'stone', 'stone': 'Moon Stone'},
+        {'into': 'Espeon',    'type': 'stone', 'stone': 'Sun Stone'},
+        {'into': 'Umbreon',   'type': 'stone', 'stone': 'Moon Stone'},
+        {'into': 'Sylveon',   'type': 'stone', 'stone': 'Shiny Stone'},
+    ],
+
+    # ── Wurmple (a pedra escolhe o casulo; ex-dia/noite) ───
+    'wurmple': [
+        {'into': 'Silcoon',    'type': 'stone', 'stone': 'Sun Stone'},
+        {'into': 'Cascoon',    'type': 'stone', 'stone': 'Moon Stone'},
+    ],
+
+    # ── Tyrogue (a pedra escolhe a forma; ex-stat check) ───
+    'tyrogue': [
+        {'into': 'Hitmonlee',  'type': 'stone', 'stone': 'Sun Stone'},
+        {'into': 'Hitmonchan', 'type': 'stone', 'stone': 'Moon Stone'},
+        {'into': 'Hitmontop',  'type': 'stone', 'stone': 'Dawn Stone'},
     ],
 
     # ── Pedra por tipo (ex-trade simples) ─────────────────────
@@ -474,10 +523,7 @@ SPECIAL_EVOLUTIONS = {
         {'into': 'Poliwrath',  'type': 'stone', 'stone': 'Water Stone'},
         {'into': 'Politoed',   'type': 'stone', 'stone': "King's Rock"},
     ],
-    'slowpoke': [
-        {'into': 'Slowbro',    'type': 'level', 'level': 37},
-        {'into': 'Slowking',   'type': 'stone', 'stone': 'Dawn Stone'},             # Psychic branch
-    ],
+    'slowpoke':  {'into': 'Slowking',   'type': 'stone', 'stone': 'Dawn Stone'},    # Slowbro vai por nível (evolutionInfo)
     'onix':      {'into': 'Steelix',    'type': 'stone', 'stone': 'Metal Coat'},    # vira Steel
     'scyther':   {'into': 'Scizor',     'type': 'stone', 'stone': 'Metal Coat'},    # vira Steel
     'seadra':    {'into': 'Kingdra',    'type': 'stone', 'stone': 'Dragon Scale'},  # vira Dragon
@@ -488,33 +534,8 @@ SPECIAL_EVOLUTIONS = {
     'electabuzz':{'into': 'Electivire', 'type': 'stone', 'stone': 'Thunder Stone'}, # Electric
     'magmar':    {'into': 'Magmortar',  'type': 'stone', 'stone': 'Fire Stone'},    # Fire
     'feebas':    {'into': 'Milotic',    'type': 'stone', 'stone': 'Water Stone'},   # Water
-
-    # ── Friendship (≥10 batalhas vencidas com este Pokémon) ─
-    'pichu':     {'into': 'Pikachu',    'type': 'friendship'},
-    'cleffa':    {'into': 'Clefairy',   'type': 'friendship'},
-    'igglybuff': {'into': 'Jigglypuff', 'type': 'friendship'},
-    'togepi':    {'into': 'Togetic',    'type': 'friendship'},
-    'azurill':   {'into': 'Marill',     'type': 'friendship'},
-    'buneary':   {'into': 'Lopunny',    'type': 'friendship'},
-    'chansey':   {'into': 'Blissey',    'type': 'friendship'},
-    'golbat':    {'into': 'Crobat',     'type': 'friendship'},
-    'munchlax':  {'into': 'Snorlax',    'type': 'friendship'},
-    'riolu':     {'into': 'Lucario',    'type': 'friendship'},
-    'woobat':    {'into': 'Swoobat',    'type': 'friendship'},
-
-    # ── Move especifico (ao aprender o move, evolui) ───────
-    'lickitung': {'into': 'Lickilicky', 'type': 'move', 'move': 'Rollout'},
-    'tangela':   {'into': 'Tangrowth',  'type': 'move', 'move': 'Ancient Power'},
-    'piloswine': {'into': 'Mamoswine',  'type': 'move', 'move': 'Ancient Power'},
-    'yanma':     {'into': 'Yanmega',    'type': 'move', 'move': 'Ancient Power'},
-    'aipom':     {'into': 'Ambipom',    'type': 'move', 'move': 'Double Hit'},
-
-    # ── Tyrogue (por stat ao atingir level 20) ─────────────
-    'tyrogue': [
-        {'into': 'Hitmonlee',  'type': 'stat_check', 'condition': 'atk_gt_def'},
-        {'into': 'Hitmonchan', 'type': 'stat_check', 'condition': 'def_gt_atk'},
-        {'into': 'Hitmontop',  'type': 'stat_check', 'condition': 'atk_eq_def'},
-    ],
+    # NOTA: Rockruff→Lycanroc fica FORA — a espécie Lycanroc não existe no
+    # banco de dados (tools/audit_evolutions.py monitora este caso).
 }
 
 # Stones that can be used as items (all lowercase for matching)
@@ -542,44 +563,56 @@ _STONE_PT_TO_EN = {
     'pedra gelo':        'ice stone',
 }
 
+EVO_LEVEL_SCALE = 5  # níveis do evolutionInfo são escala 5e = canon/5 (Dragonair 11→55)
+
+
+# Alvos cujo nome no texto difere do nome da espécie no banco
+EVO_TARGET_ALIASES = {
+    'meowstic': 'meowstic ♂',   # Espurr → "Meowstic"; banco tem "Meowstic ♂"
+}
+
+
+def parse_level_evolution(info):
+    """Extrai do evolutionInfo a evolução por nível PURA (sem condição).
+    Retorna (nome_alvo, nível_do_pokemon) ou (None, None).
+    - Ramos com 'with the help of <pedra>' são pulados — são evolução por
+      pedra (ex.: 'Raichu at level 8 ... with the help of a Thunder Stone'
+      NÃO pode evoluir de graça por nível).
+    - Ramos com gate de lealdade ('if its loyalty...') também são pulados —
+      as ex-evoluções por amizade viraram pedra (SPECIAL_EVOLUTIONS).
+    - O 'level N' do banco é escala 5e; o nível do Pokémon do jogo é escala
+      canon (1-100) → limiar = N × EVO_LEVEL_SCALE (Ivysaur 3→15, canon 16)."""
+    import re
+    for m in re.finditer(r"evolve into ([A-Za-z0-9\-\.'\s]+?) at (?:trainer )?level (\d+)",
+                         info or '', re.IGNORECASE):
+        # só o trecho DESTE ramo: para no ponto ou no próximo "or"/", or"
+        # (vírgula sozinha NÃO separa ramo: "…, only if its Loyalty…")
+        tail = re.split(r'\.|,? or ', info[m.end():], maxsplit=1)[0].lower()
+        if 'with the help' in tail or 'loyalty' in tail:
+            continue  # ramo condicional (pedra/ex-amizade) — SPECIAL_EVOLUTIONS
+        return m.group(1).strip(), int(m.group(2)) * EVO_LEVEL_SCALE
+    return None, None
+
+
 def get_special_evolution(pokemon_name: str, stone_used: str = None, battle_wins: int = 0, moves: list = None):
     """
     Returns (evolved_into: str, condition_met: bool) for special evolutions.
-    stone_used: item name from bag (Portuguese or English)
-    battle_wins: how many battles this pokemon has won
-    moves: list of move names the pokemon knows
+    stone_used: item name from bag (Portuguese or English).
+    battle_wins/moves: aceitos por compatibilidade e ignorados — toda
+    condição especial virou pedra.
     """
     name_lower = pokemon_name.strip().lower()
     entry = SPECIAL_EVOLUTIONS.get(name_lower)
-    if not entry:
+    if not entry or not stone_used:
         return None, False
 
     candidates = entry if isinstance(entry, list) else [entry]
 
     # Normalise stone name: Portuguese → English
-    stone_normalised = None
-    if stone_used:
-        stone_normalised = _STONE_PT_TO_EN.get(stone_used.strip().lower(), stone_used.strip().lower())
+    stone_normalised = _STONE_PT_TO_EN.get(stone_used.strip().lower(), stone_used.strip().lower())
 
     for cond in candidates:
-        evo_type = cond['type']
-
-        if evo_type == 'stone' and stone_normalised:
-            if stone_normalised == cond['stone'].lower():
-                return cond['into'], True
-
-        elif evo_type == 'friendship':
-            if battle_wins >= 10:
-                return cond['into'], True
-
-        elif evo_type == 'move' and moves:
-            move_lower = [m.lower() for m in moves]
-            if cond['move'].lower() in move_lower:
-                return cond['into'], True
-
-        elif evo_type == 'stat_check':
-            # Tyrogue — caller passes extra context via stone_used field as condition key
-            if stone_used and stone_used == cond['condition']:
-                return cond['into'], True
+        if cond['type'] == 'stone' and stone_normalised == cond['stone'].lower():
+            return cond['into'], True
 
     return None, False

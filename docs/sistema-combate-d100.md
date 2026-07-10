@@ -195,6 +195,38 @@ Speed; empate de Speed → 1d20 de desempate.
 caem pela metade: 100% → 50% → 25%… (teste no d100). Errou = falhou e a corrente
 reinicia.
 
+### 7.1 Iniciativa (quem começa a batalha)
+
+**Fórmula:** `1d20 + ⌊SPE_efetivo / 5⌋ (+ Tática do treinador, 0 a +2)`
+
+O SPE efetivo entra com estágios, paralisia (×0,5), natureza e treino — um
+Pokémon paralisado ou com a Speed rebaixada realmente perde iniciativa.
+
+Ordem de decisão:
+
+1. **Upset 20 vs 1** — se o mais LENTO tira **20 natural** e o mais rápido tira
+   **1 natural**, o lento age primeiro, ignorando modificadores (1/400 ≈ 0,25%).
+   É a "virada lendária": rara, mas sempre possível.
+2. Maior **total**.
+3. Empate de total → maior **SPE efetivo**.
+4. Empate completo → jogador (ou player1 no PvP).
+
+Por que ⌊SPE/5⌋ (antes era ⌊SPE/10⌋): o d20 tem amplitude 19; com /10 o bônus
+típico (+1 a +9 nos níveis 10-30) deixava a sorte decidir a ordem. Com /5 a
+Speed vira o fator principal e o dado vira o imprevisto. Probabilidade de o
+mais lento agir primeiro, por gap `g` de bônus — `P = (19−g)(20−g)/800`:
+
+| Diferença de Speed base (Nv 50) | Gap de bônus | P(lento primeiro) |
+|---|---|---|
+| ±15 (ex.: 75 vs 90) | ~3 | ~34% — disputa equilibrada |
+| ±30 (ex.: 60 vs 90) | ~6 | ~23% — favorece o rápido |
+| ±60 (ex.: 30 vs 90) | ~12 | ~7% — rápido domina |
+| ±100+ (ex.: 30 vs 150) | ≥19 | 0,25% — só pela regra do 20 vs 1 |
+
+**Batalha em grupo:** cada combatente rola `1d20 + ⌊SPE_eff/5⌋ + Tática` e a
+ordem é decrescente; empate de total → maior SPE efetivo. A regra do 20 vs 1
+não se aplica (só faz sentido em duelo).
+
 ---
 
 ## 8. Precisão 100% vs ACC ∞ (Certeiros: Aerial Ace, Swift, Shock Wave…)

@@ -78,6 +78,82 @@ function getPokemonSpriteUrl(number, shiny = false) {
     return `/static/sprites/${padded}.${ext}`;
 }
 
+// ============================================
+// FOCO DE EVOLUÇÃO — overlay fullscreen exibido em TODAS as telas da mesa
+// (jogadores + mestre) quando qualquer Pokémon evolui. Disparado pelo evento
+// socket 'evolution_focus'. Respeita shiny nos dois sprites.
+// ============================================
+function showEvolutionFocus(evo) {
+    return new Promise(resolve => {
+        const shiny = !!evo.shiny;
+        const oldSprite = getPokemonSpriteUrl(evo.old_number || 0, shiny);
+        const newSprite = getPokemonSpriteUrl(evo.new_number || 0, shiny);
+        const displayFrom = evo.nickname || evo.from || evo.old_name || '';
+        const displayTo = evo.to || evo.new_name || '';
+        const isMine = typeof window.CURRENT_USER_ID !== 'undefined'
+            && String(evo.player_id || '') === String(window.CURRENT_USER_ID);
+        const ownerLine = (!isMine && evo.player_name)
+            ? `<p style="margin:0 0 0.8rem;color:#9ad;font-size:1rem;">Pokémon de <strong>${evo.player_name}</strong></p>`
+            : '';
+        const newMovesHtml = (evo.new_moves && evo.new_moves.length)
+            ? `<div style="margin-top:1rem;background:rgba(255,255,255,0.08);padding:0.75rem;border-radius:8px;">
+                   <p style="color:#7fff00;margin:0 0 0.4rem;">🎯 Novos golpes disponíveis:</p>
+                   <div style="display:flex;flex-wrap:wrap;gap:0.4rem;justify-content:center;">
+                       ${evo.new_moves.map(m => `<span style="background:#1a1a3e;border:1px solid #7fff00;padding:0.2rem 0.7rem;border-radius:4px;font-size:0.85rem;">${m}</span>`).join('')}
+                   </div>
+               </div>`
+            : '';
+
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;transition:background 0.2s;';
+        overlay.innerHTML = `
+            <style>
+                @keyframes evo-pulse { 0%,100%{filter:brightness(1)} 50%{filter:brightness(3) saturate(0)} }
+                @keyframes evo-appear { from{opacity:0;transform:scale(0.5)} to{opacity:1;transform:scale(1)} }
+            </style>
+            ${ownerLine}
+            <h2 class="evo-title" style="color:#ffd700;font-size:2rem;margin-bottom:1.5rem;text-shadow:0 0 20px #ffd700;">✨ EVOLUINDO!${shiny ? ' 🌟' : ''} ✨</h2>
+            <img class="evo-sprite" src="${oldSprite}" style="width:160px;height:160px;object-fit:contain;image-rendering:pixelated;animation:evo-pulse 1s infinite;">
+            <p class="evo-subtext" style="margin:1rem;font-size:1.1rem;color:#aaa;">${displayFrom} está evoluindo...</p>
+            <div class="evo-details" style="display:none;max-width:480px;text-align:center;">${newMovesHtml}</div>
+            <button class="evo-btn" style="display:none;margin-top:1.5rem;background:#ffd700;color:#000;border:none;padding:0.75rem 2.5rem;border-radius:8px;font-size:1rem;font-weight:bold;cursor:pointer;">✨ Incrível!</button>
+        `;
+        document.body.appendChild(overlay);
+
+        // Fase 1: flash branco
+        setTimeout(() => { overlay.style.background = '#fff'; }, 1400);
+
+        // Fase 2: revela o sprite novo
+        setTimeout(() => {
+            overlay.style.background = '#000';
+            const spriteEl = overlay.querySelector('.evo-sprite');
+            spriteEl.style.animation = 'evo-appear 0.6s ease forwards';
+            spriteEl.src = newSprite;
+            const title = overlay.querySelector('.evo-title');
+            title.textContent = `✨ ${displayFrom} evoluiu para ${displayTo}!${shiny ? ' 🌟' : ''} ✨`;
+            title.style.color = '#7fff00';
+            title.style.textShadow = '0 0 20px #7fff00';
+            const sub = overlay.querySelector('.evo-subtext');
+            sub.textContent = '🎉 Parabéns!';
+            sub.style.color = '#ffd700';
+            overlay.querySelector('.evo-details').style.display = 'block';
+            const btn = overlay.querySelector('.evo-btn');
+            btn.style.display = 'inline-block';
+            btn.onclick = () => { overlay.remove(); resolve(); };
+            // auto-fecha depois de 12s (espectadores não precisam clicar)
+            setTimeout(() => { if (overlay.parentNode) { overlay.remove(); resolve(); } }, 12000);
+        }, 1700);
+    });
+}
+
+// Fila: evoluções simultâneas (ex.: /master/xp em time inteiro) aparecem em
+// sequência, nunca sobrepostas.
+let _evoFocusQueue = Promise.resolve();
+function queueEvolutionFocus(evo) {
+    _evoFocusQueue = _evoFocusQueue.then(() => showEvolutionFocus(evo));
+    return _evoFocusQueue;
+}
+
 // Close modal on escape
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {

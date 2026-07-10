@@ -2808,39 +2808,12 @@ def _carry_evolution_potential(old_poke, evolved, evolved_base):
     return evolved
 
 
-def check_and_evolve_pokemon(pokemon, trainer_level=None):
-    """Check if a Pokemon should evolve based on trainer level.
-    evolutionInfo stores the required *trainer* level (not pokemon level).
-    Returns (evolved_pokemon_data, evolved_name) or (None, None) if no evolution."""
-    import re
-    info = pokemon.get('evolutionInfo', '') or ''
-    if not info:
-        # Fall back to base Pokémon data in case team entry predates evolutionInfo field
-        base = POKEMON_BY_NAME.get((pokemon.get('name') or '').lower())
-        info = (base or {}).get('evolutionInfo', '') or ''
-    if not info:
-        return None, None
-
-    # Parse: "X can evolve into Y at trainer level N"
-    match = re.search(r'evolve into ([A-Za-z\-\s]+?) at (?:trainer )?level (\d+)', info, re.IGNORECASE)
-    if not match:
-        return None, None
-
-    evolved_name = match.group(1).strip()
-    evo_trainer_level = int(match.group(2))
-
-    # trainer_level explicit; fallback: pokemon.level ≈ trainer_level - 2
-    effective_trainer_level = trainer_level if trainer_level is not None else (pokemon.get('level', 1) + 2)
-    if effective_trainer_level < evo_trainer_level:
-        return None, None
-
+def build_evolved_pokemon(pokemon, evolved_base):
+    """Monta o dict do Pokémon evoluído a partir da espécie-alvo, preservando
+    os dados do jogador (shiny, nickname, nature, moves, item, XP, treino,
+    potencial). Builder ÚNICO usado por nível, pedra e recompensas de batalha
+    — mantém imunidades/phys_ac/spec_ac consistentes em todos os caminhos."""
     current_level = pokemon.get('level', 1)
-
-    evolved_base = POKEMON_BY_NAME.get(evolved_name.lower())
-    if not evolved_base:
-        return None, None
-
-    # Build evolved pokemon, preserving player-specific data
     scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'),
                                              is_shiny=pokemon.get('is_shiny', False),
                                              training=pokemon.get('training'))
@@ -2880,6 +2853,64 @@ def check_and_evolve_pokemon(pokemon, trainer_level=None):
         'statPointsAvailable': pokemon.get('statPointsAvailable', 0),
     }
     _carry_evolution_potential(pokemon, evolved, evolved_base)
+    return evolved
+
+
+def _evolution_new_moves(pokemon, evolved_base):
+    """Golpes novos que a forma evoluída traz (startingMoves que o Pokémon
+    ainda não conhece e existem no banco de moves)."""
+    return [m for m in (evolved_base.get('startingMoves') or [])
+            if m not in (pokemon.get('moves') or [])
+            and m.lower() in MOVES_BY_NAME]
+
+
+def _emit_evolution_focus(player_id, player_name, slot, old_pokemon, evolved, new_moves, source):
+    """Broadcast do evento de evolução para a MESA INTEIRA (jogadores +
+    mestre): todas as telas focam na animação do Pokémon evoluindo."""
+    payload = {
+        'player_id': str(player_id),
+        'player_name': player_name or '',
+        'slot': slot,
+        'old_name': old_pokemon.get('name', ''),
+        'new_name': evolved.get('name', ''),
+        'old_number': old_pokemon.get('number', 0),
+        'new_number': evolved.get('number', 0),
+        'nickname': evolved.get('nickname', ''),
+        'shiny': bool(evolved.get('is_shiny')),
+        'new_moves': new_moves or [],
+        'source': source,
+    }
+    socketio.emit('evolution_focus', payload, room=f'players_{_tid()}')
+    socketio.emit('evolution_focus', payload, room=f'master_{_tid()}')
+
+
+def check_and_evolve_pokemon(pokemon, trainer_level=None):
+    """Checa evolução por nível do POKÉMON: o 'level N' do evolutionInfo
+    (escala 5e) vira N×5 na escala canon e é comparado com o nível do
+    próprio Pokémon. O parâmetro trainer_level é aceito por
+    compatibilidade e ignorado.
+    Returns (evolved_pokemon_data, evolved_name) or (None, None)."""
+    info = pokemon.get('evolutionInfo', '') or ''
+    if not info:
+        # Fall back to base Pokémon data in case team entry predates evolutionInfo field
+        base = POKEMON_BY_NAME.get((pokemon.get('name') or '').lower())
+        info = (base or {}).get('evolutionInfo', '') or ''
+    if not info:
+        return None, None
+
+    evolved_name, evo_level = scaling.parse_level_evolution(info)
+    if not evolved_name:
+        return None, None
+
+    if pokemon.get('level', 1) < evo_level:
+        return None, None
+
+    _key = evolved_name.lower()
+    evolved_base = POKEMON_BY_NAME.get(scaling.EVO_TARGET_ALIASES.get(_key, _key))
+    if not evolved_base:
+        return None, None
+
+    evolved = build_evolved_pokemon(pokemon, evolved_base)
     return evolved, evolved_base['name']
 
 
@@ -2920,23 +2951,28 @@ def give_xp():
                     pokemon['stab'] = scaled['stab']
                     pokemon['phys_ac'] = scaled['phys_ac']
                     pokemon['spec_ac'] = scaled['spec_ac']
-            evolved, evolved_name = check_and_evolve_pokemon(pokemon, trainer_level=new_level)
+            evolved, evolved_name = check_and_evolve_pokemon(pokemon)
             if evolved:
                 old_name = pokemon.get('name', '')
                 old_number = pokemon.get('number', 0)
                 evolved_base_data = POKEMON_BY_NAME.get(evolved_name.lower(), {})
-                new_moves = [m for m in (evolved_base_data.get('startingMoves') or [])
-                             if m not in (pokemon.get('moves') or [])
-                             and m.lower() in MOVES_BY_NAME]
+                new_moves = _evolution_new_moves(pokemon, evolved_base_data)
                 trainer['team'][i] = evolved
                 evolutions.append({
                     'from': old_name, 'to': evolved_name, 'slot': i,
                     'old_number': old_number, 'new_number': evolved.get('number', 0),
-                    'new_moves': new_moves
+                    'new_moves': new_moves,
+                    '_old_pokemon': pokemon, '_evolved': evolved,
                 })
 
         users[player_id]['trainer_data'] = trainer
         save_users(users)
+
+        # Foco de evolução para a mesa inteira (todas as telas)
+        for ev in evolutions:
+            _emit_evolution_focus(player_id, users[player_id].get('username', ''),
+                                  ev['slot'], ev.pop('_old_pokemon'), ev.pop('_evolved'),
+                                  ev['new_moves'], 'level')
 
         # Emit XP update to specific player
         socketio.emit('xp_update', {
@@ -3019,9 +3055,8 @@ def give_pokemon_xp():
             pokemon['phys_ac'] = scaled['phys_ac']
             pokemon['spec_ac'] = scaled['spec_ac']
 
-    # Check evolution (use trainer level to determine eligibility)
-    trainer_level = trainer.get('level', 1)
-    evolved, evolved_name = check_and_evolve_pokemon(pokemon, trainer_level=trainer_level)
+    # Check evolution (nível do próprio Pokémon)
+    evolved, evolved_name = check_and_evolve_pokemon(pokemon)
     evolution = None
     if evolved:
         old_name = pokemon.get('name', '')
@@ -3036,6 +3071,12 @@ def give_pokemon_xp():
 
     users[player_id]['trainer_data'] = trainer
     save_users(users)
+
+    if evolved:
+        evolved_base_data = POKEMON_BY_NAME.get(evolved_name.lower(), {})
+        _emit_evolution_focus(player_id, users[player_id].get('username', ''),
+                              pokemon_idx, pokemon, evolved,
+                              _evolution_new_moves(pokemon, evolved_base_data), 'level')
 
     socketio.emit('pokemon_xp_update', {
         'pokemon_idx': pokemon_idx,
@@ -4474,12 +4515,11 @@ def use_evolution_stone():
     if not bag_item or (bag_item.get('qty') or 0) < 1:
         return jsonify({'error': f'Você não tem {item_name} na bolsa!'}), 400
 
-    # Check evolution
+    # Check evolution — endpoint de pedra só avalia a PEDRA (nunca passa
+    # moves/battle_wins, senão condição de outro tipo consumiria o item)
     evolved_name, ok = scaling.get_special_evolution(
         pokemon['name'],
-        stone_used=item_name,
-        battle_wins=pokemon.get('battle_wins', 0),
-        moves=pokemon.get('moves', [])
+        stone_used=item_name
     )
     if not ok or not evolved_name:
         return jsonify({'error': f'{pokemon["name"]} não evolui com {item_name}.'}), 400
@@ -4488,41 +4528,7 @@ def use_evolution_stone():
     if not evolved_base:
         return jsonify({'error': f'Pokémon evoluído "{evolved_name}" não encontrado no banco.'}), 404
 
-    # Build evolved Pokémon
-    current_level = pokemon.get('level', 1)
-    scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'),
-                                             is_shiny=pokemon.get('is_shiny', False),
-                                             training=pokemon.get('training'))
-    evolved = {
-        'name': evolved_base['name'],
-        'number': evolved_base['number'],
-        'types': evolved_base.get('types', pokemon.get('types', [])),
-        'level': current_level,
-        'hp': scaled['hp'], 'maxHp': scaled['maxHp'],
-        'currentHp': min(pokemon.get('currentHp', scaled['hp']), scaled['hp']),
-        'ac': scaled['ac'], 'stats': scaled['stats'],
-        'proficiency': scaled['proficiency'], 'stab': scaled['stab'],
-        'speed': evolved_base.get('speed', pokemon.get('speed', '30ft')),
-        'ability': evolved_base.get('ability', {}).get('name', '') if evolved_base.get('ability') else pokemon.get('ability', ''),
-        'vulnerabilities': evolved_base.get('vulnerabilities', []),
-        'resistances': evolved_base.get('resistances', []),
-        'evolutionInfo': evolved_base.get('evolutionInfo', ''),
-        'evolutionStage': evolved_base.get('evolutionStage', ''),
-        'is_shiny': pokemon.get('is_shiny', False),
-        'training': pokemon.get('training'),
-        'sv': migrations.STATS_VERSION,
-        'nickname': pokemon.get('nickname', ''),
-        'nature': pokemon.get('nature', ''),
-        'moves': pokemon.get('moves', []),
-        'heldItem': pokemon.get('heldItem', ''),
-        'notes': pokemon.get('notes', ''),
-        'battle_wins': pokemon.get('battle_wins', 0),
-        # preserva o XP acumulado (senão o Pokémon "regredia" no próximo load)
-        'xp': pokemon.get('xp', 0),
-        'totalXp': pokemon.get('totalXp', 0),
-        'statPointsAvailable': pokemon.get('statPointsAvailable', 0),
-    }
-    _carry_evolution_potential(pokemon, evolved, evolved_base)
+    evolved = build_evolved_pokemon(pokemon, evolved_base)
     team[pokemon_idx] = evolved
 
     # Consume item from bag
@@ -4534,116 +4540,14 @@ def use_evolution_stone():
     users[current_user.id]['trainer_data'] = trainer
     save_users(users)
 
-    # Notify
-    display_name = evolved['nickname'] or evolved['name']
-    socketio.emit('pokemon_evolved', {
-        'player_id':    current_user.id,
-        'old_name':     pokemon['name'],
-        'new_name':     evolved['name'],
-        'display_name': display_name,
-        'method':       f'usou {item_name}'
-    }, room=f'players_{_tid()}')
-    socketio.emit('pokemon_evolved', {
-        'player_id': current_user.id,
-        'old_name':  pokemon['name'],
-        'new_name':  evolved['name'],
-        'method':    f'usou {item_name}'
-    }, room=f'master_{_tid()}')
+    stone_new_moves = _evolution_new_moves(pokemon, evolved_base)
+    _emit_evolution_focus(current_user.id, current_user.username, pokemon_idx,
+                          pokemon, evolved, stone_new_moves, 'stone')
 
-    stone_evolved_base = POKEMON_BY_NAME.get(evolved['name'].lower(), {})
-    stone_new_moves = [m for m in (stone_evolved_base.get('startingMoves') or [])
-                       if m not in (pokemon.get('moves') or [])
-                       and m.lower() in MOVES_BY_NAME]
     return jsonify({
         'ok': True, 'evolved_into': evolved['name'], 'pokemon': evolved,
         'old_number': pokemon.get('number', 0), 'new_number': evolved.get('number', 0),
         'new_moves': stone_new_moves
-    })
-
-
-@app.route('/player/friendship-evolve', methods=['POST'])
-@login_required
-def friendship_evolve():
-    """Evolve a Pokémon by friendship (≥10 battle wins)."""
-    data = request.json or {}
-    pokemon_idx = data.get('pokemon_idx')
-
-    users   = get_users()
-    trainer = users.get(current_user.id, {}).get('trainer_data', {})
-    team    = trainer.get('team', [])
-
-    if pokemon_idx is None or pokemon_idx < 0 or pokemon_idx >= len(team):
-        return jsonify({'error': 'Pokémon inválido'}), 400
-
-    pokemon = team[pokemon_idx]
-    wins    = pokemon.get('battle_wins', 0)
-
-    evolved_name, ok = scaling.get_special_evolution(
-        pokemon['name'], battle_wins=wins
-    )
-    if not ok or not evolved_name:
-        return jsonify({'error': f'{pokemon["name"]} não está pronto para evoluir por amizade (precisa de 10 batalhas vencidas, tem {wins}).'}), 400
-
-    evolved_base = POKEMON_BY_NAME.get(evolved_name.lower())
-    if not evolved_base:
-        return jsonify({'error': f'"{evolved_name}" não encontrado.'}), 404
-
-    current_level = pokemon.get('level', 1)
-    scaled = scaling.calculate_pokemon_stats(evolved_base, current_level, pokemon.get('nature'),
-                                             is_shiny=pokemon.get('is_shiny', False),
-                                             training=pokemon.get('training'))
-    evolved = {
-        'name': evolved_base['name'], 'number': evolved_base['number'],
-        'types': evolved_base.get('types', pokemon.get('types', [])),
-        'level': current_level,
-        'hp': scaled['hp'], 'maxHp': scaled['maxHp'],
-        'currentHp': min(pokemon.get('currentHp', scaled['hp']), scaled['hp']),
-        'ac': scaled['ac'], 'stats': scaled['stats'],
-        'proficiency': scaled['proficiency'], 'stab': scaled['stab'],
-        'speed': evolved_base.get('speed', pokemon.get('speed', '30ft')),
-        'ability': evolved_base.get('ability', {}).get('name', '') if evolved_base.get('ability') else pokemon.get('ability', ''),
-        'vulnerabilities': evolved_base.get('vulnerabilities', []),
-        'resistances': evolved_base.get('resistances', []),
-        'evolutionInfo': evolved_base.get('evolutionInfo', ''),
-        'evolutionStage': evolved_base.get('evolutionStage', ''),
-        'is_shiny': pokemon.get('is_shiny', False),
-        'training': pokemon.get('training'),
-        'sv': migrations.STATS_VERSION,
-        'nickname': pokemon.get('nickname', ''),
-        'nature': pokemon.get('nature', ''),
-        'moves': pokemon.get('moves', []),
-        'heldItem': pokemon.get('heldItem', ''),
-        'notes': pokemon.get('notes', ''),
-        'battle_wins': wins,
-        # preserva o XP acumulado (senão o Pokémon "regredia" no próximo load)
-        'xp': pokemon.get('xp', 0),
-        'totalXp': pokemon.get('totalXp', 0),
-        'statPointsAvailable': pokemon.get('statPointsAvailable', 0),
-    }
-    _carry_evolution_potential(pokemon, evolved, evolved_base)
-    team[pokemon_idx] = evolved
-    trainer['team'] = team
-    users[current_user.id]['trainer_data'] = trainer
-    save_users(users)
-
-    display_name = evolved['nickname'] or evolved['name']
-    socketio.emit('pokemon_evolved', {
-        'player_id': current_user.id, 'old_name': pokemon['name'],
-        'new_name': evolved['name'], 'display_name': display_name, 'method': 'amizade'
-    }, room=f'players_{_tid()}')
-    socketio.emit('pokemon_evolved', {
-        'player_id': current_user.id, 'old_name': pokemon['name'],
-        'new_name': evolved['name'], 'method': 'amizade'
-    }, room=f'master_{_tid()}')
-
-    friendship_evolved_base = POKEMON_BY_NAME.get(evolved['name'].lower(), {})
-    friendship_new_moves = [m for m in (friendship_evolved_base.get('startingMoves') or [])
-                            if m not in (pokemon.get('moves') or [])
-                            and m.lower() in MOVES_BY_NAME]
-    return jsonify({
-        'ok': True, 'evolved_into': evolved['name'], 'pokemon': evolved,
-        'old_number': pokemon.get('number', 0), 'new_number': evolved.get('number', 0),
-        'new_moves': friendship_new_moves
     })
 
 
@@ -4696,26 +4600,21 @@ def level_evolve():
 
     pokemon = team[slot]
     old_name = pokemon.get('name', '')
-    trainer_level = trainer.get('level', 1)
-    evolved, evolved_name = check_and_evolve_pokemon(pokemon, trainer_level=trainer_level)
+    evolved, evolved_name = check_and_evolve_pokemon(pokemon)
 
     if not evolved:
         return jsonify({'evolved': False, 'message': f'{old_name} não atingiu o nível necessário para evoluir ainda.'})
 
     evolved_base_data = POKEMON_BY_NAME.get(evolved_name.lower(), {})
-    new_moves = [m for m in (evolved_base_data.get('startingMoves') or [])
-                 if m not in (pokemon.get('moves') or [])
-                 and m.lower() in MOVES_BY_NAME]
+    new_moves = _evolution_new_moves(pokemon, evolved_base_data)
 
     team[slot] = evolved
     trainer['team'] = team
     users[current_user.id]['trainer_data'] = trainer
     save_users(users)
 
-    socketio.emit('pokemon_evolved', {
-        'player_id': current_user.id, 'old_name': old_name,
-        'new_name': evolved['name'], 'method': 'level'
-    }, room=f'master_{_tid()}')
+    _emit_evolution_focus(current_user.id, current_user.username, slot,
+                          pokemon, evolved, new_moves, 'level')
 
     return jsonify({
         'evolved': True, 'old_name': old_name, 'pokemon': evolved,
@@ -5665,6 +5564,7 @@ def handle_encounter(data):
             'route_id': data.get('route_id'),
             'wild_moves': data.get('wild_moves', []),
             'player_pokemon': player_pokemon,
+            'player_pokemon_idx': player_pokemon_idx if player_pokemon else None,
             'player_pokemon_name': data.get('player_pokemon'),
             'battle_state': {
                 'turn': None,  # 'player' or 'wild'
@@ -5723,19 +5623,19 @@ def handle_initiative(data):
     wild_pokemon = encounter['pokemon']
     player_pokemon = encounter.get('player_pokemon') or {}
     
-    # Initiative = d20 + Speed/DEX modifier (support both stat formats)
-    wild_stats = wild_pokemon.get('stats', {})
-    wild_mod = bm_core.initiative_bonus(effects.effective_stat(wild_pokemon, 'SPE'))
-    
-    player_stats = player_pokemon.get('stats', {}) if player_pokemon else {}
-    player_mod = bm_core.initiative_bonus(
-        effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10) \
-        + int((player_pokemon or {}).get('trainer_init_bonus') or 0)
-    
-    wild_init = random.randint(1, 20) + wild_mod
-    player_init = random.randint(1, 20) + player_mod
-    
-    first_turn = 'player' if player_init >= wild_init else 'wild'
+    # Iniciativa v3: d20 + SPE_eff//5; upset 20vs1; desempate por SPE
+    wild_spe = effects.effective_stat(wild_pokemon, 'SPE')
+    player_spe = effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10
+    player_extra = int((player_pokemon or {}).get('trainer_init_bonus') or 0)
+    wild_mod = bm_core.initiative_bonus(wild_spe)
+    player_mod = bm_core.initiative_bonus(player_spe) + player_extra
+
+    nat_player = random.randint(1, 20)
+    nat_wild = random.randint(1, 20)
+    winner, player_init, wild_init, init_upset = bm_core.initiative_winner(
+        nat_player, nat_wild, player_spe, wild_spe, extra_a=player_extra)
+
+    first_turn = 'player' if winner == 'a' else 'wild'
     
     encounter['battle_state']['initiative_rolled'] = True
     encounter['battle_state']['turn'] = first_turn
@@ -5779,6 +5679,7 @@ def handle_initiative(data):
         'player_initiative': player_init,
         'player_mod': player_mod,
         'first_turn': first_turn,
+        'upset': init_upset,
         'on_enter_abilities': on_enter_msgs,
         'weather': encounter['battle_state'].get('weather'),
         'wild_auto': _wild_auto_mode(game_state),
@@ -6220,6 +6121,7 @@ def handle_battle_action(data):
                     battle_state['player_hp_current'] = new_hp
                     battle_state['player_hp_max'] = new_max_hp
                     encounter['player_pokemon'] = _sw_poke
+                    encounter['player_pokemon_idx'] = _sw_idx
             # trocar de pokémon zera os buffs/debuffs acumulados do lado do jogador
             ppoke_sw = encounter.get('player_pokemon')
             # sair de campo remove semente/prisão (Leech Seed/Bind)
@@ -6426,18 +6328,17 @@ def _auto_roll_initiative(player_id, game_state):
     wild_pokemon = encounter['pokemon']
     player_pokemon = encounter.get('player_pokemon') or {}
     
-    wild_stats = wild_pokemon.get('stats', {})
-    wild_mod = bm_core.initiative_bonus(effects.effective_stat(wild_pokemon, 'SPE'))
-    
-    player_stats = player_pokemon.get('stats', {}) if player_pokemon else {}
-    player_mod = bm_core.initiative_bonus(
-        effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10) \
-        + int((player_pokemon or {}).get('trainer_init_bonus') or 0)
-    
-    wild_init = random.randint(1, 20) + wild_mod
-    player_init = random.randint(1, 20) + player_mod
-    first_turn = 'player' if player_init >= wild_init else 'wild'
-    
+    wild_spe = effects.effective_stat(wild_pokemon, 'SPE')
+    player_spe = effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10
+    player_extra = int((player_pokemon or {}).get('trainer_init_bonus') or 0)
+    wild_mod = bm_core.initiative_bonus(wild_spe)
+    player_mod = bm_core.initiative_bonus(player_spe) + player_extra
+
+    winner, player_init, wild_init, init_upset = bm_core.initiative_winner(
+        random.randint(1, 20), random.randint(1, 20),
+        player_spe, wild_spe, extra_a=player_extra)
+    first_turn = 'player' if winner == 'a' else 'wild'
+
     encounter['battle_state']['initiative_rolled'] = True
     encounter['battle_state']['turn'] = first_turn
     encounter['battle_state']['round'] = 1
@@ -6454,6 +6355,7 @@ def _auto_roll_initiative(player_id, game_state):
         'player_initiative': player_init,
         'player_mod': player_mod,
         'first_turn': first_turn,
+        'upset': init_upset,
         'on_enter_abilities': [],
         'weather': None,
         'wild_auto': True,   # esta função só roda no modo AUTO
@@ -6504,6 +6406,78 @@ def handle_status_resolved(data):
         game_state['active_encounters'][player_id] = encounter
         save_game_state(game_state)
 
+def apply_battle_rewards(player_id, encounter, active_pokemon_name=None):
+    """Recompensas de vitória contra selvagem, 100% no SERVIDOR: XP
+    (tabela oficial), level-up com recálculo de stats, battle_wins por
+    ÍNDICE do slot e evolução por nível — tudo num único save.
+    Retorna dict com o resultado ou None se não há o que premiar."""
+    users = get_users()
+    trainer = users.get(player_id, {}).get('trainer_data', {})
+    team = trainer.get('team', [])
+    if not team:
+        return None
+
+    # Slot autoritativo: o que o servidor guardou no encontro (start/switch);
+    # fallback para clientes antigos: casa por nome/nickname.
+    slot = encounter.get('player_pokemon_idx')
+    if not isinstance(slot, int) or not (0 <= slot < len(team)):
+        name = ((encounter.get('player_pokemon') or {}).get('name')
+                or encounter.get('player_pokemon_name') or active_pokemon_name)
+        slot = next((i for i, p in enumerate(team)
+                     if p.get('name') == name or p.get('nickname') == name), None)
+    if slot is None:
+        return None
+
+    poke = team[slot]
+    wild_level = int(encounter.get('level')
+                     or (encounter.get('pokemon') or {}).get('level') or 1)
+    old_level = int(poke.get('level', 1))
+    xp_gained = scaling.battle_xp_reward(old_level, wild_level, 'wild')
+
+    poke['xp'] = poke.get('xp', 0) + xp_gained
+    poke['totalXp'] = poke.get('totalXp', 0) + xp_gained
+    new_level = max(old_level, scaling.level_from_xp(poke['totalXp']))
+    poke['level'] = new_level
+    leveled_up = new_level > old_level
+    if leveled_up:
+        base_poke = POKEMON_BY_NAME.get((poke.get('name') or '').lower())
+        if base_poke:
+            scaled = scaling.calculate_pokemon_stats(base_poke, new_level, poke.get('nature'),
+                                                     is_shiny=poke.get('is_shiny', False),
+                                                     training=poke.get('training'))
+            old_ratio = poke.get('currentHp', scaled['hp']) / max(1, poke.get('maxHp', scaled['hp']))
+            poke['stats'] = scaled['stats']
+            poke['maxHp'] = scaled['hp']
+            poke['currentHp'] = max(1, int(scaled['hp'] * old_ratio))
+            poke['proficiency'] = scaled['proficiency']
+            poke['stab'] = scaled['stab']
+            poke['phys_ac'] = scaled['phys_ac']
+            poke['spec_ac'] = scaled['spec_ac']
+
+    poke['battle_wins'] = poke.get('battle_wins', 0) + 1
+
+    evolution = None
+    evolved, evolved_name = check_and_evolve_pokemon(poke)
+    if evolved:
+        evolved_base = POKEMON_BY_NAME.get(evolved_name.lower(), {})
+        new_moves = _evolution_new_moves(poke, evolved_base)
+        team[slot] = evolved
+        evolution = {'old_pokemon': poke, 'evolved': evolved, 'new_moves': new_moves}
+
+    users[player_id]['trainer_data'] = trainer
+    save_users(users)
+
+    return {
+        'slot': slot,
+        'xp_gained': xp_gained,
+        'new_level': new_level,
+        'leveled_up': leveled_up,
+        'evolution': evolution,
+        'pokemon': team[slot],
+        'player_name': users.get(player_id, {}).get('username', ''),
+    }
+
+
 @socketio.on('end_encounter')
 def handle_end_encounter(data):
     """End an encounter."""
@@ -6519,18 +6493,13 @@ def handle_end_encounter(data):
             player_id = str(current_user.id)
         result = data.get('result', '')
 
-        # Track battle_wins on active Pokémon when player wins
-        if result == 'defeated':
-            users = get_users()
-            trainer = users.get(player_id, {}).get('trainer_data', {})
-            active_poke_name = data.get('active_pokemon_name')
-            if active_poke_name:
-                for poke in trainer.get('team', []):
-                    if poke.get('name') == active_poke_name or poke.get('nickname') == active_poke_name:
-                        poke['battle_wins'] = poke.get('battle_wins', 0) + 1
-                        break
-                users[player_id]['trainer_data'] = trainer
-                save_users(users)
+        # Vitória contra selvagem: XP/level-up/evolução server-side.
+        # Exige encontro ativo (sem encontro = sem prêmio; evita farm forjado).
+        rewards = None
+        encounter = game_state.get('active_encounters', {}).get(player_id)
+        if result == 'defeated' and encounter:
+            rewards = apply_battle_rewards(player_id, encounter,
+                                           data.get('active_pokemon_name'))
 
         if player_id in game_state['active_encounters']:
             del game_state['active_encounters'][player_id]
@@ -6539,6 +6508,22 @@ def handle_end_encounter(data):
         emit('encounter_ended', {'player_id': player_id, 'result': result}, room=player_id)
         _spectate('wild', {'id': f'wild_{player_id}', 'players': [player_id],
                            'finished': True, 'result': result})
+
+        if rewards:
+            socketio.emit('battle_rewards', {
+                'player_id': player_id,
+                'slot': rewards['slot'],
+                'xp_gained': rewards['xp_gained'],
+                'new_level': rewards['new_level'],
+                'leveled_up': rewards['leveled_up'],
+                'evolved': bool(rewards['evolution']),
+                'pokemon': rewards['pokemon'],
+            }, room=player_id)
+            if rewards['evolution']:
+                ev = rewards['evolution']
+                _emit_evolution_focus(player_id, rewards['player_name'],
+                                      rewards['slot'], ev['old_pokemon'],
+                                      ev['evolved'], ev['new_moves'], 'battle')
 
 @socketio.on('master_action')
 def handle_master_action(data):

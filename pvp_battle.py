@@ -65,14 +65,18 @@ def select_pokemon(battle, player_key, pokemon_idx):
     if p1['ready'] and p2['ready']:
         battle['phase'] = 'battle'
         battle['round'] = 1
-        # Roll initiative
-        init1 = roll_initiative(p1['team'][p1['active_idx']])
-        init2 = roll_initiative(p2['team'][p2['active_idx']])
-        battle['turn'] = 'player1' if init1 >= init2 else 'player2'
+        # Roll initiative (v3: upset 20vs1 + desempate por SPE)
+        import battle_math as bm
+        nat1, spe1, extra1 = roll_initiative(p1['team'][p1['active_idx']])
+        nat2, spe2, extra2 = roll_initiative(p2['team'][p2['active_idx']])
+        winner, init1, init2, upset = bm.initiative_winner(
+            nat1, nat2, spe1, spe2, extra_a=extra1, extra_b=extra2)
+        battle['turn'] = 'player1' if winner == 'a' else 'player2'
         battle['log'].append({
             'type': 'initiative',
             'player1_roll': init1,
             'player2_roll': init2,
+            'upset': upset,
             'first': battle['turn']
         })
         return True, "battle_start"
@@ -81,12 +85,12 @@ def select_pokemon(battle, player_key, pokemon_idx):
 
 
 def roll_initiative(pokemon):
-    """Iniciativa v2: d20 + SPE_efetivo//10 + mod(Tática)//2 do treinador
-    (estampado em trainer_init_bonus; NPC/selvagem não tem → 0)."""
-    import battle_math as bm
+    """Rola o d20 natural de iniciativa e devolve (natural, SPE_eff, tática).
+    A decisão fica com battle_math.initiative_winner (d20 + SPE_eff//5 +
+    Tática//2, upset 20vs1, desempate por SPE)."""
     spe = effects.effective_stat(pokemon, 'SPE') if isinstance(pokemon, dict) else 10
     tatica = int(pokemon.get('trainer_init_bonus') or 0) if isinstance(pokemon, dict) else 0
-    return random.randint(1, 20) + bm.initiative_bonus(spe) + tatica
+    return random.randint(1, 20), spe, tatica
 
 
 def _poke_hp(p):

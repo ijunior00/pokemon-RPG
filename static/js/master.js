@@ -113,10 +113,17 @@ socket.on('encounter_ended', (data) => {
     checkEmptyEncounters();
 });
 
+// Foco de evolução: a tela do mestre também roda o overlay quando qualquer
+// Pokémon da mesa evolui (showEvolutionFocus/queueEvolutionFocus em app.js).
+socket.on('evolution_focus', (data) => {
+    queueEvolutionFocus(data);
+});
+
 socket.on('initiative_result', (data) => {
     const log = document.querySelector(`[data-encounter-player="${data.player_id}"] .battle-log-master`);
     if (log) {
-        log.innerHTML += `<p>🎲 Iniciativa - Jogador: <strong>${data.player_initiative}</strong> (DEX ${data.player_mod >= 0 ? '+' : ''}${data.player_mod}) | Selvagem: <strong>${data.wild_initiative}</strong> (DEX ${data.wild_mod >= 0 ? '+' : ''}${data.wild_mod})</p>`;
+        log.innerHTML += `<p>🎲 Iniciativa - Jogador: <strong>${data.player_initiative}</strong> (SPE ${data.player_mod >= 0 ? '+' : ''}${data.player_mod}) | Selvagem: <strong>${data.wild_initiative}</strong> (SPE ${data.wild_mod >= 0 ? '+' : ''}${data.wild_mod})</p>`;
+        if (data.upset) log.innerHTML += `<p>💨 <strong>Virada lendária!</strong> 20 natural vs 1 natural — o mais lento agiu primeiro!</p>`;
         log.innerHTML += `<p>➡️ <strong>${data.first_turn === 'player' ? 'Jogador' : 'Pokémon Selvagem'}</strong> começa!</p>`;
         // Update turn indicator
         const turnEl = document.querySelector(`[data-encounter-player="${data.player_id}"] .turn-indicator`);

@@ -44,21 +44,16 @@ socket.on('xp_update', (data) => {
         }
         alert(`🎉 Parabéns! Você subiu para o Nível ${data.level}!`);
     }
-    // Show evolution animations sequentially then refresh team
+    // A animação de evolução chega pelo evento 'evolution_focus' (broadcast
+    // para a mesa inteira); aqui só recarrega o time se houve evolução.
     if (data.evolutions && data.evolutions.length > 0) {
-        (async () => {
-            for (const evo of data.evolutions) {
-                await triggerEvolutionSequence(evo);
+        fetch('/player/team-data').then(r => r.json()).then(team => {
+            if (team && !team.error) {
+                playerTeam = team;
+                TRAINER_DATA.team = team;
+                if (typeof renderTeam === 'function') renderTeam();
             }
-            // Reload team from server to reflect evolved data
-            fetch('/player/team-data').then(r => r.json()).then(team => {
-                if (team && !team.error) {
-                    playerTeam = team;
-                    TRAINER_DATA.team = team;
-                    if (typeof renderTeam === 'function') renderTeam();
-                }
-            }).catch(() => {});
-        })();
+        }).catch(() => {});
     }
 });
 
@@ -937,7 +932,8 @@ async function startBattle() {
 
 // Listen for initiative result
 socket.on('initiative_result', (data) => {
-    addBattleLog(`🎲 Iniciativa - Você: <strong>${data.player_initiative}</strong> (DEX ${data.player_mod >= 0 ? '+' : ''}${data.player_mod}) | Selvagem: <strong>${data.wild_initiative}</strong> (DEX ${data.wild_mod >= 0 ? '+' : ''}${data.wild_mod})`);
+    addBattleLog(`🎲 Iniciativa - Você: <strong>${data.player_initiative}</strong> (SPE ${data.player_mod >= 0 ? '+' : ''}${data.player_mod}) | Selvagem: <strong>${data.wild_initiative}</strong> (SPE ${data.wild_mod >= 0 ? '+' : ''}${data.wild_mod})`);
+    if (data.upset) addBattleLog(`💨 <strong>Virada lendária!</strong> O mais lento agiu primeiro contra todas as probabilidades (20 natural vs 1 natural)!`);
     addBattleLog(`➡️ <strong>${data.first_turn === 'player' ? 'Você começa!' : 'Pokémon Selvagem começa!'}</strong>`);
     // Show on-enter ability messages
     if (data.on_enter_abilities?.length) {
@@ -1682,6 +1678,7 @@ function endBattle(result) {
 
     // Persist HP and status to team before clearing battle state
     const _activePoke = window.currentBattleData?.playerPokemon;
+    let _savePromise = Promise.resolve();
     if (_activePoke) {
         const _tIdx = playerTeam.findIndex(p =>
             (p.nickname || p.name) === (_activePoke.nickname || _activePoke.name) && p.level === _activePoke.level
@@ -1690,7 +1687,7 @@ function endBattle(result) {
             playerTeam[_tIdx].currentHp = Math.max(0, _activePoke.currentHp || 0);
             playerTeam[_tIdx].status = window.playerPokemonStatus || null;
         }
-        saveTeam();
+        _savePromise = Promise.resolve(saveTeam());
     }
 
     window.wildFainted = false;
@@ -1706,13 +1703,12 @@ function endBattle(result) {
     if (result === 'defeated' && window.currentBattleData?.playerPokemon) {
         _endData.active_pokemon_name = window.currentBattleData.playerPokemon.nickname || window.currentBattleData.playerPokemon.name;
     }
-    socket.emit('end_encounter', _endData);
+    // O save do HP precisa chegar ANTES do end_encounter: o servidor aplica
+    // XP/level-up/evolução (battle_rewards) lendo o time do banco, e um save
+    // atrasado sobrescreveria a recompensa.
+    _savePromise.finally(() => socket.emit('end_encounter', _endData));
 
-    // XP só para vitória real: derrotou o selvagem OU capturou com Master Ball
-    const earnedXP = result === 'defeated' || (result === 'caught' && window._masterBallCapture);
-    if (earnedXP && currentEncounter && window.currentBattleData) {
-        awardPokemonBattleXP();
-    }
+    // XP/level-up/evolução da vitória são 100% do SERVIDOR (battle_rewards).
     window._masterBallCapture = false;
     if (result !== 'caught') window._healBallCapture = false;
 
@@ -2643,14 +2639,20 @@ function getNatureLabel(poke) {
 function getLevelEvoIndicator(poke, idx) {
     const info = poke.evolutionInfo || '';
     if (!info) return '';
-    const match = info.match(/evolve into ([A-Za-z\-\s]+?) at (?:trainer )?level (\d+)/i);
-    if (!match) return '';
-    const evoInto = match[1].trim();
-    const evoTrainerLevel = parseInt(match[2]);
-    // evolutionInfo stores trainer level; pokemon.level ≈ trainer_level - 2
-    const effectiveTrainerLevel = (poke.level || 1) + 2;
-    if (effectiveTrainerLevel < evoTrainerLevel) return '';
-    return `<button class="btn btn-sm" style="background:var(--accent);color:#fff;animation:pvp-blink 1s infinite;" onclick="triggerLevelEvolve(${idx})" title="Pronto para evoluir!">⬆️ Evoluir → ${evoInto}!</button>`;
+    // Espelho de parse_level_evolution (servidor): pula ramos condicionais
+    // ('with the help of' = pedra; 'loyalty' = ex-amizade → pedra);
+    // nível do banco (5e) × 5 = nível canon do Pokémon.
+    const rx = /evolve into ([A-Za-z0-9\-\.'\s]+?) at (?:trainer )?level (\d+)/gi;
+    let match;
+    while ((match = rx.exec(info)) !== null) {
+        const tail = info.slice(rx.lastIndex).split(/\.|,? or /)[0].toLowerCase();
+        if (tail.includes('with the help') || tail.includes('loyalty')) continue;
+        const evoInto = match[1].trim();
+        const evoLevel = parseInt(match[2]) * 5;
+        if ((poke.level || 1) < evoLevel) return '';
+        return `<button class="btn btn-sm" style="background:var(--accent);color:#fff;animation:pvp-blink 1s infinite;" onclick="triggerLevelEvolve(${idx})" title="Pronto para evoluir!">⬆️ Evoluir → ${evoInto}!</button>`;
+    }
+    return '';
 }
 
 async function triggerLevelEvolve(idx) {
@@ -2791,9 +2793,6 @@ function refreshTeamDisplay() {
                     <div class="pkcard__actions">
                         <button class="pkcard__btn" onclick="editPokemon(${i})">✏️ Editar</button>
                         <button class="pkcard__btn" onclick="openUseStoneModal(${i})" title="Pedra de evolução">💎</button>
-                        ${(poke.battle_wins||0) >= 10
-                            ? `<button class="pkcard__btn pkcard__btn--gold" onclick="friendshipEvolve(${i})" title="${poke.battle_wins} batalhas">💛 Evoluir</button>`
-                            : `<span class="pkcard__btn pkcard__btn--muted" title="Batalhas vencidas">💛 ${poke.battle_wins||0}/10</span>`}
                         <button class="pkcard__btn pkcard__btn--danger" onclick="removePokemon(${i})">✕</button>
                     </div>
                 </div>`;
@@ -5555,57 +5554,23 @@ async function _executeWildTurn() {
 // ============================================
 // POKEMON XP & LEVEL UP SYSTEM
 // ============================================
-async function awardPokemonBattleXP() {
-    // Award XP to the Pokemon that participated in the battle
-    const battleData = window.currentBattleData;
-    if (!battleData) return;
-    
-    const playerPoke = battleData.playerPokemon;
-    const enemyLevel = currentEncounter?.level || 5;
-    const enemySR = battleData.enemy?.sr || '1/2';
-    
-    // Calculate XP via server
-    try {
-        const resp = await fetch('/api/pokemon/battle-xp', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                winner_level: playerPoke.level || 1,
-                loser_level: enemyLevel,
-                battle_type: 'wild'
-            })
-        });
-        const data = await resp.json();
-        const xpGained = data.xp_gained || 0;
-        
-        // Find this pokemon in the team and add XP
-        const teamIdx = playerTeam.findIndex(p => 
-            (p.nickname || p.name) === (playerPoke.nickname || playerPoke.name) && p.level === playerPoke.level
-        );
-        
-        if (teamIdx >= 0) {
-            const poke = playerTeam[teamIdx];
-            poke.xp = (poke.xp || 0) + xpGained;
-            poke.totalXp = (poke.totalXp || 0) + xpGained;
-            
-            // Check level up
-            const leveledUp = checkPokemonLevelUp(poke);
-            
-            addBattleLog(`⭐ ${poke.nickname || poke.name} ganhou <strong>${xpGained} XP</strong>!${leveledUp ? ' 🎉 SUBIU DE NÍVEL!' : ''}`);
-            
-            if (leveledUp) {
-                addBattleLog(`📈 ${poke.nickname || poke.name} agora é <strong>Nv.${poke.level}</strong>!`);
-                // Save first so server sees the new level, then check evolution
-                await saveTeam();
-                const slotIdx = playerTeam.indexOf(poke);
-                if (slotIdx >= 0) await checkServerEvolution(slotIdx);
-            } else {
-                // Save team
-                await saveTeam();
-            }
-        }
-    } catch(e) { console.error('XP award failed:', e); }
-}
+// XP/level-up/evolução da vitória contra selvagem são calculados 100% no
+// SERVIDOR (apply_battle_rewards) e chegam prontos pelo battle_rewards.
+socket.on('battle_rewards', (data) => {
+    const poke = data.pokemon || {};
+    const name = poke.nickname || poke.name || 'Pokémon';
+    addBattleLog(`⭐ ${name} ganhou <strong>${data.xp_gained} XP</strong>!${data.leveled_up ? ' 🎉 SUBIU DE NÍVEL!' : ''}`);
+    if (data.leveled_up) {
+        addBattleLog(`📈 ${name} agora é <strong>Nv.${data.new_level}</strong>!`);
+        playSound('levelup');
+        const oldPoke = playerTeam[data.slot];
+        if (oldPoke) checkMoveDiceUpgrades(poke, oldPoke.level || 1, data.new_level);
+    }
+    if (typeof data.slot === 'number' && data.slot >= 0 && data.slot < playerTeam.length) {
+        playerTeam[data.slot] = poke;
+        refreshTeamDisplay();
+    }
+});
 
 function checkPokemonLevelUp(poke) {
     // XP table matching server (per-level XP needed)
@@ -6413,115 +6378,32 @@ async function applyEvolutionStone(pokemonIdx, itemName) {
         return;
     }
 
-    // Update local team
+    // Update local team (a animação chega pelo broadcast 'evolution_focus')
     playerTeam[pokemonIdx] = data.pokemon;
     // Remove stone from bag
     const bagEntry = (window.bagItems || []).find(i => i.name?.toLowerCase() === itemName.toLowerCase());
     if (bagEntry) bagEntry.qty = Math.max(0, (bagEntry.qty || 1) - 1);
-
-    playerTeam[pokemonIdx] = data.pokemon;
-    await triggerEvolutionSequence({
-        from: poke.nickname || poke.name, to: data.evolved_into,
-        old_number: poke.number || 0, new_number: data.new_number || data.pokemon?.number || 0,
-        new_moves: data.new_moves || []
-    });
     refreshTeamDisplay();
 }
 
-async function friendshipEvolve(pokemonIdx) {
-    const poke = playerTeam[pokemonIdx];
-    if (!confirm(`Evoluir ${poke.nickname || poke.name} por amizade?\n(${poke.battle_wins || 0} batalhas vencidas)`)) return;
+// ============================================================
+// EVOLUTION FOCUS & MOVE DICE UPGRADE
+// ============================================================
 
-    const res = await fetch('/player/friendship-evolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pokemon_idx: pokemonIdx })
-    });
-    const data = await res.json();
-
-    if (!res.ok || data.error) {
-        showNotification(data.error || 'Não foi possível evoluir.', 'error');
-        return;
-    }
-
-    playerTeam[pokemonIdx] = data.pokemon;
-    await triggerEvolutionSequence({
-        from: poke.nickname || poke.name, to: data.evolved_into,
-        old_number: poke.number || 0, new_number: data.pokemon?.number || 0,
-        new_moves: data.new_moves || []
-    });
-    refreshTeamDisplay();
-}
-
-// Socket event when any pokemon evolves (for teammates to see in master panel)
-socket.on('pokemon_evolved', (data) => {
-    if (data.player_id === window.CURRENT_USER_ID) {
-        // Already handled above via the HTTP response; just refresh team if needed
+// Foco de evolução: TODAS as telas da mesa recebem e rodam o overlay
+// (showEvolutionFocus em app.js). O dono também recarrega o time.
+socket.on('evolution_focus', (data) => {
+    queueEvolutionFocus(data);
+    if (String(data.player_id) === String(window.CURRENT_USER_ID)) {
         fetch('/player/team-data').then(r => r.json()).then(team => {
             if (team && team.length) {
                 playerTeam.length = 0;
                 team.forEach(p => playerTeam.push(p));
                 refreshTeamDisplay();
             }
-        });
+        }).catch(() => {});
     }
 });
-
-// ============================================================
-// EVOLUTION ANIMATION & MOVE DICE UPGRADE
-// ============================================================
-
-function triggerEvolutionSequence(evo) {
-    return new Promise(resolve => {
-        const oldSprite = getPokemonSpriteUrl(evo.old_number || 0);
-        const newSprite  = getPokemonSpriteUrl(evo.new_number || 0);
-        const newMovesHtml = (evo.new_moves && evo.new_moves.length)
-            ? `<div style="margin-top:1rem;background:rgba(255,255,255,0.08);padding:0.75rem;border-radius:8px;">
-                   <p style="color:#7fff00;margin:0 0 0.4rem;">🎯 Novos golpes disponíveis:</p>
-                   <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
-                       ${evo.new_moves.map(m => `<span style="background:#1a1a3e;border:1px solid #7fff00;padding:0.2rem 0.7rem;border-radius:4px;font-size:0.85rem;">${m}</span>`).join('')}
-                   </div>
-               </div>`
-            : '';
-
-        const overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;transition:background 0.2s;';
-        overlay.innerHTML = `
-            <style>
-                @keyframes evo-pulse { 0%,100%{filter:brightness(1)} 50%{filter:brightness(3) saturate(0)} }
-                @keyframes evo-appear { from{opacity:0;transform:scale(0.5)} to{opacity:1;transform:scale(1)} }
-            </style>
-            <h2 id="evo-title" style="color:#ffd700;font-size:2rem;margin-bottom:1.5rem;text-shadow:0 0 20px #ffd700;">✨ EVOLUINDO! ✨</h2>
-            <img id="evo-sprite" src="${oldSprite}" style="width:160px;height:160px;image-rendering:pixelated;animation:evo-pulse 1s infinite;">
-            <p id="evo-subtext" style="margin:1rem;font-size:1.1rem;color:#aaa;">${evo.from} está evoluindo...</p>
-            <div id="evo-details" style="display:none;max-width:480px;text-align:center;">${newMovesHtml}</div>
-            <button id="evo-btn" style="display:none;margin-top:1.5rem;background:#ffd700;color:#000;border:none;padding:0.75rem 2.5rem;border-radius:8px;font-size:1rem;font-weight:bold;cursor:pointer;">✨ Incrível!</button>
-        `;
-        document.body.appendChild(overlay);
-
-        // Phase 1: white flash after 1.4s
-        setTimeout(() => {
-            overlay.style.background = '#fff';
-        }, 1400);
-
-        // Phase 2: reveal new sprite after flash
-        setTimeout(() => {
-            overlay.style.background = '#000';
-            const spriteEl = document.getElementById('evo-sprite');
-            spriteEl.style.animation = 'evo-appear 0.6s ease forwards';
-            spriteEl.src = newSprite;
-            document.getElementById('evo-title').textContent = `✨ ${evo.from} evoluiu para ${evo.to}! ✨`;
-            document.getElementById('evo-title').style.color = '#7fff00';
-            document.getElementById('evo-title').style.textShadow = '0 0 20px #7fff00';
-            document.getElementById('evo-subtext').textContent = '🎉 Parabéns!';
-            document.getElementById('evo-subtext').style.color = '#ffd700';
-            document.getElementById('evo-details').style.display = 'block';
-            const btn = document.getElementById('evo-btn');
-            btn.style.display = 'inline-block';
-            btn.onclick = () => { overlay.remove(); resolve(); };
-        }, 1700);
-    });
-}
 
 function checkMoveDiceUpgrades(poke, oldLevel, newLevel) {
     const pokeName = poke.nickname || poke.name;
@@ -6550,18 +6432,11 @@ async function checkServerEvolution(slotIdx) {
         });
         const data = await res.json();
         if (!data.evolved) return;
-        // Update local team
+        // Update local team (a animação chega pelo broadcast 'evolution_focus')
         playerTeam[slotIdx] = data.pokemon;
-        await triggerEvolutionSequence({
-            from: data.old_name, to: data.pokemon.name,
-            old_number: data.old_number, new_number: data.new_number,
-            new_moves: data.new_moves || []
-        });
         refreshTeamDisplay();
     } catch(e) { console.error('Evolution check failed', e); }
 }
-
-// battle_wins tracking is already integrated into endBattle above
 
 // ============================================================
 // PC / BOX STORAGE

@@ -18,12 +18,14 @@ def _poke_hp(p):
 
 
 def _init_roll(pokemon):
-    # Iniciativa v2: d20 + SPE_efetivo//10 + mod(Tática)//2 do treinador
+    # Iniciativa v3: d20 + SPE_efetivo//5 + mod(Tática)//2 do treinador.
+    # Devolve (total, spe_eff) — o SPE desempata na ordenação. A regra de
+    # upset 20vs1 não se aplica aqui (só faz sentido em duelo 1v1).
     import battle_math as bm
     import status_effects as effects
     spe = effects.effective_stat(pokemon, 'SPE') if isinstance(pokemon, dict) else 10
     tatica = int(pokemon.get('trainer_init_bonus') or 0) if isinstance(pokemon, dict) else 0
-    return random.randint(1, 20) + bm.initiative_bonus(spe) + tatica
+    return random.randint(1, 20) + bm.initiative_bonus(spe) + tatica, spe
 
 
 def build_battle(allies, wilds, hunt_mode='normal', route_id=None, table_id=None):
@@ -41,7 +43,7 @@ def build_battle(allies, wilds, hunt_mode='normal', route_id=None, table_id=None
         maxhp = int(poke.get('maxHp') or poke.get('hp') or 20)
         curhp = int(_poke_hp(poke)) if _poke_hp(poke) else maxhp
         cid = f'a{i}'
-        init = _init_roll(poke)
+        init, init_spe = _init_roll(poke)
         combatants[cid] = {
             'cid': cid, 'side': 'ally', 'name': a.get('name') or poke.get('name', 'Aliado'),
             'trainer_name': a.get('name', ''),
@@ -51,13 +53,13 @@ def build_battle(allies, wilds, hunt_mode='normal', route_id=None, table_id=None
             'hp': max(0, curhp), 'maxHp': maxhp,
             'status': None, 'fainted': curhp <= 0, 'init': init,
         }
-        order_pairs.append((init, cid))
+        order_pairs.append((init, init_spe, cid))
 
     for i, w in enumerate(wilds):
         poke = dict(w['pokemon'])
         maxhp = int(poke.get('maxHp') or poke.get('hp') or 20)
         cid = f'w{i}'
-        init = _init_roll(poke)
+        init, init_spe = _init_roll(poke)
         combatants[cid] = {
             'cid': cid, 'side': 'wild', 'name': poke.get('name', 'Selvagem'),
             'trainer_name': '',
@@ -69,11 +71,11 @@ def build_battle(allies, wilds, hunt_mode='normal', route_id=None, table_id=None
             'status': None, 'fainted': False, 'init': init,
             'is_shiny': bool(poke.get('is_shiny')),
         }
-        order_pairs.append((init, cid))
+        order_pairs.append((init, init_spe, cid))
 
-    # Ordem de iniciativa: maior primeiro; desempate aleatório estável
-    order_pairs.sort(key=lambda t: (t[0], random.random()), reverse=True)
-    order = [cid for _, cid in order_pairs]
+    # Ordem de iniciativa: maior total primeiro; desempate por SPE_eff, depois aleatório
+    order_pairs.sort(key=lambda t: (t[0], t[1], random.random()), reverse=True)
+    order = [cid for _, _, cid in order_pairs]
 
     n_wild = len(wilds)
     battle = {
