@@ -15,7 +15,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 
 ## Sistemas
 
-- [[Sistemas/combate]] — as 3 camadas do v3 (precisão d100 → dano → resistência d20)
+- [[Sistemas/combate]] — as 3 camadas do v3.1, 100% d100 (precisão → dano → resistência)
 - [[Sistemas/evolucao]] — nível (canon = 5e×5) e pedra; foco de evolução na mesa inteira
 - [[Sistemas/habilidades]] — 100% das abilities funcionais e onde elas plugam
 - [[Sistemas/evs-e-treino]] — Custom EVs: potencial, treino, custo progressivo
@@ -25,9 +25,10 @@ mestre e jogadores, deploy no Render a partir do `main`.
 ## Decisões (por que o sistema é assim)
 
 - [[Decisoes/sistema-combate-v3]] — d20→d100, cooldown no lugar de PP, janela 5–10 rodadas
+- [[Decisoes/combate-v3-1-d100-total]] — v3.1: d100 total, Tabela Mestra nova, DoT 1/16 c/ teto, cura decrescente, meta 4–6
 - [[Decisoes/recarga-de-sustain]] — dreno/cura instantânea com cooldown 1-2 (detecção por mecânica)
 - [[Decisoes/evolucao-tudo-pedra]] — amizade/golpe/stat viraram pedra; nível é do Pokémon
-- [[Decisoes/iniciativa-spe-domina]] — d20 + SPE//5 + upset 20vs1 (Speed decide, dado é o imprevisto)
+- [[Decisoes/iniciativa-spe-domina]] — Speed decide, dado é o imprevisto (hoje em d100: ver v3.1)
 - [[Decisoes/evs-customizados]] — escolhido em vez de IVs/EVs canônicos
 - [[Decisoes/caminho-do-treinador]] — 4 caminhos, marcos 3/6/10
 - [[Decisoes/atributos-do-treinador]] — 6 atributos novos + point-buy 20 pts
@@ -57,5 +58,5 @@ mestre e jogadores, deploy no Render a partir do `main`.
 | `abilities.py` | habilidades passivas/ativas |
 | `pvp_battle.py` / `group_battle.py` | estado de batalha PvP e em dupla |
 | `docs/sistema-combate-d100.md` | spec canônica do combate v3 (não duplicar aqui) |
-| `tests/stress.py` | suíte de 323 checks (rodar em DB descartável!) |
-| `tools/battle_sweep_v3.py` | monte-carlo da janela 5–10 rodadas |
+| `tests/stress.py` | suíte de 465 checks (rodar em DB descartável!) |
+| `tools/battle_sweep_v3.py` + `tools/battle_matrix_v3.py` | gates de ritmo: janela 4–6 (até 8) + matriz de arquétipos |

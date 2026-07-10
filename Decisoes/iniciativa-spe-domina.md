@@ -2,6 +2,11 @@
 
 **Data:** 2026-07-10 · PR #23 · Spec: `docs/sistema-combate-d100.md` §7.1
 
+> **Atualização (v3.1, mesmo dia):** migrada ×5 fiel para d100 —
+> `d100 + SPE_eff + Tática×5`, upset lento≥96 vs rápido≤5 (mesmos 0,25%).
+> A filosofia e a matemática abaixo continuam valendo (escala ×5).
+> Ver [[Decisoes/combate-v3-1-d100-total]].
+
 ## Problema
 
 Fórmula antiga `d20 + SPE_eff//10`: o d20 (amplitude 19) dominava o bônus

@@ -1,6 +1,11 @@
 # Recarga de sustain (dreno / cura instantânea)
 
 **Data**: 09/07/2026 · **Pedido**: Junior (spec completa no chat)
+
+> **Atualização (v3.1, 10/07):** cura de metade/total passou de recarga 2
+> para **3**, e ganhou **cura decrescente** (cada uso na mesma batalha cura
+> metade do anterior) — a recarga sozinha não matava o Recover-stall.
+> Ver [[Decisoes/combate-v3-1-d100-total]].
 **Problema**: golpes que recuperam HP na hora (Giga Drain, Recover, Roost…)
 podiam ciclar todo turno — anulavam o desgaste da batalha e criavam lutas
 intermináveis, principalmente contra tanques e em PvP.
