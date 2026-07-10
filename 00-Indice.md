@@ -16,6 +16,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 ## Sistemas
 
 - [[Sistemas/combate]] — as 3 camadas do v3 (precisão d100 → dano → resistência d20)
+- [[Sistemas/evolucao]] — nível (canon = 5e×5) e pedra; foco de evolução na mesa inteira
 - [[Sistemas/habilidades]] — 100% das abilities funcionais e onde elas plugam
 - [[Sistemas/evs-e-treino]] — Custom EVs: potencial, treino, custo progressivo
 - [[Sistemas/mesa-e-papeis]] — multi-tenant (`_tid`), papéis, aprovação de mestre
@@ -25,6 +26,8 @@ mestre e jogadores, deploy no Render a partir do `main`.
 
 - [[Decisoes/sistema-combate-v3]] — d20→d100, cooldown no lugar de PP, janela 5–10 rodadas
 - [[Decisoes/recarga-de-sustain]] — dreno/cura instantânea com cooldown 1-2 (detecção por mecânica)
+- [[Decisoes/evolucao-tudo-pedra]] — amizade/golpe/stat viraram pedra; nível é do Pokémon
+- [[Decisoes/iniciativa-spe-domina]] — d20 + SPE//5 + upset 20vs1 (Speed decide, dado é o imprevisto)
 - [[Decisoes/evs-customizados]] — escolhido em vez de IVs/EVs canônicos
 - [[Decisoes/caminho-do-treinador]] — 4 caminhos, marcos 3/6/10
 - [[Decisoes/atributos-do-treinador]] — 6 atributos novos + point-buy 20 pts
@@ -36,6 +39,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 - [[Bugs-Resolvidos/leech-seed-como-absorb]] — auto-detecção virou cura instantânea
 - [[Bugs-Resolvidos/modo-manual-mestre-nao-funcionava]] — cliente do jogador auto-jogava o selvagem; caminho do mestre preso no v2
 - [[Bugs-Resolvidos/auditoria-qa-exploits-client-side]] — captura/HP/cura/status forjados + PvP hijack (Lote 1 pronto; concorrência pendente)
+- [[Bugs-Resolvidos/evolucao-por-nivel-nunca-disparava]] — gatilho no nível do treinador + escala 5e sem ×5 + Pikachu evoluía sem pedra
 
 ## Outras notas
 
