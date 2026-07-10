@@ -438,10 +438,11 @@ def v3_drain_cooldown(power, drain):
 
 def v3_heal_cooldown(amount):
     """Recarga de move de STATUS de cura instantânea (heal_self).
-    'full'/'half' (≥50% do HP máx: Recover, Roost, Rest…) = elevada → 2;
+    'full'/'half' (≥50% do HP máx: Recover, Roost, Rest…) = elevada → 3
+    (½ do HP vale ~2 turnos de vida num jogo de 4-6 turnos);
     frações menores (quarter…) = moderada → 1."""
     if amount in ('full', 'half'):
-        return 2
+        return 3
     if amount:
         return 1
     return 0

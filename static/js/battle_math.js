@@ -226,7 +226,7 @@ const BattleMath = (() => {
         return (power | 0) >= V3_SUSTAIN_POW_HEAVY ? 2 : 1;
     }
     function v3HealCooldown(amount) {
-        if (amount === 'full' || amount === 'half') return 2;
+        if (amount === 'full' || amount === 'half') return 3;
         return amount ? 1 : 0;
     }
     function v3MoveCooldown(power, drain = 0) {

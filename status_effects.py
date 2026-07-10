@@ -49,26 +49,30 @@ def move_accuracy(move_name):
 # ============================================================
 # STATUS CONDITIONS
 # ============================================================
+# Teto do DoT escalonado (burn/toxic): nunca passa de ⌊HPmáx/4⌋ por turno —
+# um golpe forte vale ~25% do HP; o veneno pressiona, não decide sozinho.
+DOT_SCALING_CAP_DIV = 4
+
 STATUS_CONDITIONS = {
     'badly_poisoned': {
         'name': 'Envenenado',
         'icon': '☠️',
         'color': '#7030a0',
         'turn_effect': 'scaling_damage',
-        'base_fraction': 8,               # 1/8, 2/8, 3/8...
+        'base_fraction': 16,              # 1/16, 2/16, 3/16... (teto ¼/turno)
         'can_act': True,
         'duration': 'permanent',
-        'description': 'Perde HP crescente (1/8, 2/8, 3/8...). Dura até ser curado.'
+        'description': 'Perde HP crescente (1/16, 2/16, 3/16... até ¼ por turno). Dura até ser curado.'
     },
     'queimado': {
         'name': 'Queimado',
         'icon': '🔥',
         'color': '#f08030',
         'turn_effect': 'scaling_damage',
-        'base_fraction': 8,               # 1/8, 2/8, 3/8...
+        'base_fraction': 16,              # 1/16, 2/16, 3/16... (teto ¼/turno)
         'can_act': True,
         'duration': 'permanent',
-        'description': 'Perde HP crescente (1/8, 2/8...) e o dano FÍSICO é cortado pela metade. Dura até ser curado.'
+        'description': 'Perde HP crescente (1/16, 2/16... até ¼ por turno) e o dano FÍSICO é cortado pela metade. Dura até ser curado.'
     },
     'paralisado': {
         'name': 'Paralisado',
@@ -398,8 +402,12 @@ def process_turn_start(pokemon_status, max_hp):
         messages.append(f"{condition['icon']} {condition['name']}: -{damage} HP")
     
     elif turn_effect == 'scaling_damage':
+        # DoT escalonado (burn/toxic): 1/16, 2/16, 3/16… com TETO de ¼ do HP
+        # por turno (atingido no turno 4) — chip damage pressiona, mas nunca
+        # substitui os golpes ofensivos principais.
         fraction = condition.get('base_fraction', 16)
-        damage = max(1, (max_hp * turns_active) // fraction)
+        damage = max(1, min(max_hp // DOT_SCALING_CAP_DIV,
+                            (max_hp * turns_active) // fraction))
         messages.append(f"{condition['icon']} {condition['name']}: -{damage} HP (turno {turns_active})")
     
     elif turn_effect == 'skip':

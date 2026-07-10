@@ -2591,8 +2591,8 @@ def main():
     check(S, 'Dream Eater (POW 100, dreno) → recarga 2', appmod.bm_core.v3_move_cooldown(100, 50) == 2)
     check(S, 'POW 90 sem dreno segue a Tabela Mestra (1)', appmod.bm_core.v3_move_cooldown(90, 0) == 1)
     check(S, 'Hyper Beam (150) mantém recarga 3', appmod.bm_core.v3_move_cooldown(150, 0) == 3)
-    check(S, 'cura de metade/total → recarga 2; um quarto → 1',
-          appmod.bm_core.v3_heal_cooldown('half') == 2 and appmod.bm_core.v3_heal_cooldown('full') == 2
+    check(S, 'cura de metade/total → recarga 3 (jogo de 4-6 turnos); um quarto → 1',
+          appmod.bm_core.v3_heal_cooldown('half') == 3 and appmod.bm_core.v3_heal_cooldown('full') == 3
           and appmod.bm_core.v3_heal_cooldown('quarter') == 1)
     # detecção pela MECÂNICA (drain canônico), sem lista fixa
     check(S, 'dreno detectado no dado canônico (giga drain: drain>0)',
@@ -2609,12 +2609,12 @@ def main():
     _r3 = appmod._calc_attack_core(_susA, _susD, 'Vine Whip')
     check(S, 'outro golpe passa e a recarga expira (1 ação = 1 rodada)',
           _r3.get('hit') and 'giga drain' not in _susA['_v3']['cooldowns'])
-    # cura instantânea de status (Recover): recarga 2, bloqueio sem consumir
+    # cura instantânea de status (Recover): recarga 3, bloqueio sem consumir
     _v3h = {}
     _md_rec = appmod.MOVES_BY_NAME.get('recover') or {'name': 'Recover'}
     _h1 = appmod.effects.process_status_move(_md_rec, {'maxHp': 100, '_v3': _v3h}, {})
-    check(S, 'Recover cura metade e entra em recarga 2',
-          _h1.get('heal') == 50 and _h1.get('cooldown') == 2)
+    check(S, 'Recover cura metade e entra em recarga 3',
+          _h1.get('heal') == 50 and _h1.get('cooldown') == 3)
     _h2 = appmod.effects.process_status_move(_md_rec, {'maxHp': 100, '_v3': _v3h}, {})
     check(S, 'Recover em recarga é bloqueado com a mensagem canônica',
           _h2.get('blocked') is True and 'recarga' in _h2.get('message', ''))
@@ -2642,6 +2642,14 @@ def main():
     _ok5, _dmg5, _msgs5, _rem5 = appmod.effects.process_turn_start(
         {'condition': 'amaldicoado', 'turns_active': 1}, 100)
     check(S, 'maldição tica ⌊HPmáx/4⌋ por rodada', _dmg5 == 25)
+    # DoT escalonado (decisão do usuário): burn/toxic começam 1/16 e evoluem
+    # (2/16, 3/16…) com TETO de ⌊HP/4⌋ por turno
+    for _cond5 in ('queimado', 'badly_poisoned'):
+        _t1 = appmod.effects.process_turn_start({'condition': _cond5, 'turns_active': 0}, 160)[1]
+        _t2 = appmod.effects.process_turn_start({'condition': _cond5, 'turns_active': 1}, 160)[1]
+        _t9 = appmod.effects.process_turn_start({'condition': _cond5, 'turns_active': 8}, 160)[1]
+        check(S, f'{_cond5}: escala 1/16 → 2/16 com teto ¼ (10/20/40 de HP160)',
+              _t1 == 10 and _t2 == 20 and _t9 == 40, f'{_t1}/{_t2}/{_t9}')
     # estágios canônicos multi-stat (Bulbapedia/pokemondb)
     for _mv5, _esp5 in (('dragon dance', {'ATK': 1, 'SPE': 1}),
                         ('calm mind', {'SPA': 1, 'SPD': 1}),
