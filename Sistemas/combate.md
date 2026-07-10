@@ -15,8 +15,10 @@
 
 - Não existe mais d20 no combate de Pokémon (Resistência e iniciativa também
   são d100). O d20 que sobrou é só perícia de TREINADOR (/api/roll, caçada).
-- Tabela Mestra: 10 degraus, 1d6 (POW≤20) até 4d10 (POW>140); TN 50→140;
-  recarga 0/0/0/1/1/1/2/2/3/3 (recarga 1 já a partir de POW 55).
+- Tabela Mestra: 10 degraus, 1d6 (POW≤20) até 4d10 (POW>140), com 5d6/6d6
+  nos degraus 115–125/130–140 (médias monotônicas); TN 50→140; recarga
+  0/0/0/0/1/1/2/2/3/3 (só a partir do degrau 70–80 — o piso era POW 55 e
+  subiu por feedback da mesa: movesets médios ficavam sem ação).
 - Marcos de nível: +1 dado a cada 20 níveis (teto +5).
 - Crítico: d100 próprio, 5% base (+10 p.p./estágio, teto 50) — fura metade do
   bônus de Def do defensor (Sniper zera).
@@ -51,5 +53,6 @@
   eventos `action_blocked`/`pvp_error`/`group_battle_error`.
 - Cópias rasas de dicts de Pokémon (grupo!) precisam garantir `_v3` ANTES do
   `dict()` pra compartilhar o estado aninhado.
-- 3d8 (13,5) ≈ 4d6 (14,0) na média — fiel à tabela do usuário; TN e variância
-  diferenciam os degraus.
+- Recargas só caem quando o Pokémon AGE (1 ação = 1 rodada) — moveset com
+  poucos golpes, todos fortes, pode ficar todo em recarga (aceito como caso
+  raro após o piso subir para o degrau 70–80).

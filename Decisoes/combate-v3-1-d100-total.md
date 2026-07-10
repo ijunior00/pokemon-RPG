@@ -19,21 +19,27 @@ cura") e fase obrigatória de simulações com meta de **4–6 turnos de mediana
 
 ### Tabela Mestra (10 degraus)
 
+> **Revisão pós-mesa (mesmo dia, com o sistema em produção):** com recarga
+> desde POW 55, movesets médios ficavam sem ação ("cooldown infinito" — as
+> recargas só caem quando o Pokémon age). O usuário mandou a tabela revisada
+> abaixo: recarga só a partir do degrau 70–80, e 5d6/6d6 nos degraus altos
+> (elimina o quase-empate 3d8≈4d6; médias monotônicas 13,5 → 17,5 → 21 → 22).
+> Sweep e matriz seguiram verdes sem tocar em outra alavanca.
+
 | POW | Dados | TN | Recarga |
 |---|---|---|---|
 | 10–20 | 1d6 | 50 | 0 |
 | 25–35 | 1d8 | 60 | 0 |
 | 40–50 | 1d10 | 70 | 0 |
-| 55–65 | 2d6 | 80 | 1 |
+| 55–65 | 2d6 | 80 | 0 |
 | 70–80 | 2d8 | 90 | 1 |
 | 85–95 | 3d6 | 100 | 1 |
 | 100–110 | 3d8 | 110 | 2 |
-| 115–125 | 4d6 | 120 | 2 |
-| 130–140 | 3d10 | 130 | 3 |
+| 115–125 | 5d6 | 120 | 2 |
+| 130–140 | 6d6 | 130 | 3 |
 | 145+ | 4d10 | 140 | 3 |
 
-3d8 (13,5) ≈ 4d6 (14,0) na média — fiel à tabela do usuário; TN e variância
-diferenciam. POW >150 cai no último degrau.
+POW >150 cai no último degrau.
 
 ### Migração d100 (×5 fiel do d20)
 
