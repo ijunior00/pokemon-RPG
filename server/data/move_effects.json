@@ -508,10 +508,9 @@
  },
  "electric terrain": {
   "effect": {
-   "duration": 3,
-   "stat": "SPA",
-   "type": "buff_self",
-   "value": 2
+   "duration": 5,
+   "terrain": "electric",
+   "type": "terrain"
   }
  },
  "electrify": {
@@ -1006,6 +1005,13 @@
    "status": "queimado"
   }
  },
+ "infestation": {
+  "on_hit": {
+   "chance": 1.0,
+   "on": "hit",
+   "status": "trapped"
+  }
+ },
  "ingrain": {
   "effect": {
    "amount": "quarter",
@@ -1128,6 +1134,13 @@
    "stat": "SPD",
    "type": "debuff_target",
    "value": -2
+  }
+ },
+ "magma storm": {
+  "on_hit": {
+   "chance": 1.0,
+   "on": "hit",
+   "status": "trapped"
   }
  },
  "magnet rise": {
@@ -1916,10 +1929,8 @@
  },
  "strength sap": {
   "effect": {
-   "stats": {
-    "ATK": -1
-   },
-   "type": "debuff_target"
+   "stat": "ATK",
+   "type": "drain_stat_heal"
   }
  },
  "string shot": {

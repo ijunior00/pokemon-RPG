@@ -1634,6 +1634,36 @@ def main():
     check(S, 'STAB boost Blaze a 25% HP', ab.stab_multiplier('Blaze', 'fire', 5, 40) == 2)
     r = p1.post('/api/moves/batch', json={'moves': ['Ember', 'Growl']})
     check(S, 'batch de moves', len(r.get_json() or {}) == 2)
+    check(S, 'batch traz power_num/accuracy canônicos (linha mecânica da UI)',
+          (r.get_json() or {}).get('Ember', {}).get('power_num') == 40)
+
+    # ── Fidelidade de efeitos (v3.1): Static, Solar Power, Strength Sap ──
+    _static_hits = [ab.check_contact_ability('Static', 3) for _ in range(300)]
+    _static_hits = [h for h in _static_hits if h]
+    check(S, 'Static PARALISA em contato (30%, sem dano)',
+          _static_hits and all(h['status'] == 'paralisado' and h['damage'] == 0
+                               for h in _static_hits)
+          and 45 <= len(_static_hits) <= 140, f'{len(_static_hits)}/300')
+    _sp_sun = ab.stat_multiplier_for({'ability': 'Solar Power', '_weather': 'sun'}, 'SPA')
+    _sp_dry = ab.stat_multiplier_for({'ability': 'Solar Power'}, 'SPA')
+    check(S, 'Solar Power: SpA ×1,5 SÓ sob Sol', _sp_sun == 1.5 and _sp_dry == 1.0)
+    _fld_sun = {'field': {'weather': 'sun', 'weather_left': 3}}
+    _d, _m = appmod._field_chip(_fld_sun, {'ability': 'Solar Power', 'types': ['Grass']}, 80, 'X')
+    check(S, 'Solar Power: custa ⌊HP/8⌋ por rodada sob Sol',
+          _d == -10 and 'Solar Power' in (_m or ''))
+    _ss = appmod.effects.process_status_move(
+        {'name': 'Strength Sap', 'category': 'status'},
+        {'maxHp': 100, '_v3': {}}, {'ATK': 60, 'level': 30})
+    check(S, 'Strength Sap: cura = ATK do alvo + ATK do alvo −1 (com recarga)',
+          _ss.get('heal') == 60 and _ss.get('stat_changes') == {'ATK': -1}
+          and _ss.get('effect_type') == 'debuff' and _ss.get('cooldown') == 3)
+    _et = appmod.effects.auto_detect_move_effect({'name': 'Electric Terrain',
+                                                  'category': 'status'})
+    check(S, 'Electric Terrain é TERRENO (chave duplicada removida)',
+          (_et or {}).get('type') == 'terrain' and (_et or {}).get('terrain') == 'electric')
+    check(S, 'Infestation/Magma Storm prendem (auditoria de efeitos)',
+          appmod.effects.check_status_on_hit('Infestation', 50, 10)[0] == 'trapped'
+          and appmod.effects.check_status_on_hit('Magma Storm', 50, 10)[0] == 'trapped')
 
     # ── Habilidades passivas (expansão): 100% conhecidas + mecânicas ──
     _names = set()

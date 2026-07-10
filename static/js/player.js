@@ -1145,24 +1145,35 @@ async function loadMovesData(moveNames) {
     }
 }
 
+// Linha mecânica v3 gerada em RUNTIME a partir da Tabela Mestra (sempre
+// sincronizada com battle_math; o texto antigo do move vira flavor).
+function moveMechanicsLine(m) {
+    if (!m || !m.power_num) return '';
+    const [n, sides] = BattleMath.v3DiceBase(m.power_num);
+    const cd = BattleMath.v3Cooldown(m.power_num);
+    const acc = (m.accuracy == null) ? 'certeiro' : `ACC ${m.accuracy}%`;
+    return `v3: POW ${m.power_num} → ${n}d${sides} · ${acc}`
+         + (cd ? ` · recarga ${cd}` : '');
+}
+
 function getMoveTooltip(moveName) {
     const m = MOVES_CACHE[moveName];
     if (!m) return moveName;
     let tip = `<strong>${m.name}</strong> [${m.type}]`;
-    if (m.power) tip += `\nPoder: ${m.power}`;
-    if (m.baseDamage) tip += `\nDano: ${m.baseDamage} + MOVE`;
-    if (m.pp) tip += ` | PP: ${m.pp}`;
+    const mech = moveMechanicsLine(m);
+    if (mech) tip += `\n${mech}`;
     if (m.range) tip += `\nAlcance: ${m.range}`;
-    if (m.time) tip += ` | ${m.time}`;
     if (m.description) tip += `\n${m.description}`;
-    if (m.higherLevels) tip += `\n[Níveis Sup.] ${m.higherLevels}`;
     return tip;
 }
 
 function renderMoveButton(moveName, clickable) {
     const m = MOVES_CACHE[moveName] || {};
     const typeClass = m.type ? `type-${m.type.toLowerCase()}` : '';
-    const dmgLabel = m.baseDamage ? ` (${m.baseDamage})` : '';
+    // dados derivados da Tabela Mestra v3 (não do baseDamage 5e antigo)
+    const dmgLabel = m.power_num
+        ? ` (${BattleMath.v3DiceBase(m.power_num).join('d')})`
+        : (m.baseDamage ? ` (${m.baseDamage})` : '');
     const catIcon = m.category === 'special' ? '✨' : m.category === 'status' ? '◉' : '⚔️';
     const escapedName = moveName.replace(/'/g, "\\'");
     // v3: badge/trava de cooldown

@@ -832,7 +832,9 @@ def auto_detect_move_effect(move_data):
         'rage powder': {'type': 'buff_self', 'stat': 'DEF', 'value': 2, 'duration': 1},
         'mud sport': {'type': 'buff_self', 'stat': 'SPD', 'value': 2, 'duration': 3},
         'water sport': {'type': 'buff_self', 'stat': 'SPD', 'value': 2, 'duration': 3},
-        'electric terrain': {'type': 'buff_self', 'stat': 'SPA', 'value': 2, 'duration': 3},
+        # ('electric terrain' NÃO entra aqui de novo: a chave duplicada fazia
+        # o terreno virar auto-buff de SpA — o terreno real está na seção de
+        # campo acima, linha ~750)
         'ion deluge': {'type': 'buff_self', 'stat': 'SPA', 'value': 1, 'duration': 2},
         'recycle': {'type': 'heal_self', 'amount': 'quarter'},
         # Debuffs no alvo (homebrew p/ moves de manipulação)
@@ -1018,7 +1020,7 @@ def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
     _user_v3 = (attacker_stats.get('_v3')
                 if isinstance(attacker_stats, dict)
                 and isinstance(attacker_stats.get('_v3'), dict) else None)
-    if _user_v3 and effect.get('type') == 'heal_self':
+    if _user_v3 and effect.get('type') in ('heal_self', 'drain_stat_heal'):
         _cd_left = int((_user_v3.get('cooldowns') or {}).get(HEAL_SUSTAIN_KEY, 0))
         if _cd_left > 0:
             return {'success': False, 'effect_type': 'blocked', 'blocked': True,
@@ -1144,7 +1146,39 @@ def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
             'heal': heal,
             'cooldown': cd
         }
-    
+
+    elif effect['type'] == 'drain_stat_heal':
+        # Strength Sap (canon): cura o USUÁRIO pelo valor do stat do ALVO
+        # (ATK efetivo) e reduz esse stat em 1 estágio. Cura instantânea →
+        # entra na MESMA recarga-bucket dos heals (elevada se ≥ ½ HP máx).
+        stat_key = effect.get('stat', 'ATK')
+        drained = max(1, int(target_stats.get(stat_key)
+                             or target_stats.get(stat_key.lower()) or 10))
+        max_hp = int(attacker_stats.get('maxHp', 20) or 20)
+        heal = min(drained, max_hp)
+        cd = _bm.v3_heal_cooldown('half' if heal >= max_hp // 2 else 'quarter')
+        if _user_v3 is not None and mutate:
+            cds = _user_v3.setdefault('cooldowns', {})
+            for k in list(cds):
+                cds[k] -= 1
+                if cds[k] <= 0:
+                    del cds[k]
+            if cd:
+                cds[HEAL_SUSTAIN_KEY] = cd
+        # effect_type 'debuff' → os callers aplicam stat_changes no ALVO;
+        # o campo 'heal' é aplicado no usuário em todos os caminhos.
+        return {
+            'success': True,
+            'effect_type': 'debuff',
+            'message': f"{move_name}! Drenou a força do alvo: recuperou {heal} HP "
+                       f"e {stat_key} do alvo −1!"
+                       + (f' ⏳ Recarga: {cd} rodada(s).' if cd else ''),
+            'status_applied': None,
+            'stat_changes': {stat_key: -1},
+            'heal': heal,
+            'cooldown': cd
+        }
+
     elif effect['type'] == 'protect':
         # v3 F5: usos CONSECUTIVOS caem pela metade (100→50→25…). A corrente
         # (protect_chain) vive no _v3 do Pokémon — o caller passa o dict real.

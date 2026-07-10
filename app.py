@@ -396,7 +396,7 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     """Núcleo ÚNICO do cálculo de ataque (SISTEMA v3 — d100/ACC).
 
     Camadas: Precisão (d100 vs ACC efetivo) → Dano (Componente + nível +
-    dados da Tabela Mestra + Momentum) → Resistência (d20 do defensor vs TN
+    dados da Tabela Mestra + Momentum) → Resistência (d100 do defensor vs TN
     Efetiva → cheio/metade/anulação). Doc: docs/sistema-combate-d100.md.
     `attack_roll` é o d100 do atacante (None = servidor rola).
     `field` é o estado de campo da batalha: {'weather','terrain',...} (F5).
@@ -425,6 +425,11 @@ def _calc_attack_core(attacker_poke, defender_poke, move_name, attack_roll=None,
     fld = field or {}
     weather = fld.get('weather')
     terrain = fld.get('terrain')
+    # habilidades com gate de clima (Solar Power) leem o clima do próprio dict
+    if isinstance(attacker_poke, dict):
+        attacker_poke['_weather'] = weather
+    if isinstance(defender_poke, dict):
+        defender_poke['_weather'] = weather
     accuracy = bm_core.v3_weather_acc(weather, move_name, accuracy)
     certeiro = accuracy is None   # Aerial Ace, Swift... conectam sempre
 
@@ -810,6 +815,11 @@ def _field_chip(container, poke, max_hp, label):
         delta -= chip
         icon = '🌪️' if fld.get('weather') == 'sandstorm' else '❄️'
         msg = f'{icon} {label} sofre {chip} de dano do clima!'
+    # Solar Power: o SpA ×1,5 sob Sol custa ⌊HP/8⌋ por rodada (canon)
+    if fld.get('weather') == 'sun' and ab.get_ability_key(poke) == 'solar power':
+        solar_cost = max(1, int(max_hp or 1) // 8)
+        delta -= solar_cost
+        msg = f'☀️ Solar Power: {label} sacrifica {solar_cost} HP pelo poder do Sol!'
     heal = bm_core.v3_terrain_heal(fld.get('terrain'), max_hp)
     if heal and delta == 0:
         delta += heal
@@ -3564,6 +3574,13 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
         wild_moves = (['Tackle'] + wild_moves)[:4]
     if not wild_moves:
         wild_moves = ['Tackle']
+    # garantia de RECARGA: com a Tabela Mestra nova (recarga a partir de
+    # POW 55), o moveset precisa de ≥1 golpe de dano SEM recarga (POW ≤ 50)
+    # — senão a IA fica sem ação nas rodadas de espera.
+    if not any(0 < _mv_power(m) <= 50 for m in wild_moves):
+        filler = next((m for m in sorted(move_pool, key=_mv_power)
+                       if 0 < _mv_power(m) <= 50), 'Tackle')
+        wild_moves = ([filler] + [m for m in wild_moves if m != filler])[:4]
     
     # Calculate scaled stats for the wild pokemon.
     # Shiny: +35% nos atributos BASE antes do escalonamento (SHINY_MULT em
