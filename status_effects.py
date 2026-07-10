@@ -107,6 +107,9 @@ STATUS_CONDITIONS = {
         'duration': 'permanent',
         'description': 'Não pode agir. No início do turno, 30% de chance (d100) de descongelar. Moves de fogo descongelam.'
     },
+    # drain 1/16: coerência com a régua nova de DoT (burn/toxic começam em
+    # 1/16) — a 1/8 o Leech Seed era o DoT mais forte do jogo E ainda curava
+    # o usuário pelo mesmo valor (validado na battle_matrix_v3)
     'seeded': {
         'name': 'Semeado',
         'icon': '🌱',
@@ -115,10 +118,10 @@ STATUS_CONDITIONS = {
         # — processado nos hooks de rodada dos 3 modos, não pelo pipeline
         # genérico (que não tem canal de cura para o outro lado).
         'turn_effect': None,
-        'drain_fraction': 8,             # ⌊HPmáx/8⌋ por rodada
+        'drain_fraction': 16,            # ⌊HPmáx/16⌋ por rodada
         'can_act': True,
         'duration': 'permanent',
-        'description': 'Semente de Leech Seed: perde ⌊HPmáx/8⌋ por rodada e o '
+        'description': 'Semente de Leech Seed: perde ⌊HPmáx/16⌋ por rodada e o '
                        'oponente CURA o mesmo tanto. Sai de campo ou Rapid Spin remove. '
                        'Tipo Grama é imune.'
     },
@@ -373,6 +376,12 @@ def check_status_on_hit(move_name, attack_roll, damage_dealt, defender=None):
             return effect['status'], True
 
     return None, False
+
+
+def seed_drain(max_hp):
+    """Dreno do Leech Seed por rodada (fonte única — os 3 modos usam)."""
+    frac = STATUS_CONDITIONS['seeded'].get('drain_fraction', 16)
+    return max(1, int(max_hp or frac) // frac)
 
 
 def process_turn_start(pokemon_status, max_hp):
@@ -1123,12 +1132,19 @@ def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
             heal = max_hp // 2
         else:
             heal = max_hp // 4
-        # v3: cura instantânea entra em recarga (moderada 1 / elevada 2) na
+        # RETORNO DECRESCENTE anti-stall: cada cura instantânea na MESMA
+        # batalha vale metade da anterior (½ → ¼ → ⅛ do valor cheio) — a
+        # primeira Recover é forte, o CICLO de cura morre sozinho
+        # (battle_matrix_v3 valida; sem isso o healer vencia 99% no espelho).
+        _uses = int((_user_v3 or {}).get('heal_uses', 0))
+        heal = max(1, heal >> min(_uses, 6))
+        # v3: cura instantânea entra em recarga (moderada 1 / elevada 3) na
         # chave-bucket compartilhada. Só MUTA no caminho autoritativo (socket);
         # o preview do REST passa mutate=False para não decrementar 2× (o
         # cliente chamava REST + battle_action → cooldowns caíam em dobro).
         cd = _bm.v3_heal_cooldown(effect['amount'])
         if _user_v3 is not None and mutate:
+            _user_v3['heal_uses'] = _uses + 1
             cds = _user_v3.setdefault('cooldowns', {})
             for k in list(cds):
                 cds[k] -= 1
@@ -1140,6 +1156,7 @@ def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
             'success': True,
             'effect_type': 'heal',
             'message': f"{move_name}! Recuperou {heal} HP!"
+                       + (' 📉 (retorno decrescente)' if _uses else '')
                        + (f' ⏳ Recarga: {cd} rodada(s).' if cd else ''),
             'status_applied': None,
             'stat_changes': None,

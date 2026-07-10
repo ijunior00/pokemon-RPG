@@ -376,6 +376,14 @@ V3_SELF_DEBUFF_MOVES = ('overheat', 'psycho boost', 'superpower', 'close combat'
                         'draco meteor', 'leaf storm', 'hammer arm', 'v-create')
 
 
+def _v3_new_battle(pokes):
+    """Batalha NOVA: zera o retorno decrescente de cura (heal_uses) de cada
+    Pokémon. Troca DENTRO da batalha não zera (anti-stall, como cooldowns)."""
+    for p in (pokes or []):
+        if isinstance(p, dict) and isinstance(p.get('_v3'), dict):
+            p['_v3'].pop('heal_uses', None)
+
+
 def _v3_reset_battle_flow(poke):
     """Troca de Pokémon: momentum e adaptação zeram; cooldowns FICAM
     (trocar não zera cooldown — regra do doc). Carga e invulnerabilidade
@@ -4117,7 +4125,7 @@ def _group_field_round_hook(battle):
             continue
         if ((c.get('pokemon') or {}).get('status') or {}).get('condition') != 'seeded':
             continue
-        seed_dmg = max(1, int(c.get('maxHp') or 8) // 8)
+        seed_dmg = effects.seed_drain(c.get('maxHp'))
         c['hp'] = max(1, c['hp'] - seed_dmg)
         c['pokemon']['currentHp'] = c['hp']
         other_side = 'wild' if c['side'] == 'ally' else 'ally'
@@ -5570,6 +5578,7 @@ def handle_encounter(data):
             users[current_user.id]['trainer_data']['team'] = team
             save_users(users)
         _stamp_tatica(team, trainer)
+        _v3_new_battle(team)
         player_pokemon = team[player_pokemon_idx] if player_pokemon_idx < len(team) else None
         
         encounter_data = {
@@ -6272,7 +6281,7 @@ def handle_battle_action(data):
                     continue
                 if int(battle_state.get(h_hp) or 0) <= 0:
                     continue
-                seed_dmg = max(1, int(battle_state.get(h_max) or 8) // 8)
+                seed_dmg = effects.seed_drain(battle_state.get(h_max))
                 battle_state[h_hp] = max(1, int(battle_state[h_hp]) - seed_dmg)
                 if int(battle_state.get(o_hp) or 0) > 0:
                     battle_state[o_hp] = min(int(battle_state.get(o_max) or 1),
@@ -7379,7 +7388,7 @@ def _pvp_field_round_hook(battle):
             continue
         if pvp._poke_hp(poke) <= 0:
             continue
-        seed_dmg = max(1, int(poke.get('maxHp') or 8) // 8)
+        seed_dmg = effects.seed_drain(poke.get('maxHp'))
         poke['currentHp'] = max(1, int(poke.get('currentHp') or 1) - seed_dmg)
         o_side = battle[other]
         o_poke = o_side['team'][o_side['active_idx']]

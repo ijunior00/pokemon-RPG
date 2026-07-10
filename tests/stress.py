@@ -2648,6 +2648,19 @@ def main():
     _h2 = appmod.effects.process_status_move(_md_rec, {'maxHp': 100, '_v3': _v3h}, {})
     check(S, 'Recover em recarga é bloqueado com a mensagem canônica',
           _h2.get('blocked') is True and 'recarga' in _h2.get('message', ''))
+    # retorno DECRESCENTE anti-stall: 2ª cura na mesma batalha vale metade
+    _v3h['cooldowns'].pop(appmod.effects.HEAL_SUSTAIN_KEY, None)
+    _h3 = appmod.effects.process_status_move(_md_rec, {'maxHp': 100, '_v3': _v3h}, {})
+    _v3h['cooldowns'].pop(appmod.effects.HEAL_SUSTAIN_KEY, None)
+    _h4 = appmod.effects.process_status_move(_md_rec, {'maxHp': 100, '_v3': _v3h}, {})
+    check(S, 'cura decrescente: 50 → 25 → 12 na mesma batalha (anti-loop)',
+          _h3.get('heal') == 25 and _h4.get('heal') == 12
+          and 'decrescente' in _h3.get('message', ''))
+    appmod._v3_new_battle([{'_v3': _v3h}])
+    check(S, 'batalha nova zera o retorno decrescente',
+          'heal_uses' not in _v3h)
+    check(S, 'Leech Seed drena ⌊HP/16⌋ (régua nova de DoT)',
+          appmod.effects.seed_drain(160) == 10 and appmod.effects.seed_drain(320) == 20)
     # exceção: cura GRADUAL não ganha recarga (Leech Seed é condição por turno)
     _md_ls = appmod.MOVES_BY_NAME.get('leech seed') or {'name': 'Leech Seed'}
     _dls = appmod.effects.auto_detect_move_effect(_md_ls)
