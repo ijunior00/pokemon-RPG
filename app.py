@@ -5723,19 +5723,19 @@ def handle_initiative(data):
     wild_pokemon = encounter['pokemon']
     player_pokemon = encounter.get('player_pokemon') or {}
     
-    # Initiative = d20 + Speed/DEX modifier (support both stat formats)
-    wild_stats = wild_pokemon.get('stats', {})
-    wild_mod = bm_core.initiative_bonus(effects.effective_stat(wild_pokemon, 'SPE'))
-    
-    player_stats = player_pokemon.get('stats', {}) if player_pokemon else {}
-    player_mod = bm_core.initiative_bonus(
-        effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10) \
-        + int((player_pokemon or {}).get('trainer_init_bonus') or 0)
-    
-    wild_init = random.randint(1, 20) + wild_mod
-    player_init = random.randint(1, 20) + player_mod
-    
-    first_turn = 'player' if player_init >= wild_init else 'wild'
+    # Iniciativa v3: d20 + SPE_eff//5; upset 20vs1; desempate por SPE
+    wild_spe = effects.effective_stat(wild_pokemon, 'SPE')
+    player_spe = effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10
+    player_extra = int((player_pokemon or {}).get('trainer_init_bonus') or 0)
+    wild_mod = bm_core.initiative_bonus(wild_spe)
+    player_mod = bm_core.initiative_bonus(player_spe) + player_extra
+
+    nat_player = random.randint(1, 20)
+    nat_wild = random.randint(1, 20)
+    winner, player_init, wild_init, init_upset = bm_core.initiative_winner(
+        nat_player, nat_wild, player_spe, wild_spe, extra_a=player_extra)
+
+    first_turn = 'player' if winner == 'a' else 'wild'
     
     encounter['battle_state']['initiative_rolled'] = True
     encounter['battle_state']['turn'] = first_turn
@@ -5779,6 +5779,7 @@ def handle_initiative(data):
         'player_initiative': player_init,
         'player_mod': player_mod,
         'first_turn': first_turn,
+        'upset': init_upset,
         'on_enter_abilities': on_enter_msgs,
         'weather': encounter['battle_state'].get('weather'),
         'wild_auto': _wild_auto_mode(game_state),
@@ -6426,18 +6427,17 @@ def _auto_roll_initiative(player_id, game_state):
     wild_pokemon = encounter['pokemon']
     player_pokemon = encounter.get('player_pokemon') or {}
     
-    wild_stats = wild_pokemon.get('stats', {})
-    wild_mod = bm_core.initiative_bonus(effects.effective_stat(wild_pokemon, 'SPE'))
-    
-    player_stats = player_pokemon.get('stats', {}) if player_pokemon else {}
-    player_mod = bm_core.initiative_bonus(
-        effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10) \
-        + int((player_pokemon or {}).get('trainer_init_bonus') or 0)
-    
-    wild_init = random.randint(1, 20) + wild_mod
-    player_init = random.randint(1, 20) + player_mod
-    first_turn = 'player' if player_init >= wild_init else 'wild'
-    
+    wild_spe = effects.effective_stat(wild_pokemon, 'SPE')
+    player_spe = effects.effective_stat(player_pokemon, 'SPE') if player_pokemon else 10
+    player_extra = int((player_pokemon or {}).get('trainer_init_bonus') or 0)
+    wild_mod = bm_core.initiative_bonus(wild_spe)
+    player_mod = bm_core.initiative_bonus(player_spe) + player_extra
+
+    winner, player_init, wild_init, init_upset = bm_core.initiative_winner(
+        random.randint(1, 20), random.randint(1, 20),
+        player_spe, wild_spe, extra_a=player_extra)
+    first_turn = 'player' if winner == 'a' else 'wild'
+
     encounter['battle_state']['initiative_rolled'] = True
     encounter['battle_state']['turn'] = first_turn
     encounter['battle_state']['round'] = 1
@@ -6454,6 +6454,7 @@ def _auto_roll_initiative(player_id, game_state):
         'player_initiative': player_init,
         'player_mod': player_mod,
         'first_turn': first_turn,
+        'upset': init_upset,
         'on_enter_abilities': [],
         'weather': None,
         'wild_auto': True,   # esta função só roda no modo AUTO

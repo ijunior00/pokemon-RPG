@@ -1275,9 +1275,34 @@ def main():
     check(S, 'sem treinador (NPC/selvagem) → sem bônus',
           appmod._stamp_tatica([make_poke('Rattata', 5)], None) == 0)
     _rolls = [appmod.pvp.roll_initiative(_poke_i) for _ in range(40)]
+    check(S, 'roll_initiative devolve (d20 natural, SPE_eff, tática)',
+          all(1 <= n <= 20 for n, _, _ in _rolls)
+          and all(s == _poke_i['stats']['SPE'] for _, s, _ in _rolls)
+          and all(t == 2 for _, _, t in _rolls))
     _spe_b = bmm.initiative_bonus(_poke_i['stats']['SPE'])
-    check(S, 'roll_initiative soma SPE//10 + Tática',
-          min(_rolls) >= 1 + _spe_b + 2 and max(_rolls) <= 20 + _spe_b + 2)
+    check(S, 'initiative_bonus = SPE_eff//5',
+          _spe_b == _poke_i['stats']['SPE'] // 5)
+    # initiative_winner: totais, upset 20vs1 e desempates
+    _w, _ta, _tb, _up = bmm.initiative_winner(10, 10, 50, 100)
+    check(S, 'iniciativa: empate de natural → mais rápido vence',
+          _w == 'b' and _ta == 20 and _tb == 30 and not _up)
+    _w, _ta, _tb, _up = bmm.initiative_winner(20, 1, 30, 200)
+    check(S, 'iniciativa: upset 20vs1 — lento com 20 vence rápido com 1',
+          _w == 'a' and _up is True)
+    _w, _, _, _up = bmm.initiative_winner(1, 20, 30, 200)
+    check(S, 'iniciativa: 20 natural do RÁPIDO não é upset',
+          _w == 'b' and _up is False)
+    _w, _, _, _up = bmm.initiative_winner(20, 1, 200, 30)
+    check(S, 'iniciativa: 20vs1 na direção errada não dispara upset',
+          _w == 'a' and _up is False)
+    _w, _ta, _tb, _ = bmm.initiative_winner(15, 10, 50, 75)
+    check(S, 'iniciativa: empate de total → maior SPE primeiro',
+          _ta == _tb == 25 and _w == 'b')
+    check(S, 'iniciativa: empate completo → a (jogador/player1)',
+          bmm.initiative_winner(10, 10, 60, 60)[0] == 'a')
+    check(S, 'iniciativa: tática entra como extra',
+          bmm.initiative_winner(10, 10, 60, 60, extra_a=2)[0] == 'a'
+          and bmm.initiative_winner(10, 10, 60, 60, extra_b=2)[0] == 'b')
 
     # ── Caminho do Treinador (4 caminhos, marcos 3/6/10) ──
     def _afinidade():

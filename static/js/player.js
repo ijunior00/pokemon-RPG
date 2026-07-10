@@ -937,7 +937,8 @@ async function startBattle() {
 
 // Listen for initiative result
 socket.on('initiative_result', (data) => {
-    addBattleLog(`🎲 Iniciativa - Você: <strong>${data.player_initiative}</strong> (DEX ${data.player_mod >= 0 ? '+' : ''}${data.player_mod}) | Selvagem: <strong>${data.wild_initiative}</strong> (DEX ${data.wild_mod >= 0 ? '+' : ''}${data.wild_mod})`);
+    addBattleLog(`🎲 Iniciativa - Você: <strong>${data.player_initiative}</strong> (SPE ${data.player_mod >= 0 ? '+' : ''}${data.player_mod}) | Selvagem: <strong>${data.wild_initiative}</strong> (SPE ${data.wild_mod >= 0 ? '+' : ''}${data.wild_mod})`);
+    if (data.upset) addBattleLog(`💨 <strong>Virada lendária!</strong> O mais lento agiu primeiro contra todas as probabilidades (20 natural vs 1 natural)!`);
     addBattleLog(`➡️ <strong>${data.first_turn === 'player' ? 'Você começa!' : 'Pokémon Selvagem começa!'}</strong>`);
     // Show on-enter ability messages
     if (data.on_enter_abilities?.length) {

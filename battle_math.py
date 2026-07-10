@@ -291,9 +291,32 @@ def stage_mult(n):
 
 # ── Iniciativa ────────────────────────────────────────────────────────────
 def initiative_bonus(spe_eff):
-    """Bônus de iniciativa: d20 + SPE_efetivo//10 (Speed decide na média,
-    o dado ainda importa)."""
-    return int(spe_eff) // 10
+    """Bônus de iniciativa: d20 + SPE_efetivo//5 (Speed decide; o dado é a
+    imprevisibilidade, não o fator principal)."""
+    return int(spe_eff) // 5
+
+
+def initiative_winner(nat_a, nat_b, spe_a, spe_b, extra_a=0, extra_b=0):
+    """Decide a iniciativa entre 'a' e 'b' a partir dos d20 naturais.
+    Retorna (vencedor 'a'|'b', total_a, total_b, upset).
+    Ordem das regras:
+      1. Upset 20vs1: se o mais LENTO tira 20 natural e o mais rápido tira 1
+         natural, o lento age primeiro independente dos modificadores (1/400).
+      2. Maior total (natural + SPE_eff//5 + extra).
+      3. Empate de total → maior SPE_eff.
+      4. Empate completo → 'a' (jogador/player1)."""
+    spe_a, spe_b = int(spe_a), int(spe_b)
+    total_a = int(nat_a) + initiative_bonus(spe_a) + int(extra_a or 0)
+    total_b = int(nat_b) + initiative_bonus(spe_b) + int(extra_b or 0)
+    if spe_a < spe_b and nat_a == 20 and nat_b == 1:
+        return 'a', total_a, total_b, True
+    if spe_b < spe_a and nat_b == 20 and nat_a == 1:
+        return 'b', total_a, total_b, True
+    if total_a != total_b:
+        return ('a' if total_a > total_b else 'b'), total_a, total_b, False
+    if spe_a != spe_b:
+        return ('a' if spe_a > spe_b else 'b'), total_a, total_b, False
+    return 'a', total_a, total_b, False
 
 
 # ── Dano fixo ─────────────────────────────────────────────────────────────
