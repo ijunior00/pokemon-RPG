@@ -393,6 +393,18 @@ def main():
         _rq = p1.post('/api/shop/buy', json={'item_id': 'energy-drink', 'qty': _bad})
         check(S, f'buy qty={_bad!r} não crasha (400/200, nunca 500)',
               _rq.status_code < 500, f'status {_rq.status_code}')
+    # QA LOOP 5: fuzz genérico — item_name/slot None/string não crashaam (500)
+    _fuzz_routes = [
+        ('/api/shop/sell', {'item_name': None}), ('/api/shop/sell-price', {'item_name': None}),
+        ('/player/pc/items/deposit', {'item_name': None}),
+        ('/player/pc/items/withdraw', {'item_name': None}),
+        ('/player/use-stone', {'pokemon_idx': 0, 'item_name': None}),
+        ('/player/level-evolve', {'slot': 'x'}),
+    ]
+    for _ep, _b in _fuzz_routes:
+        _rq = p1.post(_ep, json=_b)
+        check(S, f'{_ep} com {list(_b)[0]} malformado não crasha (nunca 500)',
+              _rq.status_code < 500, f'status {_rq.status_code}')
     r = p1.post('/player/use-energy-drink', json={})
     check(S, 'usar Energy Drink dá +1 caçada', (r.get_json() or {}).get('limit') == 7)
     appmod._rate_store.clear()

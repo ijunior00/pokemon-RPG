@@ -4614,7 +4614,7 @@ def use_evolution_stone():
     """Player uses an evolution stone/item on a team Pokémon."""
     data = request.json or {}
     pokemon_idx = data.get('pokemon_idx')
-    item_name   = data.get('item_name', '').strip()
+    item_name   = (data.get('item_name') or '').strip()
 
     if pokemon_idx is None or not item_name:
         return jsonify({'error': 'Parâmetros inválidos'}), 400
@@ -4708,13 +4708,15 @@ def pokemon_center():
 def level_evolve():
     """Manually trigger a level-based evolution check for a team slot."""
     data = request.json or {}
-    slot = data.get('slot')
+    if data.get('slot') is None:
+        return jsonify({'error': 'Slot inválido'}), 400
+    slot = _int_arg(data, 'slot', -1)   # slot não-int não crasha (QA LOOP 5)
 
     users   = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
     team    = trainer.get('team', [])
 
-    if slot is None or slot < 0 or slot >= len(team):
+    if slot < 0 or slot >= len(team):
         return jsonify({'error': 'Slot inválido'}), 400
 
     pokemon = team[slot]
@@ -5234,7 +5236,7 @@ def api_shop_sell():
     if current_user.role == 'master':
         return jsonify({'error': 'Mestre não pode vender itens'}), 403
     data = request.json or {}
-    item_name = data.get('item_name', '').strip()
+    item_name = (data.get('item_name') or '').strip()
     qty = _int_arg(data, 'qty', 1, lo=1)
 
     users = get_users()
@@ -5282,7 +5284,7 @@ def api_shop_sell():
 def api_shop_sell_price():
     """Preview sell price for an item based on player CHA."""
     data = request.json or {}
-    item_name = data.get('item_name', '').strip()
+    item_name = (data.get('item_name') or '').strip()
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
     cha = _influence_value(trainer)
@@ -5304,7 +5306,7 @@ def get_pc_items():
 def pc_deposit_item():
     """Move item(s) from bag to PC item storage."""
     data = request.json or {}
-    item_name = data.get('item_name', '').strip()
+    item_name = (data.get('item_name') or '').strip()
     qty = _int_arg(data, 'qty', 1, lo=1)
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
@@ -5339,7 +5341,7 @@ def pc_deposit_item():
 def pc_withdraw_item():
     """Move item(s) from PC storage to bag."""
     data = request.json or {}
-    item_name = data.get('item_name', '').strip()
+    item_name = (data.get('item_name') or '').strip()
     qty = _int_arg(data, 'qty', 1, lo=1)
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
