@@ -4535,13 +4535,13 @@ def pc_store_capture():
 def pc_deposit():
     """Move a Pokémon from team to PC."""
     data = request.json or {}
-    idx  = data.get('team_idx')
+    idx  = _int_arg(data, 'team_idx', -1)   # índice não-int não crasha (QA LOOP 4)
 
     users   = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
     team    = trainer.get('team', [])
 
-    if idx is None or idx < 0 or idx >= len(team):
+    if idx < 0 or idx >= len(team):
         return jsonify({'error': 'Índice inválido'}), 400
     if len(team) <= 1:
         return jsonify({'error': 'Você não pode depositar seu último Pokémon!'}), 400
@@ -4561,14 +4561,14 @@ def pc_deposit():
 def pc_withdraw():
     """Move a Pokémon from PC to team."""
     data = request.json or {}
-    idx  = data.get('pc_idx')
+    idx  = _int_arg(data, 'pc_idx', -1)   # índice não-int não crasha (QA LOOP 4)
 
     users   = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
     team    = trainer.get('team', [])
     pc      = trainer.get('pc', [])
 
-    if idx is None or idx < 0 or idx >= len(pc):
+    if idx < 0 or idx >= len(pc):
         return jsonify({'error': 'Índice inválido'}), 400
     if len(team) >= 6:
         return jsonify({'error': 'Time cheio! Deposite um Pokémon primeiro.'}), 400
@@ -4587,16 +4587,16 @@ def pc_withdraw():
 def pc_swap():
     """Swap a team Pokémon directly with a PC Pokémon."""
     data     = request.json or {}
-    team_idx = data.get('team_idx')
-    pc_idx   = data.get('pc_idx')
+    if data.get('team_idx') is None or data.get('pc_idx') is None:
+        return jsonify({'error': 'Parâmetros inválidos'}), 400
+    team_idx = _int_arg(data, 'team_idx', -1)   # índice não-int não crasha (QA LOOP 4)
+    pc_idx   = _int_arg(data, 'pc_idx', -1)
 
     users   = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
     team    = trainer.get('team', [])
     pc      = trainer.get('pc', [])
 
-    if team_idx is None or pc_idx is None:
-        return jsonify({'error': 'Parâmetros inválidos'}), 400
     if team_idx < 0 or team_idx >= len(team) or pc_idx < 0 or pc_idx >= len(pc):
         return jsonify({'error': 'Índice fora dos limites'}), 400
 

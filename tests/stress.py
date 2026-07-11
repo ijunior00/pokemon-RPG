@@ -2192,6 +2192,13 @@ def main():
     r = p1.post('/player/pc/withdraw', json={'pc_idx': 0})
     d = r.get_json() or {}
     check(S, 'retirar pokémon', d.get('ok') or d.get('success'), f'{list(d.keys())}')
+    # QA LOOP 4: índice não-int no PC não derruba a request com 500
+    for _ep, _body in (('/player/pc/deposit', {'team_idx': 'x'}),
+                       ('/player/pc/withdraw', {'pc_idx': 'x'}),
+                       ('/player/pc/swap', {'team_idx': 'x', 'pc_idx': 0})):
+        _r = p1.post(_ep, json=_body)
+        check(S, f'{_ep} com índice string não crasha (nunca 500)',
+              _r.status_code < 500, f'status {_r.status_code}')
     r = p1.post('/player/pc/items/deposit', json={'item_name': 'Potion', 'qty': 1})
     d = r.get_json() or {}
     check(S, 'depositar item', d.get('ok') or d.get('success'), f'{d}')
