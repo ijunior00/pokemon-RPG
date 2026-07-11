@@ -4070,6 +4070,7 @@ def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data
                                               _prof_for_level(actor['pokemon'].get('level', 1))),
              maxHp=actor['maxHp'], currentHp=max(0, actor['hp']),
              types=actor['pokemon'].get('types'),
+             ability=actor['pokemon'].get('ability'),   # Rest × Insomnia
              _v3=_v3_side_state(actor['pokemon'])),   # Protect: corrente/flag no dict real
         dict(target['pokemon'].get('stats', {}), level=target['pokemon'].get('level', 1),
              currentHp=max(0, target['hp']),
@@ -4152,6 +4153,9 @@ def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data
     if result.get('heal'):
         actor['hp'] = min(actor['maxHp'], actor['hp'] + result['heal'])
         actor['pokemon']['currentHp'] = actor['hp']
+    # Rest: o PRÓPRIO usuário adormece (troca o status atual — cura e dorme)
+    if result.get('self_status'):
+        actor['status'] = {'condition': result['self_status'], 'turns_active': 0}
     # Stat stages no dict pokemon do combatente (o cálculo copia esse dict)
     if result.get('stat_changes'):
         tgt = target if result.get('effect_type') == 'debuff' else actor
@@ -4344,6 +4348,10 @@ def handle_group_battle_action(data):
         return
     # Só o dono do combatente atual pode agir (mestre pode agir por qualquer aliado)
     if current_user.role != 'master' and str(current_user.id) != cur['player_id']:
+        return
+    # Pokémon desmaiado NÃO age (guarda extra do ator; a ordem já pula caídos)
+    if cur.get('fainted') or int(cur.get('hp') or 0) <= 0:
+        emit('group_battle_error', {'message': '💀 Este Pokémon desmaiou — não pode agir.'})
         return
 
     target_cid = data.get('target_cid')
@@ -4826,11 +4834,26 @@ def update_team():
         # apelido não colidem — cada incoming consome um prev distinto (senão o
         # shiny de um vazava para o outro / era ligado de graça).
         prev_team = users[current_user.id].get('trainer_data', {}).get('team', [])
-        prev_by_key = {}
+        prev_by_key, prev_by_num, prev_by_uid = {}, {}, {}
         for pp in prev_team:
             if isinstance(pp, dict):
                 prev_by_key.setdefault(
                     (pp.get('number'), (pp.get('nickname') or '')), []).append(pp)
+                prev_by_num.setdefault(pp.get('number'), []).append(pp)
+                if pp.get('uid'):
+                    prev_by_uid[pp['uid']] = pp
+        _consumed = set()   # id() dos prev já casados (uid e FIFO não colidem)
+
+        def _take_prev(pp_):
+            _consumed.add(id(pp_))
+            return pp_
+
+        def _pop_fifo(lst):
+            while lst:
+                cand = lst.pop(0)
+                if id(cand) not in _consumed:
+                    return _take_prev(cand)
+            return None
         clean_team = []
         for p in team:
             if not isinstance(p, dict):
@@ -4841,8 +4864,22 @@ def update_team():
                 or POKEMON_BY_NUMBER.get(p.get('number'))
             if not base or not base.get('base_stats'):
                 continue   # espécie desconhecida → descarta (anti-forja)
-            _pk_matches = prev_by_key.get((p.get('number'), (p.get('nickname') or '')))
-            prev = _pk_matches.pop(0) if _pk_matches else None   # consome 1:1
+            # Identidade ESTÁVEL: 1º por uid (sobrevive a apelido/evolução);
+            # 2º pela chave legada (número, apelido); 3º só pelo número —
+            # sem o fallback, RENOMEAR um Pokémon descartava o `pp` e a
+            # migração re-rodava ZERANDO o treino (Custom EVs) do nada.
+            prev = None
+            _uid = p.get('uid')
+            if _uid and _uid in prev_by_uid and id(prev_by_uid[_uid]) not in _consumed:
+                prev = _take_prev(prev_by_uid[_uid])
+            if prev is None:
+                prev = _pop_fifo(prev_by_key.get(
+                    (p.get('number'), (p.get('nickname') or '')), []))
+            if prev is None:
+                prev = _pop_fifo(prev_by_num.get(p.get('number'), []))
+            # uid é AUTORIDADE DO SERVIDOR: herda do prev ou ganha um novo
+            # (uid desconhecido vindo do cliente é descartado)
+            p['uid'] = (prev or {}).get('uid') or secrets.token_hex(6)
             level = max(1, min(100, int(p.get('level') or 1)))
             if prev is not None:
                 # Pokémon já existente: nível só sobe (e no máx. +5 por save,
@@ -5542,7 +5579,8 @@ def api_process_status_move():
                      else encounter.get('player_pokemon'))
     if isinstance(side_poke, dict):
         attacker_stats = dict(attacker_stats, _v3=_v3_side_state(side_poke),
-                              types=side_poke.get('types'))
+                              types=side_poke.get('types'),
+                              ability=side_poke.get('ability'))   # Rest × Insomnia
     result = effects.process_status_move(move_data, attacker_stats, target_stats,
                                          mutate=False)
     return jsonify(result)
@@ -5666,7 +5704,19 @@ def handle_encounter(data):
         _stamp_tatica(team, trainer)
         _v3_new_battle(team)
         player_pokemon = team[player_pokemon_idx] if player_pokemon_idx < len(team) else None
-        
+
+        # Pokémon desmaiado NÃO inicia batalha — devolve o vale de encontro
+        # (a liberação do mestre não é queimada pela tentativa inválida).
+        _hp0 = player_pokemon.get('currentHp') if player_pokemon else None
+        if player_pokemon and isinstance(_hp0, (int, float)) and _hp0 <= 0:
+            _gs2 = get_game_state()
+            _gs2.setdefault('pending_encounters', {})[str(current_user.id)] = _granted
+            save_game_state(_gs2)
+            emit('encounter_denied', {
+                'message': '💀 Pokémon desmaiado — cure ou escolha outro para iniciar o encontro.'
+            }, room=str(current_user.id))
+            return
+
         encounter_data = {
             'player_id': current_user.id,
             'player_name': current_user.username,
@@ -5941,6 +5991,16 @@ def handle_battle_action(data):
             if battle_state.get('turn') and battle_state['turn'] != expected:
                 return
 
+        # Pokémon desmaiado NÃO age (HP ≤ 0): fecha o "último golpe" depois
+        # de ser zerado (o cliente às vezes ainda mostrava o turno antigo).
+        if action_type in ('attack', 'status'):
+            if action_by == 'player' and int(battle_state.get('player_hp_current') or 0) <= 0:
+                emit('action_blocked', {
+                    'message': '💀 Seu Pokémon desmaiou — troque de Pokémon ou encerre.'})
+                return
+            if action_by == 'master' and int(battle_state.get('wild_hp_current') or 0) <= 0:
+                return
+
         # Modo MANUAL (auto OFF): o turno do selvagem pertence ao MESTRE.
         # O cliente do jogador dispara o auto-attack por conta própria — aqui
         # o servidor descarta essa ação para o mestre poder conduzir.
@@ -6029,6 +6089,7 @@ def handle_battle_action(data):
                     dict(ppoke.get('stats', {}), level=ppoke.get('level', 1),
                          proficiency=ppoke.get('proficiency', _prof_for_level(ppoke.get('level', 1))),
                          maxHp=ppoke.get('maxHp', 20), types=ppoke.get('types'),
+                         ability=ppoke.get('ability'),   # Rest × Insomnia
                          _v3=_v3_side_state(ppoke)),   # Protect: corrente/flag no dict real
                     dict(wpoke.get('stats', {}), level=wpoke.get('level', encounter.get('level', 5)),
                          ATK_eff=effects.effective_stat(wpoke, 'ATK')))
@@ -6068,6 +6129,10 @@ def handle_battle_action(data):
                     battle_state['player_hp_current'] = min(
                         battle_state['player_hp_max'],
                         battle_state['player_hp_current'] + sres['heal'])
+                # Rest: o PRÓPRIO usuário adormece (troca o status atual)
+                if sres.get('self_status'):
+                    battle_state['player_status'] = {
+                        'condition': sres['self_status'], 'turns_active': 0}
                 # Stat stages: debuff no selvagem, buff no próprio Pokémon.
                 # Aplicados nos dicts do encounter (persistem) e espelhados no
                 # battle_state para o broadcast e o ataque selvagem no cliente.
@@ -6127,6 +6192,7 @@ def handle_battle_action(data):
                     move_data or {'name': move_name},
                     dict(wpoke.get('stats', {}), level=wpoke.get('level', encounter.get('level', 5)),
                          maxHp=battle_state.get('wild_hp_max', 20), types=wpoke.get('types'),
+                         ability=wpoke.get('ability'),   # Rest × Insomnia
                          _v3=_v3_side_state(wpoke)),
                     dict(ppoke.get('stats', {}), level=ppoke.get('level', 1),
                          ATK_eff=effects.effective_stat(ppoke, 'ATK')))
@@ -6161,6 +6227,10 @@ def handle_battle_action(data):
                     battle_state['wild_hp_current'] = min(
                         battle_state['wild_hp_max'],
                         battle_state['wild_hp_current'] + sres['heal'])
+                # Rest: o PRÓPRIO selvagem adormece (troca o status atual)
+                if sres.get('self_status'):
+                    battle_state['wild_status'] = {
+                        'condition': sres['self_status'], 'turns_active': 0}
                 if sres.get('stat_changes'):
                     tgt = ppoke if sres.get('effect_type') == 'debuff' else wpoke
                     effects.apply_stat_changes(tgt, sres['stat_changes'])
@@ -7057,6 +7127,11 @@ def handle_pvp_attack(data):
         att_poke = attacker['team'][attacker['active_idx']]
         def_poke = defender['team'][defender['active_idx']]
 
+        # Pokémon desmaiado NÃO age: fecha o "último golpe" depois de zerado
+        # (o cliente às vezes ainda estava com o turno antigo na tela).
+        if pvp._poke_hp(att_poke) <= 0:
+            emit('pvp_error', {'message': '💀 Seu Pokémon desmaiou — troque de Pokémon.'})
+            return
         # Defensor com ativo desmaiado está aguardando troca — atacar o
         # "corpo" empurraria o HP até -30 (morte permanente indevida).
         if pvp._poke_hp(def_poke) <= 0:
@@ -7676,6 +7751,7 @@ def _process_pvp_status_move(battle, attacker_key, move_name, move_data):
              proficiency=att_poke.get('proficiency', _prof_for_level(att_poke.get('level', 1))),
              maxHp=att_poke.get('maxHp', 20), types=att_poke.get('types'),
              currentHp=max(0, pvp._poke_hp(att_poke)),
+             ability=att_poke.get('ability'),   # Rest × Insomnia
              _v3=_v3_side_state(att_poke)),   # Protect: corrente/flag no dict real
         dict(def_poke.get('stats', {}), level=def_poke.get('level', 1),
              currentHp=max(0, pvp._poke_hp(def_poke)),
@@ -7792,6 +7868,9 @@ def _process_pvp_status_move(battle, attacker_key, move_name, move_data):
     if result.get('heal'):
         att_poke['currentHp'] = min(att_poke.get('maxHp', 20),
                                     max(0, att_poke.get('currentHp', 0)) + result['heal'])
+    # Rest: o PRÓPRIO usuário adormece (troca o status atual — cura e dorme)
+    if result.get('self_status'):
+        att_poke['status'] = {'condition': result['self_status'], 'turns_active': 0}
     # Stat stages: debuff no defensor, buff no atacante (persistem no dict do time)
     if result.get('stat_changes'):
         tgt = def_poke if result.get('effect_type') == 'debuff' else att_poke

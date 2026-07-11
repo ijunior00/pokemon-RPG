@@ -1553,6 +1553,7 @@
  "rest": {
   "effect": {
    "amount": "full",
+   "self_status": "dormindo",
    "type": "heal_self"
   }
  },

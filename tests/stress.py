@@ -1137,6 +1137,18 @@ def main():
           bmm.training_spent(_sv['training']) <= _bud2)
     check(S, 'save do time: anti-min-max respeitado (ATK all-in cai a 5 sem par)',
           _sv['training']['ATK'] == 5)
+    # RENOMEAR não zera o treino (identidade por uid + fallback por número —
+    # antes o `pp` era descartado no mismatch da chave (número, apelido) e a
+    # migração re-rodava ZERANDO os Custom EVs; report da mesa 10/07)
+    users = db.get_users()
+    _tr_before = dict(users[u1]['trainer_data']['team'][0]['training'])
+    _renamed = _cpev.deepcopy(users[u1]['trainer_data']['team'])
+    _renamed[0]['nickname'] = 'Furacão'
+    p1.post('/player/team', json={'team': _renamed})
+    users = db.get_users(); _sv2 = users[u1]['trainer_data']['team'][0]
+    check(S, 'renomear Pokémon NÃO zera o treino (Custom EVs preservados)',
+          _sv2.get('training') == _tr_before and _sv2.get('nickname') == 'Furacão'
+          and bool(_sv2.get('uid')))
     # restaura o time original do u1 para as próximas seções
     users = db.get_users()
     users[u1]['trainer_data']['team'] = _team_backup
@@ -2587,6 +2599,24 @@ def main():
     check(S, 'tipo Grama é imune à semente',
           se_mod.type_blocks_status(['grass'], 'seeded')
           and not se_mod.type_blocks_status(['normal'], 'seeded'))
+
+    # Rest (canon): cura total + o USUÁRIO adormece; Insomnia → falha
+    _rest = se_mod.process_status_move({'name': 'Rest', 'category': 'status'},
+                                       {'maxHp': 100, 'currentHp': 10, '_v3': {}}, {})
+    check(S, 'Rest cura total e ADORMECE o usuário (self_status)',
+          _rest.get('heal') == 100 and _rest.get('self_status') == 'dormindo'
+          and 'ADORMECEU' in _rest.get('message', ''))
+    _rest2 = se_mod.process_status_move({'name': 'Rest', 'category': 'status'},
+                                        {'maxHp': 100, 'ability': 'Insomnia', '_v3': {}}, {})
+    check(S, 'Rest FALHA com Insomnia (sem cura de graça)',
+          _rest2.get('success') is False and not _rest2.get('heal'))
+    # learnsets reportados pela mesa (10/07)
+    _pw = appmod.POKEMON_BY_NAME['poliwag']
+    check(S, 'Poliwag inicia com Water Gun e Hypnosis',
+          {'Water Gun', 'Hypnosis'} <= set(_pw.get('startingMoves') or [])
+          and 'Water Gun' not in (_pw.get('levelMoves') or {}).get('2', []))
+    check(S, 'Machop oferece Low Kick nos iniciais',
+          'Low Kick' in (appmod.POKEMON_BY_NAME['machop'].get('startingMoves') or []))
 
     # Trap (Wrap/Bind/...): condição trapped, ⌊HP/16⌋ por 4 turnos
     _sk, _ok = se_mod.check_status_on_hit('Wrap', 50, 10, defender=_lax)

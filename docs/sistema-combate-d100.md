@@ -381,6 +381,10 @@ cada cura na MESMA batalha vale metade da anterior (½ → ¼ → ⅛…) — a 
 Drenos (Giga Drain & cia) curam ⌊dano/2⌋ com recarga 1 (POW ≥ 90: 2).
 Strength Sap cura o usuário pelo ATK efetivo do alvo (e ATK do alvo −1),
 na mesma recarga-bucket.
+**Rest** (canon): cura TOTAL mas o usuário **adormece** (troca o status
+atual pelo sono — regra padrão de sono, acorda por d100 por turno); falha
+se o usuário é imune a dormir (Insomnia/Vital Spirit). Entra na mesma
+recarga-bucket e na cura decrescente.
 
 Imunidades canônicas valem (Elétrico não paralisa, Fogo não queima,
 Veneno/Aço não envenenam etc.), assim como passivas (Limber, Water Veil,

@@ -753,13 +753,22 @@ async function startBattle() {
             if (!playerPokemon.resistances?.length) playerPokemon.resistances = api.resistances;
             if (!playerPokemon.immunities?.length) playerPokemon.immunities = api.immunities;
             if (!playerPokemon.moves || playerPokemon.moves.length === 0) {
-                let moves = [...(api.startingMoves || [])];
+                // levelMoves usa a escala de nível de TREINADOR (1-20) nos
+                // dados → nível de Pokémon = chave ×5 (igual ao servidor)
+                const iniciais = [...(api.startingMoves || [])];
+                let aprendidos = [];
                 if (api.levelMoves) {
                     for (const [lv, m] of Object.entries(api.levelMoves)) {
-                        if (parseInt(lv) <= (playerPokemon.level || 1)) moves.push(...m);
+                        if (parseInt(lv) * 5 <= (playerPokemon.level || 1)) aprendidos.push(...m);
                     }
                 }
-                playerPokemon.moves = moves.slice(-4);
+                aprendidos = aprendidos.filter(m => !iniciais.includes(m));
+                // GARANTE os iniciais no moveset (o slice(-4) antigo os
+                // descartava — Machop 'esquecia' Low Kick) e completa com
+                // os aprendidos mais recentes
+                const nIni = Math.min(2, iniciais.length, 4 - Math.min(2, aprendidos.length));
+                const base = iniciais.slice(0, Math.max(nIni, 4 - aprendidos.length));
+                playerPokemon.moves = [...base, ...aprendidos.slice(-(4 - base.length))].slice(0, 4);
             }
             
             // Apply level scaling to player's pokemon

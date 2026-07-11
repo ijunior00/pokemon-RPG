@@ -7697,12 +7697,12 @@
     },
     "evolutionInfo": "Poliwag can evolve into Poliwhirl at level 5 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
-      "Water Sport"
+      "Water Sport",
+      "Water Gun",
+      "Hypnosis"
     ],
     "levelMoves": {
       "2": [
-        "Water Gun",
-        "Hypnosis",
         "Bubble"
       ],
       "6": [
