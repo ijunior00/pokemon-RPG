@@ -755,7 +755,9 @@ def auto_detect_move_effect(move_data):
         'moonlight': {'type': 'heal_self', 'amount': 'half'},
         'morning sun': {'type': 'heal_self', 'amount': 'half'},
         'slack off': {'type': 'heal_self', 'amount': 'half'},
-        'rest': {'type': 'heal_self', 'amount': 'full'},
+        # Rest (canon): cura TUDO mas o usuário ADORMECE (troca o status atual
+        # pelo sono — sem o custo, era cura total de graça)
+        'rest': {'type': 'heal_self', 'amount': 'full', 'self_status': 'dormindo'},
         'wish': {'type': 'heal_self', 'amount': 'half'},
         'heal order': {'type': 'heal_self', 'amount': 'half'},
         'heal pulse': {'type': 'heal_self', 'amount': 'half'},
@@ -1150,6 +1152,15 @@ def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
         }
     
     elif effect['type'] == 'heal_self':
+        # Rest & cia: cura com CUSTO — o usuário adormece (self_status).
+        # Imune a dormir (Insomnia/Vital Spirit) → o golpe FALHA (canon).
+        _self_status = effect.get('self_status')
+        if _self_status:
+            import abilities as _ab
+            if _ab.is_status_immune(attacker_stats, _self_status):
+                return {'success': False, 'effect_type': 'failed',
+                        'message': f'{move_name}! ...mas o usuário não consegue dormir!',
+                        'status_applied': None, 'stat_changes': None}
         max_hp = attacker_stats.get('maxHp', 20)
         if effect['amount'] == 'full':
             heal = max_hp
@@ -1181,11 +1192,15 @@ def process_status_move(move_data, attacker_stats, target_stats, mutate=True):
             'success': True,
             'effect_type': 'heal',
             'message': f"{move_name}! Recuperou {heal} HP!"
+                       + (' 💤 ...e ADORMECEU!' if _self_status else '')
                        + (' 📉 (retorno decrescente)' if _uses else '')
                        + (f' ⏳ Recarga: {cd} rodada(s).' if cd else ''),
             'status_applied': None,
             'stat_changes': None,
             'heal': heal,
+            # aplicado no PRÓPRIO usuário pelos callers (troca o status atual
+            # — Rest cura a condição antiga e dorme)
+            'self_status': _self_status,
             'cooldown': cd
         }
 
