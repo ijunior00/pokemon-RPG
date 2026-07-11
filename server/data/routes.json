@@ -4,7 +4,7 @@
     "description": "Caminho tranquilo entre Pallet Town e Viridian City.",
     "region": "Sul de Kanto", "region_id": "kanto",
     "types": ["Normal", "Flying"], "dungeon_types": ["Normal", "Dark"],
-    "level_range": [1, 5],
+    "level_range": [3, 10],
     "pokemon": ["Pidgey", "Rattata", "Sentret", "Zigzagoon"]
   },
   "route_2": {
@@ -12,7 +12,7 @@
     "description": "Estrada arborizada que corta a Viridian Forest.",
     "region": "Sul de Kanto", "region_id": "kanto",
     "types": ["Normal", "Bug", "Flying"], "dungeon_types": ["Bug", "Poison"],
-    "level_range": [2, 7],
+    "level_range": [5, 13],
     "pokemon": ["Pidgey", "Rattata", "Caterpie", "Weedle", "Metapod", "Kakuna", "Sentret", "Hoothoot"]
   },
   "viridian_forest": {
@@ -20,7 +20,7 @@
     "description": "Floresta densa e labiríntica. Pikachu aparece raramente.",
     "region": "Sul de Kanto", "region_id": "kanto",
     "types": ["Bug", "Electric", "Grass"], "dungeon_types": ["Bug", "Poison", "Ghost"],
-    "level_range": [3, 7],
+    "level_range": [8, 18],
     "pokemon": ["Caterpie", "Metapod", "Weedle", "Kakuna", "Pikachu", "Ledyba", "Spinarak", "Wurmple"]
   },
   "route_3": {
@@ -28,7 +28,7 @@
     "description": "Planícies com colinas suaves. Nidoran e Jigglypuff são frequentes.",
     "region": "Sul de Kanto", "region_id": "kanto",
     "types": ["Normal", "Fairy", "Fighting"], "dungeon_types": ["Poison", "Fighting", "Dark"],
-    "level_range": [6, 12],
+    "level_range": [9, 16],
     "pokemon": ["Pidgey", "Nidoran-m", "Nidoran-f", "Jigglypuff", "Mankey", "Marill", "Shroomish", "Slakoth"]
   },
   "mt_moon": {
@@ -36,7 +36,7 @@
     "description": "Montanha cheia de cavernas e cristais de Clefairy.",
     "region": "Sul de Kanto", "region_id": "kanto",
     "types": ["Rock", "Ground", "Fairy"], "dungeon_types": ["Rock", "Ground", "Ghost", "Dark"],
-    "level_range": [7, 14],
+    "level_range": [10, 20],
     "pokemon": ["Zubat", "Geodude", "Clefairy", "Paras", "Golbat", "Sandshrew", "Ralts", "Nosepass"]
   },
   "route_4": {
@@ -44,7 +44,7 @@
     "description": "Saída leste da montanha. Terreno seco com Ekans e Spearow.",
     "region": "Centro de Kanto", "region_id": "kanto",
     "types": ["Normal", "Poison", "Flying"], "dungeon_types": ["Poison", "Ground", "Dark"],
-    "level_range": [10, 17],
+    "level_range": [12, 20],
     "pokemon": ["Spearow", "Ekans", "Sandshrew", "Mankey", "Snubbull", "Taillow"]
   },
   "route_24": {
@@ -52,7 +52,7 @@
     "description": "Ponte famosa ao norte de Cerulean.",
     "region": "Norte de Kanto", "region_id": "kanto",
     "types": ["Grass", "Bug", "Psychic"], "dungeon_types": ["Poison", "Bug", "Psychic"],
-    "level_range": [12, 17],
+    "level_range": [12, 20],
     "pokemon": ["Caterpie", "Weedle", "Pidgey", "Oddish", "Bellsprout", "Abra", "Hoppip", "Sunkern"]
   },
   "route_25": {
@@ -60,7 +60,7 @@
     "description": "Extremidade norte com vista para o mar.",
     "region": "Norte de Kanto", "region_id": "kanto",
     "types": ["Grass", "Psychic", "Bug"], "dungeon_types": ["Psychic", "Poison", "Ghost"],
-    "level_range": [13, 18],
+    "level_range": [13, 22],
     "pokemon": ["Pidgey", "Oddish", "Bellsprout", "Abra", "Hoppip", "Yanma", "Ralts"]
   },
   "route_5": {
@@ -68,7 +68,7 @@
     "description": "Caminho sul de Cerulean. Meowth e Grass Pokémon.",
     "region": "Centro de Kanto", "region_id": "kanto",
     "types": ["Normal", "Grass", "Psychic"], "dungeon_types": ["Poison", "Grass", "Dark"],
-    "level_range": [13, 18],
+    "level_range": [14, 22],
     "pokemon": ["Pidgey", "Meowth", "Mankey", "Oddish", "Bellsprout", "Hoppip", "Aipom"]
   },
   "route_6": {
@@ -76,7 +76,7 @@
     "description": "Estrada sul com terrenos variados. Psyduck aparece perto do lago.",
     "region": "Centro de Kanto", "region_id": "kanto",
     "types": ["Normal", "Water", "Grass"], "dungeon_types": ["Water", "Poison", "Dark"],
-    "level_range": [13, 20],
+    "level_range": [14, 22],
     "pokemon": ["Pidgey", "Meowth", "Psyduck", "Oddish", "Bellsprout", "Marill", "Wooper"]
   },
   "route_11": {
@@ -84,7 +84,7 @@
     "description": "Planícies a leste de Vermilion. Spearow e Ekans são comuns.",
     "region": "Leste de Kanto", "region_id": "kanto",
     "types": ["Normal", "Poison", "Flying"], "dungeon_types": ["Poison", "Ground", "Dark"],
-    "level_range": [13, 18],
+    "level_range": [14, 22],
     "pokemon": ["Spearow", "Ekans", "Drowzee", "Sandshrew", "Yanma", "Girafarig"]
   },
   "route_9": {
@@ -92,7 +92,7 @@
     "description": "Terreno rochoso que leva ao Rock Tunnel.",
     "region": "Leste de Kanto", "region_id": "kanto",
     "types": ["Rock", "Ground", "Normal"], "dungeon_types": ["Rock", "Ground", "Fighting"],
-    "level_range": [13, 19],
+    "level_range": [15, 24],
     "pokemon": ["Rattata", "Spearow", "Ekans", "Sandshrew", "Nidoran-m", "Nidoran-f", "Aron"]
   },
   "route_10": {
@@ -100,7 +100,7 @@
     "description": "Área perto da Power Plant. Pokémon elétricos e voadores.",
     "region": "Leste de Kanto", "region_id": "kanto",
     "types": ["Electric", "Flying", "Ground"], "dungeon_types": ["Electric", "Steel", "Dark"],
-    "level_range": [15, 23],
+    "level_range": [16, 26],
     "pokemon": ["Spearow", "Voltorb", "Magnemite", "Ekans", "Sandshrew", "Elekid", "Plusle", "Minun"]
   },
   "rock_tunnel": {
@@ -108,7 +108,7 @@
     "description": "Caverna sem luz natural. Zubat e Onix habitam as profundezas.",
     "region": "Leste de Kanto", "region_id": "kanto",
     "types": ["Rock", "Ground", "Fighting"], "dungeon_types": ["Rock", "Ground", "Dark", "Ghost"],
-    "level_range": [15, 22],
+    "level_range": [16, 28],
     "pokemon": ["Zubat", "Geodude", "Onix", "Machop", "Golbat", "Graveler", "Aron", "Sableye"]
   },
   "power_plant": {
@@ -116,7 +116,7 @@
     "description": "Usina abandonada infestada de Pokémon elétricos.",
     "region": "Leste de Kanto", "region_id": "kanto",
     "types": ["Electric", "Steel"], "dungeon_types": ["Electric", "Steel", "Ghost"],
-    "level_range": [24, 48],
+    "level_range": [28, 44],
     "pokemon": ["Voltorb", "Magneton", "Electrode", "Electabuzz", "Magnemite", "Pikachu", "Elekid", "Manectric", "Plusle", "Minun"]
   },
   "route_7": {
@@ -124,7 +124,7 @@
     "description": "Caminho leste de Celadon. Vulpix e Growlithe dependendo da versão.",
     "region": "Centro de Kanto", "region_id": "kanto",
     "types": ["Fire", "Normal", "Grass"], "dungeon_types": ["Fire", "Dark", "Poison"],
-    "level_range": [18, 23],
+    "level_range": [18, 28],
     "pokemon": ["Pidgey", "Meowth", "Vulpix", "Growlithe", "Oddish", "Bellsprout", "Snubbull", "Numel"]
   },
   "route_8": {
@@ -132,7 +132,7 @@
     "description": "Estrada entre Celadon e Lavender. Pokémon psíquicos sob a névoa.",
     "region": "Leste de Kanto", "region_id": "kanto",
     "types": ["Normal", "Psychic", "Poison"], "dungeon_types": ["Psychic", "Ghost", "Poison"],
-    "level_range": [18, 23],
+    "level_range": [18, 28],
     "pokemon": ["Pidgey", "Meowth", "Growlithe", "Vulpix", "Drowzee", "Oddish", "Bellsprout", "Misdreavus"]
   },
   "pokemon_tower": {
@@ -140,7 +140,7 @@
     "description": "Torre assombrada com Gastly e Haunter. Cubone chora pelos corredores.",
     "region": "Leste de Kanto", "region_id": "kanto",
     "types": ["Ghost", "Psychic", "Normal"], "dungeon_types": ["Ghost", "Dark", "Psychic"],
-    "level_range": [14, 30],
+    "level_range": [20, 32],
     "pokemon": ["Gastly", "Haunter", "Cubone", "Misdreavus", "Duskull", "Shuppet", "Sableye"]
   },
   "route_12": {
@@ -148,7 +148,7 @@
     "description": "Rota litorânea ao sul de Lavender.",
     "region": "Sul de Kanto", "region_id": "kanto",
     "types": ["Grass", "Bug", "Flying"], "dungeon_types": ["Poison", "Bug", "Dark"],
-    "level_range": [15, 23],
+    "level_range": [22, 32],
     "pokemon": ["Pidgey", "Venonat", "Oddish", "Bellsprout", "Weepinbell", "Gloom", "Hoppip", "Yanma"]
   },
   "route_13": {
@@ -156,7 +156,7 @@
     "description": "Área com arbustos densos e ventos costeiros.",
     "region": "Sul de Kanto", "region_id": "kanto",
     "types": ["Poison", "Flying", "Bug"], "dungeon_types": ["Poison", "Bug", "Dark"],
-    "level_range": [18, 26],
+    "level_range": [23, 34],
     "pokemon": ["Pidgey", "Venonat", "Weepinbell", "Gloom", "Scyther", "Pinsir", "Swellow", "Beautifly"]
   },
   "route_14": {
@@ -164,7 +164,7 @@
     "description": "Área aberta com gramados. Fearow domina os céus.",
     "region": "Sul de Kanto", "region_id": "kanto",
     "types": ["Flying", "Poison", "Normal"], "dungeon_types": ["Poison", "Dark", "Ghost"],
-    "level_range": [19, 28],
+    "level_range": [24, 34],
     "pokemon": ["Pidgey", "Fearow", "Venonat", "Weepinbell", "Gloom", "Murkrow", "Taillow", "Swellow"]
   },
   "route_15": {
@@ -172,7 +172,7 @@
     "description": "Último trecho antes de Celadon.",
     "region": "Sul de Kanto", "region_id": "kanto",
     "types": ["Grass", "Poison", "Bug"], "dungeon_types": ["Poison", "Dark", "Bug"],
-    "level_range": [18, 27],
+    "level_range": [24, 34],
     "pokemon": ["Pidgey", "Nidoran-m", "Nidoran-f", "Venonat", "Oddish", "Bellsprout", "Roselia", "Surskit"]
   },
   "safari_zone": {
@@ -180,7 +180,7 @@
     "description": "Reserva natural enorme. Pokémon raros que não aparecem em mais lugar nenhum.",
     "region": "Sul de Kanto", "region_id": "kanto",
     "types": ["Normal", "Water", "Grass", "Ground"], "dungeon_types": ["Dragon", "Ground", "Water", "Psychic"],
-    "level_range": [22, 40],
+    "level_range": [22, 38],
     "pokemon": ["Nidoran-m", "Nidoran-f", "Nidorino", "Nidorina", "Exeggcute", "Rhyhorn", "Kangaskhan", "Tauros", "Chansey", "Parasect", "Scyther", "Pinsir", "Dratini", "Aipom", "Wooper", "Quagsire", "Girafarig", "Tropius", "Seviper", "Zangoose"]
   },
   "seafoam_islands": {
@@ -188,7 +188,7 @@
     "description": "Cavernas geladas nas ilhas ao sul. Seel nada nas águas frias.",
     "region": "Sul de Kanto", "region_id": "kanto",
     "types": ["Ice", "Water"], "dungeon_types": ["Ice", "Water", "Ghost"],
-    "level_range": [30, 48],
+    "level_range": [30, 46],
     "pokemon": ["Seel", "Dewgong", "Slowpoke", "Slowbro", "Shellder", "Cloyster", "Jynx", "Zubat", "Golbat", "Swinub", "Spheal", "Snorunt"]
   },
   "route_16": {
@@ -196,7 +196,7 @@
     "description": "Entrada da Cycling Road. Rattata e Doduo correm pela área.",
     "region": "Oeste de Kanto", "region_id": "kanto",
     "types": ["Normal", "Flying", "Ground"], "dungeon_types": ["Normal", "Dark", "Flying"],
-    "level_range": [18, 24],
+    "level_range": [24, 34],
     "pokemon": ["Rattata", "Raticate", "Pidgey", "Doduo", "Spearow", "Fearow", "Sentret", "Taillow"]
   },
   "route_17": {
@@ -204,7 +204,7 @@
     "description": "Estrada íngreme para ciclistas. Doduo e Fearow voam pelos cruzamentos.",
     "region": "Oeste de Kanto", "region_id": "kanto",
     "types": ["Normal", "Flying", "Fire"], "dungeon_types": ["Flying", "Dark", "Steel"],
-    "level_range": [20, 32],
+    "level_range": [26, 38],
     "pokemon": ["Rattata", "Raticate", "Doduo", "Fearow", "Ponyta", "Murkrow", "Skarmory"]
   },
   "route_18": {
@@ -212,15 +212,31 @@
     "description": "Saída sul da Cycling Road.",
     "region": "Oeste de Kanto", "region_id": "kanto",
     "types": ["Flying", "Normal", "Ground"], "dungeon_types": ["Dark", "Flying", "Ghost"],
-    "level_range": [18, 30],
+    "level_range": [26, 38],
     "pokemon": ["Rattata", "Raticate", "Doduo", "Fearow", "Spearow", "Taillow", "Wingull"]
+  },
+  "route_19": {
+    "name": "Rota 19 — Mar de Fuchsia",
+    "description": "Rota marítima ao sul de Fuchsia. Só se atravessa a nado; Tentacool infesta as águas.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Water", "Flying"], "dungeon_types": ["Water", "Poison", "Ice"],
+    "level_range": [26, 38],
+    "pokemon": ["Tentacool", "Tentacruel", "Horsea", "Staryu", "Krabby", "Wingull", "Magikarp"]
+  },
+  "route_20": {
+    "name": "Rota 20 — Ilhas Seafoam (mar)",
+    "description": "Corredor marítimo entre as Ilhas Seafoam e Cinnabar. Águas profundas e perigosas.",
+    "region": "Sul de Kanto", "region_id": "kanto",
+    "types": ["Water", "Ice"], "dungeon_types": ["Water", "Ice", "Poison"],
+    "level_range": [28, 42],
+    "pokemon": ["Tentacool", "Tentacruel", "Horsea", "Seadra", "Staryu", "Shellder", "Krabby", "Kingler", "Magikarp", "Gyarados"]
   },
   "route_21": {
     "name": "Rota 21 — Pallet Sul",
     "description": "Rota marítima ao sul. Tangela na grama e Pokémon aquáticos no mar.",
     "region": "Sul de Kanto", "region_id": "kanto",
     "types": ["Water", "Grass", "Flying"], "dungeon_types": ["Water", "Poison", "Ice"],
-    "level_range": [20, 30],
+    "level_range": [24, 36],
     "pokemon": ["Tangela", "Oddish", "Bellsprout", "Pidgey", "Pidgeot", "Tentacool", "Lotad", "Lileep"]
   },
   "route_22": {
@@ -228,7 +244,7 @@
     "description": "Área ao oeste de Viridian. Rivais te desafiam aqui antes do Victory Road.",
     "region": "Oeste de Kanto", "region_id": "kanto",
     "types": ["Normal", "Poison", "Flying"], "dungeon_types": ["Poison", "Ground", "Dark"],
-    "level_range": [3, 45],
+    "level_range": [4, 12],
     "pokemon": ["Nidoran-m", "Nidoran-f", "Spearow", "Mankey", "Ekans", "Sandshrew", "Zigzagoon", "Poochyena"]
   },
   "digletts_cave": {
@@ -236,7 +252,7 @@
     "description": "Túnel subterrâneo conectando Vermilion e sul de Pewter.",
     "region": "Sul de Kanto", "region_id": "kanto",
     "types": ["Ground"], "dungeon_types": ["Ground", "Rock", "Dark"],
-    "level_range": [15, 31],
+    "level_range": [16, 30],
     "pokemon": ["Diglett", "Dugtrio", "Trapinch", "Sandshrew"]
   },
   "route_23": {
@@ -244,7 +260,7 @@
     "description": "Área final antes de Victory Road. Treinadores fortes; Ditto raramente.",
     "region": "Norte de Kanto", "region_id": "kanto",
     "types": ["Normal", "Fighting", "Psychic"], "dungeon_types": ["Psychic", "Dark", "Ghost"],
-    "level_range": [23, 40],
+    "level_range": [30, 46],
     "pokemon": ["Ekans", "Sandshrew", "Spearow", "Fearow", "Primeape", "Ditto", "Girafarig", "Medicham"]
   },
   "victory_road": {
@@ -252,7 +268,7 @@
     "description": "Caverna da lenda. Machoke e Graveler guardam os corredores.",
     "region": "Norte de Kanto", "region_id": "kanto",
     "types": ["Rock", "Ground", "Fighting"], "dungeon_types": ["Rock", "Ground", "Fighting", "Ghost"],
-    "level_range": [33, 50],
+    "level_range": [34, 50],
     "pokemon": ["Zubat", "Geodude", "Onix", "Machop", "Golbat", "Graveler", "Machoke", "Aron", "Lairon", "Hariyama", "Medicham"]
   },
   "cerulean_cave": {
@@ -268,7 +284,7 @@
     "description": "Território avançado ao leste da Liga. Pokémon evoluídos.",
     "region": "Leste de Kanto", "region_id": "kanto",
     "types": ["Normal", "Flying", "Water"], "dungeon_types": ["Psychic", "Ghost", "Dragon"],
-    "level_range": [40, 60],
+    "level_range": [40, 58],
     "pokemon": ["Fearow", "Raticate", "Arcanine", "Electrode", "Golduck", "Ditto", "Donphan", "Flygon"]
   },
   "route_27": {
@@ -276,7 +292,7 @@
     "description": "Entrada para Johto. Pokémon de Kanto avançados.",
     "region": "Leste de Kanto", "region_id": "kanto",
     "types": ["Water", "Normal", "Rock"], "dungeon_types": ["Water", "Ice", "Dragon"],
-    "level_range": [40, 55],
+    "level_range": [42, 58],
     "pokemon": ["Fearow", "Raticate", "Tentacruel", "Golduck", "Nidoking", "Nidoqueen", "Donphan", "Azumarill"]
   },
   "route_28": {
@@ -284,7 +300,7 @@
     "description": "Caminho íngreme para Mt. Silver. Pokémon fortes de todos os tipos.",
     "region": "Norte de Kanto", "region_id": "kanto",
     "types": ["Rock", "Ice", "Normal"], "dungeon_types": ["Dragon", "Ice", "Ghost"],
-    "level_range": [45, 65],
+    "level_range": [46, 64],
     "pokemon": ["Arcanine", "Golduck", "Primeape", "Ursaring", "Larvitar", "Donphan", "Steelix"]
   },
   "mt_silver": {
@@ -292,7 +308,7 @@
     "description": "A montanha mais alta de Kanto. Apenas campeões chegam aqui.",
     "region": "Norte de Kanto", "region_id": "kanto",
     "types": ["Ice", "Rock", "Dragon"], "dungeon_types": ["Dragon", "Ghost", "Ice", "Dark"],
-    "level_range": [45, 80],
+    "level_range": [50, 80],
     "pokemon": ["Donphan", "Ursaring", "Steelix", "Larvitar", "Pupitar", "Magmar", "Golbat", "Marowak", "Misdreavus", "Sneasel", "Piloswine", "Bagon"]
   },
 

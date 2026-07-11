@@ -946,6 +946,11 @@ MAX_HUNTS_PER_DAY = 6
 # (virtual ou físico) e o mestre decide liberar a caçada. Não há mais CD
 # automática — o mestre libera a "Caçada Aleatória" pelo painel.
 HUNT_MODES = ('normal', 'dungeon', 'dungeon_night', 'night')
+# Quanto cada modo AUMENTA o nível sobre a faixa base da rota (a noite sobe
+# mesmo em dungeon). O nível do selvagem vem da FAIXA DA ROTA (progressão de
+# Kanto), não do nível do jogador — só há um leve empurrão se o jogador supera
+# muito a rota (para a rota não ficar trivial no fim do jogo).
+HUNT_LEVEL_DELTA = {'normal': 0, 'dungeon': 5, 'night': 10, 'dungeon_night': 15}
 
 
 def _get_calendar(state):
@@ -3454,12 +3459,15 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     O teste de caçada é MANUAL: o jogador rola o d20 e o mestre libera a
     "Caçada Aleatória" pelo painel. Este helper apenas monta o encontro.
 
-    Level scale: Pokemon 1-100. player_level = maior nível do time.
-    Modos:
-    - normal: -50% a +5 níveis. Comuns. Shiny 1%.
-    - dungeon: -10 a +10. Raros/evoluídos. Shiny 3%.
-    - dungeon_night: -5 a +15. Evoluídos fortes. Shiny 4%.
-    - night: -10 a +20. Extremamente perigoso. Shiny 5%.
+    Level scale: Pokemon 1-100. O nível do encontro vem da FAIXA da rota
+    (progressão de Kanto: Rota 1 = 3-10, Viridian Forest = 8-18, …), não do
+    nível do jogador. O modo de caça empurra a faixa para cima (HUNT_LEVEL_DELTA)
+    e o jogador só dá um leve empurrão quando supera o topo da faixa.
+    Modos (delta sobre a faixa da rota / raridade / shiny):
+    - normal: +0. Comuns. Shiny 1%.
+    - dungeon: +5. Raros/evoluídos. Shiny 3%.
+    - dungeon_night: +15. Evoluídos fortes. Shiny 4%.
+    - night: +10. Extremamente perigoso. Shiny 5%.
 
     Retorna o dict do encontro, ou None se não houver Pokémon para a rota.
     """
@@ -3469,10 +3477,20 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
 
     route = ROUTES_DATA.get(route_id, {})
     route_types = route.get('types', ['Normal'])
-    # Scale route level range to 1-100 (original was 1-20 based)
-    raw_range = route.get('level_range', [1, 20])
-    route_level_range = [raw_range[0] * 5, min(100, raw_range[1] * 5)]
-    
+    # Faixa de nível da ROTA já em nível de Pokémon (1-100) — progressão de
+    # Kanto (Rota 1 = 3-10, Viridian Forest = 8-18, … Cerulean Cave 50-80).
+    raw_range = route.get('level_range', [3, 12])
+    band_lo, band_hi = int(raw_range[0]), min(100, int(raw_range[1]))
+    # Modo de caçada empurra a faixa para cima (noite sobe mesmo em dungeon).
+    _delta = HUNT_LEVEL_DELTA.get(hunt_mode, 0)
+    band_lo, band_hi = band_lo + _delta, min(100, band_hi + _delta)
+    # Leve influência do jogador: se ele supera o topo da faixa, empurra 1/3
+    # do excesso (rota não fica trivial no endgame, mas mantém a banda).
+    if player_level > band_hi:
+        _nudge = (player_level - band_hi) // 3
+        band_lo, band_hi = band_lo + _nudge, min(100, band_hi + _nudge)
+    band_lo = max(1, min(band_lo, band_hi))
+
     # Dungeon/night use dungeon types (stronger/rarer)
     if hunt_mode in ('dungeon', 'night', 'dungeon_night'):
         route_types = route.get('dungeon_types', route_types)
@@ -3514,30 +3532,16 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
         # Last resort: all Gen 1-3 Normal-type
         candidates = [p for p in POKEMON_BY_TYPE.get('normal', []) if p['number'] <= GEN1_MAX]
     
-    # Level filtering based on mode
-    if hunt_mode == 'night':
-        # Night: dangerous, -10 to +20 (mixes weak and strong)
-        min_lv = max(1, player_level - 10)
-        max_lv = min(100, player_level + 20)
-    elif hunt_mode == 'dungeon_night':
-        # Dungeon perigosa (noite): -5 a +15, favorece evoluídos
-        min_lv = max(1, player_level - 5)
-        max_lv = min(100, player_level + 15)
-    elif hunt_mode == 'dungeon':
-        # Dungeon: varied, -10 to +10 (mix of strong and weak)
-        min_lv = max(1, player_level - 10)
-        max_lv = min(100, player_level + 10)
-    else:
-        # Normal: -50% of player level to +5 levels
-        min_lv = max(1, player_level // 2)
-        max_lv = min(100, player_level + 5)
-    
-    # Filter candidates by minLevel appropriateness
-    # minLevel in JSON is trainer-level scale (1-20), convert: minLevel * 5
+    # A faixa da rota (já ajustada por modo/jogador) manda no nível.
+    min_lv, max_lv = band_lo, band_hi
+
+    # Filtra espécies que não aparecem tão cedo: minLevel (escala de treinador
+    # 1-20) × 5 = nível mínimo de Pokémon da espécie (Charizard 10→50 fica fora
+    # da Rota 1). Isso mantém evoluídos fortes longe das rotas iniciais.
     filtered = [p for p in candidates if (p.get('minLevel', 1) * 5) <= max_lv]
-    
+
     if not filtered:
-        filtered = sorted(candidates, key=lambda p: abs((p.get('minLevel', 1) * 5) - player_level))[:10]
+        filtered = sorted(candidates, key=lambda p: abs((p.get('minLevel', 1) * 5) - max_lv))[:10]
     
     if not filtered:
         return jsonify({'error': 'No pokemon available for this route'}), 404
@@ -3572,25 +3576,14 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     
     chosen = random.choices(filtered, weights=weights, k=1)[0]
     
-    # Determine encounter level
-    if hunt_mode == 'night':
-        # Night: -10 to +20 (varied, skews dangerous)
-        encounter_level = random.randint(max(1, player_level - 10), min(100, player_level + 20))
-    elif hunt_mode == 'dungeon_night':
-        # Dungeon perigosa: -5 a +15
-        encounter_level = random.randint(max(1, player_level - 5), min(100, player_level + 15))
-    elif hunt_mode == 'dungeon':
-        # Dungeon: -10 to +10 (varied mix)
-        encounter_level = random.randint(max(1, player_level - 10), min(100, player_level + 10))
-    else:
-        # Normal: -50% of player level to +5
-        low = max(1, player_level // 2)
-        high = min(100, player_level + 5)
-        encounter_level = random.randint(low, high)
-    
-    # Ensure minimum level based on pokemon's min (scaled)
-    pokemon_min_lv = max(1, chosen.get('minLevel', 1) * 5)
-    encounter_level = max(pokemon_min_lv, encounter_level)
+    # Nível do encontro = faixa da rota (band_lo..band_hi já traz o delta de
+    # caça/dungeon/noite e o leve empurrão do jogador calculados acima). A
+    # progressão vem da rota (Kanto), não do nível do jogador.
+    encounter_level = random.randint(band_lo, band_hi)
+    # Piso da espécie: base mons (minLevel 1) não têm piso; evoluídos exigem
+    # nível mínimo ((minLevel-1)×5), mas nunca acima do topo da faixa da rota.
+    _floor = min(band_hi, max(1, (chosen.get('minLevel', 1) - 1) * 5))
+    encounter_level = max(_floor, encounter_level)
     # Emboscada (nat 1 no teste de Sobrevivência): encontro perigoso
     if is_ambush:
         encounter_level += random.randint(5, 10)

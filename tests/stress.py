@@ -1011,6 +1011,41 @@ def main():
                 _gen_ok = False
     check(S, 'caçadas geram só Gen 1 (≤151)', _gen_ok)
 
+    # 🗺️ PROGRESSÃO DE NÍVEL POR ROTA (Kanto): o nível do encontro vem da
+    # FAIXA da rota, não do nível do jogador. Rota 1 = 3-10, Viridian = 8-18,
+    # Victory Road = 34-50; a caça noturna sobe a faixa (mesmo em dungeon).
+    def _band(route_id, mode, plvl, n=300):
+        random.seed(9)
+        lv = []
+        for _ in range(n):
+            _e = appmod._build_random_encounter(route_id, mode, plvl)
+            if isinstance(_e, dict):
+                lv.append(_e['level'])
+        return (min(lv), max(lv)) if lv else (None, None)
+
+    _r1lo, _r1hi = _band('route_1', 'normal', 5)
+    check(S, 'Rota 1 (normal): faixa dentro de 3-10',
+          _r1lo is not None and _r1lo >= 3 and _r1hi <= 10, f'{_r1lo}-{_r1hi}')
+    _vlo, _vhi = _band('viridian_forest', 'normal', 10)
+    check(S, 'Viridian Forest (normal): faixa dentro de 8-18',
+          _vlo is not None and _vlo >= 8 and _vhi <= 18, f'{_vlo}-{_vhi}')
+    _wlo, _whi = _band('victory_road', 'normal', 40)
+    check(S, 'Victory Road (normal): faixa dentro de 34-50',
+          _wlo is not None and _wlo >= 34 and _whi <= 50, f'{_wlo}-{_whi}')
+    # caça noturna sobe a faixa (+10) — Rota 1 à noite fica claramente acima
+    _nlo, _nhi = _band('route_1', 'night', 5)
+    check(S, 'Rota 1 à NOITE: faixa sobe (topo > faixa diurna)',
+          _nhi is not None and _nhi > _r1hi, f'diurno até {_r1hi}, noite até {_nhi}')
+    # dungeon noturna sobe ainda mais que dungeon normal (noite sobe em dungeon)
+    _dlo, _dhi = _band('route_1', 'dungeon', 5)
+    _dnlo, _dnhi = _band('route_1', 'dungeon_night', 5)
+    check(S, 'Dungeon noturna > dungeon diurna (noite sobe em dungeon)',
+          _dnhi is not None and _dnhi > _dhi, f'dungeon até {_dhi}, dungeon-noite até {_dnhi}')
+    # jogador muito acima da faixa recebe só um leve empurrão (não vira endgame)
+    _plo, _phi = _band('route_1', 'normal', 60)
+    check(S, 'Rota 1 com jogador nv.60: empurrão leve, não trivializa',
+          _phi is not None and _phi > _r1hi and _phi < 40, f'topo {_phi}')
+
     # sprites shiny no lugar
     import os as _os
     _spr = [f for f in _os.listdir('static/sprites/shiny') if f.endswith('.gif')]
