@@ -1265,6 +1265,23 @@ def main():
     # Bulbasaur: Vine Whip é inicial (decisão da mesa)
     check(S, 'Bulbasaur começa com Vine Whip (startingMoves)',
           'Vine Whip' in (appmod.POKEMON_BY_NAME['bulbasaur'].get('startingMoves') or []))
+    # evolutionStage carimbado pela espécie no save: a ficha (savePokemon)
+    # salva SEM o campo e, sem ele, o painel de EVs recalcula o orçamento como
+    # estágio final (1/1) e mostra pontos-fantasma que "voltam" a cada Centro
+    users = db.get_users(); users[u1]['trainer_data']['team'] = []; db.save_users(users)
+    _rhy = appmod.POKEMON_BY_NAME['rhyhorn']
+    p1.post('/player/team', json={'team': [{'name': 'Rhyhorn', 'number': _rhy['number'],
+             'level': 5, 'types': _rhy['types'], 'moves': ['Horn Attack'],
+             'training': {'ATK': 3}, 'sv': 2}]})  # SEM evolutionStage
+    _rhs = db.get_users()[u1]['trainer_data']['team'][0]
+    _rc, _rt = bmm.parse_evolution_stage(_rhs.get('evolutionStage'))
+    check(S, 'save carimba evolutionStage da espécie (Rhyhorn 1/3) mesmo sem o cliente enviar',
+          _rhs.get('evolutionStage') == '1/3' and (_rc, _rt) == (1, 3))
+    _cbud = bmm.points_budget(5, _rc, _rt, evo_bonus=int(_rhs.get('potential_evo_bonus') or 0),
+                              special=int(_rhs.get('potential_special') or 0),
+                              train_bonus=int(_rhs.get('training_bonus') or 0))
+    check(S, 'orçamento de EVs do cliente não infla ao Centro (Rhyhorn Nv.5 = 6, não 10)',
+          _cbud == 6)
     # restaura o time original do u1 para as próximas seções
     users = db.get_users()
     users[u1]['trainer_data']['team'] = _team_backup

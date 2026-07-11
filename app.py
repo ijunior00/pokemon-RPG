@@ -4912,6 +4912,14 @@ def update_team():
             _incoming_training = _incoming_by_id.get(id(p), p.get('training') or {})
             migrations.migrate_pokemon_pp(p, POKEMON_BY_NAME, POKEMON_BY_NUMBER)
 
+            # evolutionStage é AUTORIDADE DA ESPÉCIE. A ficha (savePokemon) salva
+            # SEM esse campo; sem ele o painel de Custom EVs do cliente recalcula
+            # o orçamento como se fosse estágio final (1/1) e mostra pontos-
+            # fantasma que "reaparecem" a cada volta ao Centro. Carimba do dataset.
+            p['evolutionStage'] = base.get('evolutionStage') or p.get('evolutionStage') or ''
+            if base.get('evolutionInfo') and not p.get('evolutionInfo'):
+                p['evolutionInfo'] = base.get('evolutionInfo')
+
             # Distribuição Custom EVs: custo progressivo n(n+1)/2 + anti-min-max.
             # Sempre parte do treino que o cliente enviou (clampado ao orçamento);
             # a migração já fez o backup do formato antigo em training_old_v2.
