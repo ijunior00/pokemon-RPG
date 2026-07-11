@@ -59,11 +59,11 @@
     "evolutionInfo": "Bulbasaur can evolve into Ivysaur at level 3 and above. When it evolves, its health increases by double its level, and it gains 6 points to add to its ability scores (max 20).",
     "startingMoves": [
       "Tackle",
-      "Growl"
+      "Growl",
+      "Vine Whip"
     ],
     "levelMoves": {
       "2": [
-        "Vine Whip",
         "Leech Seed"
       ],
       "6": [

@@ -1242,6 +1242,29 @@ def main():
     check(S, 'renomear Pokémon NÃO zera o treino (Custom EVs preservados)',
           _sv2.get('training') == _tr_before and _sv2.get('nickname') == 'Furacão'
           and bool(_sv2.get('uid')))
+    # Pokémon LEGADO (sem selo `pp`) + save após o Centro Pokémon NÃO zera os
+    # EVs: o snapshot do treino é tirado ANTES da migração `_mig`, que zerava
+    # `training` de Pokémon sem `pp` (report da mesa: "o centro reseta os EVs")
+    users = db.get_users()
+    users[u1]['trainer_data']['team'][0].pop('pp', None)  # simula dado legado
+    db.save_users(users)
+    _legacy_team = _cpev.deepcopy(db.get_users()[u1]['trainer_data']['team'])
+    p1.post('/player/team', json={'team': _legacy_team})
+    _sv3 = db.get_users()[u1]['trainer_data']['team'][0]
+    check(S, 'Pokémon sem pp (legado) NÃO perde o treino ao re-salvar',
+          _sv3.get('training') == _tr_before and _sv3.get('pp') == appmod.migrations.PP_VERSION)
+    # primeiro Pokémon do treinador nunca nasce abaixo do Nv.5 (autoridade do
+    # servidor, não só do cliente)
+    users = db.get_users(); users[u1]['trainer_data']['team'] = []; db.save_users(users)
+    _bulba = appmod.POKEMON_BY_NAME['bulbasaur']
+    p1.post('/player/team', json={'team': [{'name': 'Bulbasaur', 'number': 1,
+             'level': 1, 'types': _bulba['types'], 'moves': ['Tackle'],
+             'training': {}, 'sv': 2}]})
+    check(S, 'primeiro Pokémon do treinador nasce no mínimo Nv.5',
+          db.get_users()[u1]['trainer_data']['team'][0]['level'] == 5)
+    # Bulbasaur: Vine Whip é inicial (decisão da mesa)
+    check(S, 'Bulbasaur começa com Vine Whip (startingMoves)',
+          'Vine Whip' in (appmod.POKEMON_BY_NAME['bulbasaur'].get('startingMoves') or []))
     # restaura o time original do u1 para as próximas seções
     users = db.get_users()
     users[u1]['trainer_data']['team'] = _team_backup

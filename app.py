@@ -4821,6 +4821,16 @@ def update_team():
     users = get_users()
     if current_user.id in users:
         team = data.get('team', [])
+        # Snapshot do treino ENVIADO pelo cliente ANTES de qualquer migração:
+        # `_mig` roda migrate_pokemon_pp, que ZERA `training` de Pokémon sem o
+        # selo `pp` (legado / pp perdido). Sem este snapshot, um save logo após
+        # o Centro Pokémon apagava os EVs recém-distribuídos.
+        _incoming_trainings = [
+            dict(p.get('training') or {}) if isinstance(p, dict) else {}
+            for p in team
+        ]
+        _incoming_by_id = {id(p): _incoming_trainings[i]
+                           for i, p in enumerate(team) if isinstance(p, dict)}
         _mig(team)
         # Estado ANTERIOR do time (autoridade sobre nível/shiny): impede o
         # cliente de saltar para Nv.100 ou ligar shiny de graça. Casa por
@@ -4885,6 +4895,10 @@ def update_team():
             else:
                 # Pokémon novo (captura): shiny é o do encontro; nível limitado
                 p['is_shiny'] = bool(p.get('is_shiny'))
+                # Primeiro Pokémon do treinador nunca nasce abaixo do Nv.5
+                # (regra da mesa — garantida no servidor, não só no cliente).
+                if not prev_team and level < 5:
+                    level = 5
             p['level'] = level
 
             # Campos de Potencial são AUTORIDADE DO SERVIDOR (bônus de evolução
@@ -4894,13 +4908,15 @@ def update_team():
                     p[f] = prev[f]
                 else:
                     p.pop(f, None)
-            # garante os campos (nova captura / prev não migrado); NÃO reseta
-            # treino se já migrado (pp setado)
+            # treino ENVIADO pelo cliente (snapshot pré-migração, lá do topo).
+            _incoming_training = _incoming_by_id.get(id(p), p.get('training') or {})
             migrations.migrate_pokemon_pp(p, POKEMON_BY_NAME, POKEMON_BY_NUMBER)
 
             # Distribuição Custom EVs: custo progressivo n(n+1)/2 + anti-min-max.
+            # Sempre parte do treino que o cliente enviou (clampado ao orçamento);
+            # a migração já fez o backup do formato antigo em training_old_v2.
             budget = migrations.budget_for(p, base)
-            p['training'] = _sanitize_training(p.get('training') or {}, budget)
+            p['training'] = _sanitize_training(_incoming_training, budget)
             p['statPointsAvailable'] = max(0, budget - bm_core.training_spent(p['training']))
             # stats são DERIVADOS (espécie+nível+natureza+shiny+treino):
             # recalcula no save — o cliente nunca é autoridade sobre stats
