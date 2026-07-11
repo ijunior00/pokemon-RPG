@@ -946,6 +946,11 @@ MAX_HUNTS_PER_DAY = 6
 # (virtual ou físico) e o mestre decide liberar a caçada. Não há mais CD
 # automática — o mestre libera a "Caçada Aleatória" pelo painel.
 HUNT_MODES = ('normal', 'dungeon', 'dungeon_night', 'night')
+# Quanto cada modo AUMENTA o nível sobre a faixa base da rota (a noite sobe
+# mesmo em dungeon). O nível do selvagem vem da FAIXA DA ROTA (progressão de
+# Kanto), não do nível do jogador — só há um leve empurrão se o jogador supera
+# muito a rota (para a rota não ficar trivial no fim do jogo).
+HUNT_LEVEL_DELTA = {'normal': 0, 'dungeon': 5, 'night': 10, 'dungeon_night': 15}
 
 
 def _get_calendar(state):
@@ -2562,7 +2567,7 @@ def generate_npc():
         return jsonify({'error': 'Unauthorized'}), 403
     data = request.json
     npc_class = data.get('npc_class', 'Trainer')
-    level = int(data.get('level', 10))
+    level = _int_arg(data, 'level', 10, lo=1, hi=100)
     team_size = int(data.get('team_size', 3))
     preferred_types = data.get('types', [])  # e.g. ['fire', 'fighting']
     
@@ -3454,12 +3459,15 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     O teste de caçada é MANUAL: o jogador rola o d20 e o mestre libera a
     "Caçada Aleatória" pelo painel. Este helper apenas monta o encontro.
 
-    Level scale: Pokemon 1-100. player_level = maior nível do time.
-    Modos:
-    - normal: -50% a +5 níveis. Comuns. Shiny 1%.
-    - dungeon: -10 a +10. Raros/evoluídos. Shiny 3%.
-    - dungeon_night: -5 a +15. Evoluídos fortes. Shiny 4%.
-    - night: -10 a +20. Extremamente perigoso. Shiny 5%.
+    Level scale: Pokemon 1-100. O nível do encontro vem da FAIXA da rota
+    (progressão de Kanto: Rota 1 = 3-10, Viridian Forest = 8-18, …), não do
+    nível do jogador. O modo de caça empurra a faixa para cima (HUNT_LEVEL_DELTA)
+    e o jogador só dá um leve empurrão quando supera o topo da faixa.
+    Modos (delta sobre a faixa da rota / raridade / shiny):
+    - normal: +0. Comuns. Shiny 1%.
+    - dungeon: +5. Raros/evoluídos. Shiny 3%.
+    - dungeon_night: +15. Evoluídos fortes. Shiny 4%.
+    - night: +10. Extremamente perigoso. Shiny 5%.
 
     Retorna o dict do encontro, ou None se não houver Pokémon para a rota.
     """
@@ -3469,10 +3477,20 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
 
     route = ROUTES_DATA.get(route_id, {})
     route_types = route.get('types', ['Normal'])
-    # Scale route level range to 1-100 (original was 1-20 based)
-    raw_range = route.get('level_range', [1, 20])
-    route_level_range = [raw_range[0] * 5, min(100, raw_range[1] * 5)]
-    
+    # Faixa de nível da ROTA já em nível de Pokémon (1-100) — progressão de
+    # Kanto (Rota 1 = 3-10, Viridian Forest = 8-18, … Cerulean Cave 50-80).
+    raw_range = route.get('level_range', [3, 12])
+    band_lo, band_hi = int(raw_range[0]), min(100, int(raw_range[1]))
+    # Modo de caçada empurra a faixa para cima (noite sobe mesmo em dungeon).
+    _delta = HUNT_LEVEL_DELTA.get(hunt_mode, 0)
+    band_lo, band_hi = band_lo + _delta, min(100, band_hi + _delta)
+    # Leve influência do jogador: se ele supera o topo da faixa, empurra 1/3
+    # do excesso (rota não fica trivial no endgame, mas mantém a banda).
+    if player_level > band_hi:
+        _nudge = (player_level - band_hi) // 3
+        band_lo, band_hi = band_lo + _nudge, min(100, band_hi + _nudge)
+    band_lo = max(1, min(band_lo, band_hi))
+
     # Dungeon/night use dungeon types (stronger/rarer)
     if hunt_mode in ('dungeon', 'night', 'dungeon_night'):
         route_types = route.get('dungeon_types', route_types)
@@ -3514,30 +3532,16 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
         # Last resort: all Gen 1-3 Normal-type
         candidates = [p for p in POKEMON_BY_TYPE.get('normal', []) if p['number'] <= GEN1_MAX]
     
-    # Level filtering based on mode
-    if hunt_mode == 'night':
-        # Night: dangerous, -10 to +20 (mixes weak and strong)
-        min_lv = max(1, player_level - 10)
-        max_lv = min(100, player_level + 20)
-    elif hunt_mode == 'dungeon_night':
-        # Dungeon perigosa (noite): -5 a +15, favorece evoluídos
-        min_lv = max(1, player_level - 5)
-        max_lv = min(100, player_level + 15)
-    elif hunt_mode == 'dungeon':
-        # Dungeon: varied, -10 to +10 (mix of strong and weak)
-        min_lv = max(1, player_level - 10)
-        max_lv = min(100, player_level + 10)
-    else:
-        # Normal: -50% of player level to +5 levels
-        min_lv = max(1, player_level // 2)
-        max_lv = min(100, player_level + 5)
-    
-    # Filter candidates by minLevel appropriateness
-    # minLevel in JSON is trainer-level scale (1-20), convert: minLevel * 5
+    # A faixa da rota (já ajustada por modo/jogador) manda no nível.
+    min_lv, max_lv = band_lo, band_hi
+
+    # Filtra espécies que não aparecem tão cedo: minLevel (escala de treinador
+    # 1-20) × 5 = nível mínimo de Pokémon da espécie (Charizard 10→50 fica fora
+    # da Rota 1). Isso mantém evoluídos fortes longe das rotas iniciais.
     filtered = [p for p in candidates if (p.get('minLevel', 1) * 5) <= max_lv]
-    
+
     if not filtered:
-        filtered = sorted(candidates, key=lambda p: abs((p.get('minLevel', 1) * 5) - player_level))[:10]
+        filtered = sorted(candidates, key=lambda p: abs((p.get('minLevel', 1) * 5) - max_lv))[:10]
     
     if not filtered:
         return jsonify({'error': 'No pokemon available for this route'}), 404
@@ -3572,25 +3576,14 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     
     chosen = random.choices(filtered, weights=weights, k=1)[0]
     
-    # Determine encounter level
-    if hunt_mode == 'night':
-        # Night: -10 to +20 (varied, skews dangerous)
-        encounter_level = random.randint(max(1, player_level - 10), min(100, player_level + 20))
-    elif hunt_mode == 'dungeon_night':
-        # Dungeon perigosa: -5 a +15
-        encounter_level = random.randint(max(1, player_level - 5), min(100, player_level + 15))
-    elif hunt_mode == 'dungeon':
-        # Dungeon: -10 to +10 (varied mix)
-        encounter_level = random.randint(max(1, player_level - 10), min(100, player_level + 10))
-    else:
-        # Normal: -50% of player level to +5
-        low = max(1, player_level // 2)
-        high = min(100, player_level + 5)
-        encounter_level = random.randint(low, high)
-    
-    # Ensure minimum level based on pokemon's min (scaled)
-    pokemon_min_lv = max(1, chosen.get('minLevel', 1) * 5)
-    encounter_level = max(pokemon_min_lv, encounter_level)
+    # Nível do encontro = faixa da rota (band_lo..band_hi já traz o delta de
+    # caça/dungeon/noite e o leve empurrão do jogador calculados acima). A
+    # progressão vem da rota (Kanto), não do nível do jogador.
+    encounter_level = random.randint(band_lo, band_hi)
+    # Piso da espécie: base mons (minLevel 1) não têm piso; evoluídos exigem
+    # nível mínimo ((minLevel-1)×5), mas nunca acima do topo da faixa da rota.
+    _floor = min(band_hi, max(1, (chosen.get('minLevel', 1) - 1) * 5))
+    encounter_level = max(_floor, encounter_level)
     # Emboscada (nat 1 no teste de Sobrevivência): encontro perigoso
     if is_ambush:
         encounter_level += random.randint(5, 10)
@@ -4535,13 +4528,13 @@ def pc_store_capture():
 def pc_deposit():
     """Move a Pokémon from team to PC."""
     data = request.json or {}
-    idx  = data.get('team_idx')
+    idx  = _int_arg(data, 'team_idx', -1)   # índice não-int não crasha (QA LOOP 4)
 
     users   = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
     team    = trainer.get('team', [])
 
-    if idx is None or idx < 0 or idx >= len(team):
+    if idx < 0 or idx >= len(team):
         return jsonify({'error': 'Índice inválido'}), 400
     if len(team) <= 1:
         return jsonify({'error': 'Você não pode depositar seu último Pokémon!'}), 400
@@ -4561,14 +4554,14 @@ def pc_deposit():
 def pc_withdraw():
     """Move a Pokémon from PC to team."""
     data = request.json or {}
-    idx  = data.get('pc_idx')
+    idx  = _int_arg(data, 'pc_idx', -1)   # índice não-int não crasha (QA LOOP 4)
 
     users   = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
     team    = trainer.get('team', [])
     pc      = trainer.get('pc', [])
 
-    if idx is None or idx < 0 or idx >= len(pc):
+    if idx < 0 or idx >= len(pc):
         return jsonify({'error': 'Índice inválido'}), 400
     if len(team) >= 6:
         return jsonify({'error': 'Time cheio! Deposite um Pokémon primeiro.'}), 400
@@ -4587,16 +4580,16 @@ def pc_withdraw():
 def pc_swap():
     """Swap a team Pokémon directly with a PC Pokémon."""
     data     = request.json or {}
-    team_idx = data.get('team_idx')
-    pc_idx   = data.get('pc_idx')
+    if data.get('team_idx') is None or data.get('pc_idx') is None:
+        return jsonify({'error': 'Parâmetros inválidos'}), 400
+    team_idx = _int_arg(data, 'team_idx', -1)   # índice não-int não crasha (QA LOOP 4)
+    pc_idx   = _int_arg(data, 'pc_idx', -1)
 
     users   = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
     team    = trainer.get('team', [])
     pc      = trainer.get('pc', [])
 
-    if team_idx is None or pc_idx is None:
-        return jsonify({'error': 'Parâmetros inválidos'}), 400
     if team_idx < 0 or team_idx >= len(team) or pc_idx < 0 or pc_idx >= len(pc):
         return jsonify({'error': 'Índice fora dos limites'}), 400
 
@@ -4614,7 +4607,7 @@ def use_evolution_stone():
     """Player uses an evolution stone/item on a team Pokémon."""
     data = request.json or {}
     pokemon_idx = data.get('pokemon_idx')
-    item_name   = data.get('item_name', '').strip()
+    item_name   = (data.get('item_name') or '').strip()
 
     if pokemon_idx is None or not item_name:
         return jsonify({'error': 'Parâmetros inválidos'}), 400
@@ -4708,13 +4701,15 @@ def pokemon_center():
 def level_evolve():
     """Manually trigger a level-based evolution check for a team slot."""
     data = request.json or {}
-    slot = data.get('slot')
+    if data.get('slot') is None:
+        return jsonify({'error': 'Slot inválido'}), 400
+    slot = _int_arg(data, 'slot', -1)   # slot não-int não crasha (QA LOOP 5)
 
     users   = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
     team    = trainer.get('team', [])
 
-    if slot is None or slot < 0 or slot >= len(team):
+    if slot < 0 or slot >= len(team):
         return jsonify({'error': 'Slot inválido'}), 400
 
     pokemon = team[slot]
@@ -4937,15 +4932,22 @@ def update_trainer():
     users = get_users()
     if current_user.id in users:
         trainer = users[current_user.id]['trainer_data']
+        # MIGRA ANTES de aplicar o payload: fixa av=2 e promove os atributos
+        # LEGADO (str/dex/...) já SALVOS para os 6 novos. Sem isto, um jogador
+        # com ficha ainda não migrada (todo recém-criado no 1º POST) forjava
+        # os legado no payload e o migrate os promovia a 20, driblando o
+        # point-buy (Tática→iniciativa, Influência→preço da loja). QA LOOP 2.
+        trainer_attrs.migrate_trainer(trainer)
         # Campos que o jogador PODE editar na própria ficha. money, badges,
         # pokeslots, max_sr e pokedex_seen saíram daqui de propósito: mudam
         # só por fluxos do servidor (loja, quest, PvP, ginásio, Pokédex) —
         # senão o jogador se dava dinheiro/insígnias infinitos.
         # 'path' saiu daqui: o Caminho do Treinador é gerenciado por /player/path
         # (permanente, com gate de nível) — não é campo livre.
+        # str/dex/con/int/wis/cha (legado D&D) SAÍRAM: são mortos após a
+        # migração e eram o vetor do exploit de point-buy acima.
         allowed_fields = ['name', 'visited_routes', 'notes',
                          'race', 'background', 'specializations',
-                         'str', 'dex', 'con', 'int', 'wis', 'cha',
                          'skill_profs',
                          'hp_max', 'hp_current', 'proficiencies',
                          'avatar', 'trainerStatPointsUsed']
@@ -5138,6 +5140,20 @@ def api_shop():
     catalog = [item for item in SHOP_CATALOG if item['id'] not in hidden_items]
     return jsonify(catalog)
 
+def _int_arg(data, key, default=1, lo=None, hi=None):
+    """Inteiro robusto vindo do payload: qty/amount/level malformados
+    (string, null, float) NÃO derrubam a request com 500 — caem no default
+    e são clampados. QA LOOP 2."""
+    try:
+        v = int((data or {}).get(key, default))
+    except (TypeError, ValueError):
+        v = int(default)
+    if lo is not None:
+        v = max(lo, v)
+    if hi is not None:
+        v = min(hi, v)
+    return v
+
 def _influence_value(trainer):
     """👑 Influência (Diplomacia) manda nos preços da loja — herda o valor
     do CAR antigo pela migração automática."""
@@ -5168,7 +5184,7 @@ def api_shop_buy():
         return jsonify({'error': 'Mestre não pode comprar itens'}), 403
     data = request.json or {}
     item_id = data.get('item_id')
-    qty = max(1, int(data.get('qty', 1)))
+    qty = _int_arg(data, 'qty', 1, lo=1)
 
     item = next((i for i in SHOP_CATALOG if i['id'] == item_id), None)
     if not item:
@@ -5213,8 +5229,8 @@ def api_shop_sell():
     if current_user.role == 'master':
         return jsonify({'error': 'Mestre não pode vender itens'}), 403
     data = request.json or {}
-    item_name = data.get('item_name', '').strip()
-    qty = max(1, int(data.get('qty', 1)))
+    item_name = (data.get('item_name') or '').strip()
+    qty = _int_arg(data, 'qty', 1, lo=1)
 
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
@@ -5261,7 +5277,7 @@ def api_shop_sell():
 def api_shop_sell_price():
     """Preview sell price for an item based on player CHA."""
     data = request.json or {}
-    item_name = data.get('item_name', '').strip()
+    item_name = (data.get('item_name') or '').strip()
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
     cha = _influence_value(trainer)
@@ -5283,8 +5299,8 @@ def get_pc_items():
 def pc_deposit_item():
     """Move item(s) from bag to PC item storage."""
     data = request.json or {}
-    item_name = data.get('item_name', '').strip()
-    qty = max(1, int(data.get('qty', 1)))
+    item_name = (data.get('item_name') or '').strip()
+    qty = _int_arg(data, 'qty', 1, lo=1)
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
     bag = trainer.get('bag', [])
@@ -5318,8 +5334,8 @@ def pc_deposit_item():
 def pc_withdraw_item():
     """Move item(s) from PC storage to bag."""
     data = request.json or {}
-    item_name = data.get('item_name', '').strip()
-    qty = max(1, int(data.get('qty', 1)))
+    item_name = (data.get('item_name') or '').strip()
+    qty = _int_arg(data, 'qty', 1, lo=1)
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
     bag = trainer.get('bag', [])
@@ -5384,7 +5400,7 @@ def api_pokemon_scaled_stats():
     """Calculate Pokemon stats at a specific level."""
     data = request.json
     pokemon_number = data.get('number')
-    level = int(data.get('level', 1))
+    level = _int_arg(data, 'level', 1, lo=1, hi=100)
     
     nature = data.get('nature', '')
     name   = data.get('name', '')
@@ -5473,7 +5489,7 @@ def api_damage_dice():
     """Get scaled damage dice for a move at a Pokemon level."""
     data = request.json
     base_damage = data.get('base_damage', '1d6')
-    level = int(data.get('level', 1))
+    level = _int_arg(data, 'level', 1, lo=1, hi=100)
     higher_levels = data.get('higher_levels', '')
     
     scaled = scaling.get_scaled_damage_dice(base_damage, level, higher_levels)
@@ -6311,7 +6327,26 @@ def handle_battle_action(data):
         # Handle switch: HP do novo Pokémon vem do TIME REAL (servidor), nunca
         # do payload — senão o cliente forjava HP infinito na troca.
         if action_type == 'switch' and action_by == 'player':
-            _sw_team = get_users().get(current_user.id, {}).get('trainer_data', {}).get('team', [])
+            _sw_users = get_users()
+            _sw_team = _sw_users.get(current_user.id, {}).get('trainer_data', {}).get('team', [])
+            # Persiste o HP de batalha do Pokémon que SAI no time armazenado.
+            # Durante a batalha selvagem o dano vive só no battle_state (o
+            # currentHp do time nunca é decrementado aqui), então sem isto a
+            # troca lia o currentHp ARMAZENADO — cheio — e curava de graça ao
+            # voltar (pivotar out→in restaurava HP sem item). Espelha a
+            # mecânica real: o HP persiste através da troca.
+            _out = encounter.get('player_pokemon') or {}
+            _out_idx = encounter.get('player_pokemon_idx')
+            if not (isinstance(_out_idx, int) and 0 <= _out_idx < len(_sw_team)):
+                _ouid = _out.get('uid')
+                _out_idx = next((i for i, pp in enumerate(_sw_team)
+                                 if isinstance(pp, dict) and _ouid and pp.get('uid') == _ouid), None)
+            if isinstance(_out_idx, int) and 0 <= _out_idx < len(_sw_team) \
+                    and isinstance(_sw_team[_out_idx], dict):
+                _out_hp = battle_state.get('player_hp_current')
+                if isinstance(_out_hp, (int, float)):
+                    _out_max = int(_sw_team[_out_idx].get('maxHp') or 20)
+                    _sw_team[_out_idx]['currentHp'] = max(0, min(_out_max, int(_out_hp)))
             try:
                 _sw_idx = int(data.get('new_index'))
             except (TypeError, ValueError):
@@ -6327,6 +6362,9 @@ def handle_battle_action(data):
                     battle_state['player_hp_max'] = new_max_hp
                     encounter['player_pokemon'] = _sw_poke
                     encounter['player_pokemon_idx'] = _sw_idx
+            # grava o HP do Pokémon que saiu (e a troca de ativo) no save real
+            _sw_users[current_user.id]['trainer_data']['team'] = _sw_team
+            save_users(_sw_users)
             # trocar de pokémon zera os buffs/debuffs acumulados do lado do jogador
             ppoke_sw = encounter.get('player_pokemon')
             # sair de campo remove semente/prisão (Leech Seed/Bind)

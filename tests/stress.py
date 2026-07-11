@@ -388,6 +388,23 @@ def main():
     users = db.get_users(); users[u1]['trainer_data']['money'] = 5000; db.save_users(users)
     r = p1.post('/api/shop/buy', json={'item_id': 'energy-drink', 'qty': 1})
     check(S, 'comprar Energy Drink', (r.get_json() or {}).get('success'))
+    # QA LOOP 2: qty malformado NÃO derruba a request com 500 (int robusto)
+    for _bad in ['abc', None, 2.9]:
+        _rq = p1.post('/api/shop/buy', json={'item_id': 'energy-drink', 'qty': _bad})
+        check(S, f'buy qty={_bad!r} não crasha (400/200, nunca 500)',
+              _rq.status_code < 500, f'status {_rq.status_code}')
+    # QA LOOP 5: fuzz genérico — item_name/slot None/string não crashaam (500)
+    _fuzz_routes = [
+        ('/api/shop/sell', {'item_name': None}), ('/api/shop/sell-price', {'item_name': None}),
+        ('/player/pc/items/deposit', {'item_name': None}),
+        ('/player/pc/items/withdraw', {'item_name': None}),
+        ('/player/use-stone', {'pokemon_idx': 0, 'item_name': None}),
+        ('/player/level-evolve', {'slot': 'x'}),
+    ]
+    for _ep, _b in _fuzz_routes:
+        _rq = p1.post(_ep, json=_b)
+        check(S, f'{_ep} com {list(_b)[0]} malformado não crasha (nunca 500)',
+              _rq.status_code < 500, f'status {_rq.status_code}')
     r = p1.post('/player/use-energy-drink', json={})
     check(S, 'usar Energy Drink dá +1 caçada', (r.get_json() or {}).get('limit') == 7)
     appmod._rate_store.clear()
@@ -687,6 +704,47 @@ def main():
         check(S, 'HP na troca vem do time real (não 9999)', True, 'time <2 — pulado')
     _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
 
+    # C2b: cura grátis via PIVOT na troca é fechada. Durante a batalha selvagem
+    # o dano vive só no battle_state; o currentHp ARMAZENADO do time nunca é
+    # decrementado. Sem persistir o HP de quem SAI, pivotar (banco→ativo)
+    # restaurava o Pokémon ao currentHp cheio armazenado — sustain infinito
+    # sem item. Agora a troca grava o HP de batalha no time.
+    _real = db.get_users()[u1]['trainer_data']['team']
+    if len(_real) >= 2:
+        _hp_snap = [p.get('currentHp') for p in _real]   # restaura no fim
+        _p0max = int(_real[0].get('maxHp') or 20)
+        _gs = gstate()
+        _gs.setdefault('active_encounters', {})[str(u1)] = {
+            'player_id': str(u1), 'player_name': 'rev_p1',
+            'pokemon': dict(enc['pokemon'], hp=40, currentHp=40),
+            'level': enc['level'], 'is_shiny': False,
+            'player_pokemon': _real[0], 'player_pokemon_idx': 0,
+            'battle_state': {'turn': 'player', 'round': 3,
+                             'wild_hp_current': 40, 'wild_hp_max': 40,
+                             'player_hp_current': 5, 'player_hp_max': _p0max,
+                             'wild_status': None, 'player_status': None,
+                             'initiative_rolled': True}}
+        db.save_game_state(_gs, TID)
+        s1.get_received()
+        s1.emit('battle_action', {'action_by': 'player', 'action_type': 'switch', 'new_index': 1})
+        recv(s1)
+        # selvagem joga o turno → volta pro jogador
+        _gs = gstate(); _gs['active_encounters'][str(u1)]['battle_state']['turn'] = 'player'
+        db.save_game_state(_gs, TID)
+        s1.emit('battle_action', {'action_by': 'player', 'action_type': 'switch', 'new_index': 0})
+        recv(s1)
+        _hp_back = gstate()['active_encounters'][str(u1)]['battle_state']['player_hp_current']
+        check(S, 'pivô na troca NÃO cura (HP de batalha persiste)',
+              _hp_back <= 5, f'voltou com {_hp_back}/{_p0max}')
+        _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+        # restaura o currentHp do time (a troca gravou o HP de batalha nele)
+        _uu = db.get_users()
+        for _p, _hp in zip(_uu[u1]['trainer_data']['team'], _hp_snap):
+            _p['currentHp'] = _hp
+        db.save_users(_uu)
+    else:
+        check(S, 'pivô na troca NÃO cura (HP de batalha persiste)', True, 'time <2 — pulado')
+
     # A3: terceiro (msio=mestre não é jogador) não encerra PvP alheio via forfeit
     _rn = m.post('/master/npcs/generate', json={'npc_class': 'Trainer', 'level': 12, 'team_size': 1}).get_json()
     for q in _rn['team']:
@@ -953,6 +1011,41 @@ def main():
                 _gen_ok = False
     check(S, 'caçadas geram só Gen 1 (≤151)', _gen_ok)
 
+    # 🗺️ PROGRESSÃO DE NÍVEL POR ROTA (Kanto): o nível do encontro vem da
+    # FAIXA da rota, não do nível do jogador. Rota 1 = 3-10, Viridian = 8-18,
+    # Victory Road = 34-50; a caça noturna sobe a faixa (mesmo em dungeon).
+    def _band(route_id, mode, plvl, n=300):
+        random.seed(9)
+        lv = []
+        for _ in range(n):
+            _e = appmod._build_random_encounter(route_id, mode, plvl)
+            if isinstance(_e, dict):
+                lv.append(_e['level'])
+        return (min(lv), max(lv)) if lv else (None, None)
+
+    _r1lo, _r1hi = _band('route_1', 'normal', 5)
+    check(S, 'Rota 1 (normal): faixa dentro de 3-10',
+          _r1lo is not None and _r1lo >= 3 and _r1hi <= 10, f'{_r1lo}-{_r1hi}')
+    _vlo, _vhi = _band('viridian_forest', 'normal', 10)
+    check(S, 'Viridian Forest (normal): faixa dentro de 8-18',
+          _vlo is not None and _vlo >= 8 and _vhi <= 18, f'{_vlo}-{_vhi}')
+    _wlo, _whi = _band('victory_road', 'normal', 40)
+    check(S, 'Victory Road (normal): faixa dentro de 34-50',
+          _wlo is not None and _wlo >= 34 and _whi <= 50, f'{_wlo}-{_whi}')
+    # caça noturna sobe a faixa (+10) — Rota 1 à noite fica claramente acima
+    _nlo, _nhi = _band('route_1', 'night', 5)
+    check(S, 'Rota 1 à NOITE: faixa sobe (topo > faixa diurna)',
+          _nhi is not None and _nhi > _r1hi, f'diurno até {_r1hi}, noite até {_nhi}')
+    # dungeon noturna sobe ainda mais que dungeon normal (noite sobe em dungeon)
+    _dlo, _dhi = _band('route_1', 'dungeon', 5)
+    _dnlo, _dnhi = _band('route_1', 'dungeon_night', 5)
+    check(S, 'Dungeon noturna > dungeon diurna (noite sobe em dungeon)',
+          _dnhi is not None and _dnhi > _dhi, f'dungeon até {_dhi}, dungeon-noite até {_dnhi}')
+    # jogador muito acima da faixa recebe só um leve empurrão (não vira endgame)
+    _plo, _phi = _band('route_1', 'normal', 60)
+    check(S, 'Rota 1 com jogador nv.60: empurrão leve, não trivializa',
+          _phi is not None and _phi > _r1hi and _phi < 40, f'topo {_phi}')
+
     # sprites shiny no lugar
     import os as _os
     _spr = [f for f in _os.listdir('static/sprites/shiny') if f.endswith('.gif')]
@@ -1201,6 +1294,24 @@ def main():
         'vinculo': 9, 'tatica': 10, 'conhecimento': 10,
         'agilidade': 10, 'influencia': 10, 'determinacao': 10})
     check(S, 'point-buy abaixo da base 10 rejeitado (400)', r.status_code == 400)
+    # QA LOOP 2: ficha NÃO migrada não pode driblar o point-buy pelos atributos
+    # LEGADO (str/dex/... → o migrate promovia o valor do PAYLOAD a 20). A
+    # migração agora roda ANTES do payload: usa só os legado JÁ SALVOS.
+    users = db.get_users()
+    _tr = users[u1]['trainer_data']
+    for _k in ('vinculo', 'tatica', 'conhecimento', 'agilidade',
+               'influencia', 'determinacao'):
+        _tr.pop(_k, None)
+    _tr.update({'av': None, 'str': 10, 'dex': 10, 'con': 10,
+                'int': 10, 'wis': 10, 'cha': 10})   # ficha legada crua = tudo 10
+    _tr.pop('av', None)
+    db.save_users(users)
+    r = p1.post('/player/trainer', json={'str': 20, 'dex': 20, 'con': 20,
+                                         'int': 20, 'wis': 20, 'cha': 20})
+    users = db.get_users(); _tr = users[u1]['trainer_data']
+    check(S, 'exploit LOOP 2: atributos LEGADO no payload não driblam o point-buy',
+          _tr.get('tatica') == 10 and _tr.get('influencia') == 10
+          and _tr.get('vinculo') == 10)
     # restaura estado usado pelos testes de perícia abaixo (vínculo 16, det 18...)
     users = db.get_users()
     users[u1]['trainer_data'].update({'vinculo': 16, 'influencia': 15,
@@ -2128,6 +2239,13 @@ def main():
     r = p1.post('/player/pc/withdraw', json={'pc_idx': 0})
     d = r.get_json() or {}
     check(S, 'retirar pokémon', d.get('ok') or d.get('success'), f'{list(d.keys())}')
+    # QA LOOP 4: índice não-int no PC não derruba a request com 500
+    for _ep, _body in (('/player/pc/deposit', {'team_idx': 'x'}),
+                       ('/player/pc/withdraw', {'pc_idx': 'x'}),
+                       ('/player/pc/swap', {'team_idx': 'x', 'pc_idx': 0})):
+        _r = p1.post(_ep, json=_body)
+        check(S, f'{_ep} com índice string não crasha (nunca 500)',
+              _r.status_code < 500, f'status {_r.status_code}')
     r = p1.post('/player/pc/items/deposit', json={'item_name': 'Potion', 'qty': 1})
     d = r.get_json() or {}
     check(S, 'depositar item', d.get('ok') or d.get('success'), f'{d}')
