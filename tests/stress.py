@@ -388,6 +388,11 @@ def main():
     users = db.get_users(); users[u1]['trainer_data']['money'] = 5000; db.save_users(users)
     r = p1.post('/api/shop/buy', json={'item_id': 'energy-drink', 'qty': 1})
     check(S, 'comprar Energy Drink', (r.get_json() or {}).get('success'))
+    # QA LOOP 2: qty malformado NÃO derruba a request com 500 (int robusto)
+    for _bad in ['abc', None, 2.9]:
+        _rq = p1.post('/api/shop/buy', json={'item_id': 'energy-drink', 'qty': _bad})
+        check(S, f'buy qty={_bad!r} não crasha (400/200, nunca 500)',
+              _rq.status_code < 500, f'status {_rq.status_code}')
     r = p1.post('/player/use-energy-drink', json={})
     check(S, 'usar Energy Drink dá +1 caçada', (r.get_json() or {}).get('limit') == 7)
     appmod._rate_store.clear()
@@ -1242,6 +1247,24 @@ def main():
         'vinculo': 9, 'tatica': 10, 'conhecimento': 10,
         'agilidade': 10, 'influencia': 10, 'determinacao': 10})
     check(S, 'point-buy abaixo da base 10 rejeitado (400)', r.status_code == 400)
+    # QA LOOP 2: ficha NÃO migrada não pode driblar o point-buy pelos atributos
+    # LEGADO (str/dex/... → o migrate promovia o valor do PAYLOAD a 20). A
+    # migração agora roda ANTES do payload: usa só os legado JÁ SALVOS.
+    users = db.get_users()
+    _tr = users[u1]['trainer_data']
+    for _k in ('vinculo', 'tatica', 'conhecimento', 'agilidade',
+               'influencia', 'determinacao'):
+        _tr.pop(_k, None)
+    _tr.update({'av': None, 'str': 10, 'dex': 10, 'con': 10,
+                'int': 10, 'wis': 10, 'cha': 10})   # ficha legada crua = tudo 10
+    _tr.pop('av', None)
+    db.save_users(users)
+    r = p1.post('/player/trainer', json={'str': 20, 'dex': 20, 'con': 20,
+                                         'int': 20, 'wis': 20, 'cha': 20})
+    users = db.get_users(); _tr = users[u1]['trainer_data']
+    check(S, 'exploit LOOP 2: atributos LEGADO no payload não driblam o point-buy',
+          _tr.get('tatica') == 10 and _tr.get('influencia') == 10
+          and _tr.get('vinculo') == 10)
     # restaura estado usado pelos testes de perícia abaixo (vínculo 16, det 18...)
     users = db.get_users()
     users[u1]['trainer_data'].update({'vinculo': 16, 'influencia': 15,

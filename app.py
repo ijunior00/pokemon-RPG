@@ -2562,7 +2562,7 @@ def generate_npc():
         return jsonify({'error': 'Unauthorized'}), 403
     data = request.json
     npc_class = data.get('npc_class', 'Trainer')
-    level = int(data.get('level', 10))
+    level = _int_arg(data, 'level', 10, lo=1, hi=100)
     team_size = int(data.get('team_size', 3))
     preferred_types = data.get('types', [])  # e.g. ['fire', 'fighting']
     
@@ -4937,15 +4937,22 @@ def update_trainer():
     users = get_users()
     if current_user.id in users:
         trainer = users[current_user.id]['trainer_data']
+        # MIGRA ANTES de aplicar o payload: fixa av=2 e promove os atributos
+        # LEGADO (str/dex/...) já SALVOS para os 6 novos. Sem isto, um jogador
+        # com ficha ainda não migrada (todo recém-criado no 1º POST) forjava
+        # os legado no payload e o migrate os promovia a 20, driblando o
+        # point-buy (Tática→iniciativa, Influência→preço da loja). QA LOOP 2.
+        trainer_attrs.migrate_trainer(trainer)
         # Campos que o jogador PODE editar na própria ficha. money, badges,
         # pokeslots, max_sr e pokedex_seen saíram daqui de propósito: mudam
         # só por fluxos do servidor (loja, quest, PvP, ginásio, Pokédex) —
         # senão o jogador se dava dinheiro/insígnias infinitos.
         # 'path' saiu daqui: o Caminho do Treinador é gerenciado por /player/path
         # (permanente, com gate de nível) — não é campo livre.
+        # str/dex/con/int/wis/cha (legado D&D) SAÍRAM: são mortos após a
+        # migração e eram o vetor do exploit de point-buy acima.
         allowed_fields = ['name', 'visited_routes', 'notes',
                          'race', 'background', 'specializations',
-                         'str', 'dex', 'con', 'int', 'wis', 'cha',
                          'skill_profs',
                          'hp_max', 'hp_current', 'proficiencies',
                          'avatar', 'trainerStatPointsUsed']
@@ -5138,6 +5145,20 @@ def api_shop():
     catalog = [item for item in SHOP_CATALOG if item['id'] not in hidden_items]
     return jsonify(catalog)
 
+def _int_arg(data, key, default=1, lo=None, hi=None):
+    """Inteiro robusto vindo do payload: qty/amount/level malformados
+    (string, null, float) NÃO derrubam a request com 500 — caem no default
+    e são clampados. QA LOOP 2."""
+    try:
+        v = int((data or {}).get(key, default))
+    except (TypeError, ValueError):
+        v = int(default)
+    if lo is not None:
+        v = max(lo, v)
+    if hi is not None:
+        v = min(hi, v)
+    return v
+
 def _influence_value(trainer):
     """👑 Influência (Diplomacia) manda nos preços da loja — herda o valor
     do CAR antigo pela migração automática."""
@@ -5168,7 +5189,7 @@ def api_shop_buy():
         return jsonify({'error': 'Mestre não pode comprar itens'}), 403
     data = request.json or {}
     item_id = data.get('item_id')
-    qty = max(1, int(data.get('qty', 1)))
+    qty = _int_arg(data, 'qty', 1, lo=1)
 
     item = next((i for i in SHOP_CATALOG if i['id'] == item_id), None)
     if not item:
@@ -5214,7 +5235,7 @@ def api_shop_sell():
         return jsonify({'error': 'Mestre não pode vender itens'}), 403
     data = request.json or {}
     item_name = data.get('item_name', '').strip()
-    qty = max(1, int(data.get('qty', 1)))
+    qty = _int_arg(data, 'qty', 1, lo=1)
 
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
@@ -5284,7 +5305,7 @@ def pc_deposit_item():
     """Move item(s) from bag to PC item storage."""
     data = request.json or {}
     item_name = data.get('item_name', '').strip()
-    qty = max(1, int(data.get('qty', 1)))
+    qty = _int_arg(data, 'qty', 1, lo=1)
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
     bag = trainer.get('bag', [])
@@ -5319,7 +5340,7 @@ def pc_withdraw_item():
     """Move item(s) from PC storage to bag."""
     data = request.json or {}
     item_name = data.get('item_name', '').strip()
-    qty = max(1, int(data.get('qty', 1)))
+    qty = _int_arg(data, 'qty', 1, lo=1)
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {})
     bag = trainer.get('bag', [])
@@ -5384,7 +5405,7 @@ def api_pokemon_scaled_stats():
     """Calculate Pokemon stats at a specific level."""
     data = request.json
     pokemon_number = data.get('number')
-    level = int(data.get('level', 1))
+    level = _int_arg(data, 'level', 1, lo=1, hi=100)
     
     nature = data.get('nature', '')
     name   = data.get('name', '')
@@ -5473,7 +5494,7 @@ def api_damage_dice():
     """Get scaled damage dice for a move at a Pokemon level."""
     data = request.json
     base_damage = data.get('base_damage', '1d6')
-    level = int(data.get('level', 1))
+    level = _int_arg(data, 'level', 1, lo=1, hi=100)
     higher_levels = data.get('higher_levels', '')
     
     scaled = scaling.get_scaled_damage_dice(base_damage, level, higher_levels)
