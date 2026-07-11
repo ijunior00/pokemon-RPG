@@ -6311,7 +6311,26 @@ def handle_battle_action(data):
         # Handle switch: HP do novo Pokémon vem do TIME REAL (servidor), nunca
         # do payload — senão o cliente forjava HP infinito na troca.
         if action_type == 'switch' and action_by == 'player':
-            _sw_team = get_users().get(current_user.id, {}).get('trainer_data', {}).get('team', [])
+            _sw_users = get_users()
+            _sw_team = _sw_users.get(current_user.id, {}).get('trainer_data', {}).get('team', [])
+            # Persiste o HP de batalha do Pokémon que SAI no time armazenado.
+            # Durante a batalha selvagem o dano vive só no battle_state (o
+            # currentHp do time nunca é decrementado aqui), então sem isto a
+            # troca lia o currentHp ARMAZENADO — cheio — e curava de graça ao
+            # voltar (pivotar out→in restaurava HP sem item). Espelha a
+            # mecânica real: o HP persiste através da troca.
+            _out = encounter.get('player_pokemon') or {}
+            _out_idx = encounter.get('player_pokemon_idx')
+            if not (isinstance(_out_idx, int) and 0 <= _out_idx < len(_sw_team)):
+                _ouid = _out.get('uid')
+                _out_idx = next((i for i, pp in enumerate(_sw_team)
+                                 if isinstance(pp, dict) and _ouid and pp.get('uid') == _ouid), None)
+            if isinstance(_out_idx, int) and 0 <= _out_idx < len(_sw_team) \
+                    and isinstance(_sw_team[_out_idx], dict):
+                _out_hp = battle_state.get('player_hp_current')
+                if isinstance(_out_hp, (int, float)):
+                    _out_max = int(_sw_team[_out_idx].get('maxHp') or 20)
+                    _sw_team[_out_idx]['currentHp'] = max(0, min(_out_max, int(_out_hp)))
             try:
                 _sw_idx = int(data.get('new_index'))
             except (TypeError, ValueError):
@@ -6327,6 +6346,9 @@ def handle_battle_action(data):
                     battle_state['player_hp_max'] = new_max_hp
                     encounter['player_pokemon'] = _sw_poke
                     encounter['player_pokemon_idx'] = _sw_idx
+            # grava o HP do Pokémon que saiu (e a troca de ativo) no save real
+            _sw_users[current_user.id]['trainer_data']['team'] = _sw_team
+            save_users(_sw_users)
             # trocar de pokémon zera os buffs/debuffs acumulados do lado do jogador
             ppoke_sw = encounter.get('player_pokemon')
             # sair de campo remove semente/prisão (Leech Seed/Bind)

@@ -687,6 +687,47 @@ def main():
         check(S, 'HP na troca vem do time real (não 9999)', True, 'time <2 — pulado')
     _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
 
+    # C2b: cura grátis via PIVOT na troca é fechada. Durante a batalha selvagem
+    # o dano vive só no battle_state; o currentHp ARMAZENADO do time nunca é
+    # decrementado. Sem persistir o HP de quem SAI, pivotar (banco→ativo)
+    # restaurava o Pokémon ao currentHp cheio armazenado — sustain infinito
+    # sem item. Agora a troca grava o HP de batalha no time.
+    _real = db.get_users()[u1]['trainer_data']['team']
+    if len(_real) >= 2:
+        _hp_snap = [p.get('currentHp') for p in _real]   # restaura no fim
+        _p0max = int(_real[0].get('maxHp') or 20)
+        _gs = gstate()
+        _gs.setdefault('active_encounters', {})[str(u1)] = {
+            'player_id': str(u1), 'player_name': 'rev_p1',
+            'pokemon': dict(enc['pokemon'], hp=40, currentHp=40),
+            'level': enc['level'], 'is_shiny': False,
+            'player_pokemon': _real[0], 'player_pokemon_idx': 0,
+            'battle_state': {'turn': 'player', 'round': 3,
+                             'wild_hp_current': 40, 'wild_hp_max': 40,
+                             'player_hp_current': 5, 'player_hp_max': _p0max,
+                             'wild_status': None, 'player_status': None,
+                             'initiative_rolled': True}}
+        db.save_game_state(_gs, TID)
+        s1.get_received()
+        s1.emit('battle_action', {'action_by': 'player', 'action_type': 'switch', 'new_index': 1})
+        recv(s1)
+        # selvagem joga o turno → volta pro jogador
+        _gs = gstate(); _gs['active_encounters'][str(u1)]['battle_state']['turn'] = 'player'
+        db.save_game_state(_gs, TID)
+        s1.emit('battle_action', {'action_by': 'player', 'action_type': 'switch', 'new_index': 0})
+        recv(s1)
+        _hp_back = gstate()['active_encounters'][str(u1)]['battle_state']['player_hp_current']
+        check(S, 'pivô na troca NÃO cura (HP de batalha persiste)',
+              _hp_back <= 5, f'voltou com {_hp_back}/{_p0max}')
+        _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+        # restaura o currentHp do time (a troca gravou o HP de batalha nele)
+        _uu = db.get_users()
+        for _p, _hp in zip(_uu[u1]['trainer_data']['team'], _hp_snap):
+            _p['currentHp'] = _hp
+        db.save_users(_uu)
+    else:
+        check(S, 'pivô na troca NÃO cura (HP de batalha persiste)', True, 'time <2 — pulado')
+
     # A3: terceiro (msio=mestre não é jogador) não encerra PvP alheio via forfeit
     _rn = m.post('/master/npcs/generate', json={'npc_class': 'Trainer', 'level': 12, 'team_size': 1}).get_json()
     for q in _rn['team']:
