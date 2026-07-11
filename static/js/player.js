@@ -2282,6 +2282,11 @@ async function savePokemon() {
         training: existingPoke.training || {},
         defense_mode: existingPoke.defense_mode || 1,
         is_shiny: existingPoke.is_shiny || false,
+        // estágio de evolução manda no orçamento de Custom EVs — sem ele o
+        // painel recalcula como estágio final (1/1) e mostra pontos-fantasma.
+        // O servidor recarimba pela espécie, mas preservamos aqui também.
+        evolutionStage: existingPoke.evolutionStage || '',
+        evolutionInfo: existingPoke.evolutionInfo || '',
         sv: 2
     };
     // Auto-fill from API — get level-scaled + nature-adjusted stats
