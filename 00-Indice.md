@@ -41,6 +41,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 - [[Bugs-Resolvidos/modo-manual-mestre-nao-funcionava]] — cliente do jogador auto-jogava o selvagem; caminho do mestre preso no v2
 - [[Bugs-Resolvidos/auditoria-qa-exploits-client-side]] — captura/HP/cura/status forjados + PvP hijack (Lote 1 pronto; concorrência pendente)
 - [[Bugs-Resolvidos/evolucao-por-nivel-nunca-disparava]] — gatilho no nível do treinador + escala 5e sem ×5 + Pikachu evoluía sem pedra
+- [[Bugs-Resolvidos/cura-gratis-via-pivo-na-troca]] — HP de batalha não persistia no time; pivotar na troca curava de graça
 
 ## Outras notas
 
