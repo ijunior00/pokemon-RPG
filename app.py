@@ -2302,6 +2302,40 @@ def master_reset_password(player_id):
     save_users(users)
     return jsonify({'success': True, 'username': users[player_id]['username']})
 
+@app.route('/master/players/<player_id>/delete', methods=['POST'])
+@login_required
+def master_delete_player(player_id):
+    """Master APAGA a conta de um jogador da SUA mesa (permanente).
+
+    Trava de segurança: só jogadores (nunca mestres) e só da própria mesa;
+    exige confirmação do nome de usuário no corpo (evita clique acidental)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    users = get_users()
+    target = users.get(player_id)
+    if not target:
+        return jsonify({'error': 'Conta não encontrada'}), 404
+    # nunca deletar outra conta de mestre por esta rota (nem a si mesmo)
+    if target.get('role') == 'master' or player_id == str(current_user.id):
+        return jsonify({'error': 'Só é possível deletar contas de jogador desta mesa'}), 403
+    if not _player_in_master_table(player_id, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    # confirmação: o cliente reenvia o username exato do alvo
+    confirm = ((request.json or {}).get('confirm_username') or '').strip()
+    if confirm != target.get('username'):
+        return jsonify({'error': 'Confirmação do nome de usuário não confere'}), 400
+
+    username = target.get('username')
+    # solta qualquer estado volátil escopado à mesa (encontro/pedidos)
+    try:
+        get_game_state().get('active_encounters', {}).pop(player_id, None)
+    except Exception:
+        pass
+    _db_raw.delete_user(player_id)
+    socketio.emit('player_left', {'player_id': player_id, 'username': username},
+                  room=f'master_{_tid()}')
+    return jsonify({'success': True, 'username': username})
+
 @app.route('/master/players/<player_id>/team', methods=['POST'])
 @login_required
 def master_edit_team(player_id):
