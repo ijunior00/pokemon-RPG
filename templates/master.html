@@ -1178,7 +1178,8 @@
                         <span>👤 {{ player.username }}</span>
                         <div style="display:flex;gap:0.3rem;">
                             <button class="btn btn-sm btn-secondary" onclick="masterResetPassword('{{ uid }}', '{{ player.username }}')" title="Redefinir senha">🔑</button>
-                            <button class="btn btn-sm btn-danger" onclick="kickPlayer('{{ uid }}', '{{ player.username }}')" title="Remover da mesa">✕</button>
+                            <button class="btn btn-sm btn-secondary" onclick="kickPlayer('{{ uid }}', '{{ player.username }}')" title="Remover da mesa (mantém a conta)">✕</button>
+                            <button class="btn btn-sm btn-danger" onclick="deletePlayerAccount('{{ uid }}', '{{ player.username }}')" title="Deletar conta permanentemente">🗑️</button>
                         </div>
                     </div>
                     {% else %}
@@ -1215,8 +1216,9 @@
         <div class="modal-content modal-lg" style="max-height:90vh;overflow-y:auto;">
             <button class="modal-close" onclick="hideElement('master-edit-modal')">&times;</button>
             <h3 id="master-edit-title">Editar Jogador</h3>
-            <div style="margin-bottom:0.75rem;">
+            <div style="margin-bottom:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
                 <button class="btn btn-sm btn-secondary" onclick="masterResetPassword(_editingPlayerId, document.getElementById('master-edit-title').textContent.replace('✏️ Editar: ',''))">🔑 Redefinir Senha</button>
+                <button class="btn btn-sm btn-danger" onclick="deletePlayerAccount(_editingPlayerId, document.getElementById('master-edit-title').textContent.replace('✏️ Editar: ',''))">🗑️ Deletar Conta</button>
             </div>
             <div id="master-edit-content"></div>
         </div>

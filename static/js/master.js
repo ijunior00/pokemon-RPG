@@ -2050,6 +2050,33 @@ async function masterResetPassword(playerId, playerName) {
     }
 }
 
+async function deletePlayerAccount(playerId, playerName) {
+    if (!confirm(`⚠️ DELETAR a conta de ${playerName}?\n\nIsso apaga PERMANENTEMENTE o treinador, o time, o PC e todo o progresso. NÃO tem como desfazer.`)) return;
+    const typed = prompt(`Para confirmar, digite o nome de usuário exatamente: ${playerName}`);
+    if (typed === null) return;
+    if (typed.trim() !== playerName) { alert('❌ Nome não confere — exclusão cancelada.'); return; }
+    const resp = await fetch(`/master/players/${playerId}/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm_username: playerName })
+    });
+    const result = await resp.json();
+    if (result.success) {
+        alert(`🗑️ Conta de ${result.username} deletada.`);
+        // fecha o modal de edição se estava aberto neste jogador
+        if (typeof _editingPlayerId !== 'undefined' && _editingPlayerId === playerId) {
+            document.getElementById('master-edit-modal')?.classList.add('hidden');
+        }
+        // remove as linhas do jogador das listas
+        document.querySelectorAll('#mesa-players-list > div, #players-list > div').forEach(row => {
+            if (row.querySelector('button')?.getAttribute('onclick')?.includes(playerId)) row.remove();
+        });
+        if (typeof loadPlayers === 'function') loadPlayers();
+    } else {
+        alert('❌ Erro: ' + (result.error || 'Falha'));
+    }
+}
+
 async function saveMasterEditTeam() {
     const team = _editingPlayerData.trainer_data.team || [];
     

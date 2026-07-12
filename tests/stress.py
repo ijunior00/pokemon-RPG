@@ -234,6 +234,37 @@ def main():
     for c in (msio, s1, s2):
         c.get_received()
 
+    # ── Mestre DELETA conta de jogador da própria mesa (permanente) ──
+    _lus_uid = uid_of('lusmar')
+    _t1 = db.get_tables_for_master(_lus_uid)[0]
+    appmod._rate_store.clear()
+    pDel = app.test_client()
+    register(pDel, 'rev_del', 'player', _t1['invite_code'])
+    _uDel = uid_of('rev_del')
+    check(S, 'jogador-alvo criado na mesa 1', _uDel is not None)
+    # jogador não deleta ninguém
+    check(S, 'jogador bloqueado em /delete',
+          p1.post(f'/master/players/{_uDel}/delete',
+                  json={'confirm_username': 'rev_del'}).status_code == 403)
+    # não deleta conta de MESTRE por esta rota
+    check(S, 'não deleta conta de mestre',
+          m.post(f'/master/players/{_pend_uid}/delete',
+                 json={'confirm_username': 'gm_pendente'}).status_code == 403)
+    # não deleta jogador de OUTRA mesa (IDOR)
+    check(S, 'não deleta jogador cross-mesa',
+          m.post(f'/master/players/{_uB}/delete',
+                 json={'confirm_username': 'rev_pB'}).status_code == 403)
+    # confirmação do nome de usuário precisa bater (anti-clique acidental)
+    check(S, 'delete exige confirmação correta do username',
+          m.post(f'/master/players/{_uDel}/delete',
+                 json={'confirm_username': 'errado'}).status_code == 400)
+    check(S, 'conta intacta após confirmação errada', uid_of('rev_del') is not None)
+    # confirmação correta → conta some do banco
+    _rd = m.post(f'/master/players/{_uDel}/delete',
+                 json={'confirm_username': 'rev_del'}).get_json() or {}
+    check(S, 'mestre deleta a conta com confirmação correta', _rd.get('success') is True)
+    check(S, 'conta deletada some do banco', uid_of('rev_del') is None)
+
     # ── Economia: cliente não é autoridade sobre dinheiro/nível/espécie ──
     users = db.get_users(); users[u1]['trainer_data']['money'] = 1000; db.save_users(users)
     p1.post('/player/trainer', json={'money': 999999999, 'badges': [0,1,2,3,4,5,6,7],
