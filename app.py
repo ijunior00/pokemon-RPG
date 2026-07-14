@@ -951,6 +951,10 @@ HUNT_MODES = ('normal', 'dungeon', 'dungeon_night', 'night')
 # Kanto), não do nível do jogador — só há um leve empurrão se o jogador supera
 # muito a rota (para a rota não ficar trivial no fim do jogo).
 HUNT_LEVEL_DELTA = {'normal': 0, 'dungeon': 5, 'night': 10, 'dungeon_night': 15}
+# Moveset dos SELVAGENS (regra da mesa): nunca nascem com golpes de TM e só
+# têm esta chance de carregar golpes de OVO (egg) — o resto é o moveset normal
+# por nível da espécie. NPCs de treinador seguem regras próprias (têm TM).
+WILD_EGG_MOVE_CHANCE = 0.20
 
 
 def _get_calendar(state):
@@ -3627,30 +3631,25 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     shiny_chances = {'normal': 0.01, 'dungeon': 0.03, 'dungeon_night': 0.04, 'night': 0.05}
     is_shiny = random.random() < shiny_chances.get(hunt_mode, 0.01)
     
-    # Generate moveset (picks last 4 available moves for the level)
+    # Moveset do SELVAGEN: base = golpes iniciais + por nível (≤ nível do
+    # encontro). Regra da mesa: NÃO nascem com golpes de TM, e só têm
+    # WILD_EGG_MOVE_CHANCE (~20%) de carregar golpes de OVO no set — o resto é
+    # o moveset normal por nível.
     move_pool = list(chosen.get('startingMoves', []))
     if chosen.get('levelMoves'):
         for lv, moves in chosen['levelMoves'].items():
             # levelMoves keys are trainer-level scale, multiply by 5
             if int(lv) * 5 <= encounter_level:
                 move_pool.extend(moves)
-    if chosen.get('eggMoves'):
+    # Egg moves: só entram no pool numa fração dos encontros (senão, nunca)
+    if chosen.get('eggMoves') and random.random() < WILD_EGG_MOVE_CHANCE:
         move_pool.extend(chosen['eggMoves'])
-    
+
     move_pool = [m for m in move_pool if len(m) > 2 and not m.startswith('©') and not m.isdigit() and 'unofficial' not in m.lower() and 'wizards' not in m.lower() and 'nintendo' not in m.lower() and 'portions' not in m.lower() and '©' not in m and len(m) < 30]
     move_pool = list(dict.fromkeys(move_pool))
-    
+
     # Validate moves against database - only keep moves that actually exist
     move_pool = [m for m in move_pool if m.lower() in MOVES_BY_NAME or m in MOVES_DB]
-
-    # Selvagem EXPERIENTE (Nv ≥ 25): o pool inclui os golpes de TM da espécie
-    # (Thunderbolt, Earthquake, Ice Beam...) — é onde moram os golpes bons.
-    # Antes o selvagem só via startingMoves/levelMoves/eggMoves.
-    if encounter_level >= 25:
-        tm_names = [TM_MOVES.get(n) for n in (chosen.get('tmMoves') or [])]
-        move_pool.extend(m for m in tm_names
-                         if m and (m.lower() in MOVES_BY_NAME or m in MOVES_DB))
-        move_pool = list(dict.fromkeys(move_pool))
 
     # Moveset do selvagem: 2 PRINCIPAIS sorteados entre os TOP-4 golpes
     # ofensivos disponíveis (qualidade garantida + variedade por encontro —
@@ -4555,6 +4554,291 @@ def pc_store_capture():
     users[current_user.id]['trainer_data'] = trainer
     save_users(users)
     return jsonify({'ok': True, 'pc_size': len(pc), 'pokemon': poke})
+
+
+# ══════════════ CAPTURA (autoridade 100% do servidor) ══════════════
+# Bolas aceitas: ball_type (cliente) → nomes possíveis na bolsa + bônus no teste
+CAPTURE_BALLS = {
+    'pokeball':   {'names': ['pokébola', 'pokebola', 'poke ball', 'pokeball'],
+                   'bonus': 0, 'label': '🔴 Pokébola'},
+    'greatball':  {'names': ['super bola', 'great ball', 'bola super', 'super ball'],
+                   'bonus': 2, 'label': '🔵 Super Bola'},
+    'ultraball':  {'names': ['ultra bola', 'ultra ball', 'bola ultra'],
+                   'bonus': 4, 'label': '⚫ Ultra Bola'},
+    'netball':    {'names': ['net bola', 'net ball'],
+                   'bonus': 0, 'label': '🟢 Net Bola'},
+    'healball':   {'names': ['cura bola', 'heal ball'],
+                   'bonus': 0, 'label': '🩷 Cura Bola'},
+    'masterball': {'names': ['master ball', 'bola master'],
+                   'bonus': 999, 'label': '🟣 Master Ball'},
+}
+# Bônus FIXO no teste d20 por status (regra da mesa): sono/congelamento pesam
+# mais; paralisia/queimadura/veneno/confusão pesam menos.
+CAPTURE_STATUS_BONUS = {'dormindo': 6, 'congelado': 6,
+                        'paralisado': 3, 'queimado': 3,
+                        'envenenado': 3, 'confuso': 3}
+# Status que AFROUXAM o teto de HP (dá para tentar em HP mais alto).
+CAPTURE_RELAX_STATUS = {'dormindo', 'congelado'}
+CAPTURE_HP_GATE = 0.40           # sem status: só ≤40% do HP
+CAPTURE_HP_GATE_RELAXED = 0.65   # dormindo/congelado: até 65%
+
+
+def _find_ball_in_bag(bag, ball_type):
+    names = set(CAPTURE_BALLS.get(ball_type, {}).get('names', []))
+    for it in (bag or []):
+        if isinstance(it, dict) and (it.get('name') or '').strip().lower() in names:
+            return it
+    return None
+
+
+def _sr_int(sr):
+    try:
+        s = str(sr or '1/2')
+        if '/' in s:
+            a, b = s.split('/')[:2]
+            return int(a) // max(1, int(b))
+        return int(float(s))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _build_captured_pokemon(enc, base, level, cur_hp, heal_full=False):
+    """Monta o Pokémon capturado a partir do ENCONTRO ATIVO (autoridade do
+    servidor): mesmos MOVES com que lutou, atributos recalculados da espécie
+    (idênticos aos do selvagem), HP enfraquecido preservado, e shiny/ability/
+    postura do selvagem — 'cada detalhe de quando lutou'."""
+    wild = enc.get('pokemon') or {}
+    level = max(1, min(100, int(level)))
+    is_shiny = bool(enc.get('is_shiny'))
+    scaled = scaling.calculate_pokemon_stats(base, level, is_shiny=is_shiny)
+    raw_moves = enc.get('wild_moves') or wild.get('moves') or []
+    moves = [m for m in raw_moves
+             if isinstance(m, str) and (m.lower() in MOVES_BY_NAME or m in MOVES_DB)][:4]
+    if not moves:
+        moves = list(base.get('startingMoves') or [])[:4] or ['Tackle']
+    ab = wild.get('ability')
+    ability = ab.get('name', '') if isinstance(ab, dict) else (ab or '')
+    if not ability and isinstance(base.get('ability'), dict):
+        ability = base['ability'].get('name', '')
+    poke = {
+        'name': base['name'], 'number': base['number'], 'nickname': '',
+        'types': base.get('types', []), 'level': level,
+        'moves': moves, 'ability': ability,
+        'speed': base.get('speed', '30ft'),
+        'vulnerabilities': base.get('vulnerabilities', []),
+        'resistances': base.get('resistances', []),
+        'immunities': base.get('immunities', []),
+        'evolutionInfo': base.get('evolutionInfo', ''),
+        'evolutionStage': base.get('evolutionStage', ''),
+        'is_shiny': is_shiny,
+        'stats': scaled['stats'], 'maxHp': scaled['maxHp'], 'hp': scaled['maxHp'],
+        'defense_mode': int(wild.get('defense_mode') or 1),
+        'xp': 0, 'totalXp': 0, 'battle_wins': 0,
+        'sv': migrations.STATS_VERSION, 'training': {}, 'uid': secrets.token_hex(6),
+    }
+    if heal_full:
+        poke['currentHp'] = scaled['maxHp']
+    else:
+        try:
+            _c = int(cur_hp)
+        except (TypeError, ValueError):
+            _c = scaled['maxHp']
+        poke['currentHp'] = max(1, min(scaled['maxHp'], _c))
+    migrations.migrate_pokemon_pp(poke, POKEMON_BY_NAME, POKEMON_BY_NUMBER)
+    return poke
+
+
+@app.route('/player/capture', methods=['POST'])
+@login_required
+def player_capture():
+    """Arremesso de Pokébola — RESOLUÇÃO 100% NO SERVIDOR (à prova de forja).
+
+    Lê o selvagem do ENCONTRO ATIVO (espécie/nível/shiny/moves/HP/status são
+    do servidor, nunca do cliente). Regras da mesa:
+    - só ≤40% do HP; se estiver DORMINDO/CONGELADO, até 65% (o sono afrouxa);
+    - status dá BÔNUS FIXO no teste (sono/congelamento +6, demais +3);
+    - o capturado vai para o TIME com os mesmos moves/atributos com que lutou;
+      time cheio → PC. Bola consumida da bolsa a cada arremesso.
+    """
+    if _rate_limit(15, 60, bucket='capture'):
+        return jsonify({'error': 'Muitas tentativas de captura em pouco tempo.'}), 429
+    data = request.json or {}
+    ball_type = str(data.get('ball_type') or 'pokeball').strip().lower()
+    if ball_type not in CAPTURE_BALLS:
+        ball_type = 'pokeball'
+    trapped = bool(data.get('trapped'))
+    pid = str(current_user.id)
+
+    gs = get_game_state()
+    enc = (gs.get('active_encounters') or {}).get(pid)
+    if not enc:
+        return jsonify({'error': 'Nenhum encontro ativo para capturar.'}), 400
+    wild = enc.get('pokemon') or {}
+    base = POKEMON_BY_NUMBER.get(wild.get('number')) \
+        or POKEMON_BY_NAME.get((wild.get('name') or '').lower())
+    if not base or not base.get('base_stats'):
+        return jsonify({'error': 'Espécie do encontro inválida'}), 400
+
+    bs = enc.get('battle_state') or {}
+    wild_max = max(1, int(bs.get('wild_hp_max') or wild.get('maxHp') or wild.get('hp') or 1))
+    _wc_raw = bs.get('wild_hp_current')
+    wild_cur = int(_wc_raw if _wc_raw is not None else wild_max)
+    wild_cur = max(0, min(wild_max, wild_cur))
+    hp_pct = wild_cur / wild_max
+    fainted = wild_cur <= 0
+    status = (bs.get('wild_status') or '').strip().lower() or None
+
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {}) or {}
+    trainer_attrs.migrate_trainer(trainer)
+    bag = trainer.get('bag', []) or []
+    ball = _find_ball_in_bag(bag, ball_type)
+    ball_label = CAPTURE_BALLS[ball_type]['label']
+    if not ball or int(ball.get('qty') or 0) < 1:
+        return jsonify({'error': f'Você não tem {ball_label} na bolsa.'}), 400
+
+    # consome 1 bola SEMPRE que arremessa
+    ball['qty'] = int(ball['qty']) - 1
+    trainer['bag'] = [i for i in bag if i is not ball] if ball['qty'] <= 0 else bag
+    log = [f'{ball_label} arremessada!']
+
+    def _persist(remove_enc, poke=None):
+        if remove_enc:
+            # persiste o HP/status de batalha do Pokémon ATIVO do jogador antes
+            # de fechar o encontro (o cliente não pode salvar o time aqui — isso
+            # apagaria o recém-capturado). Fonte = battle_state do servidor.
+            try:
+                _idx = enc.get('player_pokemon_idx')
+                _team = trainer.get('team', []) or []
+                if isinstance(_idx, int) and 0 <= _idx < len(_team):
+                    _php = bs.get('player_hp_current')
+                    if _php is not None:
+                        _pm = int(_team[_idx].get('maxHp') or _team[_idx].get('hp') or 1)
+                        _team[_idx]['currentHp'] = max(0, min(_pm, int(_php)))
+                    _pst = bs.get('player_status')
+                    if _pst:
+                        _team[_idx]['status'] = _pst
+                    else:
+                        _team[_idx].pop('status', None)
+            except (TypeError, ValueError, KeyError):
+                pass
+            (gs.get('active_encounters') or {}).pop(pid, None)
+            save_game_state(gs)
+            socketio.emit('encounter_ended',
+                          {'player_id': current_user.id, 'result': 'capture'},
+                          room=f'master_{_tid()}')
+        users[current_user.id]['trainer_data'] = trainer
+        save_users(users)
+        if poke is not None:
+            socketio.emit('team_update',
+                          {'player_id': current_user.id, 'team': trainer.get('team', [])},
+                          room=f'master_{_tid()}')
+
+    def _place(poke):
+        """Time se tiver espaço, senão PC. Retorna ('team'|'pc', tamanho)."""
+        team = trainer.get('team', []) or []
+        if len(team) < 6:
+            team.append(poke); trainer['team'] = team
+            return 'team', len(team)
+        pc = trainer.get('pc', []) or []
+        pc.append(poke); trainer['pc'] = pc
+        return 'pc', len(pc)
+
+    sr = _sr_int(wild.get('sr') or base.get('sr'))
+    level = max(1, min(100, int(enc.get('level') or wild.get('level') or 1)))
+    heal_full = (ball_type == 'healball')
+
+    # ── Master Ball: captura garantida (ignora teto e teste) ──
+    if ball_type == 'masterball':
+        team_now = trainer.get('team', []) or []
+        cap_level = level
+        if len(team_now) < 6 and not team_now and cap_level < 5:
+            cap_level = 5
+        poke = _build_captured_pokemon(enc, base, cap_level, wild_cur, heal_full)
+        dest, size = _place(poke)
+        _persist(True, poke)
+        log.append('✅ CAPTURADO! (Master Ball — captura garantida!)')
+        return jsonify({'ok': True, 'result': 'caught', 'log': log, 'ball': ball_type,
+                        'status': status, 'wild_hp_pct': round(hp_pct, 3),
+                        'encounter_over': True, 'captured': poke, 'destination': dest,
+                        'team_size': len(trainer.get('team', [])),
+                        'pc_size': len(trainer.get('pc', [])),
+                        'dice': None, 'bag': trainer.get('bag', [])})
+
+    # ── Teto de HP: sem status ≤40%; dormindo/congelado ≤65% ──
+    gate = CAPTURE_HP_GATE_RELAXED if status in CAPTURE_RELAX_STATUS else CAPTURE_HP_GATE
+    if not fainted and hp_pct > gate:
+        pct = round(hp_pct * 100)
+        log.append(f'💥 A Pokébola quebrou! O selvagem ainda tem {pct}% do HP '
+                   f'(teto de {round(gate*100)}%). Enfraqueça-o mais!')
+        over = not trapped
+        if over:
+            log.append('🏃 O Pokémon selvagem fugiu após a Pokébola falhar!')
+        _persist(over)
+        return jsonify({'ok': True, 'result': 'broke', 'log': log, 'ball': ball_type,
+                        'status': status, 'wild_hp_pct': round(hp_pct, 3),
+                        'encounter_over': over, 'captured': None, 'destination': None,
+                        'dice': None, 'bag': trainer.get('bag', [])})
+
+    # ── Teste de captura (d20) ──
+    if fainted:
+        dc = max(5, 5 + sr)
+    else:
+        dc = 10 + sr + level + (wild_cur // 10)
+    r1, r2 = random.randint(1, 20), random.randint(1, 20)
+    advantage = fainted   # desmaiado = vantagem; status agora dá bônus FIXO
+    roll = max(r1, r2) if advantage else r1
+    afinidade_bonus = trainer_attrs.skill_modifier(trainer, 'Afinidade')[0]
+    ball_bonus = CAPTURE_BALLS[ball_type]['bonus']
+    if ball_type == 'netball':
+        wtypes = [str(t).lower() for t in (wild.get('types') or base.get('types') or [])]
+        if any(t in ('bug', 'water') for t in wtypes):
+            ball_bonus += 3
+            log.append('🟢 Net Bola: +3 contra Bug/Water!')
+    status_bonus = CAPTURE_STATUS_BONUS.get(status, 0) if status else 0
+    total = roll + afinidade_bonus + ball_bonus + status_bonus
+    dice = {'roll': roll, 'rolls': [r1, r2], 'advantage': advantage, 'dc': dc,
+            'total': total, 'afinidade': afinidade_bonus, 'ball_bonus': ball_bonus,
+            'status_bonus': status_bonus}
+
+    if status_bonus:
+        log.append(f'💤 {status.capitalize()}: +{status_bonus} no teste de captura!')
+    log.append(f'CD de Captura: {dc} · d20({roll}{"↑" if advantage else ""})'
+               f' + Afinidade({afinidade_bonus:+d})'
+               + (f' + Bola(+{ball_bonus})' if ball_bonus else '')
+               + (f' + Status(+{status_bonus})' if status_bonus else '')
+               + f' = {total}')
+
+    if total >= dc:
+        team_now = trainer.get('team', []) or []
+        cap_level = level
+        if len(team_now) < 6 and not team_now and cap_level < 5:
+            cap_level = 5
+        poke = _build_captured_pokemon(enc, base, cap_level, wild_cur, heal_full)
+        dest, size = _place(poke)
+        _persist(True, poke)
+        log.append(f'✅ CAPTURADO! 🎉 ({total} ≥ {dc})')
+        if heal_full:
+            log.append('🩷 Cura Bola: o Pokémon foi curado completamente!')
+        if dest == 'pc':
+            log.append(f'📦 Time cheio — guardado no PC! ({size} no PC)')
+        return jsonify({'ok': True, 'result': 'caught', 'log': log, 'ball': ball_type,
+                        'status': status, 'wild_hp_pct': round(hp_pct, 3),
+                        'encounter_over': True, 'captured': poke, 'destination': dest,
+                        'team_size': len(trainer.get('team', [])),
+                        'pc_size': len(trainer.get('pc', [])),
+                        'dice': dice, 'bag': trainer.get('bag', [])})
+
+    # falhou o teste
+    log.append(f'❌ {ball_label} falhou! ({total} < {dc})')
+    over = not trapped
+    if over:
+        log.append('🏃 O Pokémon selvagem fugiu!')
+    _persist(over)
+    return jsonify({'ok': True, 'result': 'failed', 'log': log, 'ball': ball_type,
+                    'status': status, 'wild_hp_pct': round(hp_pct, 3),
+                    'encounter_over': over, 'captured': None, 'destination': None,
+                    'dice': dice, 'bag': trainer.get('bag', [])})
 
 
 @app.route('/player/pc/deposit', methods=['POST'])

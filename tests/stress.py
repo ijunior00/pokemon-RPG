@@ -2741,6 +2741,96 @@ def main():
     check(S, 'captura de selvagem em HP cheio é negada', r.status_code == 400)
     _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
 
+    # ── /player/capture (arremesso server-side: bola, status, teto, PC) ──
+    import random as _rc
+    def _seed_cap(name='Pidgey', level=10, hp=5, hpmax=100, status=None,
+                  moves=None, shiny=False, pidx=None):
+        _b = appmod.POKEMON_BY_NAME[name.lower()]
+        _w = dict(_b); _w['number'] = _b['number']; _w['name'] = _b['name']
+        _g = gstate()
+        _g.setdefault('active_encounters', {})[str(u1)] = {
+            'player_id': str(u1), 'pokemon': _w, 'level': level, 'is_shiny': shiny,
+            'route_id': 'route_1', 'wild_moves': moves or ['Tackle', 'Gust'],
+            'player_pokemon_idx': pidx,
+            'battle_state': {'wild_hp_current': hp, 'wild_hp_max': hpmax,
+                             'wild_status': status, 'player_hp_current': None,
+                             'player_status': None}}
+        db.save_game_state(_g, TID)
+    def _bag(items):
+        _u = db.get_users(); _u[u1]['trainer_data']['bag'] = items; db.save_users(_u)
+    def _team(t):
+        _u = db.get_users(); _u[u1]['trainer_data']['team'] = t; db.save_users(_u)
+    def _cap(ball='pokeball'):
+        return p1.post('/player/capture', json={'ball_type': ball}).get_json()
+
+    # HP>40% sem status → quebra, encontro acaba, bola consumida no servidor
+    _bag([{'name': 'Pokébola', 'qty': 3}]); _team([])
+    _seed_cap(hp=80, hpmax=100)
+    _r = _cap()
+    check(S, 'captura: HP>40% sem status → Pokébola quebra e encontro acaba',
+          _r.get('result') == 'broke' and _r.get('encounter_over') is True)
+    check(S, 'captura: bola consumida no servidor',
+          db.get_users()[u1]['trainer_data']['bag'][0]['qty'] == 2)
+
+    # dormindo afrouxa o teto (60% não quebra) + bônus fixo +6 no teste
+    _bag([{'name': 'Pokébola', 'qty': 3}])
+    _seed_cap(hp=60, hpmax=100, status='dormindo')
+    _rc.seed(3); _r = _cap()
+    check(S, 'captura: dormindo afrouxa o teto (60% não quebra por HP)',
+          _r.get('result') in ('caught', 'failed'))
+    check(S, 'captura: status dá bônus fixo +6 (dormindo/congelado)',
+          (_r.get('dice') or {}).get('status_bonus') == 6)
+
+    # desmaiado → capturado com os MOVES EXATOS da batalha, vai pro time
+    _bag([{'name': 'Ultra Bola', 'qty': 3}]); _team([])
+    _seed_cap(name='Bulbasaur', hp=0, hpmax=100,
+              moves=['Vine Whip', 'Leech Seed', 'Growl'])
+    _rc.seed(2); _r = _cap('ultraball')
+    check(S, 'captura: desmaiado vai pro time', _r.get('result') == 'caught'
+          and _r.get('destination') == 'team')
+    _cp = db.get_users()[u1]['trainer_data']['team'][-1]
+    check(S, 'captura: capturado preserva os MOVES exatos da batalha',
+          _cp.get('moves') == ['Vine Whip', 'Leech Seed', 'Growl'])
+    check(S, 'captura: stats do capturado batem com o escalonamento da espécie',
+          _cp.get('maxHp') == scaling.calculate_pokemon_stats(
+              appmod.POKEMON_BY_NAME['bulbasaur'], _cp['level'])['maxHp'])
+
+    # time cheio → PC (Master Ball garante a captura)
+    _bag([{'name': 'Master Ball', 'qty': 1}])
+    _team([dict(name='Pidgey', number=16, level=5, moves=['Tackle'],
+                training={}, sv=2) for _ in range(6)])
+    _seed_cap(name='Pikachu', hp=20, hpmax=100)
+    _r = _cap('masterball')
+    check(S, 'captura: time cheio → capturado vai pro PC',
+          _r.get('result') == 'caught' and _r.get('destination') == 'pc')
+
+    # HP/status do Pokémon ATIVO persistem ao capturar (idx do encontro)
+    _sb = appmod.POKEMON_BY_NAME['squirtle']
+    _ss = scaling.calculate_pokemon_stats(_sb, 15)
+    _team([dict(name='Squirtle', number=_sb['number'], level=15, moves=['Tackle'],
+                maxHp=_ss['maxHp'], currentHp=_ss['maxHp'], hp=_ss['maxHp'],
+                stats=_ss['stats'], training={}, sv=2)])
+    _bag([{'name': 'Ultra Bola', 'qty': 3}])
+    _seed_cap(name='Rattata', hp=0, hpmax=100, pidx=0)
+    _g = gstate()
+    _g['active_encounters'][str(u1)]['battle_state']['player_hp_current'] = 7
+    _g['active_encounters'][str(u1)]['battle_state']['player_status'] = 'envenenado'
+    db.save_game_state(_g, TID)
+    _rc.seed(1); _r = _cap('ultraball')
+    _t = db.get_users()[u1]['trainer_data']['team']
+    check(S, 'captura: HP do Pokémon ativo persiste (7)', _t[0].get('currentHp') == 7)
+    check(S, 'captura: status do ativo persiste (envenenado)',
+          _t[0].get('status') == 'envenenado')
+
+    # sem bola → erro; sem login → bloqueado
+    _bag([]); _seed_cap(hp=0)
+    check(S, 'captura sem a bola na bolsa é negada',
+          p1.post('/player/capture', json={'ball_type': 'pokeball'}).status_code == 400)
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+    check(S, 'captura exige login',
+          app.test_client().post('/player/capture', json={}).status_code in (302, 401))
+    _team([])
+
     # Movesets dos selvagens: qualidade garantida + variedade + TMs no Nv≥25
     _enc_sets = []
     for _ in range(12):
@@ -2767,6 +2857,38 @@ def main():
                   or all(len([1 for n, _ in _enc_sets if n == k]) == 1
                          for k in _by_species))
     check(S, 'moveset varia entre encontros da mesma espécie', _repeat_ok)
+
+    # NOVA REGRA (mesa): selvagens NÃO nascem com golpes de TM, e só ~20% têm
+    # golpes de OVO — o resto é o moveset normal por nível.
+    def _mv_valid(m):
+        return bool(m) and (m.lower() in appmod.MOVES_BY_NAME or m in appmod.MOVES_DB)
+    def _spec_sets(sp):
+        _lvl = set(sp.get('startingMoves') or [])
+        for _mv in (sp.get('levelMoves') or {}).values():
+            _lvl.update(_mv)
+        _egg = {m for m in (sp.get('eggMoves') or []) if _mv_valid(m)} - _lvl
+        _tm = {appmod.TM_MOVES.get(n) for n in (sp.get('tmMoves') or [])}
+        _tm = ({m for m in _tm if _mv_valid(m)} - _lvl) - _egg   # TM exclusivo
+        return _tm, _egg
+    _tm_leak = 0; _egg_hits = 0; _egg_denom = 0; _n = 0
+    for _ in range(1500):
+        _e = appmod._build_random_encounter('mt_moon', 'dungeon_night', 40)
+        if not isinstance(_e, dict):
+            continue
+        _sp = appmod.POKEMON_BY_NAME[_e['pokemon']['name'].lower()]
+        _tm, _egg = _spec_sets(_sp)
+        _wm = set(_e['wild_moves']); _n += 1
+        if _wm & _tm:
+            _tm_leak += 1
+        if _egg:
+            _egg_denom += 1
+            if _wm & _egg:
+                _egg_hits += 1
+    check(S, 'selvagem NUNCA nasce com golpe exclusivo de TM', _tm_leak == 0,
+          f'{_tm_leak} vazamentos em {_n}')
+    _egg_rate = _egg_hits / max(1, _egg_denom)
+    check(S, 'golpes de OVO só numa minoria dos selvagens (~20%)',
+          0.10 <= _egg_rate <= 0.32, f'{_egg_rate*100:.1f}% ({_egg_hits}/{_egg_denom})')
 
     section('20. Auditoria de moves (tabela do tester): Leech Seed & cia')
     S = 'Moves canônicos'
