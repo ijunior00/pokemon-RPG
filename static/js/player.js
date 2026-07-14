@@ -1539,150 +1539,87 @@ function passTurn() {
     socket.emit('battle_action', { action_by: 'player', action_type: 'pass', move_name: 'Passar', damage: 0, player_status_damage: window._playerPreTurnStatusDamage || 0, message: 'Passou o turno' });
 }
 
-function throwPokeball() {
-    // Validate ball exists in bag
+// Captura 100% RESOLVIDA NO SERVIDOR (/player/capture): teste, regra dos 40%
+// (afrouxada por sono/congelamento), bônus de status, consumo da bola e a
+// montagem do Pokémon capturado (mesmos moves/atributos da batalha) — o
+// cliente só dispara e renderiza o resultado.
+let _capturing = false;
+async function throwPokeball() {
+    if (_capturing) return;
     const ballType = document.getElementById('pokeball-select')?.value || 'pokeball';
-    const ballItemNames = {
-        pokeball:   ['Pokébola', 'Poke Ball', 'Pokeball'],
-        greatball:  ['Great Ball', 'Bola Super', 'Super Ball', 'Super Bola'],
-        ultraball:  ['Ultra Ball', 'Bola Ultra', 'Ultra Bola'],
-        netball:    ['Net Ball', 'Net Bola'],
-        healball:   ['Heal Ball', 'Cura Bola'],
-        masterball: ['Master Ball', 'Bola Master']
-    };
-    const bagNames = (ballItemNames[ballType] || []).map(n => n.toLowerCase());
-    const bagItem  = (window.bagItems || []).find(i => bagNames.includes((i.name || '').toLowerCase()));
-    if (!bagItem || (bagItem.qty || 0) < 1) {
-        alert(`Você não tem ${document.getElementById('pokeball-select')?.options[document.getElementById('pokeball-select')?.selectedIndex]?.text.replace(/\s*\(.*\)/, '') || 'esta Pokébola'} na bolsa!`);
-        return;
-    }
 
-    // Allow pokeball at any time if enemy is fainted (HP 0)
-    const hpText = document.getElementById('battle-enemy-hp-text-full').textContent;
+    // Turno: só se pode arremessar fora do turno se o selvagem estiver desmaiado
+    const hpText = document.getElementById('battle-enemy-hp-text-full')?.textContent || '';
     const hpMatch = hpText.match(/(\d+)\/(\d+)/);
-    const currentHp = hpMatch ? parseInt(hpMatch[1]) : 999;
-    const enemyFainted = currentHp <= 0;
-
+    const curHp = hpMatch ? parseInt(hpMatch[1]) : 999;
+    const enemyFainted = curHp <= 0;
     if (!enemyFainted && window.currentTurn !== 'player') { alert('Não é seu turno!'); return; }
-    
-    const enemy = window.currentBattleData?.enemy || {};
-    const encounter = currentEncounter || {};
-    const trainerLevel = TRAINER_DATA.level || 1;
-    
-    // Calculate capture DC: 10 + SR(floor) + pokemon level + (currentHp / 10 floor)
-    let srVal = 0;
-    const srStr = enemy.sr || '1/2';
-    if (srStr.includes('/')) {
-        srVal = Math.floor(parseInt(srStr.split('/')[0]) / parseInt(srStr.split('/')[1]));
-    } else {
-        srVal = parseInt(srStr);
-    }
-    
-    const pokeLevel = encounter.level || 5;
-    const hpComponent = Math.floor(currentHp / 10);
-    const captureDC = enemyFainted ? Math.max(5, 5 + srVal) : 10 + srVal + pokeLevel + hpComponent;
-    
-    // Captura = 💞 Afinidade (❤️ Vínculo): mod + proficiência se tiver
-    const trainerVinculo = TRAINER_DATA.vinculo ?? TRAINER_DATA.wis ?? 10;
-    const vinculoMod = Math.floor((trainerVinculo - 10) / 2);
-    const profBonus = trainerLevel >= 17 ? 6 : trainerLevel >= 13 ? 5 : trainerLevel >= 9 ? 4 : trainerLevel >= 5 ? 3 : 2;
-    const afinidadeProf = (TRAINER_DATA.skill_profs || []).includes('Afinidade');
-    const animalHandlingBonus = vinculoMod + (afinidadeProf ? profBonus : 0);
-    
-    // Roll d20 (or 2d20 take highest if advantage)
-    let roll1 = Math.floor(Math.random() * 20) + 1;
-    let roll2 = Math.floor(Math.random() * 20) + 1;
-    let finalRoll = roll1;
-    let advantageText = '';
-    
-    // Advantage if enemy has status OR is fainted
-    const hasStatusAdvantage = enemyFainted || !!window.wildPokemonStatus;
-    
-    if (hasStatusAdvantage) {
-        finalRoll = Math.max(roll1, roll2);
-        advantageText = ` (Vantagem! ${roll1}, ${roll2} → ${finalRoll})`;
-    }
-    
-    // Pokeball type bonus
-    const ballNames = { pokeball: '🔴 Pokébola', greatball: '🔵 Super Bola', ultraball: '⚫ Ultra Bola', netball: '🟢 Net Bola', healball: '🩷 Cura Bola', masterball: '🟣 Master Ball' };
-    const ballBonus = { pokeball: 0, greatball: 2, ultraball: 4, netball: 0, healball: 0, masterball: 999 };
 
-    // Net Ball: +3 if enemy is Bug or Water
-    let netBallBonus = 0;
-    if (ballType === 'netball') {
-        const enemyTypes = (window.currentBattleData?.enemy?.types || []).map(t => t.toLowerCase());
-        if (enemyTypes.some(t => t === 'bug' || t === 'water')) {
-            netBallBonus = 3;
-            addBattleLog(`🟢 Net Bola: +3 bônus contra Bug/Water!`);
-        }
+    _capturing = true;
+    let r;
+    try {
+        const resp = await fetch('/player/capture', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ball_type: ballType, trapped: !!window._enemyTrapped })
+        });
+        r = await resp.json();
+        if (!resp.ok || r.error) { alert('⚠️ ' + (r.error || 'Falha na captura')); return; }
+    } catch (e) {
+        alert('⚠️ Erro de conexão ao arremessar a Pokébola.'); return;
+    } finally {
+        _capturing = false;
     }
 
-    const bonus = (ballBonus[ballType] || 0) + netBallBonus;
-    const ballLabel = ballNames[ballType] || '🔴 Pokébola';
-
-    const totalRoll = finalRoll + animalHandlingBonus + bonus;
-
-    // Consume 1 ball from bag
-    bagItem.qty -= 1;
-    if (bagItem.qty <= 0) {
-        window.bagItems = window.bagItems.filter(i => i !== bagItem);
+    // Bolsa: o servidor consumiu a bola — sincroniza o estado local
+    if (Array.isArray(r.bag)) {
+        window.bagItems = r.bag;
+        if (typeof renderBag === 'function') try { renderBag(); } catch (e) {}
     }
-    saveBag();
+    // Log e dado vindos do servidor (autoridade)
+    (r.log || []).forEach(line => addBattleLog(line));
+    try { playSound && playSound('dice'); } catch (e) {}
+    if (r.dice && typeof animateDice === 'function') animateDice(r.dice.roll, 'd20');
 
-    addBattleLog(`${ballLabel} <strong>arremessada!</strong>${enemyFainted ? ' (Pokémon desmaiado - CD reduzida)' : ''}${bonus > 0 ? ` [+${bonus} bônus]` : ''}`);
-
-    // Master Ball: captura garantida + concede XP
-    if (ballType === 'masterball') {
-        addBattleLog(`✅ <strong>CAPTURADO!</strong> 🎉 (Master Ball — captura garantida!)`);
-        window._masterBallCapture = true;
-        setTimeout(() => endBattle('caught'), 1500);
-        return;
-    }
-
-    // Regra dos 40%: pokébola quebra automaticamente se o poke tem >40% do HP máximo
-    const wildMaxHp  = parseInt(document.getElementById('battle-enemy-hp-text-full').textContent.split('/')[1]) || 1;
-    const hpPct      = currentHp / wildMaxHp;
-    if (hpPct > 0.40) {
-        addBattleLog(`💥 <strong>A Pokébola quebrou!</strong> O Pokémon selvagem ainda está com ${Math.round(hpPct*100)}% do HP — enfraquece-o abaixo de 40% primeiro!`);
-        // Pokébola foi consumida mas não funcionou, selvagem foge
-        setTimeout(() => {
-            if (window._enemyTrapped) {
-                addBattleLog(`🔒 ${window._enemyTrappedBy || 'Trapping move'} impediu a fuga do selvagem!`);
-                // Don't end battle — wild is trapped, player keeps going
-                window.currentTurn = 'player';
-                updateTurnUI();
-            } else {
-                addBattleLog(`🏃 O Pokémon selvagem fugiu após a Pokébola falhar!`);
-                endBattle('fled_after_capture');
+    if (r.result === 'caught') {
+        try { playSound && playSound('catch'); } catch (e) {}
+        if (r.captured && r.captured.number) registerPokedex(r.captured.number);
+        showNotification(r.destination === 'pc'
+            ? `📦 Time cheio — ${r.captured.name} foi guardado no PC!`
+            : `🎉 ${r.captured.name} capturado e adicionado ao time!`, 'success');
+        // O servidor já montou o time (capturado + HP do ativo). Recarrega dele.
+        try {
+            const t = await fetch('/player/team-data').then(x => x.json());
+            if (Array.isArray(t)) {
+                playerTeam = t; TRAINER_DATA.team = t;
+                if (typeof refreshTeamDisplay === 'function') refreshTeamDisplay();
             }
-        }, 1500);
+        } catch (e) {}
+        _finishCaptureUI();
         return;
     }
 
-    addBattleLog(`  CD de Captura: ${enemyFainted ? `5 + SR(${srVal})` : `10 + SR(${srVal}) + Nível(${pokeLevel}) + HP÷10(${hpComponent})`} = <strong>${captureDC}</strong>`);
-    addBattleLog(`  💞 Afinidade (Vínculo): d20(${finalRoll})${advantageText} + VÍN(${vinculoMod >= 0 ? '+' : ''}${vinculoMod})${afinidadeProf ? ` + Prof(+${profBonus})` : ''}${bonus > 0 ? ` + Bola(${bonus})` : ''} = <strong>${totalRoll}</strong>`);
-
-    animateDice(finalRoll, 'd20');
-
-    if (totalRoll >= captureDC) {
-        addBattleLog(`✅ <strong>CAPTURADO!</strong> 🎉 (${totalRoll} ≥ ${captureDC})`);
-        if (ballType === 'healball') {
-            window._healBallCapture = true;
-            addBattleLog(`🩷 Cura Bola: o Pokémon capturado será curado completamente!`);
-        }
-        setTimeout(() => endBattle('caught'), 1500);
+    // broke (quebrou por HP) ou failed (errou o teste)
+    if (r.encounter_over) {
+        try { playSound && playSound('run'); } catch (e) {}
+        _finishCaptureUI();
     } else {
-        addBattleLog(`❌ ${ballLabel} falhou! (${totalRoll} < ${captureDC})`);
-        if (window._enemyTrapped) {
-            addBattleLog(`🔒 ${window._enemyTrappedBy || 'Trapping move'} impediu a fuga! A batalha continua.`);
-            window.currentTurn = 'wild';
-            updateTurnUI();
-            setTimeout(() => wildPokemonAutoAttack(), 1200);
-        } else {
-            addBattleLog(`🏃 <strong>O Pokémon selvagem fugiu!</strong> O encontro acabou.`);
-            setTimeout(() => endBattle('fled_after_capture'), 2000);
-        }
+        // preso (trapping move) — a batalha segue, vez do selvagem
+        window.currentTurn = 'wild';
+        if (typeof updateTurnUI === 'function') updateTurnUI();
+        setTimeout(() => { if (typeof wildPokemonAutoAttack === 'function') wildPokemonAutoAttack(); }, 1200);
     }
+}
+
+function _finishCaptureUI() {
+    setTimeout(() => {
+        hideElement('battle-area');
+        showElement('no-battle-msg');
+        currentEncounter = null;
+        battleActive = false;
+        window.wildPokemonStatus = null;
+        window.playerPokemonStatus = null;
+        window.wildFainted = false;
+    }, 1800);
 }
 
 function addBattleLog(msg) {
