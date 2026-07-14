@@ -951,6 +951,10 @@ HUNT_MODES = ('normal', 'dungeon', 'dungeon_night', 'night')
 # Kanto), não do nível do jogador — só há um leve empurrão se o jogador supera
 # muito a rota (para a rota não ficar trivial no fim do jogo).
 HUNT_LEVEL_DELTA = {'normal': 0, 'dungeon': 5, 'night': 10, 'dungeon_night': 15}
+# Moveset dos SELVAGENS (regra da mesa): nunca nascem com golpes de TM e só
+# têm esta chance de carregar golpes de OVO (egg) — o resto é o moveset normal
+# por nível da espécie. NPCs de treinador seguem regras próprias (têm TM).
+WILD_EGG_MOVE_CHANCE = 0.20
 
 
 def _get_calendar(state):
@@ -3627,30 +3631,25 @@ def _build_random_encounter(route_id, hunt_mode, player_level, is_ambush=False):
     shiny_chances = {'normal': 0.01, 'dungeon': 0.03, 'dungeon_night': 0.04, 'night': 0.05}
     is_shiny = random.random() < shiny_chances.get(hunt_mode, 0.01)
     
-    # Generate moveset (picks last 4 available moves for the level)
+    # Moveset do SELVAGEN: base = golpes iniciais + por nível (≤ nível do
+    # encontro). Regra da mesa: NÃO nascem com golpes de TM, e só têm
+    # WILD_EGG_MOVE_CHANCE (~20%) de carregar golpes de OVO no set — o resto é
+    # o moveset normal por nível.
     move_pool = list(chosen.get('startingMoves', []))
     if chosen.get('levelMoves'):
         for lv, moves in chosen['levelMoves'].items():
             # levelMoves keys are trainer-level scale, multiply by 5
             if int(lv) * 5 <= encounter_level:
                 move_pool.extend(moves)
-    if chosen.get('eggMoves'):
+    # Egg moves: só entram no pool numa fração dos encontros (senão, nunca)
+    if chosen.get('eggMoves') and random.random() < WILD_EGG_MOVE_CHANCE:
         move_pool.extend(chosen['eggMoves'])
-    
+
     move_pool = [m for m in move_pool if len(m) > 2 and not m.startswith('©') and not m.isdigit() and 'unofficial' not in m.lower() and 'wizards' not in m.lower() and 'nintendo' not in m.lower() and 'portions' not in m.lower() and '©' not in m and len(m) < 30]
     move_pool = list(dict.fromkeys(move_pool))
-    
+
     # Validate moves against database - only keep moves that actually exist
     move_pool = [m for m in move_pool if m.lower() in MOVES_BY_NAME or m in MOVES_DB]
-
-    # Selvagem EXPERIENTE (Nv ≥ 25): o pool inclui os golpes de TM da espécie
-    # (Thunderbolt, Earthquake, Ice Beam...) — é onde moram os golpes bons.
-    # Antes o selvagem só via startingMoves/levelMoves/eggMoves.
-    if encounter_level >= 25:
-        tm_names = [TM_MOVES.get(n) for n in (chosen.get('tmMoves') or [])]
-        move_pool.extend(m for m in tm_names
-                         if m and (m.lower() in MOVES_BY_NAME or m in MOVES_DB))
-        move_pool = list(dict.fromkeys(move_pool))
 
     # Moveset do selvagem: 2 PRINCIPAIS sorteados entre os TOP-4 golpes
     # ofensivos disponíveis (qualidade garantida + variedade por encontro —

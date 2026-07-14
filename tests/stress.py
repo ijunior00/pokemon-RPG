@@ -2768,6 +2768,38 @@ def main():
                          for k in _by_species))
     check(S, 'moveset varia entre encontros da mesma espécie', _repeat_ok)
 
+    # NOVA REGRA (mesa): selvagens NÃO nascem com golpes de TM, e só ~20% têm
+    # golpes de OVO — o resto é o moveset normal por nível.
+    def _mv_valid(m):
+        return bool(m) and (m.lower() in appmod.MOVES_BY_NAME or m in appmod.MOVES_DB)
+    def _spec_sets(sp):
+        _lvl = set(sp.get('startingMoves') or [])
+        for _mv in (sp.get('levelMoves') or {}).values():
+            _lvl.update(_mv)
+        _egg = {m for m in (sp.get('eggMoves') or []) if _mv_valid(m)} - _lvl
+        _tm = {appmod.TM_MOVES.get(n) for n in (sp.get('tmMoves') or [])}
+        _tm = ({m for m in _tm if _mv_valid(m)} - _lvl) - _egg   # TM exclusivo
+        return _tm, _egg
+    _tm_leak = 0; _egg_hits = 0; _egg_denom = 0; _n = 0
+    for _ in range(1500):
+        _e = appmod._build_random_encounter('mt_moon', 'dungeon_night', 40)
+        if not isinstance(_e, dict):
+            continue
+        _sp = appmod.POKEMON_BY_NAME[_e['pokemon']['name'].lower()]
+        _tm, _egg = _spec_sets(_sp)
+        _wm = set(_e['wild_moves']); _n += 1
+        if _wm & _tm:
+            _tm_leak += 1
+        if _egg:
+            _egg_denom += 1
+            if _wm & _egg:
+                _egg_hits += 1
+    check(S, 'selvagem NUNCA nasce com golpe exclusivo de TM', _tm_leak == 0,
+          f'{_tm_leak} vazamentos em {_n}')
+    _egg_rate = _egg_hits / max(1, _egg_denom)
+    check(S, 'golpes de OVO só numa minoria dos selvagens (~20%)',
+          0.10 <= _egg_rate <= 0.32, f'{_egg_rate*100:.1f}% ({_egg_hits}/{_egg_denom})')
+
     section('20. Auditoria de moves (tabela do tester): Leech Seed & cia')
     S = 'Moves canônicos'
     import status_effects as se_mod
