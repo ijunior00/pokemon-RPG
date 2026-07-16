@@ -1629,12 +1629,31 @@ function _finishCaptureUI() {
     }, 1800);
 }
 
+// Callout central (FX): momentos-chave viram um banner estilo VS na arena.
+// Gancho no log = pega TODOS os caminhos (auto, manual, servidor) num só
+// lugar; as strings são nossas (PT-BR do próprio app). Throttle anti-spam.
+let _lastCalloutAt = 0;
+function _maybeCallout(msg) {
+    if (!window.FX || !FX.callout) return;
+    const now = Date.now();
+    if (now - _lastCalloutAt < 700) return;
+    const s = String(msg);
+    let hit = null;
+    if (/CAPTURADO/i.test(s))            hit = ['CAPTURADO!', 'success'];
+    else if (/cr[ií]tico/i.test(s))      hit = ['CRÍTICO!', 'gold'];
+    else if (/super efetivo/i.test(s))   hit = ['SUPER EFETIVO!', 'danger'];
+    else if (/n[ãa]o efetivo/i.test(s))  hit = ['POUCO EFETIVO', 'muted'];
+    else if (/⛔ imune|é imune/i.test(s)) hit = ['IMUNE!', 'muted'];
+    if (hit) { _lastCalloutAt = now; FX.callout(hit[0], hit[1]); }
+}
+
 function addBattleLog(msg) {
     const log = document.getElementById('battle-log-full');
     if (log) {
         log.innerHTML += `<p>${msg}</p>`;
         log.scrollTop = log.scrollHeight;
     }
+    try { _maybeCallout(msg); } catch (e) {}
 }
 
 function fleeBattle() {

@@ -47,6 +47,36 @@
           .set(el, { x: 0 });
     };
 
+    // Callout central estilo VS ("SUPER EFETIVO!", "CAPTURADO!"...): punch-in
+    // com fade — decorativo, some sozinho. kind: danger|success|gold|muted.
+    FX.callout = function (text, kind) {
+        if (_reduced || !text) return;
+        const host = document.querySelector('.poke-scene') || document.getElementById('battle-area');
+        if (!host) return;
+        let el = document.getElementById('fx-callout');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'fx-callout';
+            host.appendChild(el);
+        } else if (el.parentElement !== host) {
+            host.appendChild(el);
+        }
+        el.textContent = text;
+        el.setAttribute('data-kind', kind || 'gold');
+        const gs = g();
+        if (gs) {
+            gs.killTweensOf(el);
+            gs.timeline()
+              .fromTo(el, { opacity: 0, scale: 1.6 },
+                          { opacity: 1, scale: 1, duration: 0.16, ease: 'steps(4)' })
+              .to(el, { opacity: 0, y: -12, duration: 0.3, ease: 'power1.in', delay: 0.85 })
+              .set(el, { y: 0 });
+        } else {
+            el.style.opacity = '1';
+            setTimeout(() => { el.style.opacity = '0'; }, 1000);
+        }
+    };
+
     // Restaura o sprite para um novo encontro (limpa transform/opacity do GSAP).
     FX.resetSprite = function (el) {
         if (!el) return;
