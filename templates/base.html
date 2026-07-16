@@ -7,10 +7,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}?v={{ asset_version }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/gba.css') }}?v={{ asset_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/valorant.css') }}?v={{ asset_version }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
     {% block head %}{% endblock %}
 </head>
-<body class="{% block body_class %}{% endblock %}" data-theme="{{ site_settings.theme or 'gba' }}" data-bg="{{ site_settings.background or 'gba-grass' }}">
+<body class="{% block body_class %}{% endblock %}" data-theme="{{ site_settings.theme or 'valorant' }}" data-bg="{{ site_settings.background or 'none' }}">
     <nav class="navbar">
         <div class="nav-brand">
             <span class="pokeball-icon">

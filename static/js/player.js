@@ -859,6 +859,10 @@ async function startBattle() {
     enemySpriteEl.src = enemySpriteUrl;
     enemySpriteEl.classList.toggle('sprite-shiny', !!currentEncounter.is_shiny);
     battleSpriteEnter('battle-enemy-sprite', 'enemy');
+    // Tema "valorant": a energia do lado selvagem segue o TIPO primário
+    // (data-wild-type → --wild-energy no CSS). Inofensivo nos outros temas.
+    const _ba = document.getElementById('battle-area');
+    if (_ba) _ba.setAttribute('data-wild-type', String((enemy.types || [])[0] || '').toLowerCase());
     document.getElementById('battle-enemy-name-full').textContent = enemy.name;
     document.getElementById('battle-enemy-level-badge').textContent = `Nv.${currentEncounter.level}`;
     document.getElementById('battle-enemy-types').innerHTML = formatTypes(enemy.types);

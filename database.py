@@ -293,8 +293,10 @@ def delete_npc(npc_id, table_id='default'):
 # SITE SETTINGS (theme, background, etc.)
 # ============================================================
 DEFAULT_SITE_SETTINGS = {
-    'theme': 'gba',
-    'background': 'gba-grass',
+    # "valorant" = tema Arena (moldura cinematográfica moderna + sprites pixel).
+    # Mesas que já salvaram um tema na aba Visual mantêm a escolha delas.
+    'theme': 'valorant',
+    'background': 'none',
     'custom_banner': '',
     'mesa_name': 'Pokémon 5e RPG'
 }
