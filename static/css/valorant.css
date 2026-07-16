@@ -431,6 +431,59 @@
         #0b0d13;
 }
 
+/* ── MOVIMENTO (orquestrado, leve — CSS puro) ──
+   O GSAP cuida do dreno de HP e da captura; aqui entram
+   os reveals de conteúdo e o idle da arena. */
+@media (prefers-reduced-motion: no-preference) {
+    /* troca de aba: o setor "liga" — sobe e acende */
+    [data-theme="valorant"] .tab-content.active {
+        animation: arena-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    /* o fio vermelho do título varre da esquerda */
+    [data-theme="valorant"] .tab-content.active > h2::after {
+        animation: arena-sweep 0.45s 0.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    /* login/registro: o painel entra em cena */
+    [data-theme="valorant"] .auth-card {
+        animation: arena-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    /* modais: pop curto de HUD */
+    [data-theme="valorant"] .modal:not(.hidden) .modal-content {
+        animation: arena-pop 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    /* arena: idle dos combatentes (o WRAPPER flutua; o GSAP anima o
+       sprite em si na captura — sem conflito de transform) */
+    [data-theme="valorant"] .enemy-sprite-wrap  { animation: arena-float 3.8s ease-in-out infinite; }
+    [data-theme="valorant"] .player-sprite-wrap { animation: arena-float 4.4s ease-in-out 0.6s infinite; }
+    /* respiração da energia nas HP boxes (bem sutil) */
+    [data-theme="valorant"] .enemy-hpbox  { animation: arena-breathe-red 5s ease-in-out infinite; }
+    [data-theme="valorant"] .player-hpbox { animation: arena-breathe-cyan 5s ease-in-out 1.2s infinite; }
+}
+@keyframes arena-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes arena-sweep {
+    from { width: 0; }
+    to   { width: 64px; }
+}
+@keyframes arena-pop {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes arena-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+}
+@keyframes arena-breathe-red {
+    0%, 100% { box-shadow: 0 0 26px rgba(255, 46, 77, 0.13), 0 8px 22px rgba(0, 0, 0, 0.45); }
+    50%      { box-shadow: 0 0 38px rgba(255, 46, 77, 0.22), 0 8px 22px rgba(0, 0, 0, 0.45); }
+}
+@keyframes arena-breathe-cyan {
+    0%, 100% { box-shadow: 0 0 26px rgba(37, 230, 208, 0.12), 0 8px 22px rgba(0, 0, 0, 0.45); }
+    50%      { box-shadow: 0 0 36px rgba(37, 230, 208, 0.20), 0 8px 22px rgba(0, 0, 0, 0.45); }
+}
+
 /* movimento: quem pediu menos, recebe menos */
 @media (prefers-reduced-motion: reduce) {
     [data-theme="valorant"] .btn,
