@@ -315,6 +315,11 @@ def get_site_settings(table_id='default'):
     if row and row['value']:
         merged = dict(DEFAULT_SITE_SETTINGS)
         merged.update(row['value'])
+        # Compat (code-review C13): mesa que salvou o tema GBA mas nunca
+        # salvou fundo mantém a Grama GBA (o default novo de fundo é 'none',
+        # pensado para o tema Arena — não pode roubar a grama do GBA).
+        if merged.get('theme') == 'gba' and not (row['value'] or {}).get('background'):
+            merged['background'] = 'gba-grass'
         return merged
     return dict(DEFAULT_SITE_SETTINGS)
 

@@ -66,14 +66,22 @@
         const gs = g();
         if (gs) {
             gs.killTweensOf(el);
+            // re-centra a CADA chamada com xPercent/yPercent (percentuais do
+            // PRÓPRIO elemento, recalculados pro texto novo) e zera x/y px —
+            // sem isso o GSAP cacheava o translate(-50%,-50%) do CSS em px do
+            // primeiro texto e desalinhava os callouts seguintes (C2).
+            gs.set(el, { xPercent: -50, yPercent: -50, x: 0, y: 0 });
             gs.timeline()
               .fromTo(el, { opacity: 0, scale: 1.6 },
                           { opacity: 1, scale: 1, duration: 0.16, ease: 'steps(4)' })
               .to(el, { opacity: 0, y: -12, duration: 0.3, ease: 'power1.in', delay: 0.85 })
               .set(el, { y: 0 });
         } else {
+            // fallback sem GSAP: cancela o timer anterior (C6 — um timer
+            // velho escondia o callout novo quase na hora)
+            if (FX._calloutTimer) clearTimeout(FX._calloutTimer);
             el.style.opacity = '1';
-            setTimeout(() => { el.style.opacity = '0'; }, 1000);
+            FX._calloutTimer = setTimeout(() => { el.style.opacity = '0'; }, 1000);
         }
     };
 

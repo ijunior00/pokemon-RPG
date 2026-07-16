@@ -867,7 +867,11 @@ async function startBattle() {
     document.getElementById('battle-enemy-level-badge').textContent = `Nv.${currentEncounter.level}`;
     document.getElementById('battle-enemy-types').innerHTML = formatTypes(enemy.types);
     document.getElementById('battle-enemy-hp-text-full').textContent = `${enemy.hp}/${enemy.hp} HP`;
-    document.getElementById('battle-enemy-hp-bar-full').style.width = '100%';
+    // mata qualquer tween de dreno em voo da batalha anterior antes do reset
+    // cru (C8 — overwrite:'auto' do GSAP não enxerga escrita direta de style)
+    const _ehpBar = document.getElementById('battle-enemy-hp-bar-full');
+    if (window.gsap) gsap.killTweensOf(_ehpBar);
+    _ehpBar.style.width = '100%';
     const eac = document.getElementById('battle-enemy-ac'); if (eac) eac.textContent = enemy.stats?.SPE ?? '?';
     const espd = document.getElementById('battle-enemy-speed'); if (espd) espd.textContent = enemy.speed || '30ft';
 
@@ -1640,7 +1644,9 @@ function _maybeCallout(msg) {
     const s = String(msg);
     let hit = null;
     if (/CAPTURADO/i.test(s))            hit = ['CAPTURADO!', 'success'];
-    else if (/cr[ií]tico/i.test(s))      hit = ['CRÍTICO!', 'gold'];
+    // /cr[ií]t/ cobre "Crítico!" E "🎯 CRIT fura defesa!" (log v3 do servidor
+    // — code-review C9: só "crítico" deixava o callout morto no caminho auto)
+    else if (/cr[ií]t/i.test(s))         hit = ['CRÍTICO!', 'gold'];
     else if (/super efetivo/i.test(s))   hit = ['SUPER EFETIVO!', 'danger'];
     else if (/n[ãa]o efetivo/i.test(s))  hit = ['POUCO EFETIVO', 'muted'];
     else if (/⛔ imune|é imune/i.test(s)) hit = ['IMUNE!', 'muted'];
@@ -3568,6 +3574,21 @@ socket.on('mega_evolved', (data) => {
         // Reflete o boost nos stats do inimigo em memória (dano recebido/causado)
         const enemyPoke = window.currentBattleData?.enemy;
         if (enemyPoke?.stats) applyMegaBonusesV2(enemyPoke.stats, bonuses);
+        // Re-estampa a energia por TIPO da arena (C14): megas mudam de tipo e
+        // o servidor manda new_types em PT-BR — normaliza pro mapa EN do CSS
+        if (Array.isArray(data.new_types) && data.new_types.length) {
+            const _pt2en = { 'fogo': 'fire', 'água': 'water', 'agua': 'water',
+                'planta': 'grass', 'elétrico': 'electric', 'eletrico': 'electric',
+                'gelo': 'ice', 'lutador': 'fighting', 'veneno': 'poison',
+                'terra': 'ground', 'voador': 'flying', 'psíquico': 'psychic',
+                'psiquico': 'psychic', 'inseto': 'bug', 'pedra': 'rock',
+                'fantasma': 'ghost', 'dragão': 'dragon', 'dragao': 'dragon',
+                'sombrio': 'dark', 'aço': 'steel', 'aco': 'steel',
+                'fada': 'fairy', 'normal': 'normal' };
+            const _t = String(data.new_types[0] || '').toLowerCase();
+            document.getElementById('battle-area')
+                ?.setAttribute('data-wild-type', _pt2en[_t] || _t);
+        }
     }
 });
 

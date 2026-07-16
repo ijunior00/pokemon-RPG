@@ -77,7 +77,8 @@
         radial-gradient(1100px 640px at 82% -4%, rgba(255, 46, 77, 0.13), transparent 60%),
         radial-gradient(1000px 640px at 8% 104%, rgba(37, 230, 208, 0.10), transparent 60%),
         linear-gradient(180deg, #0b0d13, #0e121b);
-    background-attachment: fixed;
+    /* sem background-attachment: fixed (code-review E2): em mobile ele
+       repinta os gradientes de viewport inteiro a cada frame de scroll */
     font-size: 16px;
     letter-spacing: 0;
 }
@@ -144,7 +145,7 @@
     background: linear-gradient(180deg, #151d2b, #111723);
     border: 1px solid var(--card-border);
     border-radius: 0;
-    box-shadow: var(--shadow);
+    /* sem box-shadow: o clip-path o cortava (dead code — code-review C3) */
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%);
 }
 [data-theme="valorant"] .alert {
@@ -162,7 +163,6 @@
     border: 1px solid var(--card-border);
     border-top: 2px solid var(--wild-energy);
     border-radius: 0;
-    box-shadow: 0 0 34px rgba(255, 46, 77, 0.12), var(--shadow);
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%);
 }
 
@@ -183,19 +183,30 @@
     transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
 }
 [data-theme="valorant"] .btn::before { content: none; }
+/* glow de hover em drop-shadow (code-review C3): box-shadow era CORTADO pelo
+   clip-path; filter: drop-shadow acompanha a silhueta recortada */
 [data-theme="valorant"] .btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 22px rgba(37, 230, 208, 0.18);
+    filter: drop-shadow(0 6px 10px rgba(37, 230, 208, 0.28));
     border-left-color: #6bf3e4;
 }
-[data-theme="valorant"] .btn:active { transform: translateY(0) !important; box-shadow: none; }
+[data-theme="valorant"] .btn:active { transform: translateY(0) !important; filter: none; }
 [data-theme="valorant"] .btn-primary   { border-left-color: var(--primary);  color: #ffd7de; }
-[data-theme="valorant"] .btn-primary:hover { box-shadow: 0 8px 22px rgba(255, 46, 77, 0.22); }
+[data-theme="valorant"] .btn-primary:hover { filter: drop-shadow(0 6px 10px rgba(255, 46, 77, 0.32)); }
 [data-theme="valorant"] .btn-secondary { border-left-color: var(--secondary); }
 [data-theme="valorant"] .btn-danger    { border-left-color: var(--danger);  color: #ffd7de; }
-[data-theme="valorant"] .btn-danger:hover { box-shadow: 0 8px 22px rgba(255, 46, 77, 0.22); }
+[data-theme="valorant"] .btn-danger:hover { filter: drop-shadow(0 6px 10px rgba(255, 46, 77, 0.32)); }
 [data-theme="valorant"] .btn-warning   { border-left-color: var(--warning); color: #ffe9b0; }
 [data-theme="valorant"] .btn-success   { border-left-color: var(--success); color: #c8ffe9; }
+/* foco de teclado VISÍVEL dentro do recorte (code-review C5): o clip-path
+   cortava o outline padrão — inset não é clipado */
+[data-theme="valorant"] .btn:focus-visible,
+[data-theme="valorant"] .tab:focus-visible,
+[data-theme="valorant"] .move-btn:focus-visible,
+[data-theme="valorant"] .poke-menu-btn:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--accent);
+}
 
 /* ── Tabs: tira de setores em caixa-alta ─────── */
 [data-theme="valorant"] .tab {
@@ -246,7 +257,7 @@
     background: #151d2b;
     border: 1px solid var(--card-border);
     border-radius: 0;
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45));   /* segue o recorte */
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
 }
 
@@ -289,7 +300,6 @@
     border: 1px solid var(--card-border);
     border-radius: 0;
     padding: 14px;
-    box-shadow: var(--shadow);
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%);
 }
 [data-theme="valorant"] .battle-screen-full::before,
@@ -327,7 +337,7 @@
     text-transform: uppercase;
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%);
 }
-[data-theme="valorant"] .poke-menu-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(37, 230, 208, 0.15); }
+[data-theme="valorant"] .poke-menu-btn:hover { transform: translateY(-2px); filter: drop-shadow(0 6px 10px rgba(37, 230, 208, 0.25)); }
 [data-theme="valorant"] .fight-btn { border-left: 3px solid var(--primary); }
 [data-theme="valorant"] .poke-btn  { border-left: 3px solid var(--accent); }
 [data-theme="valorant"] .bag-btn   { border-left: 3px solid var(--warning); }
@@ -340,15 +350,16 @@
     border-radius: 0;
     box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
 }
+/* sem clip-path aqui (code-review C3): o corte de canto CLIPAVA o box-shadow,
+   então o glow de energia nunca renderizava — fio de energia + glow visível
+   valem mais que o canto cortado nestas caixas */
 [data-theme="valorant"] .enemy-hpbox {
     border-left: 3px solid var(--wild-energy);
     box-shadow: 0 0 26px rgba(255, 46, 77, 0.13), 0 8px 22px rgba(0, 0, 0, 0.45);
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 8px 100%, 0 calc(100% - 8px));
 }
 [data-theme="valorant"] .player-hpbox {
     border-right: 3px solid var(--accent);
     box-shadow: 0 0 26px rgba(37, 230, 208, 0.12), 0 8px 22px rgba(0, 0, 0, 0.45);
-    clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
 }
 [data-theme="valorant"] .hpbox-level {
     font-family: var(--font-display);
@@ -379,7 +390,7 @@
 }
 [data-theme="valorant"] .battle-moves-list.selectable .move-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 18px rgba(37, 230, 208, 0.16);
+    filter: drop-shadow(0 5px 9px rgba(37, 230, 208, 0.25));
 }
 
 /* tela vazia ("sem batalha") */
@@ -415,6 +426,7 @@
 [data-theme="valorant"] #battle-area[data-wild-type="dark"]     { --wild-energy: #94a3b8; }
 [data-theme="valorant"] #battle-area[data-wild-type="steel"]    { --wild-energy: #cbd5e1; }
 [data-theme="valorant"] #battle-area[data-wild-type="fairy"]    { --wild-energy: #ffa6d5; }
+[data-theme="valorant"] #battle-area[data-wild-type="normal"]   { --wild-energy: #cbd5e1; }
 
 /* ── Miudezas ────────────────────────────────── */
 [data-theme="valorant"] .empty-state { font-style: normal; }
@@ -435,29 +447,30 @@
    O GSAP cuida do dreno de HP e da captura; aqui entram
    os reveals de conteúdo e o idle da arena. */
 @media (prefers-reduced-motion: no-preference) {
+    /* fill-mode BACKWARDS de propósito (code-review C1): "both" retinha o
+       transform final para sempre, e um ancestral com transform vira o
+       containing block de descendentes position:fixed — os MODAIS dentro
+       das abas abriam deslocados. backwards = mesma entrada, sem resíduo. */
     /* troca de aba: o setor "liga" — sobe e acende */
     [data-theme="valorant"] .tab-content.active {
-        animation: arena-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+        animation: arena-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
     }
     /* o fio vermelho do título varre da esquerda */
     [data-theme="valorant"] .tab-content.active > h2::after {
-        animation: arena-sweep 0.45s 0.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+        animation: arena-sweep 0.45s 0.1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
     }
     /* login/registro: o painel entra em cena */
     [data-theme="valorant"] .auth-card {
-        animation: arena-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+        animation: arena-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards;
     }
     /* modais: pop curto de HUD */
     [data-theme="valorant"] .modal:not(.hidden) .modal-content {
-        animation: arena-pop 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+        animation: arena-pop 0.22s cubic-bezier(0.22, 1, 0.36, 1) backwards;
     }
     /* arena: idle dos combatentes (o WRAPPER flutua; o GSAP anima o
        sprite em si na captura — sem conflito de transform) */
     [data-theme="valorant"] .enemy-sprite-wrap  { animation: arena-float 3.8s ease-in-out infinite; }
     [data-theme="valorant"] .player-sprite-wrap { animation: arena-float 4.4s ease-in-out 0.6s infinite; }
-    /* respiração da energia nas HP boxes (bem sutil) */
-    [data-theme="valorant"] .enemy-hpbox  { animation: arena-breathe-red 5s ease-in-out infinite; }
-    [data-theme="valorant"] .player-hpbox { animation: arena-breathe-cyan 5s ease-in-out 1.2s infinite; }
 }
 @keyframes arena-in {
     from { opacity: 0; transform: translateY(10px); }
@@ -475,14 +488,8 @@
     0%, 100% { transform: translateY(0); }
     50%      { transform: translateY(-6px); }
 }
-@keyframes arena-breathe-red {
-    0%, 100% { box-shadow: 0 0 26px rgba(255, 46, 77, 0.13), 0 8px 22px rgba(0, 0, 0, 0.45); }
-    50%      { box-shadow: 0 0 38px rgba(255, 46, 77, 0.22), 0 8px 22px rgba(0, 0, 0, 0.45); }
-}
-@keyframes arena-breathe-cyan {
-    0%, 100% { box-shadow: 0 0 26px rgba(37, 230, 208, 0.12), 0 8px 22px rgba(0, 0, 0, 0.45); }
-    50%      { box-shadow: 0 0 36px rgba(37, 230, 208, 0.20), 0 8px 22px rgba(0, 0, 0, 0.45); }
-}
+/* (arena-breathe removida no code-review: o clip-path cortava o box-shadow —
+   a animação nunca renderizou — e animar box-shadow repinta a cada frame.) */
 
 /* ── CALLOUT central (FX.callout — todos os temas) ──
    banner estilo VS no meio da arena; o FX anima entrada/saída. */
@@ -490,6 +497,10 @@
     position: absolute;
     left: 50%;
     top: 36%;
+    /* centragem: transform CSS é o fallback SEM GSAP; com GSAP, o FX re-seta
+       xPercent/yPercent -50 A CADA callout (zera o cache px do texto anterior
+       — code-review C2). GSAP 3.11+ zera a prop `translate`, então ela não
+       serve de esconderijo. */
     transform: translate(-50%, -50%);
     z-index: 12;                 /* acima das scanlines da cena (11) */
     opacity: 0;
