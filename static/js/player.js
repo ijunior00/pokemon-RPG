@@ -1580,8 +1580,10 @@ async function throwPokeball() {
     try { playSound && playSound('dice'); } catch (e) {}
     if (r.dice && typeof animateDice === 'function') animateDice(r.dice.roll, 'd20');
 
+    const _enemySprite = document.getElementById('battle-enemy-sprite');
     if (r.result === 'caught') {
         try { playSound && playSound('catch'); } catch (e) {}
+        if (window.FX) FX.captureAbsorb(_enemySprite);   // treme e é absorvido
         if (r.captured && r.captured.number) registerPokedex(r.captured.number);
         showNotification(r.destination === 'pc'
             ? `📦 Time cheio — ${r.captured.name} foi guardado no PC!`
@@ -1599,6 +1601,7 @@ async function throwPokeball() {
     }
 
     // broke (quebrou por HP) ou failed (errou o teste)
+    if (window.FX) FX.captureWobble(_enemySprite);   // a bola quebrou: só um tremor
     if (r.encounter_over) {
         try { playSound && playSound('run'); } catch (e) {}
         _finishCaptureUI();
@@ -2473,6 +2476,7 @@ function playBattleTransition() {
 function battleSpriteEnter(spriteId, side) {
     const el = document.getElementById(spriteId);
     if (!el) return;
+    if (window.FX) FX.resetSprite(el);   // limpa transform/opacity de captura/faint anterior
     el.classList.remove('enter-left', 'enter-right', 'hit-flash', 'faint-anim');
     void el.offsetWidth; // reflow
     el.classList.add(side === 'enemy' ? 'enter-left' : 'enter-right');
@@ -2507,7 +2511,8 @@ function setHpBar(barId, current, max) {
     if (!el) return;
     // Bar shows 0% when negative (dead), but HP text shows the real negative number
     const pct = max > 0 ? Math.max(0, Math.min(100, (current / max) * 100)) : 0;
-    el.style.width = pct + '%';
+    // dreno suave (GSAP) — degrada para width instantâneo se o FX não existir
+    if (window.FX) FX.tweenWidth(el, pct); else el.style.width = pct + '%';
     el.classList.remove('hp-mid', 'hp-low');
     if (current <= -30) el.classList.add('hp-low'); // permadeath zone — pulse red
     else if (current <= 0) el.classList.add('hp-low');

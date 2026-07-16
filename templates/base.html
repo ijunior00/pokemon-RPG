@@ -40,6 +40,9 @@
         {% block content %}{% endblock %}
     </main>
 
+    <!-- GSAP (vendorizado, self-host) + camada de FX opcional (degrada sem quebrar) -->
+    <script src="{{ url_for('static', filename='js/vendor/gsap.min.js') }}?v={{ asset_version }}"></script>
+    <script src="{{ url_for('static', filename='js/fx.js') }}?v={{ asset_version }}"></script>
     <script src="{{ url_for('static', filename='js/battle_math.js') }}?v={{ asset_version }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}?v={{ asset_version }}"></script>
     {% block scripts %}{% endblock %}
