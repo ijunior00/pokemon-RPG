@@ -320,7 +320,9 @@ h1, h2 {
 
 .hp-bar {
     height: 100%; background: var(--success); border-radius: 6px;
-    transition: width 0.5s ease, background 0.5s ease; position: relative;
+    /* width é animada pelo GSAP (FX.tweenWidth) — transition de width aqui
+       brigava com o tween (re-suavizava cada passo e atrasava ~0.5s) */
+    transition: background 0.5s ease; position: relative;
 }
 .hp-bar.hp-mid  { background: var(--warning); }
 .hp-bar.hp-low  { background: var(--danger); animation: hp-pulse 1s ease-in-out infinite; }
@@ -1100,7 +1102,7 @@ h1, h2 {
     flex-shrink: 0;
 }
 .hpbox-bar-container { flex: 1; height: 8px; background: var(--hp-track, #333); border-radius: 4px; overflow: hidden; }
-.hpbox-bar-container .hp-bar { height: 100%; transition: width 0.4s ease; }
+.hpbox-bar-container .hp-bar { height: 100%; }  /* width via GSAP (FX.tweenWidth) */
 .hpbox-hp-num {
     display: block;
     font-size: 0.65rem;

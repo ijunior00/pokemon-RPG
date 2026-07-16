@@ -859,11 +859,19 @@ async function startBattle() {
     enemySpriteEl.src = enemySpriteUrl;
     enemySpriteEl.classList.toggle('sprite-shiny', !!currentEncounter.is_shiny);
     battleSpriteEnter('battle-enemy-sprite', 'enemy');
+    // Tema "valorant": a energia do lado selvagem segue o TIPO primário
+    // (data-wild-type → --wild-energy no CSS). Inofensivo nos outros temas.
+    const _ba = document.getElementById('battle-area');
+    if (_ba) _ba.setAttribute('data-wild-type', String((enemy.types || [])[0] || '').toLowerCase());
     document.getElementById('battle-enemy-name-full').textContent = enemy.name;
     document.getElementById('battle-enemy-level-badge').textContent = `Nv.${currentEncounter.level}`;
     document.getElementById('battle-enemy-types').innerHTML = formatTypes(enemy.types);
     document.getElementById('battle-enemy-hp-text-full').textContent = `${enemy.hp}/${enemy.hp} HP`;
-    document.getElementById('battle-enemy-hp-bar-full').style.width = '100%';
+    // mata qualquer tween de dreno em voo da batalha anterior antes do reset
+    // cru (C8 — overwrite:'auto' do GSAP não enxerga escrita direta de style)
+    const _ehpBar = document.getElementById('battle-enemy-hp-bar-full');
+    if (window.gsap) gsap.killTweensOf(_ehpBar);
+    _ehpBar.style.width = '100%';
     const eac = document.getElementById('battle-enemy-ac'); if (eac) eac.textContent = enemy.stats?.SPE ?? '?';
     const espd = document.getElementById('battle-enemy-speed'); if (espd) espd.textContent = enemy.speed || '30ft';
 
@@ -1580,8 +1588,10 @@ async function throwPokeball() {
     try { playSound && playSound('dice'); } catch (e) {}
     if (r.dice && typeof animateDice === 'function') animateDice(r.dice.roll, 'd20');
 
+    const _enemySprite = document.getElementById('battle-enemy-sprite');
     if (r.result === 'caught') {
         try { playSound && playSound('catch'); } catch (e) {}
+        if (window.FX) FX.captureAbsorb(_enemySprite);   // treme e é absorvido
         if (r.captured && r.captured.number) registerPokedex(r.captured.number);
         showNotification(r.destination === 'pc'
             ? `📦 Time cheio — ${r.captured.name} foi guardado no PC!`
@@ -1599,6 +1609,7 @@ async function throwPokeball() {
     }
 
     // broke (quebrou por HP) ou failed (errou o teste)
+    if (window.FX) FX.captureWobble(_enemySprite);   // a bola quebrou: só um tremor
     if (r.encounter_over) {
         try { playSound && playSound('run'); } catch (e) {}
         _finishCaptureUI();
@@ -1622,12 +1633,33 @@ function _finishCaptureUI() {
     }, 1800);
 }
 
+// Callout central (FX): momentos-chave viram um banner estilo VS na arena.
+// Gancho no log = pega TODOS os caminhos (auto, manual, servidor) num só
+// lugar; as strings são nossas (PT-BR do próprio app). Throttle anti-spam.
+let _lastCalloutAt = 0;
+function _maybeCallout(msg) {
+    if (!window.FX || !FX.callout) return;
+    const now = Date.now();
+    if (now - _lastCalloutAt < 700) return;
+    const s = String(msg);
+    let hit = null;
+    if (/CAPTURADO/i.test(s))            hit = ['CAPTURADO!', 'success'];
+    // /cr[ií]t/ cobre "Crítico!" E "🎯 CRIT fura defesa!" (log v3 do servidor
+    // — code-review C9: só "crítico" deixava o callout morto no caminho auto)
+    else if (/cr[ií]t/i.test(s))         hit = ['CRÍTICO!', 'gold'];
+    else if (/super efetivo/i.test(s))   hit = ['SUPER EFETIVO!', 'danger'];
+    else if (/n[ãa]o efetivo/i.test(s))  hit = ['POUCO EFETIVO', 'muted'];
+    else if (/⛔ imune|é imune/i.test(s)) hit = ['IMUNE!', 'muted'];
+    if (hit) { _lastCalloutAt = now; FX.callout(hit[0], hit[1]); }
+}
+
 function addBattleLog(msg) {
     const log = document.getElementById('battle-log-full');
     if (log) {
         log.innerHTML += `<p>${msg}</p>`;
         log.scrollTop = log.scrollHeight;
     }
+    try { _maybeCallout(msg); } catch (e) {}
 }
 
 function fleeBattle() {
@@ -2473,6 +2505,7 @@ function playBattleTransition() {
 function battleSpriteEnter(spriteId, side) {
     const el = document.getElementById(spriteId);
     if (!el) return;
+    if (window.FX) FX.resetSprite(el);   // limpa transform/opacity de captura/faint anterior
     el.classList.remove('enter-left', 'enter-right', 'hit-flash', 'faint-anim');
     void el.offsetWidth; // reflow
     el.classList.add(side === 'enemy' ? 'enter-left' : 'enter-right');
@@ -2507,7 +2540,8 @@ function setHpBar(barId, current, max) {
     if (!el) return;
     // Bar shows 0% when negative (dead), but HP text shows the real negative number
     const pct = max > 0 ? Math.max(0, Math.min(100, (current / max) * 100)) : 0;
-    el.style.width = pct + '%';
+    // dreno suave (GSAP) — degrada para width instantâneo se o FX não existir
+    if (window.FX) FX.tweenWidth(el, pct); else el.style.width = pct + '%';
     el.classList.remove('hp-mid', 'hp-low');
     if (current <= -30) el.classList.add('hp-low'); // permadeath zone — pulse red
     else if (current <= 0) el.classList.add('hp-low');
@@ -3540,6 +3574,21 @@ socket.on('mega_evolved', (data) => {
         // Reflete o boost nos stats do inimigo em memória (dano recebido/causado)
         const enemyPoke = window.currentBattleData?.enemy;
         if (enemyPoke?.stats) applyMegaBonusesV2(enemyPoke.stats, bonuses);
+        // Re-estampa a energia por TIPO da arena (C14): megas mudam de tipo e
+        // o servidor manda new_types em PT-BR — normaliza pro mapa EN do CSS
+        if (Array.isArray(data.new_types) && data.new_types.length) {
+            const _pt2en = { 'fogo': 'fire', 'água': 'water', 'agua': 'water',
+                'planta': 'grass', 'elétrico': 'electric', 'eletrico': 'electric',
+                'gelo': 'ice', 'lutador': 'fighting', 'veneno': 'poison',
+                'terra': 'ground', 'voador': 'flying', 'psíquico': 'psychic',
+                'psiquico': 'psychic', 'inseto': 'bug', 'pedra': 'rock',
+                'fantasma': 'ghost', 'dragão': 'dragon', 'dragao': 'dragon',
+                'sombrio': 'dark', 'aço': 'steel', 'aco': 'steel',
+                'fada': 'fairy', 'normal': 'normal' };
+            const _t = String(data.new_types[0] || '').toLowerCase();
+            document.getElementById('battle-area')
+                ?.setAttribute('data-wild-type', _pt2en[_t] || _t);
+        }
     }
 });
 

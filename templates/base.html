@@ -7,10 +7,13 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}?v={{ asset_version }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/gba.css') }}?v={{ asset_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/valorant.css') }}?v={{ asset_version }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
     {% block head %}{% endblock %}
 </head>
-<body class="{% block body_class %}{% endblock %}" data-theme="{{ site_settings.theme or 'gba' }}" data-bg="{{ site_settings.background or 'gba-grass' }}">
+{# tema/fundo SEM fallback aqui: get_site_settings sempre mescla os defaults
+   de database.py (fonte única) — fallback duplicado aqui só criava drift #}
+<body class="{% block body_class %}{% endblock %}" data-theme="{{ site_settings.theme }}" data-bg="{{ site_settings.background }}">
     <nav class="navbar">
         <div class="nav-brand">
             <span class="pokeball-icon">
@@ -40,6 +43,10 @@
         {% block content %}{% endblock %}
     </main>
 
+    <!-- GSAP (vendorizado, self-host) + camada de FX opcional (degrada sem quebrar).
+         Versão fixa no cache-bust: a lib vendorizada nunca muda por deploy. -->
+    <script src="{{ url_for('static', filename='js/vendor/gsap.min.js') }}?v=3.12.5"></script>
+    <script src="{{ url_for('static', filename='js/fx.js') }}?v={{ asset_version }}"></script>
     <script src="{{ url_for('static', filename='js/battle_math.js') }}?v={{ asset_version }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}?v={{ asset_version }}"></script>
     {% block scripts %}{% endblock %}

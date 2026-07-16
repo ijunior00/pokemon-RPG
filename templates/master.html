@@ -1033,6 +1033,12 @@
                 <p class="settings-desc">Escolha a paleta de cores baseada na região do jogo.</p>
                 <div class="theme-options" id="theme-options">
                     <label class="theme-option">
+                        <input type="radio" name="theme" value="valorant" {% if site_settings.theme == 'valorant' %}checked{% endif %}>
+                        <div class="theme-preview theme-preview-valorant">
+                            <span>🎯 Arena (novo)</span>
+                        </div>
+                    </label>
+                    <label class="theme-option">
                         <input type="radio" name="theme" value="gba" {% if site_settings.theme == 'gba' %}checked{% endif %}>
                         <div class="theme-preview" style="background: linear-gradient(135deg, #383880 55%, #f8f8e8 55%);">
                             <span>🕹️ GBA Clássico</span>

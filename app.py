@@ -3267,8 +3267,11 @@ def update_settings():
         if field in data:
             settings[field] = data[field]
     db.save_site_settings(settings)
-    # Broadcast theme change to ALL connected users in real-time
-    socketio.emit('theme_changed', settings)
+    # Broadcast em tempo real SÓ para a mesa do mestre (code-review C10:
+    # o emit global re-tematizava e renomeava a navbar de TODAS as mesas).
+    _t = _tid()
+    socketio.emit('theme_changed', settings, room=f'players_{_t}')
+    socketio.emit('theme_changed', settings, room=f'master_{_t}')
     return jsonify(settings)
 
 # ============================================================
