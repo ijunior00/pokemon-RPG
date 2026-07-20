@@ -33,6 +33,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 - [[Decisoes/caminho-do-treinador]] — 4 caminhos, marcos 3/6/10
 - [[Decisoes/atributos-do-treinador]] — 6 atributos novos + point-buy 20 pts
 - [[Decisoes/emboscada-1v2]] — Nat 1 na caçada → 1 jogador vs 2 selvagens (motor de grupo, sem fuga)
+- [[Decisoes/cache-de-processo-db]] — leituras da memória, Postgres só p/ escrever (cota do Neon; requer 1 worker)
 
 ## Bugs resolvidos (postmortems)
 
