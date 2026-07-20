@@ -32,6 +32,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 - [[Decisoes/evs-customizados]] — escolhido em vez de IVs/EVs canônicos
 - [[Decisoes/caminho-do-treinador]] — 4 caminhos, marcos 3/6/10
 - [[Decisoes/atributos-do-treinador]] — 6 atributos novos + point-buy 20 pts
+- [[Decisoes/emboscada-1v2]] — Nat 1 na caçada → 1 jogador vs 2 selvagens (motor de grupo, sem fuga)
 
 ## Bugs resolvidos (postmortems)
 
