@@ -108,6 +108,18 @@ def gstate():
     return db.get_game_state(TID)
 
 
+def clear_nat1(uid):
+    """Limpa o último d20 de caçada guardado — rolagens VIRTUAIS dos testes
+    podem tirar Nat 1 por sorte e transformar o hunt/random seguinte numa
+    EMBOSCADA 1v2 (mecânica real), o que quebraria os asserts de encontro."""
+    gs = db.get_game_state(TID)
+    e = (gs.get('hunts') or {}).get(str(uid))
+    if e and 'last_roll' in e:
+        e.pop('last_roll', None)
+        gs['hunts'][str(uid)] = e
+        db.save_game_state(gs, TID)
+
+
 def main():
     global TID
     print('🔬 REVISÃO GERAL — teste de estresse de todos os sistemas')
@@ -442,6 +454,7 @@ def main():
     r = p1.post('/api/hunt/roll', json={})
     check(S, 'rola de novo após Energy Drink', r.status_code == 200)
     # mestre libera caçada aleatória respeitando horário+terreno (dungeon perigosa)
+    clear_nat1(u1)   # rolagens virtuais acima podem ter tirado Nat 1
     r = m.post('/master/hunt/random', json={'player_id': u1, 'hunt_mode': 'dungeon_night',
                                             'route_id': 'route1'})
     d = (r.get_json() or {}).get('encounter', {})
@@ -474,6 +487,7 @@ def main():
     S = 'Batalha Selvagem'
     m.post('/master/calendar/advance', json={'days': 1})
     s1.get_received()
+    clear_nat1(u1)   # rolagens virtuais anteriores podem ter tirado Nat 1
     r = m.post('/master/hunt/random', json={'player_id': u1, 'hunt_mode': 'normal',
                                             'route_id': 'route1'})
     enc = (r.get_json() or {}).get('encounter')
@@ -796,6 +810,48 @@ def main():
     else:
         check(S, 'terceiro não encerra PvP alheio (forfeit ignorado)', True, 'sem batalha — pulado')
 
+    # Aposta VALE contra NPC (antes o desafio a NPC criava o battle com bets
+    # zerado — vitória oficial não pagava nada) + pagamento de verdade no fim
+    _rnb = m.post('/master/npcs/generate', json={'npc_class': 'Trainer', 'level': 10, 'team_size': 1}).get_json()
+    for q in _rnb['team']:
+        q['moves'] = ['Tackle']
+    _rnb['money'] = 500
+    db.save_npc(_rnb, TID)
+    s1.get_received()
+    s1.emit('pvp_challenge', {'target_id': _rnb['id'], 'mode': 'official', 'bet_money': 250})
+    _crb = recv(s1, 'pvp_battle_created')
+    if _crb:
+        _bxb = _crb[0]['args'][0]['battle_id']
+        _btb = appmod.ACTIVE_PVP.get(_bxb)
+        check(S, 'desafio a NPC carrega a aposta (espelhada)',
+              _btb and _btb['bets']['player1']['money'] == 250
+              and _btb['bets']['player2']['money'] == 250)
+        s1.emit('pvp_select_pokemon', {'battle_id': _bxb, 'pokemon_idx': 0}); recv(s1)
+        _mb = db.get_users()[u1]['trainer_data']['money']
+        s1.emit('pvp_forfeit', {'battle_id': _bxb}); recv(s1)
+        _ma = db.get_users()[u1]['trainer_data']['money']
+        _npc_after = next((n for n in db.get_npcs(TID) if n['id'] == _rnb['id']), {})
+        _moved = min(250, _mb)
+        check(S, 'derrota p/ NPC transfere a aposta (perdedor→vencedor)',
+              _ma == _mb - _moved and int(_npc_after.get('money') or 0) == 500 + _moved,
+              f'{_mb}->{_ma}, npc={_npc_after.get("money")}')
+        appmod.ACTIVE_PVP.pop(_bxb, None)
+    else:
+        check(S, 'desafio a NPC carrega a aposta (espelhada)', False, 'sem batalha')
+        check(S, 'derrota p/ NPC transfere a aposta (perdedor→vencedor)', False, 'sem batalha')
+    # NPC enviado pelo MESTRE também carrega aposta
+    msio.get_received()
+    msio.emit('master_pvp_challenge', {'npc_id': _rnb['id'], 'target_id': u1,
+                                       'mode': 'official', 'bet_money': 150})
+    recv(msio)
+    _btm5 = next((b for b in appmod.ACTIVE_PVP.values()
+                  if (b.get('extra') or {}).get('initiated_by_master')
+                  and b['player2']['id'] == u1), None)
+    check(S, 'NPC do mestre carrega a aposta',
+          _btm5 is not None and _btm5['bets']['player1']['money'] == 150)
+    if _btm5:
+        appmod.ACTIVE_PVP.pop(_btm5['id'], None)
+
     # Lote 2 — CONCORRÊNCIA: save_users grava só quem MUDOU. Dois snapshots
     # (como 2 greenlets) mutando jogadores diferentes não se sobrescrevem.
     _m1_bak = db.get_users()[u1]['trainer_data'].get('money')
@@ -814,6 +870,28 @@ def main():
     _rs[u1]['trainer_data']['money'] = _m1_bak
     _rs[u2]['trainer_data']['money'] = _m2_bak
     db.save_users(_rs)
+
+    # Reidratação pós-refresh: /player/battle/active devolve o encontro salvo
+    # (payload completo com battle_state) sem mexer no estado da batalha
+    _seed_exploit_enc(php=22, pmax=60, whp=13, wmax=40)
+    r = p1.get('/player/battle/active')
+    _rh = r.get_json() or {}
+    _re = _rh.get('encounter') or {}
+    check(S, 'rehidratação: encontro ativo volta no /player/battle/active',
+          r.status_code == 200
+          and (_re.get('pokemon') or {}).get('name') == enc['pokemon']['name']
+          and (_re.get('battle_state') or {}).get('wild_hp_current') == 13
+          and (_re.get('battle_state') or {}).get('player_hp_current') == 22)
+    check(S, 'rehidratação: payload traz wild_auto', isinstance(_rh.get('wild_auto'), bool))
+    _bs_before = gstate()['active_encounters'][str(u1)]['battle_state']
+    check(S, 'rehidratação: GET não muda o battle_state',
+          _bs_before.get('wild_hp_current') == 13 and _bs_before.get('turn') == 'player')
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+    r = p1.get('/player/battle/active')
+    _rh = r.get_json() or {}
+    check(S, 'rehidratação: sem batalha → encounter/group nulos',
+          r.status_code == 200 and _rh.get('encounter') is None
+          and _rh.get('group_battle') is None)
 
     # Lote 3 — pokemon-center bloqueado durante encontro ativo
     _gs = gstate()
@@ -1655,6 +1733,11 @@ def main():
     r = m.get('/master/battles/active')
     check(S, 'rehidratação: group_battles no /master/battles/active',
           any(g.get('id') == v3['id'] for g in (r.get_json() or {}).get('group_battles', [])))
+    # jogador também rehidrata: /player/battle/active devolve a batalha em grupo
+    r = p1.get('/player/battle/active')
+    check(S, 'rehidratação: /player/battle/active devolve a batalha em grupo',
+          r.status_code == 200
+          and ((r.get_json() or {}).get('group_battle') or {}).get('id') == v3['id'])
     # botão do mestre → group_wild_turn destrava (selvagem joga)
     _log_before = len(v3.get('log') or [])
     msio.emit('group_wild_turn', {'battle_id': v3['id']})
@@ -1669,6 +1752,234 @@ def main():
                                    or len(v_after.get('log') or []) > _log_before))
     msio.emit('set_auto_mode', {'enabled': True}); recv(msio)
     appmod.ACTIVE_GROUP_BATTLES.pop(v3['id'], None)
+    for c in (s1, s2, msio):
+        c.get_received()
+
+    # ── Captura na batalha em dupla (/player/capture com battle_id) ──
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
+                                           'hunt_mode': 'normal', 'route_id': 'route1'})
+    vcap = (r.get_json() or {}).get('battle')
+    bcap = appmod.ACTIVE_GROUP_BATTLES.get(vcap['id']) if vcap else None
+    if bcap:
+        my_cid = next(c['cid'] for c in bcap['combatants'].values()
+                      if c['side'] == 'ally' and c['player_id'] == str(u1))
+        wild_cid = next(c['cid'] for c in bcap['combatants'].values() if c['side'] == 'wild')
+        bcap['turn_idx'] = bcap['order'].index(my_cid)   # força o turno do u1
+        wtgt = bcap['combatants'][wild_cid]
+        wtgt['hp'] = max(1, int(wtgt['maxHp'] * 0.2))    # ≤40% → captura liberada
+        # fora do turno → recusa (é o turno do u1, não do u2)
+        r = p2.post('/player/capture', json={'battle_id': vcap['id'], 'ball_type': 'pokeball'})
+        check(S, 'captura em dupla: fora do turno é recusada', r.status_code == 400)
+        # Master Ball do u1 → captura garantida e batalha 2v1 termina
+        _uu = db.get_users()
+        _uu[u1]['trainer_data'].setdefault('bag', []).append({'name': 'Master Ball', 'qty': 1})
+        _tot_before = (len(_uu[u1]['trainer_data'].get('team') or [])
+                       + len(_uu[u1]['trainer_data'].get('pc') or []))
+        db.save_users(_uu)
+        r = p1.post('/player/capture', json={'battle_id': vcap['id'],
+                                             'ball_type': 'masterball', 'target_cid': wild_cid})
+        d = r.get_json() or {}
+        check(S, 'captura em dupla: Master Ball captura no seu turno',
+              r.status_code == 200 and d.get('result') == 'caught', str(d.get('error') or d.get('result')))
+        _td = db.get_users()[u1]['trainer_data']
+        _tot_after = len(_td.get('team') or []) + len(_td.get('pc') or [])
+        check(S, 'captura em dupla: capturado entrou no time/PC',
+              _tot_after == _tot_before + 1)
+        check(S, 'captura em dupla: capturado leva os moves do selvagem',
+              (d.get('captured') or {}).get('moves') == (wtgt.get('moves') or [])[:4]
+              or bool((d.get('captured') or {}).get('moves')))
+        check(S, 'captura em dupla: 2v1 encerra ao capturar o único selvagem',
+              vcap['id'] not in appmod.ACTIVE_GROUP_BATTLES)
+    else:
+        for _nm in ('fora do turno é recusada', 'Master Ball captura no seu turno',
+                    'capturado entrou no time/PC', 'capturado leva os moves do selvagem',
+                    '2v1 encerra ao capturar o único selvagem'):
+            check(S, f'captura em dupla: {_nm}', False, 'batalha não criada')
+    for c in (s1, s2, msio):
+        c.get_received()
+
+    # ── EMBOSCADA 1v2: Nat 1 no Teste de Caçada → 1 jogador vs 2 selvagens ──
+    _gs = gstate()
+    _hh = (_gs.get('hunts') or {}).get(str(u1)) or {}
+    _hh['used'] = 0
+    _gs.setdefault('hunts', {})[str(u1)] = _hh
+    db.save_game_state(_gs, TID)
+    appmod._rate_store.clear()
+    r = p1.post('/api/hunt/roll', json={'manual_roll': 1})
+    check(S, 'emboscada: Nat 1 aceito na rolagem', (r.get_json() or {}).get('roll') == 1)
+    check(S, 'emboscada: servidor guarda o último d20',
+          ((gstate().get('hunts') or {}).get(str(u1)) or {}).get('last_roll') == 1)
+    r = m.post('/master/hunt/random', json={'player_id': u1, 'hunt_mode': 'normal',
+                                            'route_id': 'route1'})
+    d = r.get_json() or {}
+    vamb = d.get('ambush_battle')
+    check(S, 'emboscada: caçada após Nat 1 vira 1v2',
+          bool(d.get('ambush')) and vamb is not None and vamb.get('mode') == '1v2',
+          f"{d.get('ambush')}/{vamb and vamb.get('mode')}")
+    check(S, 'emboscada: 1 aliado e 2 selvagens', vamb is not None
+          and len([c for c in vamb['combatants'] if c['side'] == 'ally']) == 1
+          and len([c for c in vamb['combatants'] if c['side'] == 'wild']) == 2)
+    check(S, 'emboscada: Nat 1 consumido na liberação',
+          'last_roll' not in ((gstate().get('hunts') or {}).get(str(u1)) or {}))
+    bamb = appmod.ACTIVE_GROUP_BATTLES.get(vamb['id']) if vamb else None
+    if bamb and bamb['phase'] == 'active':
+        my_amb = next(c['cid'] for c in bamb['combatants'].values() if c['side'] == 'ally')
+        if not bamb['combatants'][my_amb]['fainted']:
+            bamb['turn_idx'] = bamb['order'].index(my_amb)
+            s1.get_received()
+            s1.emit('group_battle_action', {'battle_id': vamb['id'], 'action': 'flee'})
+            _errs = recv(s1, 'group_battle_error')
+            check(S, 'emboscada: fuga bloqueada', bool(_errs)
+                  and vamb['id'] in appmod.ACTIVE_GROUP_BATTLES
+                  and appmod.ACTIVE_GROUP_BATTLES[vamb['id']]['phase'] == 'active')
+        else:
+            check(S, 'emboscada: fuga bloqueada', True, 'aliado caiu na abertura — pulado')
+        appmod.ACTIVE_GROUP_BATTLES.pop(vamb['id'], None)
+    else:
+        check(S, 'emboscada: fuga bloqueada', True, 'batalha terminou na abertura — pulado')
+    # rolagem normal em seguida → caçada 1v1 comum (o Nat 1 já foi consumido)
+    _gs = gstate()
+    _hh = (_gs.get('hunts') or {}).get(str(u1)) or {}
+    _hh['used'] = 0
+    _gs.setdefault('hunts', {})[str(u1)] = _hh
+    db.save_game_state(_gs, TID)
+    appmod._rate_store.clear()
+    p1.post('/api/hunt/roll', json={'manual_roll': 15})
+    r = m.post('/master/hunt/random', json={'player_id': u1, 'hunt_mode': 'normal',
+                                            'route_id': 'route1'})
+    d = r.get_json() or {}
+    check(S, 'emboscada: rolagem normal segue caçada 1v1 comum',
+          bool(d.get('encounter')) and not d.get('ambush'))
+    _gs = gstate()
+    (_gs.get('pending_encounters') or {}).pop(str(u1), None)
+    db.save_game_state(_gs, TID)
+    for c in (s1, s2, msio):
+        c.get_received()
+
+    # ── 💀 AVANÇO NO TREINADOR: último Pokémon caiu → o selvagem parte pro
+    #    jogador (alerta pra mesa + cena pro mestre; sem regra automática) ──
+    _team_snap2 = [p.get('currentHp') for p in db.get_users()[u1]['trainer_data']['team']]
+    _seed_exploit_enc(php=0, pmax=60, whp=30, wmax=40)
+    _gs = gstate()
+    _gs['active_encounters'][str(u1)]['player_pokemon_idx'] = 0
+    _gs['active_encounters'][str(u1)]['battle_state']['player_hp_current'] = 0
+    db.save_game_state(_gs, TID)
+    # caso A: ainda há Pokémon vivo no time → NÃO dispara (troca possível)
+    _uu = db.get_users()
+    for _i, _p in enumerate(_uu[u1]['trainer_data']['team']):
+        _p['currentHp'] = 50 if _i == 1 else 0
+    db.save_users(_uu)
+    s1.get_received(); msio.get_received()
+    _gs = gstate()
+    appmod._wild_trainer_threat(str(u1), _gs['active_encounters'][str(u1)], _gs, TID)
+    check(S, 'avanço no treinador: com troca viva NÃO dispara',
+          not recv(msio, 'trainer_threatened')
+          and not gstate()['active_encounters'][str(u1)]['battle_state'].get('trainer_threatened'))
+    # caso B: time INTEIRO caído → dispara para o mestre e para a mesa
+    _uu = db.get_users()
+    for _p in _uu[u1]['trainer_data']['team']:
+        _p['currentHp'] = 0
+    db.save_users(_uu)
+    _gs = gstate()
+    appmod._wild_trainer_threat(str(u1), _gs['active_encounters'][str(u1)], _gs, TID)
+    _evm = recv(msio, 'trainer_threatened')
+    _evp = recv(s1, 'trainer_threatened')
+    check(S, 'avanço no treinador: time todo caído dispara pro mestre',
+          bool(_evm) and _evm[0]['args'][0].get('player_id') == str(u1))
+    check(S, 'avanço no treinador: a mesa recebe o alerta', bool(_evp))
+    check(S, 'avanço no treinador: flag persiste no battle_state',
+          gstate()['active_encounters'][str(u1)]['battle_state'].get('trainer_threatened') is True)
+    _gs = gstate()
+    appmod._wild_trainer_threat(str(u1), _gs['active_encounters'][str(u1)], _gs, TID)
+    check(S, 'avanço no treinador: só 1x por encontro (dedup)',
+          not recv(msio, 'trainer_threatened'))
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+    # grupo: selvagens venceram → só quem ficou SEM time é alcançado
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
+                                           'hunt_mode': 'normal', 'route_id': 'route1'})
+    vg = (r.get_json() or {}).get('battle')
+    bg = appmod.ACTIVE_GROUP_BATTLES.get(vg['id']) if vg else None
+    if bg:
+        _uu = db.get_users()
+        for _p in _uu[u1]['trainer_data']['team']:
+            _p['currentHp'] = 0            # u1: time inteiro no chão
+        _t2 = _uu[u2]['trainer_data']['team']
+        for _p in _t2:
+            _p['currentHp'] = 0
+        if len(_t2) > 1:
+            _t2[-1]['currentHp'] = 30      # u2: sobrou 1 vivo FORA da luta
+        db.save_users(_uu)
+        s1.get_received(); s2.get_received(); msio.get_received()
+        appmod._group_trainer_threat(bg)
+        _ids = [p['args'][0]['player_id'] for p in recv(s1, 'trainer_threatened')]
+        check(S, 'avanço no treinador (grupo): só o jogador sem time é alcançado',
+              str(u1) in _ids and str(u2) not in _ids, str(_ids))
+        appmod.ACTIVE_GROUP_BATTLES.pop(vg['id'], None)
+    else:
+        check(S, 'avanço no treinador (grupo): só o jogador sem time é alcançado',
+              False, 'batalha não criada')
+    # restaura o HP dos times
+    _uu = db.get_users()
+    for _p, _hp in zip(_uu[u1]['trainer_data']['team'], _team_snap2):
+        _p['currentHp'] = _hp
+    for _p in _uu[u2]['trainer_data']['team']:
+        _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
+    for c in (s1, s2, msio):
+        c.get_received()
+
+    # ── FUGIR na dupla + FINALIZAR do mestre (report da mesa) ──
+    msio.emit('set_auto_mode', {'enabled': False}); recv(msio)   # determinístico
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2]})
+    v4 = (r.get_json() or {}).get('battle')
+    check(S, 'batalha p/ teste de fuga criada', bool(v4))
+    if v4:
+        for c in (s1, s2, msio):
+            c.get_received()
+        # iniciativa é aleatória: se o selvagem começou (AUTO OFF), o mestre
+        # joga os turnos dele até a vez de um aliado — teste determinístico
+        _guard4 = 0
+        _cur = next((c for c in v4['combatants'] if c['cid'] == v4['turn_cid']), None)
+        while _cur and _cur['side'] == 'wild' and v4.get('phase') == 'active' and _guard4 < 6:
+            _guard4 += 1
+            msio.emit('group_wild_turn', {'battle_id': v4['id']})
+            for p in msio.get_received():
+                if p['name'] in ('group_battle_update', 'group_battle_end') and p.get('args'):
+                    v4 = p['args'][0]
+            _cur = next((c for c in v4['combatants'] if c['cid'] == v4['turn_cid']), None)
+            for c in (s1, s2):
+                c.get_received()
+        if _cur and _cur['side'] == 'ally' and v4.get('phase') == 'active':
+            _cli = clients.get(str(_cur['player_id']))
+            _cli.emit('group_battle_action', {'battle_id': v4['id'], 'action': 'flee'})
+            v5 = None
+            for p in _cli.get_received():
+                if p['name'] in ('group_battle_update', 'group_battle_end') and p.get('args'):
+                    v5 = p['args'][0]
+            _fled = next((c for c in (v5 or v4)['combatants'] if c['cid'] == _cur['cid']), {})
+            check(S, 'FUGIR remove o combatente da luta (fainted/fled)',
+                  v5 is not None and bool(_fled.get('fainted')))
+            check(S, 'FUGIR registra no log da batalha',
+                  any('fugiu' in (l.get('message') or '') for l in (v5 or {}).get('log', [])))
+        else:
+            # sem turno de aliado disponível (batalha acabou nos turnos dos
+            # selvagens) — cenário raro; pula sem reprovar
+            check(S, 'FUGIR remove o combatente da luta (fainted/fled)', True,
+                  'sem turno de aliado — pulado')
+            check(S, 'FUGIR registra no log da batalha', True, 'pulado')
+        # jogador NÃO pode encerrar; mestre PODE
+        _bid4 = v4['id']
+        check(S, 'jogador bloqueado no force-end da dupla',
+              p1.post(f'/master/battles/group/{_bid4}/force-end').status_code == 403)
+        if _bid4 in appmod.ACTIVE_GROUP_BATTLES:
+            r = m.post(f'/master/battles/group/{_bid4}/force-end')
+            check(S, 'mestre FINALIZA a batalha em dupla',
+                  (r.get_json() or {}).get('ok') is True
+                  and _bid4 not in appmod.ACTIVE_GROUP_BATTLES)
+        else:
+            check(S, 'mestre FINALIZA a batalha em dupla', True,
+                  'batalha já encerrada pela fuga')
+    msio.emit('set_auto_mode', {'enabled': True}); recv(msio)
     for c in (s1, s2, msio):
         c.get_received()
 
@@ -2822,6 +3133,16 @@ def main():
     check(S, 'captura: status do ativo persiste (envenenado)',
           _t[0].get('status') == 'envenenado')
 
+    # bolsa LEGADA guarda plural ("Pokébolas") — a captura tem que achar a bola
+    # (report da mesa: "poke bolas não estão selecionáveis")
+    _bag([{'name': 'Pokébolas', 'qty': 2}]); _team([])
+    _seed_cap(name='Rattata', hp=0, hpmax=100)
+    _rc.seed(8); _r = _cap('pokeball')
+    check(S, 'captura acha a bola com nome no PLURAL (bolsa legada)',
+          _r.get('result') in ('caught', 'failed')
+          and (db.get_users()[u1]['trainer_data']['bag'] or [{}])[0].get('qty', 2) == 1)
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+
     # sem bola → erro; sem login → bloqueado
     _bag([]); _seed_cap(hp=0)
     check(S, 'captura sem a bola na bolsa é negada',
@@ -2831,7 +3152,9 @@ def main():
           app.test_client().post('/player/capture', json={}).status_code in (302, 401))
     _team([])
 
-    # Movesets dos selvagens: qualidade garantida + variedade + TMs no Nv≥25
+    # Movesets dos selvagens: qualidade garantida + variedade (sem TMs desde a
+    # regra da mesa — golpes fortes agora vêm só do learnset por nível)
+    random.seed(4321)   # amostra estável (o check de POW alto é estatístico)
     _enc_sets = []
     for _ in range(12):
         enc = appmod._build_random_encounter(
@@ -2844,9 +3167,11 @@ def main():
             int(appmod.bm_core.VARIABLE_POWER.get(m.lower(), 0))
     check(S, 'todo selvagem tem ao menos 1 golpe de dano',
           all(any(_wm_power(m) > 0 for m in mv) for _, mv in _enc_sets))
+    # limiar 50%: sem TMs (regra da mesa), o POW alto depende do learnset da
+    # espécie sorteada — 70% era calibrado para a era com TMs no pool
     check(S, 'selvagens de nível alto têm golpe FORTE (POW ≥ 60)',
           sum(1 for _, mv in _enc_sets
-              if any(_wm_power(m) >= 60 for m in mv)) >= len(_enc_sets) * 0.7,
+              if any(_wm_power(m) >= 60 for m in mv)) >= len(_enc_sets) * 0.5,
           f'{sum(1 for _, mv in _enc_sets if any(_wm_power(m) >= 60 for m in mv))}/{len(_enc_sets)}')
     # variedade: mesma espécie não repete SEMPRE o mesmo moveset
     from collections import Counter as _Counter

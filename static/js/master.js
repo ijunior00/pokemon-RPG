@@ -551,20 +551,33 @@ async function sendRandomHunt() {
     const terrain = document.getElementById('random-hunt-terrain')?.value || 'normal';
     const routeId = document.getElementById('random-hunt-route')?.value   || null;
     const huntMode = _huntModeFromControls(period, terrain);
+    const ambushEl = document.getElementById('random-hunt-ambush');
+    const forceAmbush = !!ambushEl?.checked;
+    if (ambushEl) ambushEl.checked = false;   // é para UMA caçada, não fica armado
 
     const out = document.getElementById('random-hunt-result');
     if (out) out.textContent = '⏳ Gerando caçada...';
     try {
         const resp = await fetch('/master/hunt/random', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ player_id: playerId, hunt_mode: huntMode, route_id: routeId })
+            body: JSON.stringify({ player_id: playerId, hunt_mode: huntMode,
+                                   route_id: routeId, is_ambush: forceAmbush })
         });
         const data = await resp.json();
         if (data.error) { if (out) out.textContent = `❌ ${data.error}`; return; }
+        if (data.ambush && data.ambush_battle) {
+            // Nat 1 no Teste de Caçada → EMBOSCADA 1v2 (batalha em grupo)
+            const wilds = (data.ambush_battle.combatants || [])
+                .filter(c => c.side === 'wild')
+                .map(c => `${c.name} Nv.${c.level || '?'}`).join(' + ');
+            if (out) out.innerHTML = `💀 <strong>EMBOSCADA 1v2!</strong> ${wilds} cercaram o jogador — batalha iniciada (sem fuga).`;
+            renderGroupMonitor(data.ambush_battle);
+            return;
+        }
         const enc = data.encounter || {};
         const p = enc.pokemon || {};
         if (out) out.innerHTML = `✅ Caçada liberada: <strong>${p.name || '?'}</strong> Nv.${enc.level || '?'} ` +
-            `${enc.is_shiny ? '✨ ' : ''}${enc.ambush ? '💀 emboscada ' : ''}(${huntMode}) — enviada ao jogador.`;
+            `${enc.is_shiny ? '✨ ' : ''}(${huntMode}) — enviada ao jogador.`;
     } catch(e) {
         if (out) out.textContent = '❌ Erro de conexão.';
     }
@@ -598,6 +611,47 @@ function _selectHuntPlayer(pid) {
 }
 
 socket.on('hunt_roll', (data) => _renderHuntRoll(data));
+
+// 💀 Selvagem derrotou o ÚLTIMO Pokémon do jogador e avançou no TREINADOR.
+// Sem regra automática: o mestre conduz a cena — os botões pedem o teste
+// sugerido pelo fluxo normal de /master/request-roll.
+socket.on('trainer_threatened', (d) => {
+    playNotificationSound();
+    showNotification(d.message || '💀 O selvagem avançou no treinador!', 'error');
+    const inbox = document.getElementById('hunt-rolls-inbox');
+    if (!inbox) return;
+    const empty = inbox.querySelector('.empty-state');
+    if (empty) empty.remove();
+    const when = new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:0.55rem 0.7rem;border-radius:8px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.6);font-size:0.88rem;';
+    card.innerHTML = `<strong>💀 ${d.wild_name || 'O selvagem'}</strong> derrotou o último Pokémon de ` +
+        `<strong>${d.player_name || 'um jogador'}</strong> e avançou no <strong>TREINADOR</strong>! ` +
+        `<span style="opacity:0.7;">· ${when}</span><br>` +
+        `<span style="opacity:0.8;font-size:0.8rem;">Conduza a cena — peça um teste ou improvise:</span>` +
+        `<div style="margin-top:0.3rem;display:flex;gap:0.4rem;flex-wrap:wrap;">` +
+        `<button class="btn btn-sm btn-danger" onclick="requestThreatRoll('${d.player_id}', 'Coragem')">🦁 Pedir Coragem</button>` +
+        `<button class="btn btn-sm btn-danger" onclick="requestThreatRoll('${d.player_id}', 'Atletismo')">💪 Pedir Atletismo</button>` +
+        `</div>`;
+    inbox.insertBefore(card, inbox.firstChild);
+});
+
+async function requestThreatRoll(playerId, skill) {
+    const raw = prompt(`CD do teste de ${skill}? (vazio = o Mestre julga o resultado)`, '12');
+    if (raw === null) return;   // cancelou
+    const cd = parseInt(raw);
+    try {
+        const r = await fetch('/master/request-roll', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_id: playerId, kind: 'skill', target: skill,
+                                   note: '💀 O selvagem avançou em você! Reaja!',
+                                   cd: isNaN(cd) ? null : cd })
+        });
+        const d = await r.json();
+        showNotification(d.ok ? `🎲 Teste de ${skill} pedido ao jogador.`
+                              : `❌ ${d.error || 'Falha ao pedir o teste'}`, d.ok ? 'success' : 'error');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
 
 // Testes de PERÍCIA do treinador (Afinidade, Análise, Sorte, ...) — mesma
 // caixa de rolagens da caçada, com o atributo e a perícia usados.
@@ -811,32 +865,96 @@ function renderGroupMonitor(view) {
     const curWild = view.combatants.find(c => c.cid === view.turn_cid && c.side === 'wild');
     const wildBtn = (view.phase === 'active' && curWild)
         ? `<button class="btn btn-sm btn-warning" onclick="advanceGroupWild('${view.id}')">▶️ Jogar selvagem (${curWild.name})</button>` : '';
-    let head = `Rodada ${view.round} · ${view.mode}`;
-    if (view.phase === 'finished')
-        head = view.winner === 'ally' ? '🎉 A dupla venceu!' : '💀 Os selvagens venceram!';
-    mon.innerHTML = `<div style="font-weight:700;margin-bottom:0.3rem;">👥 ${head}</div>${rows}
+    // Mestre sempre pode ENCERRAR a batalha em dupla (sem vencedor/XP)
+    const endBtn = (view.phase === 'active')
+        ? `<button class="btn btn-sm btn-danger" onclick="forceEndGroupBattle('${view.id}')">⏹ Finalizar batalha</button>` : '';
+    let head = `Rodada ${view.round} · ${view.mode}${view.ambush ? ' · 💀 EMBOSCADA' : ''}`;
+    if (view.phase === 'finished') {
+        head = view.winner === 'ally' ? (view.ambush ? '🎉 O jogador sobreviveu à emboscada!' : '🎉 A dupla venceu!')
+             : view.winner === 'fled' ? '🏃 A dupla fugiu da batalha.'
+             : view.winner === 'master_ended' ? '⏹ Batalha encerrada pelo Mestre.'
+             : (view.ambush ? '💀 A emboscada venceu o jogador!' : '💀 Os selvagens venceram!');
+    }
+    mon.innerHTML = `<div style="font-weight:700;margin-bottom:0.3rem;">${view.ambush ? '💀' : '👥'} ${head}</div>${rows}
         <div style="margin-top:0.4rem;font-size:0.8rem;opacity:0.85;max-height:110px;overflow-y:auto;">${log}</div>
-        <div style="margin-top:0.4rem;">${wildBtn}</div>`;
+        <div style="margin-top:0.4rem;display:flex;gap:0.4rem;flex-wrap:wrap;">${wildBtn}${endBtn}</div>`;
 }
 
 function advanceGroupWild(battleId) {
     socket.emit('group_wild_turn', { battle_id: battleId });
 }
 
+async function forceEndGroupBattle(battleId) {
+    if (!confirm('⏹ Encerrar a batalha em dupla agora? (sem vencedor nem XP)')) return;
+    try {
+        const r = await fetch(`/master/battles/group/${battleId}/force-end`, { method: 'POST' });
+        const d = await r.json();
+        if (!d.ok) showNotification('❌ ' + (d.error || 'Falha ao encerrar'), 'error');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
+
 socket.on('group_battle_start',  (v) => renderGroupMonitor(v));
 socket.on('group_battle_update', (v) => renderGroupMonitor(v));
 socket.on('group_battle_end',    (v) => renderGroupMonitor(v));
 
-// Rehidrata o monitor da batalha em grupo após reload da página — sem isso
-// o mestre perdia o botão de jogar os selvagens (e a batalha travava).
+// Rehidrata batalhas após reload da página — sem isso o mestre perdia os
+// cards de encontro 1v1 e o monitor da batalha em grupo (e a mesa travava).
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const resp = await fetch('/master/battles/active');
         const data = await resp.json();
+        // Encontros 1v1: o payload salvo tem o MESMO shape do evento
+        // encounter_started, então o card remonta direto; depois reaplica
+        // o battle_state salvo (HP/status/turno/round) por cima.
+        for (const enc of Object.values(data.wild_encounters || {})) {
+            if (!enc || !enc.pokemon) continue;
+            if (document.querySelector(`[data-encounter-player="${enc.player_id}"]`)) continue;
+            addEncounterCard(enc);
+            _applyEncounterState(enc);
+        }
         const groups = (data.group_battles || []).filter(g => g.phase === 'active');
         if (groups.length) renderGroupMonitor(groups[groups.length - 1]);
     } catch(e) {}
 });
+
+// Reaplica o battle_state persistido num card recém-remontado (reidratação)
+function _applyEncounterState(enc) {
+    const card = document.querySelector(`[data-encounter-player="${enc.player_id}"]`);
+    const bs = enc.battle_state;
+    if (!card || !bs) return;
+    const wildBar = card.querySelector('.wild-hp-bar');
+    const playerBar = card.querySelector('.player-hp-bar-master');
+    if (wildBar && bs.wild_hp_max) wildBar.style.width = `${Math.max(0, (bs.wild_hp_current / bs.wild_hp_max) * 100)}%`;
+    if (playerBar && bs.player_hp_max) playerBar.style.width = `${Math.max(0, (bs.player_hp_current / bs.player_hp_max) * 100)}%`;
+    const wildHpText = card.querySelector('.wild-hp-text');
+    const playerHpText = card.querySelector('.player-hp-text-master');
+    if (wildHpText) wildHpText.textContent = `${bs.wild_hp_current}/${bs.wild_hp_max}`;
+    if (playerHpText) playerHpText.textContent = `${bs.player_hp_current}/${bs.player_hp_max}`;
+    const wildStatusBadge = card.querySelector('.wild-status-badge');
+    const playerStatusBadge = card.querySelector('.player-status-badge');
+    const wKey = bs.wild_status ? (typeof bs.wild_status === 'string' ? bs.wild_status : bs.wild_status.condition) : null;
+    const pKey = bs.player_status ? (typeof bs.player_status === 'string' ? bs.player_status : bs.player_status.condition) : null;
+    if (wildStatusBadge) {
+        wildStatusBadge.textContent = wKey ? statusLabel(wKey) : '';
+        wildStatusBadge.style.display = wKey ? 'inline-block' : 'none';
+    }
+    if (playerStatusBadge) {
+        playerStatusBadge.textContent = pKey ? statusLabel(pKey) : '';
+        playerStatusBadge.style.display = pKey ? 'inline-block' : 'none';
+    }
+    const turnEl = card.querySelector('.turn-indicator');
+    if (turnEl && bs.initiative_rolled) {
+        turnEl.textContent = bs.turn === 'player' ? '🟢 Turno do Jogador' : '🔴 Turno do Selvagem (Mestre)';
+    }
+    const roundEl = card.querySelector('.round-counter');
+    if (roundEl) roundEl.textContent = `⚔️ Round ${bs.round || 1}`;
+    const masterControls = card.querySelector('.master-attack-controls');
+    if (masterControls && !wildAutoMode && bs.initiative_rolled && bs.turn === 'wild') {
+        masterControls.classList.remove('hidden');
+    }
+    const log = card.querySelector('.battle-log-master');
+    if (log) log.innerHTML += `<p>🔄 <em>Batalha retomada após recarregar a página (Round ${bs.round || 1}).</em></p>`;
+}
 
 // ============================================
 // POKEDEX — Master (lista completa, sempre desbloqueada)
@@ -2180,8 +2298,9 @@ function masterSendNpcChallenge() {
     const npcId    = document.getElementById('master-pvp-npc')?.value;
     const targetId = document.getElementById('master-pvp-target')?.value;
     const mode     = document.getElementById('master-pvp-mode')?.value || 'official';
+    const betMoney = Math.max(0, parseInt(document.getElementById('master-pvp-bet')?.value) || 0);
     if (!npcId || !targetId) { alert('Selecione NPC e jogador alvo.'); return; }
-    socket.emit('master_pvp_challenge', { npc_id: npcId, target_id: targetId, mode });
+    socket.emit('master_pvp_challenge', { npc_id: npcId, target_id: targetId, mode, bet_money: betMoney });
 }
 
 socket.on('master_pvp_created', (data) => {

@@ -136,6 +136,10 @@
                         {% endfor %}
                     </select>
                 </div>
+                <div class="form-group">
+                    <label title="Nat 1 no Teste de Caçada vira emboscada sozinho; marque para forçar">💀 Emboscada 1v2</label>
+                    <input type="checkbox" id="random-hunt-ambush" style="width:auto;transform:scale(1.3);margin-top:0.5rem;">
+                </div>
                 <button class="btn btn-success" onclick="sendRandomHunt()">🎯 Liberar Caçada</button>
             </div>
             <p id="random-hunt-result" style="font-size:0.85rem;margin:0.3rem 0;"></p>
@@ -825,6 +829,11 @@
                         <option value="official">Oficial</option>
                         <option value="street">Rua</option>
                     </select>
+                </div>
+                <div>
+                    <label>Aposta (₽) — modo Oficial</label>
+                    <input type="number" id="master-pvp-bet" class="form-input" min="0" step="50" value="0"
+                           placeholder="0" title="Prêmio transferido do perdedor para o vencedor (limitado ao que o perdedor tem)">
                 </div>
             </div>
             <button class="btn btn-primary" onclick="masterSendNpcChallenge()">⚔️ Iniciar Batalha</button>
