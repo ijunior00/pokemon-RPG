@@ -294,7 +294,14 @@ function renderGroupBattle(view) {
                     <select id="gb-target">${targetOpts}</select></div>
                 <button class="btn btn-danger" onclick="groupBattleAttack()">⚔️ Atacar</button>
                 <button class="btn btn-secondary" onclick="groupBattleFlee()">🏃 Fugir</button>
-            </div></div>`;
+            </div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin-top:0.5rem;border-top:1px dashed rgba(255,255,255,0.2);padding-top:0.5rem;">
+                <div class="form-group" style="flex:1;min-width:150px;"><label>Pokébola</label>
+                    <select id="gb-ball">${pokeballOptionsHtml()}</select></div>
+                <button class="btn btn-primary" onclick="groupBattleCapture()">🎯 Capturar</button>
+            </div>
+            <div style="font-size:0.72rem;opacity:0.7;margin-top:0.2rem;">A bola vai no alvo selecionado acima. Regra: ≤40% do HP (65% se dormindo/congelado). O arremesso consome o seu turno; se quebrar, o selvagem continua na luta.</div>
+            </div>`;
     } else if (view.phase === 'active') {
         const who = turnC ? turnC.name : '...';
         const wildWaiting = turnC && turnC.side === 'wild' && view.wild_auto === false;
@@ -333,6 +340,41 @@ function groupBattleFlee() {
     socket.emit('group_battle_action', {
         battle_id: _groupBattleView.id, action: 'flee'
     });
+}
+
+// 🎯 Captura na batalha em dupla: POST /player/capture com battle_id +
+// target_cid — resolução 100% no servidor (bola, teto de HP, d20, turno).
+async function groupBattleCapture() {
+    if (!_groupBattleView) return;
+    const ball = document.getElementById('gb-ball')?.value || 'pokeball';
+    const target = document.getElementById('gb-target')?.value;
+    try {
+        const r = await fetch('/player/capture', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ battle_id: _groupBattleView.id, target_cid: target, ball_type: ball })
+        });
+        const d = await r.json();
+        if (!r.ok || d.error) {
+            showNotification(d.error || 'Falha na captura', 'error');
+            return;
+        }
+        window.bagItems = d.bag || window.bagItems;
+        const caught = d.result === 'caught';
+        showNotification((d.log || []).join(' · '), caught ? 'success' : 'info');
+        if (caught) {
+            try { FX.callout && FX.callout('CAPTURADO!', 'success'); } catch (e) {}
+            playSound('levelup');
+            // atualiza a lista do time local (o servidor já salvou)
+            if (d.captured && d.destination === 'team') {
+                playerTeam.push(d.captured);
+                TRAINER_DATA.team = playerTeam;
+                try { refreshTeamDisplay(); } catch (e) {}
+            }
+        }
+        // o estado da batalha chega pelo broadcast group_battle_update/end
+    } catch (e) {
+        showNotification('Erro de rede na captura', 'error');
+    }
 }
 
 // ============================================================

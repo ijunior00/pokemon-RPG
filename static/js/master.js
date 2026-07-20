@@ -2244,8 +2244,9 @@ function masterSendNpcChallenge() {
     const npcId    = document.getElementById('master-pvp-npc')?.value;
     const targetId = document.getElementById('master-pvp-target')?.value;
     const mode     = document.getElementById('master-pvp-mode')?.value || 'official';
+    const betMoney = Math.max(0, parseInt(document.getElementById('master-pvp-bet')?.value) || 0);
     if (!npcId || !targetId) { alert('Selecione NPC e jogador alvo.'); return; }
-    socket.emit('master_pvp_challenge', { npc_id: npcId, target_id: targetId, mode });
+    socket.emit('master_pvp_challenge', { npc_id: npcId, target_id: targetId, mode, bet_money: betMoney });
 }
 
 socket.on('master_pvp_created', (data) => {

@@ -826,6 +826,11 @@
                         <option value="street">Rua</option>
                     </select>
                 </div>
+                <div>
+                    <label>Aposta (₽) — modo Oficial</label>
+                    <input type="number" id="master-pvp-bet" class="form-input" min="0" step="50" value="0"
+                           placeholder="0" title="Prêmio transferido do perdedor para o vencedor (limitado ao que o perdedor tem)">
+                </div>
             </div>
             <button class="btn btn-primary" onclick="masterSendNpcChallenge()">⚔️ Iniciar Batalha</button>
             <span id="master-pvp-msg" style="margin-left:1rem;font-size:0.9rem;"></span>

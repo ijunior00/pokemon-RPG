@@ -796,6 +796,48 @@ def main():
     else:
         check(S, 'terceiro não encerra PvP alheio (forfeit ignorado)', True, 'sem batalha — pulado')
 
+    # Aposta VALE contra NPC (antes o desafio a NPC criava o battle com bets
+    # zerado — vitória oficial não pagava nada) + pagamento de verdade no fim
+    _rnb = m.post('/master/npcs/generate', json={'npc_class': 'Trainer', 'level': 10, 'team_size': 1}).get_json()
+    for q in _rnb['team']:
+        q['moves'] = ['Tackle']
+    _rnb['money'] = 500
+    db.save_npc(_rnb, TID)
+    s1.get_received()
+    s1.emit('pvp_challenge', {'target_id': _rnb['id'], 'mode': 'official', 'bet_money': 250})
+    _crb = recv(s1, 'pvp_battle_created')
+    if _crb:
+        _bxb = _crb[0]['args'][0]['battle_id']
+        _btb = appmod.ACTIVE_PVP.get(_bxb)
+        check(S, 'desafio a NPC carrega a aposta (espelhada)',
+              _btb and _btb['bets']['player1']['money'] == 250
+              and _btb['bets']['player2']['money'] == 250)
+        s1.emit('pvp_select_pokemon', {'battle_id': _bxb, 'pokemon_idx': 0}); recv(s1)
+        _mb = db.get_users()[u1]['trainer_data']['money']
+        s1.emit('pvp_forfeit', {'battle_id': _bxb}); recv(s1)
+        _ma = db.get_users()[u1]['trainer_data']['money']
+        _npc_after = next((n for n in db.get_npcs(TID) if n['id'] == _rnb['id']), {})
+        _moved = min(250, _mb)
+        check(S, 'derrota p/ NPC transfere a aposta (perdedor→vencedor)',
+              _ma == _mb - _moved and int(_npc_after.get('money') or 0) == 500 + _moved,
+              f'{_mb}->{_ma}, npc={_npc_after.get("money")}')
+        appmod.ACTIVE_PVP.pop(_bxb, None)
+    else:
+        check(S, 'desafio a NPC carrega a aposta (espelhada)', False, 'sem batalha')
+        check(S, 'derrota p/ NPC transfere a aposta (perdedor→vencedor)', False, 'sem batalha')
+    # NPC enviado pelo MESTRE também carrega aposta
+    msio.get_received()
+    msio.emit('master_pvp_challenge', {'npc_id': _rnb['id'], 'target_id': u1,
+                                       'mode': 'official', 'bet_money': 150})
+    recv(msio)
+    _btm5 = next((b for b in appmod.ACTIVE_PVP.values()
+                  if (b.get('extra') or {}).get('initiated_by_master')
+                  and b['player2']['id'] == u1), None)
+    check(S, 'NPC do mestre carrega a aposta',
+          _btm5 is not None and _btm5['bets']['player1']['money'] == 150)
+    if _btm5:
+        appmod.ACTIVE_PVP.pop(_btm5['id'], None)
+
     # Lote 2 — CONCORRÊNCIA: save_users grava só quem MUDOU. Dois snapshots
     # (como 2 greenlets) mutando jogadores diferentes não se sobrescrevem.
     _m1_bak = db.get_users()[u1]['trainer_data'].get('money')
@@ -1696,6 +1738,49 @@ def main():
                                    or len(v_after.get('log') or []) > _log_before))
     msio.emit('set_auto_mode', {'enabled': True}); recv(msio)
     appmod.ACTIVE_GROUP_BATTLES.pop(v3['id'], None)
+    for c in (s1, s2, msio):
+        c.get_received()
+
+    # ── Captura na batalha em dupla (/player/capture com battle_id) ──
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
+                                           'hunt_mode': 'normal', 'route_id': 'route1'})
+    vcap = (r.get_json() or {}).get('battle')
+    bcap = appmod.ACTIVE_GROUP_BATTLES.get(vcap['id']) if vcap else None
+    if bcap:
+        my_cid = next(c['cid'] for c in bcap['combatants'].values()
+                      if c['side'] == 'ally' and c['player_id'] == str(u1))
+        wild_cid = next(c['cid'] for c in bcap['combatants'].values() if c['side'] == 'wild')
+        bcap['turn_idx'] = bcap['order'].index(my_cid)   # força o turno do u1
+        wtgt = bcap['combatants'][wild_cid]
+        wtgt['hp'] = max(1, int(wtgt['maxHp'] * 0.2))    # ≤40% → captura liberada
+        # fora do turno → recusa (é o turno do u1, não do u2)
+        r = p2.post('/player/capture', json={'battle_id': vcap['id'], 'ball_type': 'pokeball'})
+        check(S, 'captura em dupla: fora do turno é recusada', r.status_code == 400)
+        # Master Ball do u1 → captura garantida e batalha 2v1 termina
+        _uu = db.get_users()
+        _uu[u1]['trainer_data'].setdefault('bag', []).append({'name': 'Master Ball', 'qty': 1})
+        _tot_before = (len(_uu[u1]['trainer_data'].get('team') or [])
+                       + len(_uu[u1]['trainer_data'].get('pc') or []))
+        db.save_users(_uu)
+        r = p1.post('/player/capture', json={'battle_id': vcap['id'],
+                                             'ball_type': 'masterball', 'target_cid': wild_cid})
+        d = r.get_json() or {}
+        check(S, 'captura em dupla: Master Ball captura no seu turno',
+              r.status_code == 200 and d.get('result') == 'caught', str(d.get('error') or d.get('result')))
+        _td = db.get_users()[u1]['trainer_data']
+        _tot_after = len(_td.get('team') or []) + len(_td.get('pc') or [])
+        check(S, 'captura em dupla: capturado entrou no time/PC',
+              _tot_after == _tot_before + 1)
+        check(S, 'captura em dupla: capturado leva os moves do selvagem',
+              (d.get('captured') or {}).get('moves') == (wtgt.get('moves') or [])[:4]
+              or bool((d.get('captured') or {}).get('moves')))
+        check(S, 'captura em dupla: 2v1 encerra ao capturar o único selvagem',
+              vcap['id'] not in appmod.ACTIVE_GROUP_BATTLES)
+    else:
+        for _nm in ('fora do turno é recusada', 'Master Ball captura no seu turno',
+                    'capturado entrou no time/PC', 'capturado leva os moves do selvagem',
+                    '2v1 encerra ao capturar o único selvagem'):
+            check(S, f'captura em dupla: {_nm}', False, 'batalha não criada')
     for c in (s1, s2, msio):
         c.get_received()
 

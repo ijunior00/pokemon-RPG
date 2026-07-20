@@ -4746,6 +4746,10 @@ def player_capture():
     ball_type = str(data.get('ball_type') or 'pokeball').strip().lower()
     if ball_type not in CAPTURE_BALLS:
         ball_type = 'pokeball'
+    # Batalha em DUPLA: a captura é resolvida à parte (o estado vive em
+    # ACTIVE_GROUP_BATTLES, não em active_encounters)
+    if data.get('battle_id'):
+        return _group_capture(data, ball_type)
     trapped = bool(data.get('trapped'))
     pid = str(current_user.id)
 
@@ -4919,6 +4923,154 @@ def player_capture():
                     'status': status, 'wild_hp_pct': round(hp_pct, 3),
                     'encounter_over': over, 'captured': None, 'destination': None,
                     'dice': dice, 'bag': trainer.get('bag', [])})
+
+
+def _group_capture(data, ball_type):
+    """Arremesso de Pokébola na BATALHA EM DUPLA — resolução no servidor.
+
+    Mesmas regras do 1v1 (teto de HP 40%, 65% dormindo/congelado; bônus fixo
+    de status; Afinidade e bônus da bola), com duas diferenças de mesa:
+    - só no SEU turno, e o arremesso CONSOME o turno (sucesso ou falha);
+    - se falhar, o selvagem NÃO foge — a dupla continua a batalha.
+    Capturado sai da luta e vai para o time (cheio → PC).
+    """
+    pid = str(current_user.id)
+    battle = ACTIVE_GROUP_BATTLES.get(str(data.get('battle_id') or ''))
+    if not battle or battle.get('phase') != 'active' or battle.get('table_id') != _tid():
+        return jsonify({'error': 'Batalha em dupla não encontrada.'}), 400
+    cur = gb.current_combatant(battle)
+    if not cur or cur.get('side') != 'ally' or str(cur.get('player_id')) != pid:
+        return jsonify({'error': 'Arremesse a Pokébola no SEU turno.'}), 400
+
+    target = battle['combatants'].get(str(data.get('target_cid') or ''))
+    if not target or target.get('side') != 'wild' or target.get('fainted'):
+        alive = gb.alive_cids(battle, 'wild')
+        if not alive:
+            return jsonify({'error': 'Não há selvagem para capturar.'}), 400
+        target = battle['combatants'][alive[0]]
+
+    wild = target.get('pokemon') or {}
+    base = POKEMON_BY_NUMBER.get(wild.get('number')) \
+        or POKEMON_BY_NAME.get((wild.get('name') or '').lower())
+    if not base or not base.get('base_stats'):
+        return jsonify({'error': 'Espécie do selvagem inválida'}), 400
+
+    wild_max = max(1, int(target.get('maxHp') or 1))
+    wild_cur = max(0, min(wild_max, int(target.get('hp') or 0)))
+    hp_pct = wild_cur / wild_max
+    fainted = wild_cur <= 0
+    status = ((target.get('status') or {}).get('condition') or '').strip().lower() or None
+
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {}) or {}
+    trainer_attrs.migrate_trainer(trainer)
+    bag = trainer.get('bag', []) or []
+    ball = _find_ball_in_bag(bag, ball_type)
+    ball_label = CAPTURE_BALLS[ball_type]['label']
+    if not ball or int(ball.get('qty') or 0) < 1:
+        return jsonify({'error': f'Você não tem {ball_label} na bolsa.'}), 400
+    ball['qty'] = int(ball['qty']) - 1
+    trainer['bag'] = [i for i in bag if i is not ball] if ball['qty'] <= 0 else bag
+    log = [f'{ball_label} arremessada em {target["name"]}!']
+
+    level = max(1, min(100, int(target.get('level') or wild.get('level') or 1)))
+    sr = _sr_int(wild.get('sr') or base.get('sr'))
+    heal_full = (ball_type == 'healball')
+
+    caught, dice = False, None
+    if ball_type == 'masterball':
+        caught = True
+        log.append('✅ CAPTURADO! (Master Ball — captura garantida!)')
+    else:
+        gate = CAPTURE_HP_GATE_RELAXED if status in CAPTURE_RELAX_STATUS else CAPTURE_HP_GATE
+        if not fainted and hp_pct > gate:
+            pct = round(hp_pct * 100)
+            log.append(f'💥 A Pokébola quebrou! {target["name"]} ainda tem {pct}% do HP '
+                       f'(teto de {round(gate * 100)}%). Enfraqueça-o mais!')
+        else:
+            dc = max(5, 5 + sr) if fainted else 10 + sr + level + (wild_cur // 10)
+            r1, r2 = random.randint(1, 20), random.randint(1, 20)
+            advantage = fainted
+            roll = max(r1, r2) if advantage else r1
+            afinidade_bonus = trainer_attrs.skill_modifier(trainer, 'Afinidade')[0]
+            ball_bonus = CAPTURE_BALLS[ball_type]['bonus']
+            if ball_type == 'netball':
+                wtypes = [str(t).lower() for t in (wild.get('types') or base.get('types') or [])]
+                if any(t in ('bug', 'water') for t in wtypes):
+                    ball_bonus += 3
+                    log.append('🟢 Net Bola: +3 contra Bug/Water!')
+            status_bonus = CAPTURE_STATUS_BONUS.get(status, 0) if status else 0
+            total = roll + afinidade_bonus + ball_bonus + status_bonus
+            dice = {'roll': roll, 'rolls': [r1, r2], 'advantage': advantage, 'dc': dc,
+                    'total': total, 'afinidade': afinidade_bonus,
+                    'ball_bonus': ball_bonus, 'status_bonus': status_bonus}
+            if status_bonus:
+                log.append(f'💤 {status.capitalize()}: +{status_bonus} no teste de captura!')
+            log.append(f'CD de Captura: {dc} · d20({roll}{"↑" if advantage else ""})'
+                       f' + Afinidade({afinidade_bonus:+d})'
+                       + (f' + Bola(+{ball_bonus})' if ball_bonus else '')
+                       + (f' + Status(+{status_bonus})' if status_bonus else '')
+                       + f' = {total}')
+            caught = total >= dc
+            log.append(f'✅ CAPTURADO! 🎉 ({total} ≥ {dc})' if caught
+                       else f'❌ {ball_label} falhou! ({total} < {dc}) O selvagem segue na luta!')
+
+    poke = dest = None
+    if caught:
+        enc_like = {'pokemon': wild,
+                    'is_shiny': bool(target.get('is_shiny') or wild.get('is_shiny')),
+                    'wild_moves': list(target.get('moves') or [])}
+        poke = _build_captured_pokemon(enc_like, base, level, wild_cur, heal_full)
+        team = trainer.get('team', []) or []
+        if len(team) < 6:
+            team.append(poke); trainer['team'] = team; dest = 'team'
+        else:
+            pc = trainer.get('pc', []) or []
+            pc.append(poke); trainer['pc'] = pc; dest = 'pc'
+        if heal_full:
+            log.append('🩷 Cura Bola: o Pokémon foi curado completamente!')
+        if dest == 'pc':
+            log.append('📦 Time cheio — guardado no PC!')
+        # tira o capturado da luta (fora da ordem, sem contar como queda da dupla)
+        target['fainted'] = True
+        target['captured'] = True
+        battle['log'].append({'type': 'capture', 'cid': target['cid'],
+                              'message': f"🎯 {cur['name']} capturou {target['name']}! ({ball_label})"})
+        if not gb.alive_cids(battle, 'wild'):
+            battle['phase'] = 'finished'
+            battle['winner'] = 'ally'
+            battle['log'].append({'type': 'end', 'winner': 'ally',
+                                  'message': '🎉 Todos os selvagens foram derrotados ou capturados!'})
+    else:
+        battle['log'].append({'type': 'capture_fail',
+                              'message': f"💥 {cur['name']} arremessou {ball_label} em {target['name']} — quebrou!"})
+
+    # o arremesso consome o turno de quem jogou (sucesso OU falha)
+    if battle['phase'] == 'active':
+        gb.advance_turn(battle)
+        if _wild_auto_mode():
+            _group_run_wild_turns(battle)
+        _group_field_round_hook(battle)
+
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+    if poke is not None:
+        socketio.emit('team_update',
+                      {'player_id': current_user.id, 'team': trainer.get('team', [])},
+                      room=f'master_{_tid()}')
+
+    if battle['phase'] == 'finished':
+        _group_broadcast(battle, 'group_battle_end')
+        ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
+    else:
+        _group_broadcast(battle)
+
+    return jsonify({'ok': True, 'result': 'caught' if caught else 'failed',
+                    'log': log, 'ball': ball_type, 'dice': dice,
+                    'captured': poke, 'destination': dest,
+                    'team_size': len(trainer.get('team', [])),
+                    'pc_size': len(trainer.get('pc', [])),
+                    'bag': trainer.get('bag', [])})
 
 
 @app.route('/player/pc/deposit', methods=['POST'])
@@ -7303,6 +7455,10 @@ def handle_master_pvp_challenge(data):
     npc_id    = data.get('npc_id')
     target_id = data.get('target_id')
     mode      = data.get('mode', 'official')
+    try:
+        bet_money = max(0, int(data.get('bet_money') or 0))
+    except (TypeError, ValueError):
+        bet_money = 0
 
     npcs  = db.get_npcs()
     npc   = next((n for n in npcs if n['id'] == npc_id), None)
@@ -7324,7 +7480,11 @@ def handle_master_pvp_challenge(data):
         target_team    = target_trainer.get('team', [])
         target_name    = target_trainer.get('name', users[target_id]['username'])
 
-    battle = pvp.create_pvp_battle(mode, npc_id, target_id)
+    # aposta espelhada (mestre define): sem ela, batalha oficial via NPC do
+    # mestre terminava sem prêmio nenhum
+    battle = pvp.create_pvp_battle(mode, npc_id, target_id,
+                                   {'player1': {'money': bet_money, 'items': []},
+                                    'player2': {'money': bet_money, 'items': []}})
     battle['extra'] = {'initiated_by_master': True}
     _mig(npc.get('team', []))
     pvp.set_team(battle, 'player1', npc.get('team', []))
@@ -7377,7 +7537,14 @@ def handle_pvp_challenge(data):
                 emit('pvp_error', {'message': 'Você precisa de pelo menos 1 Pokémon no time!'})
                 return
 
-            battle = pvp.create_pvp_battle(mode, current_user.id, npc['id'])
+            # A aposta VALE contra NPC: o NPC "cobre" a aposta do jogador
+            # (espelhada). Sem isso, o vencedor de um desafio oficial contra
+            # NPC não ganhava nada — o bets ficava zerado e handle_pvp_victory
+            # não tinha o que transferir. O pagamento continua limitado ao que
+            # o perdedor realmente tem (dinheiro do NPC via _npc_ensure_economy).
+            npc_bets = {'player1': {'money': bet_money, 'items': bet_items},
+                        'player2': {'money': bet_money, 'items': bet_items}}
+            battle = pvp.create_pvp_battle(mode, current_user.id, npc['id'], npc_bets)
             _mig(my_team)
             _stamp_tatica(my_team, users.get(current_user.id, {}).get('trainer_data'))
             pvp.set_team(battle, 'player1', my_team)
