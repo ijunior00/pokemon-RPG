@@ -893,6 +893,23 @@ def main():
           r.status_code == 200 and _rh.get('encounter') is None
           and _rh.get('group_battle') is None)
 
+    # Cache de processo (economia de data transfer): write-through coerente
+    # e semântica idêntica ao roundtrip pelo Postgres
+    _gs = gstate()
+    _gs['_cache_probe'] = {1: 'a', 'x': (1, 2)}
+    db.save_game_state(_gs, TID)
+    _got = gstate().get('_cache_probe')
+    check(S, 'cache DB: get pós-save devolve o gravado (write-through)', _got is not None)
+    check(S, 'cache DB: normaliza como o banco (int→str, tupla→lista)',
+          _got == {'1': 'a', 'x': [1, 2]}, str(_got))
+    _g1 = gstate(); _g2 = gstate()
+    _g1['_cache_probe'] = 'mutado-sem-save'
+    check(S, 'cache DB: leituras são isoladas (mutar uma não vaza pra outra)',
+          _g2.get('_cache_probe') == {'1': 'a', 'x': [1, 2]})
+    _gs = gstate(); _gs.pop('_cache_probe', None); db.save_game_state(_gs, TID)
+    check(S, 'cache DB: remoção persiste no get seguinte',
+          '_cache_probe' not in gstate())
+
     # Lote 3 — pokemon-center bloqueado durante encontro ativo
     _gs = gstate()
     _gs.setdefault('active_encounters', {})[str(u1)] = {
