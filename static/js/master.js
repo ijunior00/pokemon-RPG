@@ -551,20 +551,33 @@ async function sendRandomHunt() {
     const terrain = document.getElementById('random-hunt-terrain')?.value || 'normal';
     const routeId = document.getElementById('random-hunt-route')?.value   || null;
     const huntMode = _huntModeFromControls(period, terrain);
+    const ambushEl = document.getElementById('random-hunt-ambush');
+    const forceAmbush = !!ambushEl?.checked;
+    if (ambushEl) ambushEl.checked = false;   // é para UMA caçada, não fica armado
 
     const out = document.getElementById('random-hunt-result');
     if (out) out.textContent = '⏳ Gerando caçada...';
     try {
         const resp = await fetch('/master/hunt/random', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ player_id: playerId, hunt_mode: huntMode, route_id: routeId })
+            body: JSON.stringify({ player_id: playerId, hunt_mode: huntMode,
+                                   route_id: routeId, is_ambush: forceAmbush })
         });
         const data = await resp.json();
         if (data.error) { if (out) out.textContent = `❌ ${data.error}`; return; }
+        if (data.ambush && data.ambush_battle) {
+            // Nat 1 no Teste de Caçada → EMBOSCADA 1v2 (batalha em grupo)
+            const wilds = (data.ambush_battle.combatants || [])
+                .filter(c => c.side === 'wild')
+                .map(c => `${c.name} Nv.${c.level || '?'}`).join(' + ');
+            if (out) out.innerHTML = `💀 <strong>EMBOSCADA 1v2!</strong> ${wilds} cercaram o jogador — batalha iniciada (sem fuga).`;
+            renderGroupMonitor(data.ambush_battle);
+            return;
+        }
         const enc = data.encounter || {};
         const p = enc.pokemon || {};
         if (out) out.innerHTML = `✅ Caçada liberada: <strong>${p.name || '?'}</strong> Nv.${enc.level || '?'} ` +
-            `${enc.is_shiny ? '✨ ' : ''}${enc.ambush ? '💀 emboscada ' : ''}(${huntMode}) — enviada ao jogador.`;
+            `${enc.is_shiny ? '✨ ' : ''}(${huntMode}) — enviada ao jogador.`;
     } catch(e) {
         if (out) out.textContent = '❌ Erro de conexão.';
     }
@@ -814,14 +827,14 @@ function renderGroupMonitor(view) {
     // Mestre sempre pode ENCERRAR a batalha em dupla (sem vencedor/XP)
     const endBtn = (view.phase === 'active')
         ? `<button class="btn btn-sm btn-danger" onclick="forceEndGroupBattle('${view.id}')">⏹ Finalizar batalha</button>` : '';
-    let head = `Rodada ${view.round} · ${view.mode}`;
+    let head = `Rodada ${view.round} · ${view.mode}${view.ambush ? ' · 💀 EMBOSCADA' : ''}`;
     if (view.phase === 'finished') {
-        head = view.winner === 'ally' ? '🎉 A dupla venceu!'
+        head = view.winner === 'ally' ? (view.ambush ? '🎉 O jogador sobreviveu à emboscada!' : '🎉 A dupla venceu!')
              : view.winner === 'fled' ? '🏃 A dupla fugiu da batalha.'
              : view.winner === 'master_ended' ? '⏹ Batalha encerrada pelo Mestre.'
-             : '💀 Os selvagens venceram!';
+             : (view.ambush ? '💀 A emboscada venceu o jogador!' : '💀 Os selvagens venceram!');
     }
-    mon.innerHTML = `<div style="font-weight:700;margin-bottom:0.3rem;">👥 ${head}</div>${rows}
+    mon.innerHTML = `<div style="font-weight:700;margin-bottom:0.3rem;">${view.ambush ? '💀' : '👥'} ${head}</div>${rows}
         <div style="margin-top:0.4rem;font-size:0.8rem;opacity:0.85;max-height:110px;overflow-y:auto;">${log}</div>
         <div style="margin-top:0.4rem;display:flex;gap:0.4rem;flex-wrap:wrap;">${wildBtn}${endBtn}</div>`;
 }

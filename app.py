@@ -3778,8 +3778,10 @@ def api_hunt_roll():
         roll = random.randint(1, 20)
     total = roll + skill_mod
 
-    # Consome a tentativa e salva
+    # Consome a tentativa e salva. Guarda o d20 CRU: se foi Nat 1, a próxima
+    # 'Caçada Aleatória' do mestre para este jogador vira EMBOSCADA 1v2.
     entry['used'] += 1
+    entry['last_roll'] = roll
     hunts = state.get('hunts') or {}
     hunts[pid] = entry
     state['hunts'] = hunts
@@ -4022,14 +4024,57 @@ def master_hunt_random():
     if hunt_mode not in HUNT_MODES:
         hunt_mode = 'normal'
     route_id = data.get('route_id') or next(iter(ROUTES_DATA.keys()), None)
-    is_ambush = bool(data.get('is_ambush'))
+
+    # EMBOSCADA: Nat 1 no último Teste de Caçada deste jogador (guardado pelo
+    # servidor em api_hunt_roll) — ou o mestre forçando via is_ambush.
+    state = get_game_state()
+    entry, _dk = _hunt_entry(state, player_id)
+    last_roll = entry.pop('last_roll', None)   # consome: 1 rolagem = 1 liberação
+    hunts = state.get('hunts') or {}
+    hunts[player_id] = entry
+    state['hunts'] = hunts
+    save_game_state(state)
+    is_ambush = bool(data.get('is_ambush')) or last_roll == 1
 
     # Nível do encontro baseado no time real do jogador-alvo
     trainer = get_users().get(player_id, {}).get('trainer_data', {})
     team_levels = [int(p.get('level', 1) or 1) for p in trainer.get('team', [])]
     player_level = max(team_levels) if team_levels else int(data.get('player_level', 5))
 
-    enc = _build_random_encounter(route_id, hunt_mode, player_level, is_ambush)
+    if is_ambush:
+        # 💀 EMBOSCADA = 1v2: o jogador é CERCADO por dois selvagens da rota
+        # (batalha em grupo com 1 aliado). O perigo vem da desvantagem
+        # numérica, então os selvagens saem na faixa normal da rota — sem o
+        # +5..10 de nível do ambush 1v1 antigo (seria massacre). Sem fuga.
+        name, poke = _group_active_pokemon(player_id)
+        if not poke:
+            return jsonify({'error': 'Jogador não tem Pokémon disponível'}), 400
+        _mig([poke])
+        _stamp_tatica([poke], trainer)
+        allies = [{'player_id': player_id, 'name': name or 'Treinador', 'pokemon': poke}]
+        wilds = []
+        for _ in range(2):
+            wenc = _build_random_encounter(route_id, hunt_mode, player_level)
+            if not wenc:
+                return jsonify({'error': 'Nenhum Pokémon disponível para esta rota'}), 404
+            wp = dict(wenc['pokemon'])
+            wp['level'] = wenc['level']
+            wp.setdefault('defense_mode', _ai_defense_mode(wp))
+            wilds.append({'pokemon': wp, 'level': wenc['level'], 'moves': wenc['wild_moves']})
+        battle = gb.build_battle(allies, wilds, hunt_mode, route_id, _tid())
+        battle['ambush'] = True
+        battle['log'].insert(0, {'type': 'ambush',
+                                 'message': f'💀 EMBOSCADA! {name or "O treinador"} foi cercado por '
+                                            f'{wilds[0]["pokemon"].get("name")} e {wilds[1]["pokemon"].get("name")}'
+                                            ' — não dá para fugir!'})
+        ACTIVE_GROUP_BATTLES[battle['id']] = battle
+        if _wild_auto_mode():
+            _group_run_wild_turns(battle)
+        _group_broadcast(battle, 'group_battle_start')
+        return jsonify({'ok': True, 'ambush': True,
+                        'ambush_battle': gb.state_view(battle)})
+
+    enc = _build_random_encounter(route_id, hunt_mode, player_level)
     if not enc:
         return jsonify({'error': 'Nenhum Pokémon disponível para esta rota'}), 404
 
@@ -4408,6 +4453,10 @@ def handle_group_battle_action(data):
     # batalha no próprio turno. Sai da ordem sem penalidade de desmaio; se
     # não sobrar aliado vivo, a batalha termina em fuga (sem XP).
     if (data or {}).get('action') == 'flee':
+        if battle.get('ambush'):
+            emit('group_battle_error',
+                 {'message': '💀 EMBOSCADA! Você foi cercado — não dá para fugir. Vença ou desmaie!'})
+            return
         cur['fainted'] = True   # remove da ordem (alive_cids/advance ignoram)
         cur['fled'] = True      # marca fuga — não é desmaio de verdade
         battle['log'].append({'type': 'flee',

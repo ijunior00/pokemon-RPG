@@ -108,6 +108,18 @@ def gstate():
     return db.get_game_state(TID)
 
 
+def clear_nat1(uid):
+    """Limpa o último d20 de caçada guardado — rolagens VIRTUAIS dos testes
+    podem tirar Nat 1 por sorte e transformar o hunt/random seguinte numa
+    EMBOSCADA 1v2 (mecânica real), o que quebraria os asserts de encontro."""
+    gs = db.get_game_state(TID)
+    e = (gs.get('hunts') or {}).get(str(uid))
+    if e and 'last_roll' in e:
+        e.pop('last_roll', None)
+        gs['hunts'][str(uid)] = e
+        db.save_game_state(gs, TID)
+
+
 def main():
     global TID
     print('🔬 REVISÃO GERAL — teste de estresse de todos os sistemas')
@@ -442,6 +454,7 @@ def main():
     r = p1.post('/api/hunt/roll', json={})
     check(S, 'rola de novo após Energy Drink', r.status_code == 200)
     # mestre libera caçada aleatória respeitando horário+terreno (dungeon perigosa)
+    clear_nat1(u1)   # rolagens virtuais acima podem ter tirado Nat 1
     r = m.post('/master/hunt/random', json={'player_id': u1, 'hunt_mode': 'dungeon_night',
                                             'route_id': 'route1'})
     d = (r.get_json() or {}).get('encounter', {})
@@ -474,6 +487,7 @@ def main():
     S = 'Batalha Selvagem'
     m.post('/master/calendar/advance', json={'days': 1})
     s1.get_received()
+    clear_nat1(u1)   # rolagens virtuais anteriores podem ter tirado Nat 1
     r = m.post('/master/hunt/random', json={'player_id': u1, 'hunt_mode': 'normal',
                                             'route_id': 'route1'})
     enc = (r.get_json() or {}).get('encounter')
@@ -1781,6 +1795,64 @@ def main():
                     'capturado entrou no time/PC', 'capturado leva os moves do selvagem',
                     '2v1 encerra ao capturar o único selvagem'):
             check(S, f'captura em dupla: {_nm}', False, 'batalha não criada')
+    for c in (s1, s2, msio):
+        c.get_received()
+
+    # ── EMBOSCADA 1v2: Nat 1 no Teste de Caçada → 1 jogador vs 2 selvagens ──
+    _gs = gstate()
+    _hh = (_gs.get('hunts') or {}).get(str(u1)) or {}
+    _hh['used'] = 0
+    _gs.setdefault('hunts', {})[str(u1)] = _hh
+    db.save_game_state(_gs, TID)
+    appmod._rate_store.clear()
+    r = p1.post('/api/hunt/roll', json={'manual_roll': 1})
+    check(S, 'emboscada: Nat 1 aceito na rolagem', (r.get_json() or {}).get('roll') == 1)
+    check(S, 'emboscada: servidor guarda o último d20',
+          ((gstate().get('hunts') or {}).get(str(u1)) or {}).get('last_roll') == 1)
+    r = m.post('/master/hunt/random', json={'player_id': u1, 'hunt_mode': 'normal',
+                                            'route_id': 'route1'})
+    d = r.get_json() or {}
+    vamb = d.get('ambush_battle')
+    check(S, 'emboscada: caçada após Nat 1 vira 1v2',
+          bool(d.get('ambush')) and vamb is not None and vamb.get('mode') == '1v2',
+          f"{d.get('ambush')}/{vamb and vamb.get('mode')}")
+    check(S, 'emboscada: 1 aliado e 2 selvagens', vamb is not None
+          and len([c for c in vamb['combatants'] if c['side'] == 'ally']) == 1
+          and len([c for c in vamb['combatants'] if c['side'] == 'wild']) == 2)
+    check(S, 'emboscada: Nat 1 consumido na liberação',
+          'last_roll' not in ((gstate().get('hunts') or {}).get(str(u1)) or {}))
+    bamb = appmod.ACTIVE_GROUP_BATTLES.get(vamb['id']) if vamb else None
+    if bamb and bamb['phase'] == 'active':
+        my_amb = next(c['cid'] for c in bamb['combatants'].values() if c['side'] == 'ally')
+        if not bamb['combatants'][my_amb]['fainted']:
+            bamb['turn_idx'] = bamb['order'].index(my_amb)
+            s1.get_received()
+            s1.emit('group_battle_action', {'battle_id': vamb['id'], 'action': 'flee'})
+            _errs = recv(s1, 'group_battle_error')
+            check(S, 'emboscada: fuga bloqueada', bool(_errs)
+                  and vamb['id'] in appmod.ACTIVE_GROUP_BATTLES
+                  and appmod.ACTIVE_GROUP_BATTLES[vamb['id']]['phase'] == 'active')
+        else:
+            check(S, 'emboscada: fuga bloqueada', True, 'aliado caiu na abertura — pulado')
+        appmod.ACTIVE_GROUP_BATTLES.pop(vamb['id'], None)
+    else:
+        check(S, 'emboscada: fuga bloqueada', True, 'batalha terminou na abertura — pulado')
+    # rolagem normal em seguida → caçada 1v1 comum (o Nat 1 já foi consumido)
+    _gs = gstate()
+    _hh = (_gs.get('hunts') or {}).get(str(u1)) or {}
+    _hh['used'] = 0
+    _gs.setdefault('hunts', {})[str(u1)] = _hh
+    db.save_game_state(_gs, TID)
+    appmod._rate_store.clear()
+    p1.post('/api/hunt/roll', json={'manual_roll': 15})
+    r = m.post('/master/hunt/random', json={'player_id': u1, 'hunt_mode': 'normal',
+                                            'route_id': 'route1'})
+    d = r.get_json() or {}
+    check(S, 'emboscada: rolagem normal segue caçada 1v1 comum',
+          bool(d.get('encounter')) and not d.get('ambush'))
+    _gs = gstate()
+    (_gs.get('pending_encounters') or {}).pop(str(u1), None)
+    db.save_game_state(_gs, TID)
     for c in (s1, s2, msio):
         c.get_received()
 

@@ -80,10 +80,9 @@ def build_battle(allies, wilds, hunt_mode='normal', route_id=None, table_id=None
     order_pairs.sort(key=lambda t: (t[0], t[1], random.random()), reverse=True)
     order = [cid for _, _, cid in order_pairs]
 
-    n_wild = len(wilds)
     battle = {
         'id': uuid.uuid4().hex[:12],
-        'mode': '2v1' if n_wild == 1 else '2v2',
+        'mode': f'{len(allies)}v{len(wilds)}',   # 2v1, 2v2, 1v2 (emboscada)...
         'table_id': table_id,
         'combatants': combatants,
         'order': order,
@@ -227,6 +226,7 @@ def state_view(battle):
         })
     return {
         'id': battle['id'], 'mode': battle['mode'], 'phase': battle['phase'],
+        'ambush': bool(battle.get('ambush')),
         'turn_cid': cur, 'round': battle['round'], 'winner': battle.get('winner'),
         'combatants': combatants,
         'player_ids': battle['player_ids'],

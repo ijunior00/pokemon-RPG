@@ -273,10 +273,10 @@ function renderGroupBattle(view) {
     let controls = '';
     if (view.phase === 'finished') {
         const win = view.winner === 'ally';
-        const endMsg = win ? '🎉 Vitória da dupla!'
+        const endMsg = win ? (view.ambush ? '🎉 Você sobreviveu à emboscada!' : '🎉 Vitória da dupla!')
             : view.winner === 'fled' ? '🏃 A dupla fugiu da batalha.'
             : view.winner === 'master_ended' ? '⏹ O Mestre encerrou a batalha.'
-            : '💀 A dupla foi derrotada!';
+            : (view.ambush ? '💀 A emboscada te venceu!' : '💀 A dupla foi derrotada!');
         const endCol = win ? '#66bb6a' : (view.winner === 'fled' || view.winner === 'master_ended') ? '#ffcb05' : '#e53935';
         controls = `<div style="text-align:center;font-size:1.3rem;font-weight:800;margin:0.6rem 0;color:${endCol};">
             ${endMsg}</div>
@@ -293,7 +293,7 @@ function renderGroupBattle(view) {
                 <div class="form-group" style="flex:1;min-width:130px;"><label>Alvo</label>
                     <select id="gb-target">${targetOpts}</select></div>
                 <button class="btn btn-danger" onclick="groupBattleAttack()">⚔️ Atacar</button>
-                <button class="btn btn-secondary" onclick="groupBattleFlee()">🏃 Fugir</button>
+                ${view.ambush ? '' : '<button class="btn btn-secondary" onclick="groupBattleFlee()">🏃 Fugir</button>'}
             </div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin-top:0.5rem;border-top:1px dashed rgba(255,255,255,0.2);padding-top:0.5rem;">
                 <div class="form-group" style="flex:1;min-width:150px;"><label>Pokébola</label>
@@ -310,12 +310,15 @@ function renderGroupBattle(view) {
             : `<div style="text-align:center;opacity:0.85;margin-top:0.6rem;">⏳ Vez de <strong>${who}</strong> — aguarde.</div>`;
     }
 
+    const gbTitle = view.ambush ? `💀 EMBOSCADA — ${view.mode}`
+        : `👥 Batalha em Dupla — ${view.mode}`;
     card.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-            <strong>👥 Batalha em Dupla — ${view.mode}</strong>
+            <strong${view.ambush ? ' style="color:#e53935;"' : ''}>${gbTitle}</strong>
             <span style="opacity:0.75;font-size:0.85rem;">Rodada ${view.round}</span>
         </div>
-        <div style="font-size:0.75rem;opacity:0.7;margin-bottom:0.2rem;">🟢 Sua dupla</div>
+        ${view.ambush ? '<div style="font-size:0.78rem;color:#e53935;font-weight:700;margin-bottom:0.3rem;">Você foi cercado por dois selvagens — não dá para fugir!</div>' : ''}
+        <div style="font-size:0.75rem;opacity:0.7;margin-bottom:0.2rem;">${view.ambush ? '🟢 Seu Pokémon' : '🟢 Sua dupla'}</div>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">${alliesHtml}</div>
         <div style="text-align:center;font-weight:800;margin:0.4rem 0;opacity:0.8;">⚔️ VS ⚔️</div>
         <div style="font-size:0.75rem;opacity:0.7;margin-bottom:0.2rem;">🔴 Selvagens</div>
