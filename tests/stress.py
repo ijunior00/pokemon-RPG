@@ -1672,6 +1672,46 @@ def main():
     for c in (s1, s2, msio):
         c.get_received()
 
+    # ── FUGIR na dupla + FINALIZAR do mestre (report da mesa) ──
+    msio.emit('set_auto_mode', {'enabled': False}); recv(msio)   # determinístico
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2]})
+    v4 = (r.get_json() or {}).get('battle')
+    check(S, 'batalha p/ teste de fuga criada', bool(v4))
+    if v4:
+        for c in (s1, s2, msio):
+            c.get_received()
+        _cur = next((c for c in v4['combatants'] if c['cid'] == v4['turn_cid']), None)
+        if _cur and _cur['side'] == 'ally':
+            _cli = clients.get(str(_cur['player_id']))
+            _cli.emit('group_battle_action', {'battle_id': v4['id'], 'action': 'flee'})
+            v5 = None
+            for p in _cli.get_received():
+                if p['name'] in ('group_battle_update', 'group_battle_end') and p.get('args'):
+                    v5 = p['args'][0]
+            _fled = next((c for c in (v5 or v4)['combatants'] if c['cid'] == _cur['cid']), {})
+            check(S, 'FUGIR remove o combatente da luta (fainted/fled)',
+                  v5 is not None and bool(_fled.get('fainted')))
+            check(S, 'FUGIR registra no log da batalha',
+                  any('fugiu' in (l.get('message') or '') for l in (v5 or {}).get('log', [])))
+        else:
+            check(S, 'FUGIR remove o combatente da luta (fainted/fled)', False,
+                  'turno inicial não era de aliado')
+        # jogador NÃO pode encerrar; mestre PODE
+        _bid4 = v4['id']
+        check(S, 'jogador bloqueado no force-end da dupla',
+              p1.post(f'/master/battles/group/{_bid4}/force-end').status_code == 403)
+        if _bid4 in appmod.ACTIVE_GROUP_BATTLES:
+            r = m.post(f'/master/battles/group/{_bid4}/force-end')
+            check(S, 'mestre FINALIZA a batalha em dupla',
+                  (r.get_json() or {}).get('ok') is True
+                  and _bid4 not in appmod.ACTIVE_GROUP_BATTLES)
+        else:
+            check(S, 'mestre FINALIZA a batalha em dupla', True,
+                  'batalha já encerrada pela fuga')
+    msio.emit('set_auto_mode', {'enabled': True}); recv(msio)
+    for c in (s1, s2, msio):
+        c.get_received()
+
     # ══════════ 5. XP & EVOLUÇÃO ══════════
     section('5. XP, level-up e evoluções')
     S = 'XP/Evolução'
@@ -2822,6 +2862,16 @@ def main():
     check(S, 'captura: status do ativo persiste (envenenado)',
           _t[0].get('status') == 'envenenado')
 
+    # bolsa LEGADA guarda plural ("Pokébolas") — a captura tem que achar a bola
+    # (report da mesa: "poke bolas não estão selecionáveis")
+    _bag([{'name': 'Pokébolas', 'qty': 2}]); _team([])
+    _seed_cap(name='Rattata', hp=0, hpmax=100)
+    _rc.seed(8); _r = _cap('pokeball')
+    check(S, 'captura acha a bola com nome no PLURAL (bolsa legada)',
+          _r.get('result') in ('caught', 'failed')
+          and (db.get_users()[u1]['trainer_data']['bag'] or [{}])[0].get('qty', 2) == 1)
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+
     # sem bola → erro; sem login → bloqueado
     _bag([]); _seed_cap(hp=0)
     check(S, 'captura sem a bola na bolsa é negada',
@@ -2831,7 +2881,9 @@ def main():
           app.test_client().post('/player/capture', json={}).status_code in (302, 401))
     _team([])
 
-    # Movesets dos selvagens: qualidade garantida + variedade + TMs no Nv≥25
+    # Movesets dos selvagens: qualidade garantida + variedade (sem TMs desde a
+    # regra da mesa — golpes fortes agora vêm só do learnset por nível)
+    random.seed(4321)   # amostra estável (o check de POW alto é estatístico)
     _enc_sets = []
     for _ in range(12):
         enc = appmod._build_random_encounter(
@@ -2844,9 +2896,11 @@ def main():
             int(appmod.bm_core.VARIABLE_POWER.get(m.lower(), 0))
     check(S, 'todo selvagem tem ao menos 1 golpe de dano',
           all(any(_wm_power(m) > 0 for m in mv) for _, mv in _enc_sets))
+    # limiar 50%: sem TMs (regra da mesa), o POW alto depende do learnset da
+    # espécie sorteada — 70% era calibrado para a era com TMs no pool
     check(S, 'selvagens de nível alto têm golpe FORTE (POW ≥ 60)',
           sum(1 for _, mv in _enc_sets
-              if any(_wm_power(m) >= 60 for m in mv)) >= len(_enc_sets) * 0.7,
+              if any(_wm_power(m) >= 60 for m in mv)) >= len(_enc_sets) * 0.5,
           f'{sum(1 for _, mv in _enc_sets if any(_wm_power(m) >= 60 for m in mv))}/{len(_enc_sets)}')
     # variedade: mesma espécie não repete SEMPRE o mesmo moveset
     from collections import Counter as _Counter

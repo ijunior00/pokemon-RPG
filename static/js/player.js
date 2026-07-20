@@ -273,8 +273,13 @@ function renderGroupBattle(view) {
     let controls = '';
     if (view.phase === 'finished') {
         const win = view.winner === 'ally';
-        controls = `<div style="text-align:center;font-size:1.3rem;font-weight:800;margin:0.6rem 0;color:${win ? '#66bb6a' : '#e53935'};">
-            ${win ? '🎉 Vitória da dupla!' : '💀 A dupla foi derrotada!'}</div>
+        const endMsg = win ? '🎉 Vitória da dupla!'
+            : view.winner === 'fled' ? '🏃 A dupla fugiu da batalha.'
+            : view.winner === 'master_ended' ? '⏹ O Mestre encerrou a batalha.'
+            : '💀 A dupla foi derrotada!';
+        const endCol = win ? '#66bb6a' : (view.winner === 'fled' || view.winner === 'master_ended') ? '#ffcb05' : '#e53935';
+        controls = `<div style="text-align:center;font-size:1.3rem;font-weight:800;margin:0.6rem 0;color:${endCol};">
+            ${endMsg}</div>
             <button class="btn btn-primary" style="width:100%;" onclick="closeGroupBattle()">Fechar</button>`;
     } else if (myTurn) {
         const aliveWilds = wilds.filter(w => !w.fainted);
@@ -288,6 +293,7 @@ function renderGroupBattle(view) {
                 <div class="form-group" style="flex:1;min-width:130px;"><label>Alvo</label>
                     <select id="gb-target">${targetOpts}</select></div>
                 <button class="btn btn-danger" onclick="groupBattleAttack()">⚔️ Atacar</button>
+                <button class="btn btn-secondary" onclick="groupBattleFlee()">🏃 Fugir</button>
             </div></div>`;
     } else if (view.phase === 'active') {
         const who = turnC ? turnC.name : '...';
@@ -318,6 +324,14 @@ function groupBattleAttack() {
     if (!target) { showNotification('Escolha um alvo', 'error'); return; }
     socket.emit('group_battle_action', {
         battle_id: _groupBattleView.id, move_name: move, target_cid: target
+    });
+}
+
+function groupBattleFlee() {
+    if (!_groupBattleView) return;
+    if (!confirm('🏃 Fugir da batalha? Seu Pokémon sai da luta (sem XP). Se o parceiro continuar, a batalha segue sem você.')) return;
+    socket.emit('group_battle_action', {
+        battle_id: _groupBattleView.id, action: 'flee'
     });
 }
 
@@ -2451,8 +2465,11 @@ function pokeballOptionsHtml() {
         { key: 'masterball', names: ['Master Ball'], label: 'Master Ball', bonus: 'garantida' },
     ];
     const bag = window.bagItems || [];
+    // bolsas legadas guardam PLURAL ("5 Pokébolas" → "Pokébolas") — sem
+    // tolerar o 's' final, todas as opções apareciam ×0 (desabilitadas)
+    const _sing = (s) => { const x = (s || '').toLowerCase().trim(); return x.endsWith('s') ? x.slice(0, -1) : x; };
     const qtyOf = (names) => {
-        const it = bag.find(b => names.some(n => (b.name || '').toLowerCase() === n.toLowerCase()));
+        const it = bag.find(b => names.some(n => _sing(b.name) === _sing(n)));
         return it ? (it.qty || 0) : 0;
     };
     return balls.map(b => {

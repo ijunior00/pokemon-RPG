@@ -2497,6 +2497,27 @@ def master_force_end_pvp(battle_id):
     return jsonify({'ok': True, 'winner': winner_key})
 
 
+@app.route('/master/battles/group/<battle_id>/force-end', methods=['POST'])
+@login_required
+def master_force_end_group(battle_id):
+    """Mestre encerra uma batalha em dupla na força (sem vencedor/XP)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    battle = ACTIVE_GROUP_BATTLES.get(battle_id)
+    if not battle:
+        return jsonify({'error': 'Batalha não encontrada'}), 404
+    # escopo de mesa: mestre só encerra batalha da PRÓPRIA mesa
+    if battle.get('table_id') and battle['table_id'] != _tid():
+        return jsonify({'error': 'Batalha não pertence a esta mesa'}), 403
+    battle['phase'] = 'finished'
+    battle['winner'] = 'master_ended'
+    battle['log'].append({'type': 'end', 'winner': 'master_ended',
+                          'message': '⏹ O Mestre encerrou a batalha em dupla.'})
+    _group_broadcast(battle, 'group_battle_end')
+    ACTIVE_GROUP_BATTLES.pop(battle_id, None)
+    return jsonify({'ok': True})
+
+
 # ============================================================
 # NPC MANAGEMENT
 # ============================================================
@@ -4383,6 +4404,31 @@ def handle_group_battle_action(data):
         emit('group_battle_error', {'message': '💀 Este Pokémon desmaiou — não pode agir.'})
         return
 
+    # 🏃 FUGIR: o dono do combatente atual (ou o mestre) tira o Pokémon da
+    # batalha no próprio turno. Sai da ordem sem penalidade de desmaio; se
+    # não sobrar aliado vivo, a batalha termina em fuga (sem XP).
+    if (data or {}).get('action') == 'flee':
+        cur['fainted'] = True   # remove da ordem (alive_cids/advance ignoram)
+        cur['fled'] = True      # marca fuga — não é desmaio de verdade
+        battle['log'].append({'type': 'flee',
+                              'message': f"🏃 {cur['name']} fugiu da batalha!"})
+        if not gb.alive_cids(battle, 'ally'):
+            battle['phase'] = 'finished'
+            battle['winner'] = 'fled'
+            battle['log'].append({'type': 'end', 'winner': 'fled',
+                                  'message': '🏃 A dupla fugiu da batalha!'})
+        else:
+            gb.advance_turn(battle)
+            if _wild_auto_mode():
+                _group_run_wild_turns(battle)
+            _group_field_round_hook(battle)
+        if battle['phase'] == 'finished':
+            _group_broadcast(battle, 'group_battle_end')
+            ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
+        else:
+            _group_broadcast(battle)
+        return
+
     target_cid = data.get('target_cid')
     target = battle['combatants'].get(target_cid)
     if not target or target['side'] != 'wild' or target['fainted']:
@@ -4589,7 +4635,12 @@ CAPTURE_HP_GATE_RELAXED = 0.65   # dormindo/congelado: até 65%
 def _find_ball_in_bag(bag, ball_type):
     names = set(CAPTURE_BALLS.get(ball_type, {}).get('names', []))
     for it in (bag or []):
-        if isinstance(it, dict) and (it.get('name') or '').strip().lower() in names:
+        if not isinstance(it, dict):
+            continue
+        nm = (it.get('name') or '').strip().lower()
+        # bolsas legadas guardam PLURAL ("5 Pokébolas" → nome "Pokébolas") —
+        # sem tolerar o 's' final, nenhuma bola era encontrada na captura
+        if nm in names or (nm.endswith('s') and nm[:-1] in names):
             return it
     return None
 

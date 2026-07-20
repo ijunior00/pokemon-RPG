@@ -811,16 +811,32 @@ function renderGroupMonitor(view) {
     const curWild = view.combatants.find(c => c.cid === view.turn_cid && c.side === 'wild');
     const wildBtn = (view.phase === 'active' && curWild)
         ? `<button class="btn btn-sm btn-warning" onclick="advanceGroupWild('${view.id}')">▶️ Jogar selvagem (${curWild.name})</button>` : '';
+    // Mestre sempre pode ENCERRAR a batalha em dupla (sem vencedor/XP)
+    const endBtn = (view.phase === 'active')
+        ? `<button class="btn btn-sm btn-danger" onclick="forceEndGroupBattle('${view.id}')">⏹ Finalizar batalha</button>` : '';
     let head = `Rodada ${view.round} · ${view.mode}`;
-    if (view.phase === 'finished')
-        head = view.winner === 'ally' ? '🎉 A dupla venceu!' : '💀 Os selvagens venceram!';
+    if (view.phase === 'finished') {
+        head = view.winner === 'ally' ? '🎉 A dupla venceu!'
+             : view.winner === 'fled' ? '🏃 A dupla fugiu da batalha.'
+             : view.winner === 'master_ended' ? '⏹ Batalha encerrada pelo Mestre.'
+             : '💀 Os selvagens venceram!';
+    }
     mon.innerHTML = `<div style="font-weight:700;margin-bottom:0.3rem;">👥 ${head}</div>${rows}
         <div style="margin-top:0.4rem;font-size:0.8rem;opacity:0.85;max-height:110px;overflow-y:auto;">${log}</div>
-        <div style="margin-top:0.4rem;">${wildBtn}</div>`;
+        <div style="margin-top:0.4rem;display:flex;gap:0.4rem;flex-wrap:wrap;">${wildBtn}${endBtn}</div>`;
 }
 
 function advanceGroupWild(battleId) {
     socket.emit('group_wild_turn', { battle_id: battleId });
+}
+
+async function forceEndGroupBattle(battleId) {
+    if (!confirm('⏹ Encerrar a batalha em dupla agora? (sem vencedor nem XP)')) return;
+    try {
+        const r = await fetch(`/master/battles/group/${battleId}/force-end`, { method: 'POST' });
+        const d = await r.json();
+        if (!d.ok) showNotification('❌ ' + (d.error || 'Falha ao encerrar'), 'error');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
 }
 
 socket.on('group_battle_start',  (v) => renderGroupMonitor(v));
