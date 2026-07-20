@@ -751,7 +751,28 @@ async function startBattle() {
         }
     }
     
-    // Always fetch full data from API to ensure number/stats/moves exist
+    await _enrichPlayerPokemon(playerPokemon);
+
+    const enemy = currentEncounter.pokemon;
+
+    // Notify master with full pokemon data
+    socket.emit('start_encounter', {
+        pokemon: enemy, level: currentEncounter.level,
+        is_shiny: currentEncounter.is_shiny, route_id: currentEncounter.route_id,
+        player_pokemon: playerPokemon.nickname || playerPokemon.name,
+        player_pokemon_idx: parseInt(selectIdx) || 0,
+        wild_moves: currentEncounter.wild_moves || []
+    });
+
+    // Auto-roll initiative (no longer needs master)
+    socket.emit('roll_initiative', { player_id: null, auto: true });
+
+    await _fillBattleUI(playerPokemon);
+}
+
+// Completa o Pokémon do jogador com dados da API (number/stats/moves/AC) —
+// usado no início de batalha e na reidratação pós-refresh.
+async function _enrichPlayerPokemon(playerPokemon) {
     try {
         const searchName = playerPokemon.name;
         const resp = await fetch(`/api/pokemon?search=${encodeURIComponent(searchName)}`);
@@ -802,20 +823,14 @@ async function startBattle() {
             }
         }
     } catch(e) { console.error('API fetch failed:', e); }
-    
-    const enemy = currentEncounter.pokemon;
-    
-    // Notify master with full pokemon data
-    socket.emit('start_encounter', {
-        pokemon: enemy, level: currentEncounter.level,
-        is_shiny: currentEncounter.is_shiny, route_id: currentEncounter.route_id,
-        player_pokemon: playerPokemon.nickname || playerPokemon.name,
-        player_pokemon_idx: parseInt(selectIdx) || 0,
-        wild_moves: currentEncounter.wild_moves || []
-    });
+}
 
-    // Auto-roll initiative (no longer needs master)
-    socket.emit('roll_initiative', { player_id: null, auto: true });
+// Monta toda a UI de batalha a partir de currentEncounter + playerPokemon.
+// Também é usada pela reidratação pós-refresh (resumeActiveBattle) — por
+// isso NÃO emite start_encounter nem roll_initiative aqui dentro (o gate de
+// pending_encounters do servidor negaria e o battle_state seria resetado).
+async function _fillBattleUI(playerPokemon) {
+    const enemy = currentEncounter.pokemon;
 
     // Switch to battle tab
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -952,13 +967,124 @@ async function startBattle() {
     if (currentEncounter?.ambush) {
         addBattleLog('⚠️ <strong>EMBOSCADA!</strong> O selvagem te pegou desprevenido — não dá para trocar de Pokémon nem fugir facilmente!');
     }
-    
-    // Auto-roll initiative (player can trigger it themselves)
-    socket.emit('roll_initiative', {});
-    
+
     // Check mega availability
     megaUsedThisBattle = false;
     checkMegaAvailable();
+}
+
+// ============================================================
+// Reidratação pós-refresh: se o servidor ainda tem uma batalha ativa
+// deste jogador (encontro 1v1 ou batalha em dupla), remonta a UI sem
+// reiniciar o combate — NÃO emite start_encounter (o gate de
+// pending_encounters negaria e o battle_state seria zerado).
+// ============================================================
+async function resumeActiveBattle() {
+    let d = null;
+    try {
+        const r = await fetch('/player/battle/active');
+        if (!r.ok) return;
+        d = await r.json();
+    } catch (e) { return; }
+    if (!d) return;
+
+    // Batalha em dupla: a view do servidor já é o formato do overlay
+    if (d.group_battle) {
+        try { renderGroupBattle(d.group_battle); } catch (e) { console.error('resume grupo falhou:', e); }
+    }
+
+    const enc = d.encounter;
+    if (!enc || !enc.pokemon) return;
+
+    currentEncounter = {
+        pokemon: enc.pokemon,
+        level: enc.level,
+        is_shiny: enc.is_shiny,
+        route_id: enc.route_id,
+        wild_moves: enc.wild_moves || []
+    };
+    if (typeof d.wild_auto !== 'undefined') window._wildAuto = d.wild_auto !== false;
+
+    // Mesmo Pokémon que estava em campo (idx salvo no encontro);
+    // fallback: primeiro vivo do time
+    let idx = parseInt(enc.player_pokemon_idx);
+    if (isNaN(idx) || !playerTeam[idx]) {
+        idx = playerTeam.findIndex(p => (p.currentHp === undefined || p.currentHp > 0));
+        if (idx < 0) idx = 0;
+    }
+    const playerPokemon = playerTeam[idx];
+    if (!playerPokemon || !playerPokemon.name) return;
+
+    await _enrichPlayerPokemon(playerPokemon);
+    await _fillBattleUI(playerPokemon);
+
+    // Reaplica o battle_state salvo (HP/status/estágios/turno) por cima
+    // da UI recém-montada — mesmo formato do handler de battle_update
+    const bs = enc.battle_state || {};
+    const eMax = bs.wild_hp_max || currentEncounter.pokemon.hp;
+    const eCur = (bs.wild_hp_current !== undefined && bs.wild_hp_current !== null) ? bs.wild_hp_current : eMax;
+    if (window.currentBattleData?.enemy) window.currentBattleData.enemy.currentHp = eCur;
+    setHpBar('battle-enemy-hp-bar-full', eCur, eMax);
+    document.getElementById('battle-enemy-hp-text-full').textContent = `${eCur}/${eMax} HP`;
+    const pMax = bs.player_hp_max || playerPokemon.maxHp || 20;
+    const pCur = (bs.player_hp_current !== undefined && bs.player_hp_current !== null)
+        ? bs.player_hp_current : (playerPokemon.currentHp ?? pMax);
+    setHpBar('battle-player-hp-bar-full', pCur, pMax);
+    document.getElementById('battle-player-hp-text-full').textContent = `${pCur}/${pMax} HP`;
+    if (window.currentBattleData?.playerPokemon) window.currentBattleData.playerPokemon.currentHp = Math.max(0, pCur);
+
+    if (bs.wild_status) {
+        window.wildPokemonStatus = typeof bs.wild_status === 'string'
+            ? { condition: bs.wild_status, turns_active: 0 } : bs.wild_status;
+    }
+    if (bs.player_status) {
+        window.playerPokemonStatus = typeof bs.player_status === 'string'
+            ? { condition: bs.player_status, turns_active: 0 } : bs.player_status;
+    }
+    try { updateStatusDisplay(); } catch (e) {}
+
+    if (bs.wild_stat_stages !== undefined) window._wildStages = bs.wild_stat_stages;
+    if (bs.player_stat_stages !== undefined) window._playerStages = bs.player_stat_stages;
+    try { updateWildStageBadges(window._wildStages, window._playerStages); } catch (e) {}
+
+    if (bs.player_defense_mode) {
+        window.playerDefenseMode = bs.player_defense_mode;
+        try { updateDefenseModeButton(); } catch (e) {}
+    }
+
+    const roundDisplay = document.getElementById('battle-round-display');
+    if (roundDisplay) roundDisplay.textContent = `⚔️ Round ${bs.round || 1}`;
+
+    const log = document.getElementById('battle-log-full');
+    if (log) log.innerHTML = `<p>🔄 <strong>Batalha retomada</strong> — ${playerPokemon.nickname || playerPokemon.name} vs ${currentEncounter.pokemon.name} selvagem (Round ${bs.round || 1}).</p>`;
+
+    if (eCur <= 0) {
+        // Selvagem já estava a 0 HP (janela de captura pós-derrota)
+        window.wildFainted = true;
+        window.currentTurn = 'player';
+        updateTurnUI();
+        addBattleLog('💀 O selvagem está desmaiado — você pode tentar capturá-lo.');
+        return;
+    }
+
+    if (!bs.initiative_rolled) {
+        // Refresh antes da iniciativa: rola agora (o servidor tem guarda
+        // de dedup em initiative_rolled, então não há rolagem dupla)
+        socket.emit('roll_initiative', { player_id: null, auto: true });
+        return;
+    }
+
+    window.currentTurn = bs.turn || 'player';
+    updateTurnUI();
+    const turnDisplay = document.getElementById('battle-turn-display');
+    if (turnDisplay) turnDisplay.textContent = window.currentTurn === 'player' ? '🟢 Seu turno' : '🔴 Turno do oponente';
+    if (window.currentTurn === 'wild' && pCur > 0) {
+        if (window._wildAuto === false) {
+            addBattleLog('⏳ <em>Modo manual: aguardando o Mestre jogar o turno do selvagem…</em>');
+        } else {
+            setTimeout(() => wildPokemonAutoAttack(), 1500);
+        }
+    }
 }
 
 // Listen for initiative result
@@ -4011,6 +4137,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             refreshTeamDisplay();
         }
     } catch(e) {}
+    // Depois do time fresco: retoma batalha ativa perdida num refresh
+    try { await resumeActiveBattle(); } catch(e) { console.error('resumeActiveBattle:', e); }
 });
 
 

@@ -4702,6 +4702,32 @@ def _build_captured_pokemon(enc, base, level, cur_hp, heal_full=False):
     return poke
 
 
+@app.route('/player/battle/active')
+@login_required
+def player_active_battle():
+    """Reidratação pós-refresh: devolve a batalha ativa deste jogador.
+
+    - `encounter`: o encontro 1v1 salvo em active_encounters (payload
+      completo, incluindo battle_state — HP/status/turno/estágios);
+    - `group_battle`: view da batalha em dupla em que ele está (memória);
+    - `wild_auto`: modo do selvagem da mesa (auto x manual).
+    O cliente usa isso para remontar a UI SEM reiniciar o combate.
+    """
+    pid = str(current_user.id)
+    enc = (get_game_state().get('active_encounters') or {}).get(pid)
+    group = None
+    _t = _tid()
+    for b in ACTIVE_GROUP_BATTLES.values():
+        if b.get('table_id') != _t or b.get('phase') != 'active':
+            continue
+        if any(c.get('player_id') == pid
+               for c in b['combatants'].values() if c.get('side') == 'ally'):
+            group = gb.state_view(b)
+            break
+    return jsonify({'encounter': enc, 'group_battle': group,
+                    'wild_auto': _wild_auto_mode()})
+
+
 @app.route('/player/capture', methods=['POST'])
 @login_required
 def player_capture():

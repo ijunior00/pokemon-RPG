@@ -843,16 +843,64 @@ socket.on('group_battle_start',  (v) => renderGroupMonitor(v));
 socket.on('group_battle_update', (v) => renderGroupMonitor(v));
 socket.on('group_battle_end',    (v) => renderGroupMonitor(v));
 
-// Rehidrata o monitor da batalha em grupo após reload da página — sem isso
-// o mestre perdia o botão de jogar os selvagens (e a batalha travava).
+// Rehidrata batalhas após reload da página — sem isso o mestre perdia os
+// cards de encontro 1v1 e o monitor da batalha em grupo (e a mesa travava).
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const resp = await fetch('/master/battles/active');
         const data = await resp.json();
+        // Encontros 1v1: o payload salvo tem o MESMO shape do evento
+        // encounter_started, então o card remonta direto; depois reaplica
+        // o battle_state salvo (HP/status/turno/round) por cima.
+        for (const enc of Object.values(data.wild_encounters || {})) {
+            if (!enc || !enc.pokemon) continue;
+            if (document.querySelector(`[data-encounter-player="${enc.player_id}"]`)) continue;
+            addEncounterCard(enc);
+            _applyEncounterState(enc);
+        }
         const groups = (data.group_battles || []).filter(g => g.phase === 'active');
         if (groups.length) renderGroupMonitor(groups[groups.length - 1]);
     } catch(e) {}
 });
+
+// Reaplica o battle_state persistido num card recém-remontado (reidratação)
+function _applyEncounterState(enc) {
+    const card = document.querySelector(`[data-encounter-player="${enc.player_id}"]`);
+    const bs = enc.battle_state;
+    if (!card || !bs) return;
+    const wildBar = card.querySelector('.wild-hp-bar');
+    const playerBar = card.querySelector('.player-hp-bar-master');
+    if (wildBar && bs.wild_hp_max) wildBar.style.width = `${Math.max(0, (bs.wild_hp_current / bs.wild_hp_max) * 100)}%`;
+    if (playerBar && bs.player_hp_max) playerBar.style.width = `${Math.max(0, (bs.player_hp_current / bs.player_hp_max) * 100)}%`;
+    const wildHpText = card.querySelector('.wild-hp-text');
+    const playerHpText = card.querySelector('.player-hp-text-master');
+    if (wildHpText) wildHpText.textContent = `${bs.wild_hp_current}/${bs.wild_hp_max}`;
+    if (playerHpText) playerHpText.textContent = `${bs.player_hp_current}/${bs.player_hp_max}`;
+    const wildStatusBadge = card.querySelector('.wild-status-badge');
+    const playerStatusBadge = card.querySelector('.player-status-badge');
+    const wKey = bs.wild_status ? (typeof bs.wild_status === 'string' ? bs.wild_status : bs.wild_status.condition) : null;
+    const pKey = bs.player_status ? (typeof bs.player_status === 'string' ? bs.player_status : bs.player_status.condition) : null;
+    if (wildStatusBadge) {
+        wildStatusBadge.textContent = wKey ? statusLabel(wKey) : '';
+        wildStatusBadge.style.display = wKey ? 'inline-block' : 'none';
+    }
+    if (playerStatusBadge) {
+        playerStatusBadge.textContent = pKey ? statusLabel(pKey) : '';
+        playerStatusBadge.style.display = pKey ? 'inline-block' : 'none';
+    }
+    const turnEl = card.querySelector('.turn-indicator');
+    if (turnEl && bs.initiative_rolled) {
+        turnEl.textContent = bs.turn === 'player' ? '🟢 Turno do Jogador' : '🔴 Turno do Selvagem (Mestre)';
+    }
+    const roundEl = card.querySelector('.round-counter');
+    if (roundEl) roundEl.textContent = `⚔️ Round ${bs.round || 1}`;
+    const masterControls = card.querySelector('.master-attack-controls');
+    if (masterControls && !wildAutoMode && bs.initiative_rolled && bs.turn === 'wild') {
+        masterControls.classList.remove('hidden');
+    }
+    const log = card.querySelector('.battle-log-master');
+    if (log) log.innerHTML += `<p>🔄 <em>Batalha retomada após recarregar a página (Round ${bs.round || 1}).</em></p>`;
+}
 
 // ============================================
 // POKEDEX — Master (lista completa, sempre desbloqueada)

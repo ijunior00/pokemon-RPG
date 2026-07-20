@@ -815,6 +815,28 @@ def main():
     _rs[u2]['trainer_data']['money'] = _m2_bak
     db.save_users(_rs)
 
+    # Reidratação pós-refresh: /player/battle/active devolve o encontro salvo
+    # (payload completo com battle_state) sem mexer no estado da batalha
+    _seed_exploit_enc(php=22, pmax=60, whp=13, wmax=40)
+    r = p1.get('/player/battle/active')
+    _rh = r.get_json() or {}
+    _re = _rh.get('encounter') or {}
+    check(S, 'rehidratação: encontro ativo volta no /player/battle/active',
+          r.status_code == 200
+          and (_re.get('pokemon') or {}).get('name') == enc['pokemon']['name']
+          and (_re.get('battle_state') or {}).get('wild_hp_current') == 13
+          and (_re.get('battle_state') or {}).get('player_hp_current') == 22)
+    check(S, 'rehidratação: payload traz wild_auto', isinstance(_rh.get('wild_auto'), bool))
+    _bs_before = gstate()['active_encounters'][str(u1)]['battle_state']
+    check(S, 'rehidratação: GET não muda o battle_state',
+          _bs_before.get('wild_hp_current') == 13 and _bs_before.get('turn') == 'player')
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+    r = p1.get('/player/battle/active')
+    _rh = r.get_json() or {}
+    check(S, 'rehidratação: sem batalha → encounter/group nulos',
+          r.status_code == 200 and _rh.get('encounter') is None
+          and _rh.get('group_battle') is None)
+
     # Lote 3 — pokemon-center bloqueado durante encontro ativo
     _gs = gstate()
     _gs.setdefault('active_encounters', {})[str(u1)] = {
@@ -1655,6 +1677,11 @@ def main():
     r = m.get('/master/battles/active')
     check(S, 'rehidratação: group_battles no /master/battles/active',
           any(g.get('id') == v3['id'] for g in (r.get_json() or {}).get('group_battles', [])))
+    # jogador também rehidrata: /player/battle/active devolve a batalha em grupo
+    r = p1.get('/player/battle/active')
+    check(S, 'rehidratação: /player/battle/active devolve a batalha em grupo',
+          r.status_code == 200
+          and ((r.get_json() or {}).get('group_battle') or {}).get('id') == v3['id'])
     # botão do mestre → group_wild_turn destrava (selvagem joga)
     _log_before = len(v3.get('log') or [])
     msio.emit('group_wild_turn', {'battle_id': v3['id']})
