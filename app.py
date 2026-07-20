@@ -4152,6 +4152,104 @@ def _group_broadcast(battle, event='group_battle_update'):
     _spectate('group', {'id': battle['id'], 'players': [str(p) for p in battle['player_ids']],
                         'view': view, 'finished': battle['phase'] == 'finished'},
               table_id=battle['table_id'])
+    # 💀 Selvagens venceram: quem ficou SEM NENHUM Pokémon vivo no time é
+    # alcançado pelo selvagem — avanço no treinador (o mestre conduz a cena)
+    if event == 'group_battle_end' and battle.get('winner') == 'wild':
+        _group_trainer_threat(battle)
+
+
+def _emit_trainer_threat(table_id, payload):
+    """Anuncia o avanço no TREINADOR para a mesa inteira + mestre."""
+    socketio.emit('trainer_threatened', payload, room=f'players_{table_id}')
+    socketio.emit('trainer_threatened', payload, room=f'master_{table_id}')
+
+
+def _wild_trainer_threat(player_id, encounter, game_state, table_id):
+    """💀 O selvagem derrotou o Pokémon ativo e o TIME INTEIRO está caído:
+    o selvagem AVANÇA NO TREINADOR. Decisão de mesa: sem regra automática —
+    alerta dramático para todos + cena aberta para o MESTRE conduzir (pedir
+    Coragem/Atletismo, improvisar consequência). Dispara 1x por encontro.
+    Recebe table_id explícito (é chamado também fora de request context)."""
+    bs = encounter.get('battle_state') or {}
+    if bs.get('trainer_threatened'):
+        return
+    if int(bs.get('player_hp_current') or 0) > 0:
+        return
+    trainer = get_users().get(str(player_id), {}).get('trainer_data', {}) or {}
+    team = trainer.get('team', []) or []
+    active_idx = encounter.get('player_pokemon_idx')
+    for i, p in enumerate(team):
+        if i == active_idx:
+            continue   # o ativo caiu (o battle_state manda; o time pode estar defasado)
+        try:
+            if int(p.get('currentHp') or 0) > 0:
+                return   # ainda há Pokémon vivo → troca possível, sem avanço
+        except (TypeError, ValueError):
+            return
+    bs['trainer_threatened'] = True
+    encounter['battle_state'] = bs
+    _db_raw.save_game_state(game_state, table_id)   # bs é o mesmo dict do game_state
+    wild_name = (encounter.get('pokemon') or {}).get('name', 'O selvagem')
+    poke = encounter.get('player_pokemon') or {}
+    pname = encounter.get('player_name') or 'o treinador'
+    _emit_trainer_threat(table_id, {
+        'player_id': str(player_id),
+        'player_name': pname,
+        'wild_name': wild_name,
+        'wild_level': encounter.get('level'),
+        'pokemon_name': poke.get('nickname') or poke.get('name') or 'o Pokémon',
+        'message': f'💀 {wild_name} derrotou o último Pokémon de {pname} '
+                   'e AVANÇOU NO TREINADOR!',
+        'suggested_skills': ['Coragem', 'Atletismo'],
+    })
+
+
+def _group_trainer_threat(battle):
+    """Versão de GRUPO do avanço no treinador: para cada jogador derrotado
+    (combatente caído SEM outro Pokémon vivo no time), anuncia o avanço.
+    Quem fugiu escapou; quem ainda tem time só perdeu o Pokémon em campo."""
+    if battle.get('_threat_sent'):
+        return
+    battle['_threat_sent'] = True
+    users = get_users()
+    wild_names = ' e '.join(c['name'] for c in battle['combatants'].values()
+                            if c['side'] == 'wild' and not c.get('captured')) or 'Os selvagens'
+    for pid in battle['player_ids']:
+        mine = [c for c in battle['combatants'].values()
+                if c.get('side') == 'ally' and str(c.get('player_id')) == str(pid)]
+        if not mine or any(c.get('fled') for c in mine):
+            continue   # fugiu a tempo — escapou do avanço
+        # exclui do "tem vivo?" os Pokémon que estavam EM CAMPO (HP da luta
+        # vive no combatente; o currentHp armazenado do time pode estar cheio)
+        fought = [(c.get('pokemon') or {}) for c in mine]
+        f_uids = {p.get('uid') for p in fought if p.get('uid')}
+        f_keys = {(p.get('name'), p.get('level')) for p in fought}
+        trainer = users.get(str(pid), {}).get('trainer_data', {}) or {}
+        others_alive = False
+        for p in (trainer.get('team', []) or []):
+            if (p.get('uid') and p.get('uid') in f_uids) \
+                    or (p.get('name'), p.get('level')) in f_keys:
+                continue
+            try:
+                if int(p.get('currentHp') or 0) > 0:
+                    others_alive = True
+                    break
+            except (TypeError, ValueError):
+                others_alive = True
+                break
+        if others_alive:
+            continue
+        uname = users.get(str(pid), {}).get('username') or 'o treinador'
+        _emit_trainer_threat(battle['table_id'], {
+            'player_id': str(pid),
+            'player_name': uname,
+            'wild_name': wild_names,
+            'wild_level': None,
+            'pokemon_name': mine[0].get('name') or 'o Pokémon',
+            'message': f'💀 {wild_names} derrotaram o último Pokémon de {uname} '
+                       'e AVANÇARAM NO TREINADOR!',
+            'suggested_skills': ['Coragem', 'Atletismo'],
+        })
 
 
 def _group_apply_status_move(battle, actor_cid, target_cid, move_name, move_data):
@@ -7186,6 +7284,11 @@ def handle_battle_action(data):
         emit('battle_update', action_result, room=player_id)
         _spectate_wild(player_id, encounter,
                        last=(f'{move_name}: {message}' if move_name else message) or '…')
+
+        # 💀 Pokémon do jogador caiu: se o time inteiro está no chão, o
+        # selvagem AVANÇA NO TREINADOR (alerta para a mesa; o mestre conduz)
+        if int(battle_state.get('player_hp_current') or 0) <= 0:
+            _wild_trainer_threat(player_id, encounter, game_state, _tid())
         
         # Wild auto-attack is handled client-side (player.js wildPokemonAutoAttack) to support
         # status damage, move variety, and status moves. Server-side auto-attack removed to

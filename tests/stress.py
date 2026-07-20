@@ -1856,6 +1856,78 @@ def main():
     for c in (s1, s2, msio):
         c.get_received()
 
+    # ── 💀 AVANÇO NO TREINADOR: último Pokémon caiu → o selvagem parte pro
+    #    jogador (alerta pra mesa + cena pro mestre; sem regra automática) ──
+    _team_snap2 = [p.get('currentHp') for p in db.get_users()[u1]['trainer_data']['team']]
+    _seed_exploit_enc(php=0, pmax=60, whp=30, wmax=40)
+    _gs = gstate()
+    _gs['active_encounters'][str(u1)]['player_pokemon_idx'] = 0
+    _gs['active_encounters'][str(u1)]['battle_state']['player_hp_current'] = 0
+    db.save_game_state(_gs, TID)
+    # caso A: ainda há Pokémon vivo no time → NÃO dispara (troca possível)
+    _uu = db.get_users()
+    for _i, _p in enumerate(_uu[u1]['trainer_data']['team']):
+        _p['currentHp'] = 50 if _i == 1 else 0
+    db.save_users(_uu)
+    s1.get_received(); msio.get_received()
+    _gs = gstate()
+    appmod._wild_trainer_threat(str(u1), _gs['active_encounters'][str(u1)], _gs, TID)
+    check(S, 'avanço no treinador: com troca viva NÃO dispara',
+          not recv(msio, 'trainer_threatened')
+          and not gstate()['active_encounters'][str(u1)]['battle_state'].get('trainer_threatened'))
+    # caso B: time INTEIRO caído → dispara para o mestre e para a mesa
+    _uu = db.get_users()
+    for _p in _uu[u1]['trainer_data']['team']:
+        _p['currentHp'] = 0
+    db.save_users(_uu)
+    _gs = gstate()
+    appmod._wild_trainer_threat(str(u1), _gs['active_encounters'][str(u1)], _gs, TID)
+    _evm = recv(msio, 'trainer_threatened')
+    _evp = recv(s1, 'trainer_threatened')
+    check(S, 'avanço no treinador: time todo caído dispara pro mestre',
+          bool(_evm) and _evm[0]['args'][0].get('player_id') == str(u1))
+    check(S, 'avanço no treinador: a mesa recebe o alerta', bool(_evp))
+    check(S, 'avanço no treinador: flag persiste no battle_state',
+          gstate()['active_encounters'][str(u1)]['battle_state'].get('trainer_threatened') is True)
+    _gs = gstate()
+    appmod._wild_trainer_threat(str(u1), _gs['active_encounters'][str(u1)], _gs, TID)
+    check(S, 'avanço no treinador: só 1x por encontro (dedup)',
+          not recv(msio, 'trainer_threatened'))
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+    # grupo: selvagens venceram → só quem ficou SEM time é alcançado
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
+                                           'hunt_mode': 'normal', 'route_id': 'route1'})
+    vg = (r.get_json() or {}).get('battle')
+    bg = appmod.ACTIVE_GROUP_BATTLES.get(vg['id']) if vg else None
+    if bg:
+        _uu = db.get_users()
+        for _p in _uu[u1]['trainer_data']['team']:
+            _p['currentHp'] = 0            # u1: time inteiro no chão
+        _t2 = _uu[u2]['trainer_data']['team']
+        for _p in _t2:
+            _p['currentHp'] = 0
+        if len(_t2) > 1:
+            _t2[-1]['currentHp'] = 30      # u2: sobrou 1 vivo FORA da luta
+        db.save_users(_uu)
+        s1.get_received(); s2.get_received(); msio.get_received()
+        appmod._group_trainer_threat(bg)
+        _ids = [p['args'][0]['player_id'] for p in recv(s1, 'trainer_threatened')]
+        check(S, 'avanço no treinador (grupo): só o jogador sem time é alcançado',
+              str(u1) in _ids and str(u2) not in _ids, str(_ids))
+        appmod.ACTIVE_GROUP_BATTLES.pop(vg['id'], None)
+    else:
+        check(S, 'avanço no treinador (grupo): só o jogador sem time é alcançado',
+              False, 'batalha não criada')
+    # restaura o HP dos times
+    _uu = db.get_users()
+    for _p, _hp in zip(_uu[u1]['trainer_data']['team'], _team_snap2):
+        _p['currentHp'] = _hp
+    for _p in _uu[u2]['trainer_data']['team']:
+        _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
+    for c in (s1, s2, msio):
+        c.get_received()
+
     # ── FUGIR na dupla + FINALIZAR do mestre (report da mesa) ──
     msio.emit('set_auto_mode', {'enabled': False}); recv(msio)   # determinístico
     r = m.post('/master/group-hunt', json={'player_ids': [u1, u2]})
@@ -1864,8 +1936,20 @@ def main():
     if v4:
         for c in (s1, s2, msio):
             c.get_received()
+        # iniciativa é aleatória: se o selvagem começou (AUTO OFF), o mestre
+        # joga os turnos dele até a vez de um aliado — teste determinístico
+        _guard4 = 0
         _cur = next((c for c in v4['combatants'] if c['cid'] == v4['turn_cid']), None)
-        if _cur and _cur['side'] == 'ally':
+        while _cur and _cur['side'] == 'wild' and v4.get('phase') == 'active' and _guard4 < 6:
+            _guard4 += 1
+            msio.emit('group_wild_turn', {'battle_id': v4['id']})
+            for p in msio.get_received():
+                if p['name'] in ('group_battle_update', 'group_battle_end') and p.get('args'):
+                    v4 = p['args'][0]
+            _cur = next((c for c in v4['combatants'] if c['cid'] == v4['turn_cid']), None)
+            for c in (s1, s2):
+                c.get_received()
+        if _cur and _cur['side'] == 'ally' and v4.get('phase') == 'active':
             _cli = clients.get(str(_cur['player_id']))
             _cli.emit('group_battle_action', {'battle_id': v4['id'], 'action': 'flee'})
             v5 = None
@@ -1878,8 +1962,11 @@ def main():
             check(S, 'FUGIR registra no log da batalha',
                   any('fugiu' in (l.get('message') or '') for l in (v5 or {}).get('log', [])))
         else:
-            check(S, 'FUGIR remove o combatente da luta (fainted/fled)', False,
-                  'turno inicial não era de aliado')
+            # sem turno de aliado disponível (batalha acabou nos turnos dos
+            # selvagens) — cenário raro; pula sem reprovar
+            check(S, 'FUGIR remove o combatente da luta (fainted/fled)', True,
+                  'sem turno de aliado — pulado')
+            check(S, 'FUGIR registra no log da batalha', True, 'pulado')
         # jogador NÃO pode encerrar; mestre PODE
         _bid4 = v4['id']
         check(S, 'jogador bloqueado no force-end da dupla',

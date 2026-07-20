@@ -1655,6 +1655,25 @@ socket.on('group_battle_error', (d) => {
     else alert(d.message || 'Golpe em cooldown.');
 });
 
+// 💀 O selvagem derrotou o último Pokémon e AVANÇOU NO TREINADOR — para o
+// alvo é um momento dramático (o Mestre conduz a cena e pode pedir um
+// teste, que chega pelo fluxo normal de roll_request); a mesa toda vê.
+socket.on('trainer_threatened', (d) => {
+    const mine = String(d.player_id) === String(window.CURRENT_USER_ID);
+    if (mine) {
+        try { FX.callout && FX.callout('💀 PERIGO!', 'danger'); } catch (e) {}
+        try { playSound('faint'); } catch (e) {}
+        try {
+            addBattleLog(`💀 <strong>${d.wild_name || 'O selvagem'}</strong> derrotou ` +
+                `${d.pokemon_name || 'seu Pokémon'} e <strong>AVANÇOU EM VOCÊ!</strong> ` +
+                `O Mestre vai conduzir a cena — prepare-se para reagir.`);
+        } catch (e) {}
+        showNotification(`💀 ${d.wild_name || 'O selvagem'} avançou em VOCÊ! O Mestre conduz a cena.`, 'error');
+    } else {
+        showNotification(d.message || `💀 Um selvagem avançou em ${d.player_name || 'um treinador'}!`, 'error');
+    }
+});
+
 function rollDamageFromString(diceStr, pokeLevel) {
     if (!diceStr) return 0;
     const match = diceStr.match(/(\d+)d(\d+)/);

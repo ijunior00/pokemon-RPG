@@ -612,6 +612,47 @@ function _selectHuntPlayer(pid) {
 
 socket.on('hunt_roll', (data) => _renderHuntRoll(data));
 
+// 💀 Selvagem derrotou o ÚLTIMO Pokémon do jogador e avançou no TREINADOR.
+// Sem regra automática: o mestre conduz a cena — os botões pedem o teste
+// sugerido pelo fluxo normal de /master/request-roll.
+socket.on('trainer_threatened', (d) => {
+    playNotificationSound();
+    showNotification(d.message || '💀 O selvagem avançou no treinador!', 'error');
+    const inbox = document.getElementById('hunt-rolls-inbox');
+    if (!inbox) return;
+    const empty = inbox.querySelector('.empty-state');
+    if (empty) empty.remove();
+    const when = new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:0.55rem 0.7rem;border-radius:8px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.6);font-size:0.88rem;';
+    card.innerHTML = `<strong>💀 ${d.wild_name || 'O selvagem'}</strong> derrotou o último Pokémon de ` +
+        `<strong>${d.player_name || 'um jogador'}</strong> e avançou no <strong>TREINADOR</strong>! ` +
+        `<span style="opacity:0.7;">· ${when}</span><br>` +
+        `<span style="opacity:0.8;font-size:0.8rem;">Conduza a cena — peça um teste ou improvise:</span>` +
+        `<div style="margin-top:0.3rem;display:flex;gap:0.4rem;flex-wrap:wrap;">` +
+        `<button class="btn btn-sm btn-danger" onclick="requestThreatRoll('${d.player_id}', 'Coragem')">🦁 Pedir Coragem</button>` +
+        `<button class="btn btn-sm btn-danger" onclick="requestThreatRoll('${d.player_id}', 'Atletismo')">💪 Pedir Atletismo</button>` +
+        `</div>`;
+    inbox.insertBefore(card, inbox.firstChild);
+});
+
+async function requestThreatRoll(playerId, skill) {
+    const raw = prompt(`CD do teste de ${skill}? (vazio = o Mestre julga o resultado)`, '12');
+    if (raw === null) return;   // cancelou
+    const cd = parseInt(raw);
+    try {
+        const r = await fetch('/master/request-roll', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_id: playerId, kind: 'skill', target: skill,
+                                   note: '💀 O selvagem avançou em você! Reaja!',
+                                   cd: isNaN(cd) ? null : cd })
+        });
+        const d = await r.json();
+        showNotification(d.ok ? `🎲 Teste de ${skill} pedido ao jogador.`
+                              : `❌ ${d.error || 'Falha ao pedir o teste'}`, d.ok ? 'success' : 'error');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
+
 // Testes de PERÍCIA do treinador (Afinidade, Análise, Sorte, ...) — mesma
 // caixa de rolagens da caçada, com o atributo e a perícia usados.
 socket.on('skill_roll', (r) => {
