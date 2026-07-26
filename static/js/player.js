@@ -685,8 +685,15 @@ function showHuntRoll(res) {
 }
 
 async function rollHuntTest() {
+    // Dado físico só com INTENÇÃO EXPLÍCITA (checkbox + valor). Sem o gate,
+    // um valor restaurado pelo navegador (bfcache/autofill do celular) fazia
+    // TODA rolagem virar "manual" com o número velho — jogador preso num
+    // resultado sem perceber (o caso do Nat 1 "travado").
+    const physEl = document.getElementById('hunt-physical');
     const manualEl = document.getElementById('hunt-manual-roll');
-    const manualVal = manualEl && manualEl.value !== '' ? parseInt(manualEl.value) : null;
+    const usePhysical = !!(physEl && physEl.checked);
+    const manualVal = usePhysical && manualEl && manualEl.value !== ''
+        ? parseInt(manualEl.value) : null;
     const body = {};
     if (manualVal !== null && !isNaN(manualVal)) body.manual_roll = manualVal;
 
@@ -722,7 +729,9 @@ async function rollHuntTest() {
     }
 
     updateHuntCounter(res.used, res.limit);
-    if (manualEl) manualEl.value = '';
+    // desarma o dado físico: 1 marcação = 1 rolagem
+    if (manualEl) { manualEl.value = ''; manualEl.disabled = true; }
+    if (physEl) physEl.checked = false;
     await showHuntRoll(res);
 
     // Mostra o resultado persistente + instrução de aguardar o mestre
@@ -734,6 +743,17 @@ async function rollHuntTest() {
         failBox.classList.remove('hidden');
     }
 }
+
+// Defesa contra restauração do navegador (bfcache/autofill): o campo de
+// dado físico SEMPRE acorda limpo e desarmado — em load e em pageshow
+function _resetPhysicalDice() {
+    const m = document.getElementById('hunt-manual-roll');
+    const p = document.getElementById('hunt-physical');
+    if (m) { m.value = ''; m.disabled = true; }
+    if (p) p.checked = false;
+}
+document.addEventListener('DOMContentLoaded', _resetPhysicalDice);
+window.addEventListener('pageshow', _resetPhysicalDice);
 
 async function displayEncounter(encounter) {
     const pokemon = encounter.pokemon;
