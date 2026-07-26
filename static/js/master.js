@@ -613,6 +613,39 @@ function _selectHuntPlayer(pid) {
     if (sel) sel.value = pid;
 }
 
+// 🔎 Raio-X das caçadas: uso do dia + Nat 1 ARMADO por jogador (com desarme)
+async function loadHuntState() {
+    const box = document.getElementById('hunt-state-box');
+    if (box) box.textContent = '⏳ Consultando...';
+    try {
+        const r = await fetch('/master/hunts/state');
+        const d = await r.json();
+        if (!box) return;
+        const rows = (d.players || []).map(p => {
+            const armed = p.ambush_armed
+                ? ` <span style="color:#e53935;font-weight:700;">💀 Nat 1 ARMADO — a próxima caçada liberada vira EMBOSCADA 1v2</span>` +
+                  `<button class="btn btn-sm btn-danger" style="padding:0.05rem 0.45rem;margin-left:0.4rem;" onclick="disarmNat1('${p.player_id}')">Desarmar</button>`
+                : (p.last_roll ? ` <span style="opacity:0.6;">último d20: ${p.last_roll}</span>` : '');
+            return `<div style="padding:0.25rem 0;border-bottom:1px dashed rgba(255,255,255,0.12);">` +
+                `<strong>${p.username}</strong> — caçadas ${p.used}/${p.limit}${armed}</div>`;
+        }).join('');
+        box.innerHTML = rows || '<em>Nenhum jogador na mesa.</em>';
+    } catch (e) { if (box) box.textContent = '❌ Erro de conexão.'; }
+}
+
+async function disarmNat1(playerId) {
+    if (!confirm('Desarmar o Nat 1 pendente? A próxima caçada liberada volta a ser comum.')) return;
+    try {
+        const r = await fetch('/master/hunts', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_id: playerId, action: 'disarm' })
+        });
+        const d = await r.json();
+        showNotification(d.ok ? '✅ Nat 1 desarmado.' : `❌ ${d.error || 'Falha'}`, d.ok ? 'success' : 'error');
+        loadHuntState();
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
+
 socket.on('hunt_roll', (data) => _renderHuntRoll(data));
 
 // 💀 Selvagem derrotou o ÚLTIMO Pokémon do jogador e avançou no TREINADOR.
