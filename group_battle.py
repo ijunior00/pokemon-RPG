@@ -153,6 +153,14 @@ def _check_over(battle):
                               'message': '🎉 Os selvagens foram derrotados! Vitória da dupla!'})
         return True
     if not alive_cids(battle, 'ally'):
+        # BANCO: aliado caído (que não fugiu) com Pokémon vivo no time ainda
+        # pode REPOR — a batalha fica aberta esperando a troca em vez de
+        # terminar. O app mantém c['bench'] atualizado a cada troca; batalhas
+        # antigas sem o campo caem no comportamento antigo (bench 0).
+        if any(c['side'] == 'ally' and not c.get('fled')
+               and int(c.get('bench') or 0) > 0
+               for c in battle['combatants'].values()):
+            return False
         battle['phase'] = 'finished'
         battle['winner'] = 'wild'
         battle['log'].append({'type': 'end', 'winner': 'wild',
@@ -220,6 +228,8 @@ def state_view(battle):
             'level': p.get('level') or c.get('level'),
             'hp': c['hp'], 'maxHp': c['maxHp'], 'status': c['status'],
             'fainted': c['fainted'], 'init': c['init'],
+            'fled': bool(c.get('fled')), 'captured': bool(c.get('captured')),
+            'bench': int(c.get('bench') or 0),
             'moves': c['moves'], 'is_shiny': bool(p.get('is_shiny')),
             'stat_stages': p.get('stat_stages'),
             'defense_mode': p.get('defense_mode', 1),

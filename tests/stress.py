@@ -1996,6 +1996,79 @@ def main():
         else:
             check(S, 'mestre FINALIZA a batalha em dupla', True,
                   'batalha já encerrada pela fuga')
+
+    # ── 🔄 TROCA na batalha em grupo: voluntária no turno + reposição
+    #    pós-desmaio (banco segura o fim; HP de quem sai persiste) ──
+    _uu = db.get_users()
+    for _uid in (u1, u2):
+        for _p in _uu[_uid]['trainer_data']['team']:
+            _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
+    for c in (s1, s2, msio):
+        c.get_received()
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
+                                           'hunt_mode': 'normal', 'route_id': 'route1'})
+    vsw = (r.get_json() or {}).get('battle')
+    bsw = appmod.ACTIVE_GROUP_BATTLES.get(vsw['id']) if vsw else None
+    if bsw:
+        my_cid = next(c['cid'] for c in bsw['combatants'].values()
+                      if c['side'] == 'ally' and c['player_id'] == str(u1))
+        mineb = bsw['combatants'][my_cid]
+        _name0 = mineb['name']
+        check(S, 'troca: banco calculado na criação',
+              int(mineb.get('bench') or 0) >= 1, str(mineb.get('bench')))
+        # fora do turno e SEM desmaio → recusa
+        _wcid = next(c['cid'] for c in bsw['combatants'].values() if c['side'] == 'wild')
+        bsw['turn_idx'] = bsw['order'].index(_wcid)
+        s1.get_received()
+        s1.emit('group_battle_action', {'battle_id': vsw['id'], 'action': 'switch', 'new_index': 1})
+        check(S, 'troca: fora do turno (sem desmaio) é recusada',
+              bool(recv(s1, 'group_battle_error')) and mineb['name'] == _name0)
+        # voluntária no MEU turno: HP de batalha de quem sai persiste no time
+        bsw['turn_idx'] = bsw['order'].index(my_cid)
+        mineb['hp'] = 7
+        _out_uid = (mineb['pokemon'] or {}).get('uid')
+        s1.get_received()
+        s1.emit('group_battle_action', {'battle_id': vsw['id'], 'action': 'switch', 'new_index': 1})
+        recv(s1)
+        _t1 = db.get_users()[u1]['trainer_data']['team']
+        _out_row = next((p for p in _t1 if p.get('uid') == _out_uid), None)
+        check(S, 'troca: novo Pokémon entra em campo',
+              bsw['combatants'][my_cid]['name'] ==
+              (_t1[1].get('nickname') or _t1[1].get('name')),
+              bsw['combatants'][my_cid]['name'])
+        check(S, 'troca: HP de batalha de quem sai persiste no time',
+              _out_row is not None and int(_out_row.get('currentHp') or -1) == 7,
+              str(_out_row and _out_row.get('currentHp')))
+        # reposição pós-desmaio: com banco, a batalha NÃO termina
+        _m2 = bsw['combatants'][my_cid]
+        _m2['hp'] = 0; _m2['fainted'] = True
+        for c in bsw['combatants'].values():
+            if c['side'] == 'ally' and c['player_id'] == str(u2):
+                c['fainted'] = True; c['fled'] = True   # parceiro fora (isola o cenário)
+        check(S, 'troca: banco segura a batalha aberta (sem vencedor)',
+              not appmod.gb._check_over(bsw) and bsw['phase'] == 'active')
+        s1.get_received()
+        s1.emit('group_battle_action', {'battle_id': vsw['id'], 'action': 'switch', 'new_index': 2})
+        recv(s1)
+        _m3 = (appmod.ACTIVE_GROUP_BATTLES.get(vsw['id'], {}).get('combatants') or {}).get(my_cid, {})
+        check(S, 'troca: reposição pós-desmaio entra em campo',
+              bool(_m3) and not _m3.get('fainted') and int(_m3.get('hp') or 0) > 0,
+              str(_m3.get('hp') if _m3 else None))
+        appmod.ACTIVE_GROUP_BATTLES.pop(vsw['id'], None)
+    else:
+        for _nm in ('banco calculado na criação', 'fora do turno (sem desmaio) é recusada',
+                    'novo Pokémon entra em campo', 'HP de batalha de quem sai persiste no time',
+                    'banco segura a batalha aberta (sem vencedor)',
+                    'reposição pós-desmaio entra em campo'):
+            check(S, f'troca: {_nm}', False, 'batalha não criada')
+    # restaura HP dos times
+    _uu = db.get_users()
+    for _uid in (u1, u2):
+        for _p in _uu[_uid]['trainer_data']['team']:
+            _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
+
     msio.emit('set_auto_mode', {'enabled': True}); recv(msio)
     for c in (s1, s2, msio):
         c.get_received()
