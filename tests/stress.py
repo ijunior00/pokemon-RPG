@@ -1870,6 +1870,27 @@ def main():
     _gs = gstate()
     (_gs.get('pending_encounters') or {}).pop(str(u1), None)
     db.save_game_state(_gs, TID)
+
+    # 🔎 raio-X do mestre: estado das caçadas expõe Nat 1 armado + desarme
+    _gs = gstate()
+    _e1, _ = appmod._hunt_entry(_gs, str(u1))
+    _e1['last_roll'] = 1
+    _gs.setdefault('hunts', {})[str(u1)] = _e1
+    db.save_game_state(_gs, TID)
+    d = (m.get('/master/hunts/state').get_json() or {})
+    _row = next((p for p in d.get('players', []) if p['player_id'] == str(u1)), {})
+    check(S, 'raio-X de caçadas: Nat 1 armado aparece pro mestre',
+          _row.get('ambush_armed') is True, str(_row))
+    r = m.post('/master/hunts', json={'player_id': u1, 'action': 'disarm'})
+    check(S, 'desarmar Nat 1 limpa o pendente (sem zerar o uso)',
+          r.status_code == 200
+          and 'last_roll' not in ((gstate().get('hunts') or {}).get(str(u1)) or {}))
+    d = (m.get('/master/hunts/state').get_json() or {})
+    _row = next((p for p in d.get('players', []) if p['player_id'] == str(u1)), {})
+    check(S, 'raio-X de caçadas: desarmado some do alerta',
+          _row.get('ambush_armed') is False)
+    check(S, 'raio-X de caçadas é só do mestre',
+          p1.get('/master/hunts/state').status_code == 403)
     for c in (s1, s2, msio):
         c.get_received()
 

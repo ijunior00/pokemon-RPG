@@ -1928,6 +1928,10 @@ def master_hunts():
     entry, dkey = _hunt_entry(state, player_id)
     if action == 'grant':
         entry['bonus'] = int(entry.get('bonus', 0)) + max(1, int(data.get('amount', 1)))
+    elif action == 'disarm':
+        # desarma um Nat 1 pendente (a próxima caçada liberada volta a ser
+        # comum) — sem mexer no uso do dia
+        entry.pop('last_roll', None)
     else:
         entry['used'] = 0
     hunts = state.get('hunts') or {}
@@ -1939,6 +1943,28 @@ def master_hunts():
     socketio.emit('hunts_update', {'used': entry['used'], 'limit': limit},
                   room=player_id)
     return jsonify({'ok': True, 'used': entry['used'], 'limit': limit})
+
+
+@app.route('/master/hunts/state', methods=['GET'])
+@login_required
+def master_hunts_state():
+    """Raio-X das caçadas da mesa: uso do dia, último d20 e Nat 1 ARMADO por
+    jogador — o mestre revisa o registro de cada um sem abrir o banco."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    state = get_game_state()
+    out = []
+    for uid, u in get_users().items():
+        if u.get('table_id') != _tid() or u.get('role') != 'player':
+            continue
+        entry, _dk = _hunt_entry(state, str(uid))
+        limit = MAX_HUNTS_PER_DAY + int(entry.get('bonus', 0))
+        lr = entry.get('last_roll')
+        out.append({'player_id': str(uid), 'username': u.get('username'),
+                    'used': int(entry.get('used', 0)), 'limit': limit,
+                    'last_roll': lr, 'ambush_armed': lr == 1})
+    out.sort(key=lambda x: (x['username'] or '').lower())
+    return jsonify({'players': out})
 
 
 def _process_npcs_for_day(dkey):
