@@ -265,6 +265,9 @@ function renderGroupBattle(view) {
     const turnC  = view.combatants.find(c => c.cid === view.turn_cid);
     const myTurn = view.phase === 'active' && turnC && turnC.side === 'ally'
                    && String(turnC.player_id) === myId;
+    const myC = allies.find(c => String(c.player_id) === myId && !c.fled);
+    const myBenchHtml = _gbBenchOptions(myC);
+    const myDown = view.phase === 'active' && myC && myC.fainted && !myC.captured;
 
     const alliesHtml = allies.map(c => _gbCombatantHtml(c, c.cid === view.turn_cid)).join('');
     const wildsHtml  = wilds.map(c => _gbCombatantHtml(c, c.cid === view.turn_cid)).join('');
@@ -301,7 +304,23 @@ function renderGroupBattle(view) {
                 <button class="btn btn-primary" onclick="groupBattleCapture()">🎯 Capturar</button>
             </div>
             <div style="font-size:0.72rem;opacity:0.7;margin-top:0.2rem;">A bola vai no alvo selecionado acima. Regra: ≤40% do HP (65% se dormindo/congelado). O arremesso consome o seu turno; se quebrar, o selvagem continua na luta.</div>
+            ${myBenchHtml ? `
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin-top:0.5rem;border-top:1px dashed rgba(255,255,255,0.2);padding-top:0.5rem;">
+                <div class="form-group" style="flex:1;min-width:150px;"><label>Trocar por</label>
+                    <select id="gb-switch">${myBenchHtml}</select></div>
+                <button class="btn btn-secondary" onclick="groupBattleSwitch()">🔄 Trocar</button>
+            </div>
+            <div style="font-size:0.72rem;opacity:0.7;margin-top:0.2rem;">A troca consome o seu turno. Quem sai guarda o HP da luta.</div>` : ''}
             </div>`;
+    } else if (myDown && myBenchHtml) {
+        // 💀 Meu Pokémon caiu, mas tenho banco: REPOSIÇÃO fora do turno
+        controls = `<div style="margin-top:0.6rem;padding:0.6rem;border:2px solid #e53935;border-radius:10px;">
+            <div style="font-weight:800;margin-bottom:0.4rem;color:#e53935;">💀 ${myC.name} desmaiou — envie o próximo Pokémon!</div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;">
+                <div class="form-group" style="flex:1;min-width:150px;"><label>Enviar</label>
+                    <select id="gb-switch">${myBenchHtml}</select></div>
+                <button class="btn btn-danger" onclick="groupBattleSwitch()">🔄 Enviar Pokémon</button>
+            </div></div>`;
     } else if (view.phase === 'active') {
         const who = turnC ? turnC.name : '...';
         const wildWaiting = turnC && turnC.side === 'wild' && view.wild_auto === false;
@@ -334,6 +353,27 @@ function groupBattleAttack() {
     if (!target) { showNotification('Escolha um alvo', 'error'); return; }
     socket.emit('group_battle_action', {
         battle_id: _groupBattleView.id, move_name: move, target_cid: target
+    });
+}
+
+// Opções de troca: Pokémon VIVOS do time fora de campo (o servidor valida)
+function _gbBenchOptions(myC) {
+    if (!myC) return '';
+    return (playerTeam || [])
+        .map((p, i) => ({ p, i }))
+        .filter(({ p }) => (p.currentHp === undefined || p.currentHp > 0)
+            && !((p.nickname || p.name) === myC.name && p.level === myC.level))
+        .map(({ p, i }) => `<option value="${i}">${p.nickname || p.name} Nv.${p.level}` +
+             ` (${p.currentHp ?? p.maxHp ?? '?'}/${p.maxHp ?? '?'} HP)</option>`)
+        .join('');
+}
+
+function groupBattleSwitch() {
+    if (!_groupBattleView) return;
+    const idx = parseInt(document.getElementById('gb-switch')?.value);
+    if (isNaN(idx)) { showNotification('Escolha um Pokémon', 'error'); return; }
+    socket.emit('group_battle_action', {
+        battle_id: _groupBattleView.id, action: 'switch', new_index: idx
     });
 }
 

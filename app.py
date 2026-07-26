@@ -4062,6 +4062,7 @@ def master_hunt_random():
             wp.setdefault('defense_mode', _ai_defense_mode(wp))
             wilds.append({'pokemon': wp, 'level': wenc['level'], 'moves': wenc['wild_moves']})
         battle = gb.build_battle(allies, wilds, hunt_mode, route_id, _tid())
+        _group_stamp_bench(battle)
         battle['ambush'] = True
         battle['log'].insert(0, {'type': 'ambush',
                                  'message': f'💀 EMBOSCADA! {name or "O treinador"} foi cercado por '
@@ -4107,6 +4108,28 @@ def _group_active_pokemon(player_id):
         if p and gb._poke_hp(p) > 0:
             return trainer.get('name') or trainer.get('trainer_name', ''), p
     return (trainer.get('name', ''), team[0]) if team else ('', None)
+
+
+def _same_poke(a, b):
+    """Mesmo Pokémon do time? uid quando existe; senão nome+nível."""
+    if (a or {}).get('uid') and (b or {}).get('uid'):
+        return a['uid'] == b['uid']
+    return ((a or {}).get('name'), (a or {}).get('level')) == \
+           ((b or {}).get('name'), (b or {}).get('level'))
+
+
+def _group_bench(player_id, fielded_poke):
+    """Quantos Pokémon VIVOS o jogador tem no time FORA de campo — é o que
+    segura a batalha em grupo aberta para reposição (gb._check_over)."""
+    team = (get_users().get(str(player_id), {}).get('trainer_data', {}) or {}).get('team', []) or []
+    return _group_bench_from_team(team, fielded_poke)
+
+
+def _group_stamp_bench(battle):
+    """Grava o tamanho do banco de cada aliado nos combatentes."""
+    for c in battle['combatants'].values():
+        if c.get('side') == 'ally':
+            c['bench'] = _group_bench(c.get('player_id'), c.get('pokemon'))
 
 
 def _spectate(kind, payload, table_id=None):
@@ -4439,6 +4462,14 @@ def _group_run_wild_turns(battle):
         guard += 1
         target_cid = gb.choose_wild_target(battle, cur['cid'])
         if not target_cid:
+            # ninguém em campo, mas há banco: a batalha espera a reposição
+            if not battle.get('_awaiting_bench_logged') and any(
+                    c['side'] == 'ally' and not c.get('fled')
+                    and int(c.get('bench') or 0) > 0
+                    for c in battle['combatants'].values()):
+                battle['_awaiting_bench_logged'] = True
+                battle['log'].append({'type': 'info',
+                                      'message': '⏳ Os selvagens rondam o campo — envie o próximo Pokémon!'})
             break
         target = battle['combatants'][target_cid]
         wild_poke = dict(cur['pokemon'])
@@ -4518,6 +4549,7 @@ def master_group_hunt():
         wilds.append({'pokemon': poke, 'level': level, 'moves': enc['wild_moves']})
 
     battle = gb.build_battle(allies, wilds, hunt_mode, route_id, _tid())
+    _group_stamp_bench(battle)
     ACTIVE_GROUP_BATTLES[battle['id']] = battle
 
     # Se começar com selvagem e AUTO ligado, roda as jogadas dos selvagens
@@ -4528,6 +4560,101 @@ def master_group_hunt():
     return jsonify({'ok': True, 'battle': gb.state_view(battle)})
 
 
+def _group_switch(battle, data):
+    """🔄 TROCA na batalha em grupo (inclui a emboscada 1v2).
+
+    - No SEU turno: troca voluntária — consome o turno.
+    - Fora do turno: só REPOSIÇÃO, quando o seu combatente desmaiou (o
+      banco segura a batalha aberta via c['bench'] no gb._check_over).
+    O HP de batalha de quem sai é persistido no time (sem cura grátis via
+    pivô — mesma regra do 1v1) e quem entra vem com o currentHp armazenado.
+    """
+    pid = str(current_user.id)
+    mine = next((c for c in battle['combatants'].values()
+                 if c.get('side') == 'ally' and str(c.get('player_id')) == pid
+                 and not c.get('fled')), None)
+    if not mine:
+        emit('group_battle_error', {'message': 'Você não está nesta batalha.'})
+        return
+    cur = gb.current_combatant(battle)
+    my_turn = cur is not None and cur.get('cid') == mine['cid'] and not mine.get('fainted')
+    replacing = bool(mine.get('fainted')) and not mine.get('captured')
+    if not my_turn and not replacing:
+        emit('group_battle_error',
+             {'message': '🔄 Troque no SEU turno (ou reponha quando o seu Pokémon desmaiar).'})
+        return
+
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {}) or {}
+    team = trainer.get('team', []) or []
+    try:
+        idx = int(data.get('new_index'))
+    except (TypeError, ValueError):
+        idx = -1
+    if idx < 0 or idx >= len(team):
+        emit('group_battle_error', {'message': 'Escolha um Pokémon válido do time.'})
+        return
+    incoming = team[idx]
+    out_poke = mine.get('pokemon') or {}
+    if _same_poke(incoming, out_poke):
+        emit('group_battle_error', {'message': 'Esse Pokémon já está em campo.'})
+        return
+    # HP da FICHA manda em quem entra (o HP de batalha vive no combatente)
+    if int(incoming.get('currentHp') or 0) <= 0:
+        emit('group_battle_error',
+             {'message': f"{incoming.get('nickname') or incoming.get('name')} está desmaiado."})
+        return
+
+    # persiste o HP de batalha de quem SAI no time (fecha a cura via pivô)
+    for p in team:
+        if _same_poke(p, out_poke):
+            p['currentHp'] = max(0, int(mine.get('hp') or 0))
+            break
+
+    _mig([incoming])
+    _stamp_tatica([incoming], trainer)
+    poke = dict(incoming)
+    effects.new_battle_reset([poke])
+    maxhp = int(poke.get('maxHp') or poke.get('hp') or 20)
+    curhp = max(0, min(maxhp, int(poke.get('currentHp') or maxhp)))
+    old_name = mine.get('name')
+    mine['pokemon'] = poke
+    mine['name'] = incoming.get('nickname') or incoming.get('name', 'Aliado')
+    mine['moves'] = list(poke.get('moves') or poke.get('startingMoves') or ['Tackle'])[:4]
+    mine['hp'] = curhp
+    mine['maxHp'] = maxhp
+    mine['status'] = None
+    mine['fainted'] = curhp <= 0
+    mine['bench'] = _group_bench_from_team(team, poke)
+
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+
+    battle['log'].append({'type': 'switch', 'cid': mine['cid'],
+                          'message': (f"🔄 {mine['name']} entrou no lugar de {old_name}!"
+                                      if replacing else
+                                      f"🔄 Troca: {old_name} saiu, {mine['name']} entrou!")})
+    battle.pop('_awaiting_bench_logged', None)
+
+    if my_turn:
+        gb.advance_turn(battle)
+    # selvagens seguem (na reposição, eles estavam esperando alvo)
+    if _wild_auto_mode():
+        _group_run_wild_turns(battle)
+    _group_field_round_hook(battle)
+    if battle['phase'] == 'finished':
+        _group_broadcast(battle, 'group_battle_end')
+        ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
+    else:
+        _group_broadcast(battle)
+
+
+def _group_bench_from_team(team, fielded_poke):
+    """Banco (vivos fora de campo) calculado de um time já carregado."""
+    return sum(1 for p in (team or [])
+               if not _same_poke(p, fielded_poke) and int(p.get('currentHp') or 0) > 0)
+
+
 @socketio.on('group_battle_action')
 def handle_group_battle_action(data):
     """Um jogador ataca no seu turno da batalha em dupla."""
@@ -4535,6 +4662,11 @@ def handle_group_battle_action(data):
         return
     battle = ACTIVE_GROUP_BATTLES.get(data.get('battle_id'))
     if not battle or battle['phase'] != 'active':
+        return
+    # 🔄 TROCA/REPOSIÇÃO: tratada antes das guardas de turno — a reposição
+    # pós-desmaio acontece FORA do turno do jogador
+    if (data or {}).get('action') == 'switch':
+        _group_switch(battle, data or {})
         return
     cur = gb.current_combatant(battle)
     if not cur or cur['side'] != 'ally':

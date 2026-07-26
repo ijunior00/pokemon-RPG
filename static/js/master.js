@@ -853,9 +853,11 @@ function renderGroupMonitor(view) {
         const turn = c.cid === view.turn_cid ? '▶️ ' : '';
         const dead = c.fainted ? ' 💀' : '';
         const icon = c.side === 'ally' ? '🟢' : '🔴';
+        const bench = c.side === 'ally'
+            ? ` <span style="opacity:0.6;font-size:0.75rem;">· banco ${c.bench || 0}</span>` : '';
         return `<div style="margin:0.25rem 0;font-size:0.85rem;">
             ${turn}${icon} <strong>${c.name}</strong> Nv.${c.level || '?'}${dead}
-            <span style="opacity:0.7;">(${c.hp}/${c.maxHp})</span>
+            <span style="opacity:0.7;">(${c.hp}/${c.maxHp})</span>${bench}
             ${_hpBar(c)}</div>`;
     }).join('');
     const log = (view.log || []).slice(-6).map(l => `<div>• ${l.message || ''}</div>`).join('');
