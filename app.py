@@ -4126,14 +4126,44 @@ ACTIVE_GROUP_BATTLES = {}  # battle_id -> battle (em memória, como o PvP)
 
 
 def _group_active_pokemon(player_id):
-    """Pokémon ativo (primeiro vivo) do jogador para a batalha em grupo."""
+    """Pokémon ativo do jogador para a batalha em grupo: primeiro VIVO que
+    OBEDECE (dentro do teto de nível do treinador)."""
     trainer = get_users().get(str(player_id), {}).get('trainer_data', {})
     team = trainer.get('team', [])
     _enrich_team(team)
     for p in team:
-        if p and gb._poke_hp(p) > 0:
+        if p and gb._poke_hp(p) > 0 and _poke_obeys(trainer, p):
             return trainer.get('name') or trainer.get('trainer_name', ''), p
-    return (trainer.get('name', ''), team[0]) if team else ('', None)
+    return (trainer.get('name', ''), None) if team else ('', None)
+
+
+# ── OBEDIÊNCIA (regra da mesa): Pokémon mais de 10 níveis acima do teto do
+# treinador não obedece — NÃO entra em batalha (1v1, dupla/emboscada, PvP,
+# ginásio). A escala ×5 é a ponte canônica nível de treinador (5e, 1-20) →
+# nível de Pokémon (1-100). Só bloqueia USO em batalha: o Pokémon pode
+# ficar no time/PC e destrava sozinho quando o treinador sobe de nível.
+OBEDIENCE_LEVEL_GAP = 10
+
+
+def _obedience_cap(trainer):
+    try:
+        return int((trainer or {}).get('level', 1) or 1) * 5 + OBEDIENCE_LEVEL_GAP
+    except (TypeError, ValueError):
+        return 5 + OBEDIENCE_LEVEL_GAP
+
+
+def _poke_obeys(trainer, poke):
+    try:
+        return int((poke or {}).get('level') or 1) <= _obedience_cap(trainer)
+    except (TypeError, ValueError):
+        return True
+
+
+def _disobey_msg(trainer, poke):
+    nm = (poke or {}).get('nickname') or (poke or {}).get('name') or 'Esse Pokémon'
+    return (f"☠️ {nm} (Nv.{(poke or {}).get('level', '?')}) não obedece você ainda! "
+            f"Teto de obediência: Nv.{_obedience_cap(trainer)} "
+            f"(treinador nível {(trainer or {}).get('level', 1)} ×5 +10).")
 
 
 def _same_poke(a, b):
@@ -4145,10 +4175,10 @@ def _same_poke(a, b):
 
 
 def _group_bench(player_id, fielded_poke):
-    """Quantos Pokémon VIVOS o jogador tem no time FORA de campo — é o que
-    segura a batalha em grupo aberta para reposição (gb._check_over)."""
-    team = (get_users().get(str(player_id), {}).get('trainer_data', {}) or {}).get('team', []) or []
-    return _group_bench_from_team(team, fielded_poke)
+    """Quantos Pokémon VIVOS e OBEDIENTES o jogador tem fora de campo — é o
+    que segura a batalha em grupo aberta para reposição (gb._check_over)."""
+    trainer = get_users().get(str(player_id), {}).get('trainer_data', {}) or {}
+    return _group_bench_from_team(trainer, fielded_poke)
 
 
 def _group_stamp_bench(battle):
@@ -4231,8 +4261,10 @@ def _wild_trainer_threat(player_id, encounter, game_state, table_id):
         if i == active_idx:
             continue   # o ativo caiu (o battle_state manda; o time pode estar defasado)
         try:
-            if int(p.get('currentHp') or 0) > 0:
-                return   # ainda há Pokémon vivo → troca possível, sem avanço
+            # vivo E obediente → troca possível, sem avanço (um Pokémon acima
+            # do teto de obediência não defende o treinador)
+            if int(p.get('currentHp') or 0) > 0 and _poke_obeys(trainer, p):
+                return
         except (TypeError, ValueError):
             return
     bs['trainer_threatened'] = True
@@ -4280,7 +4312,8 @@ def _group_trainer_threat(battle):
                     or (p.get('name'), p.get('level')) in f_keys:
                 continue
             try:
-                if int(p.get('currentHp') or 0) > 0:
+                # vivo E obediente conta como defesa; acima do teto, não
+                if int(p.get('currentHp') or 0) > 0 and _poke_obeys(trainer, p):
                     others_alive = True
                     break
             except (TypeError, ValueError):
@@ -4630,6 +4663,10 @@ def _group_switch(battle, data):
         emit('group_battle_error',
              {'message': f"{incoming.get('nickname') or incoming.get('name')} está desmaiado."})
         return
+    # ☠️ obediência: acima do teto do treinador não entra em campo
+    if not _poke_obeys(trainer, incoming):
+        emit('group_battle_error', {'message': _disobey_msg(trainer, incoming)})
+        return
 
     # persiste o HP de batalha de quem SAI no time (fecha a cura via pivô)
     for p in team:
@@ -4651,7 +4688,7 @@ def _group_switch(battle, data):
     mine['maxHp'] = maxhp
     mine['status'] = None
     mine['fainted'] = curhp <= 0
-    mine['bench'] = _group_bench_from_team(team, poke)
+    mine['bench'] = _group_bench_from_team(trainer, poke)
 
     users[current_user.id]['trainer_data'] = trainer
     save_users(users)
@@ -4675,10 +4712,13 @@ def _group_switch(battle, data):
         _group_broadcast(battle)
 
 
-def _group_bench_from_team(team, fielded_poke):
-    """Banco (vivos fora de campo) calculado de um time já carregado."""
-    return sum(1 for p in (team or [])
-               if not _same_poke(p, fielded_poke) and int(p.get('currentHp') or 0) > 0)
+def _group_bench_from_team(trainer, fielded_poke):
+    """Banco (vivos E obedientes fora de campo) de um treinador carregado —
+    um Pokémon acima do teto de obediência não conta como reposição."""
+    return sum(1 for p in ((trainer or {}).get('team') or [])
+               if not _same_poke(p, fielded_poke)
+               and int(p.get('currentHp') or 0) > 0
+               and _poke_obeys(trainer, p))
 
 
 @socketio.on('group_battle_action')
@@ -6623,6 +6663,16 @@ def handle_encounter(data):
             }, room=str(current_user.id))
             return
 
+        # ☠️ OBEDIÊNCIA: Pokémon acima do teto do treinador não entra em
+        # batalha — devolve o vale (a liberação do mestre não é queimada)
+        if player_pokemon and not _poke_obeys(trainer, player_pokemon):
+            _gs2 = get_game_state()
+            _gs2.setdefault('pending_encounters', {})[str(current_user.id)] = _granted
+            save_game_state(_gs2)
+            emit('encounter_denied', {'message': _disobey_msg(trainer, player_pokemon)},
+                 room=str(current_user.id))
+            return
+
         encounter_data = {
             'player_id': current_user.id,
             'player_name': current_user.username,
@@ -7242,6 +7292,13 @@ def handle_battle_action(data):
             except (TypeError, ValueError):
                 _sw_idx = -1
             _sw_poke = _sw_team[_sw_idx] if 0 <= _sw_idx < len(_sw_team) else None
+            # ☠️ obediência: acima do teto não entra em campo (a troca não
+            # acontece nem consome o turno — nada foi persistido ainda)
+            _sw_trainer = _sw_users.get(current_user.id, {}).get('trainer_data', {}) or {}
+            if isinstance(_sw_poke, dict) and not _poke_obeys(_sw_trainer, _sw_poke):
+                emit('action_blocked', {'message': _disobey_msg(_sw_trainer, _sw_poke)},
+                     room=player_id)
+                return
             if isinstance(_sw_poke, dict):
                 new_max_hp = int(_sw_poke.get('maxHp') or 20)
                 cur = _sw_poke.get('currentHp')
@@ -7977,7 +8034,17 @@ def handle_pvp_select(data):
         
         # Determine which player this is
         player_key = 'player1' if battle['player1']['id'] == current_user.id else 'player2'
-        
+
+        # ☠️ obediência: jogador humano não escala Pokémon acima do teto
+        _me = battle[player_key]
+        if not _me.get('is_npc'):
+            _sel_team = _me.get('team') or []
+            _sel_poke = _sel_team[pokemon_idx] if 0 <= pokemon_idx < len(_sel_team) else None
+            _sel_tr = get_users().get(current_user.id, {}).get('trainer_data', {}) or {}
+            if _sel_poke is not None and not _poke_obeys(_sel_tr, _sel_poke):
+                emit('pvp_error', {'message': _disobey_msg(_sel_tr, _sel_poke)})
+                return
+
         success, result = pvp.select_pokemon(battle, player_key, pokemon_idx)
 
         # If the opponent is an NPC and hasn't selected yet, auto-select for them
@@ -8282,6 +8349,15 @@ def handle_pvp_switch(data):
         if battle['turn'] != player_key and not forced:
             emit('pvp_error', {'message': 'Não é seu turno para trocar!'})
             return
+
+        # ☠️ obediência: jogador humano não troca para Pokémon acima do teto
+        if not side.get('is_npc'):
+            _swt = side.get('team') or []
+            _swp = _swt[new_idx] if 0 <= new_idx < len(_swt) else None
+            _swtr = get_users().get(current_user.id, {}).get('trainer_data', {}) or {}
+            if _swp is not None and not _poke_obeys(_swtr, _swp):
+                emit('pvp_error', {'message': _disobey_msg(_swtr, _swp)})
+                return
 
         success, msg = pvp.switch_pokemon(battle, player_key, new_idx)
 

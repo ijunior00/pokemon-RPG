@@ -154,6 +154,13 @@ def main():
 
     give_team(u1, [('Charmander', 20), ('Squirtle', 18), ('Pidgey', 15)])
     give_team(u2, [('Bulbasaur', 20), ('Rattata', 12)])
+    # OBEDIÊNCIA: teto = nível do treinador ×5 +10. Os times acima (Nv.18-20)
+    # precisam de treinador ≥ Nv.2; usa Nv.4 (teto 30) p/ sobrar folga nos
+    # level-ups de Pokémon ao longo da suíte.
+    _uu0 = db.get_users()
+    for _t0 in (u1, u2):
+        _uu0[_t0]['trainer_data']['level'] = 4
+    db.save_users(_uu0)
 
     msio = socketio.test_client(app, flask_test_client=m)
     s1 = socketio.test_client(app, flask_test_client=p1)
@@ -1928,6 +1935,52 @@ def main():
     _uu = db.get_users()
     _uu[u1]['trainer_data']['bag'] = _bag_bak
     db.save_users(_uu)
+
+    # ── ☠️ OBEDIÊNCIA: Pokémon acima de (treinador×5)+10 não entra em batalha ──
+    check(S, 'obediência: teto = nível×5+10 (unit)',
+          appmod._poke_obeys({'level': 2}, {'level': 20})
+          and not appmod._poke_obeys({'level': 2}, {'level': 21}))
+    _uu = db.get_users()
+    _lvl_bak = _uu[u1]['trainer_data'].get('level')
+    _team_bak3 = _uu[u1]['trainer_data']['team']
+    _uu[u1]['trainer_data']['level'] = 2                      # teto Nv.20
+    _uu[u1]['trainer_data']['team'] = [make_poke('Charmander', 25),   # ☠️ desobedece
+                                       make_poke('Squirtle', 12)]     # obedece
+    db.save_users(_uu)
+    _gs = gstate()
+    _gs.setdefault('pending_encounters', {})[str(u1)] = 19    # Rattata liberado
+    db.save_game_state(_gs, TID)
+    s1.get_received()
+    s1.emit('start_encounter', {'pokemon': {'name': 'Rattata', 'number': 19, 'hp': 30},
+                                'level': 8, 'player_pokemon_idx': 0,
+                                'wild_moves': ['Tackle']})
+    _den = recv(s1, 'encounter_denied')
+    check(S, 'obediência: 1v1 nega Pokémon acima do teto',
+          bool(_den) and 'obed' in (_den[0]['args'][0].get('message') or '').lower(),
+          str(_den and _den[0]['args'][0]))
+    check(S, 'obediência: o vale de encontro é devolvido',
+          (gstate().get('pending_encounters') or {}).get(str(u1)) == 19)
+    s1.emit('start_encounter', {'pokemon': {'name': 'Rattata', 'number': 19, 'hp': 30},
+                                'level': 8, 'player_pokemon_idx': 1,
+                                'wild_moves': ['Tackle']})
+    recv(s1)
+    check(S, 'obediência: com o Pokémon obediente o encontro abre',
+          str(u1) in (gstate().get('active_encounters') or {}))
+    # banco da dupla: vivo mas desobediente NÃO conta como reposição
+    _tr_ob = db.get_users()[u1]['trainer_data']
+    check(S, 'obediência: desobediente não conta no banco da dupla',
+          appmod._group_bench_from_team(_tr_ob, _tr_ob['team'][1]) == 0)
+    # limpeza
+    _gs = gstate()
+    (_gs.get('active_encounters') or {}).pop(str(u1), None)
+    (_gs.get('pending_encounters') or {}).pop(str(u1), None)
+    db.save_game_state(_gs, TID)
+    _uu = db.get_users()
+    _uu[u1]['trainer_data']['level'] = _lvl_bak
+    _uu[u1]['trainer_data']['team'] = _team_bak3
+    db.save_users(_uu)
+    for c in (s1, s2, msio):
+        c.get_received()
     for c in (s1, s2, msio):
         c.get_received()
 
@@ -1970,6 +2023,12 @@ def main():
           not recv(msio, 'trainer_threatened'))
     _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
     # grupo: selvagens venceram → só quem ficou SEM time é alcançado
+    # (revive os times ANTES de criar: o ativo precisa estar vivo e obediente)
+    _uu = db.get_users()
+    for _uid in (u1, u2):
+        for _p in _uu[_uid]['trainer_data']['team']:
+            _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
     r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
                                            'hunt_mode': 'normal', 'route_id': 'route1'})
     vg = (r.get_json() or {}).get('battle')

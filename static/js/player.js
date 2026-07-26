@@ -362,6 +362,7 @@ function _gbBenchOptions(myC) {
     return (playerTeam || [])
         .map((p, i) => ({ p, i }))
         .filter(({ p }) => (p.currentHp === undefined || p.currentHp > 0)
+            && pokeObeys(p)   // ☠️ acima do teto de obediência não entra
             && !((p.nickname || p.name) === myC.name && p.level === myC.level))
         .map(({ p, i }) => `<option value="${i}">${p.nickname || p.name} Nv.${p.level}` +
              ` (${p.currentHp ?? p.maxHp ?? '?'}/${p.maxHp ?? '?'} HP)</option>`)
@@ -780,9 +781,10 @@ async function displayEncounter(encounter) {
         }
     } catch(e) {}
     
-    // Check if player can control (for capture preview)
+    // Check if player can control (for capture preview) — mesmo teto de
+    // OBEDIÊNCIA do servidor: (nível do treinador ×5) + 10
     const trainerLevel = TRAINER_DATA.level || 1;
-    const maxControlLevel = trainerLevel * 5;
+    const maxControlLevel = obedienceCap();
     const canControl = encounter.level <= maxControlLevel;
     
     showElement('encounter-result');
@@ -830,11 +832,26 @@ async function displayEncounter(encounter) {
         addBattleLog(`⚠️ <strong>Atenção:</strong> Este Pokémon é Nv.${encounter.level} — seu limite é Nv.${maxControlLevel} (Treinador Nv.${trainerLevel}). Você pode batalhar mas NÃO controlar se capturar.`);
     }
     
-    // Populate team select
+    // Populate team select (☠️ acima do teto de obediência = desabilitado)
     const select = document.getElementById('send-pokemon');
-    select.innerHTML = playerTeam.length === 0 
+    select.innerHTML = playerTeam.length === 0
         ? '<option value="">Sem Pokémon no time</option>'
-        : playerTeam.map((p, i) => `<option value="${i}">${p.nickname || p.name} Nv.${p.level}</option>`).join('');
+        : playerTeam.map((p, i) => {
+            const obeys = pokeObeys(p);
+            return `<option value="${i}" ${obeys ? '' : 'disabled'}>${p.nickname || p.name} Nv.${p.level}${obeys ? '' : ' ☠️ não obedece'}</option>`;
+        }).join('');
+    // primeiro obediente pré-selecionado (o disabled não deve ficar como valor)
+    const firstOk = playerTeam.findIndex(p => pokeObeys(p));
+    if (firstOk >= 0) select.value = String(firstOk);
+}
+
+// ── OBEDIÊNCIA (espelho do servidor): Pokémon acima de (nível do treinador
+// ×5) + 10 não obedece — não entra em batalha (o servidor é a autoridade)
+function obedienceCap() {
+    return ((parseInt(TRAINER_DATA.level) || 1) * 5) + 10;
+}
+function pokeObeys(p) {
+    return (parseInt(p?.level) || 1) <= obedienceCap();
 }
 
 // ============================================
@@ -3882,13 +3899,15 @@ function switchPokemon() {
     list.innerHTML = playerTeam.map((p, i) => {
         const isCurrent = p.name === currentPoke?.name && p.level === currentPoke?.level;
         const isFainted = (p.currentHp || 0) <= 0;
+        const disobeys = !pokeObeys(p);   // ☠️ acima do teto de obediência
         return `
-            <div class="switch-option ${isCurrent ? 'current' : ''} ${isFainted ? 'fainted' : ''}" 
-                 ${!isCurrent && !isFainted ? `onclick="confirmSwitch(${i})"` : ''}>
+            <div class="switch-option ${isCurrent ? 'current' : ''} ${(isFainted || disobeys) ? 'fainted' : ''}"
+                 ${!isCurrent && !isFainted && !disobeys ? `onclick="confirmSwitch(${i})"` : ''}>
                 <strong>${p.nickname || p.name}</strong> Nv.${p.level}
                 <span>HP: ${p.currentHp || p.maxHp || '?'}/${p.maxHp || '?'}</span>
                 ${isCurrent ? '<em>(em batalha)</em>' : ''}
                 ${isFainted ? '<em>(desmaiado)</em>' : ''}
+                ${disobeys ? '<em>☠️ não obedece</em>' : ''}
             </div>
         `;
     }).join('');
@@ -4739,15 +4758,17 @@ function pvpSwitchPokemon() {
         const hp = (p.currentHp !== undefined && p.currentHp !== null) ? p.currentHp : (p.maxHp || 20);
         const isFainted = hp <= 0;
         const isBlocked = (mode === 'official' || mode === 'tournament') && used.includes(i) && !isCurrent;
-        const canSelect = !isCurrent && !isFainted && !isBlocked;
-        
+        const disobeys = !pokeObeys(p);   // ☠️ acima do teto de obediência
+        const canSelect = !isCurrent && !isFainted && !isBlocked && !disobeys;
+
         html += `
-            <div class="switch-option ${isCurrent ? 'current' : ''} ${isFainted ? 'fainted' : ''} ${isBlocked ? 'fainted' : ''}"
+            <div class="switch-option ${isCurrent ? 'current' : ''} ${isFainted ? 'fainted' : ''} ${(isBlocked || disobeys) ? 'fainted' : ''}"
                  ${canSelect ? `onclick="pvpConfirmSwitch(${i})"` : ''} style="cursor:${canSelect ? 'pointer' : 'default'};">
                 <strong>${p.nickname || p.name}</strong> Nv.${p.level} — HP: ${hp}/${p.maxHp || 20}
                 ${isCurrent ? '<em>(ativo)</em>' : ''}
                 ${isFainted ? '<em>(desmaiado)</em>' : ''}
                 ${isBlocked ? '<em>(bloqueado)</em>' : ''}
+                ${disobeys ? '<em>☠️ não obedece</em>' : ''}
             </div>
         `;
     });
