@@ -4912,20 +4912,31 @@ def pc_store_capture():
 
 # ══════════════ CAPTURA (autoridade 100% do servidor) ══════════════
 # Bolas aceitas: ball_type (cliente) → nomes possíveis na bolsa + bônus no teste
+# Nomes em forma NORMALIZADA (_norm_ball_name): minúsculas, sem acento e sem
+# espaços — bolsas reais têm de tudo ("Poke Ball", "Superball", "Pokébolas")
 CAPTURE_BALLS = {
-    'pokeball':   {'names': ['pokébola', 'pokebola', 'poke ball', 'pokeball'],
+    'pokeball':   {'names': ['pokebola', 'pokeball'],
                    'bonus': 0, 'label': '🔴 Pokébola'},
-    'greatball':  {'names': ['super bola', 'great ball', 'bola super', 'super ball'],
+    'greatball':  {'names': ['superbola', 'superball', 'greatball', 'bolasuper'],
                    'bonus': 2, 'label': '🔵 Super Bola'},
-    'ultraball':  {'names': ['ultra bola', 'ultra ball', 'bola ultra'],
+    'ultraball':  {'names': ['ultrabola', 'ultraball', 'bolaultra'],
                    'bonus': 4, 'label': '⚫ Ultra Bola'},
-    'netball':    {'names': ['net bola', 'net ball'],
+    'netball':    {'names': ['netbola', 'netball'],
                    'bonus': 0, 'label': '🟢 Net Bola'},
-    'healball':   {'names': ['cura bola', 'heal ball'],
+    'healball':   {'names': ['curabola', 'healball', 'bolacura'],
                    'bonus': 0, 'label': '🩷 Cura Bola'},
-    'masterball': {'names': ['master ball', 'bola master'],
+    'masterball': {'names': ['masterball', 'bolamaster'],
                    'bonus': 999, 'label': '🟣 Master Ball'},
 }
+
+
+def _norm_ball_name(s):
+    """Nome de item de bolsa em forma canônica para casar bolas:
+    minúsculas, sem acentos e só alfanumérico ('Poke Ball'→'pokeball',
+    'Superball'→'superball', 'Pokébolas'→'pokebolas')."""
+    import unicodedata
+    s = unicodedata.normalize('NFD', str(s or '').lower())
+    return ''.join(ch for ch in s if ch.isalnum())
 # Bônus FIXO no teste d20 por status (regra da mesa): sono/congelamento pesam
 # mais; paralisia/queimadura/veneno/confusão pesam menos.
 CAPTURE_STATUS_BONUS = {'dormindo': 6, 'congelado': 6,
@@ -4942,7 +4953,7 @@ def _find_ball_in_bag(bag, ball_type):
     for it in (bag or []):
         if not isinstance(it, dict):
             continue
-        nm = (it.get('name') or '').strip().lower()
+        nm = _norm_ball_name(it.get('name'))
         # bolsas legadas guardam PLURAL ("5 Pokébolas" → nome "Pokébolas") —
         # sem tolerar o 's' final, nenhuma bola era encontrada na captura
         if nm in names or (nm.endswith('s') and nm[:-1] in names):

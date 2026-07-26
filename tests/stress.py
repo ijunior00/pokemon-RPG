@@ -1891,6 +1891,43 @@ def main():
           _row.get('ambush_armed') is False)
     check(S, 'raio-X de caçadas é só do mestre',
           p1.get('/master/hunts/state').status_code == 403)
+
+    # 🎱 nomes reais de bolsa casam com as bolas da captura (caso do Luck:
+    # "Superball" tudo junto e "Poke Ball" sem acento eram invisíveis)
+    _bag_bak = db.get_users()[u1]['trainer_data'].get('bag')
+    _uu = db.get_users()
+    _uu[u1]['trainer_data']['bag'] = [{'name': 'Superball', 'qty': 2},
+                                      {'name': 'Poke Ball', 'qty': 1}]
+    db.save_users(_uu)
+    check(S, 'bolas: "Superball" casa com Super Bola',
+          appmod._find_ball_in_bag(_uu[u1]['trainer_data']['bag'], 'greatball') is not None)
+    check(S, 'bolas: "Poke Ball" casa com Pokébola',
+          appmod._find_ball_in_bag(_uu[u1]['trainer_data']['bag'], 'pokeball') is not None)
+    check(S, 'bolas: "Pokébolas" (plural acentuado) segue casando',
+          appmod._find_ball_in_bag([{'name': 'Pokébolas', 'qty': 3}], 'pokeball') is not None)
+    # ponta a ponta: arremesso com a Superball consome da bolsa
+    _seed_exploit_enc(php=30, pmax=60, whp=10, wmax=40)   # 25% ≤ teto de 40%
+    r = p1.post('/player/capture', json={'ball_type': 'greatball'})
+    d = r.get_json() or {}
+    _bag_now = db.get_users()[u1]['trainer_data']['bag']
+    _sb = next((i for i in _bag_now if i.get('name') == 'Superball'), None)
+    check(S, 'bolas: arremesso com "Superball" funciona e consome 1',
+          r.status_code == 200 and d.get('result') in ('caught', 'failed', 'broke')
+          and _sb is not None and int(_sb.get('qty')) == 1,
+          f"{d.get('result')}/{_sb and _sb.get('qty')}")
+    # limpeza: desfaz captura (se pegou), encontro e bolsa
+    if d.get('result') == 'caught':
+        _uu = db.get_users()
+        if d.get('destination') == 'team':
+            _uu[u1]['trainer_data']['team'].pop()
+        elif (_uu[u1]['trainer_data'].get('pc') or []):
+            _uu[u1]['trainer_data']['pc'].pop()
+        db.save_users(_uu)
+    _gs = gstate(); (_gs.get('active_encounters') or {}).pop(str(u1), None)
+    db.save_game_state(_gs, TID)
+    _uu = db.get_users()
+    _uu[u1]['trainer_data']['bag'] = _bag_bak
+    db.save_users(_uu)
     for c in (s1, s2, msio):
         c.get_received()
 

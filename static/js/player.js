@@ -2706,20 +2706,26 @@ function showPostFaintPanel() {
 
 // Opções de bola com nome + bônus + quantidade da bolsa (desabilita qtd 0)
 function pokeballOptionsHtml() {
+    // nomes em forma normalizada (sem acento/espaço) — espelha o servidor
+    // (_norm_ball_name): bolsas reais têm "Poke Ball", "Superball", "Pokébolas"...
     const balls = [
-        { key: 'pokeball', names: ['Pokébola'], label: 'Pokébola', bonus: '+0' },
-        { key: 'greatball', names: ['Super Bola', 'Great Ball'], label: 'Super Bola', bonus: '+2' },
-        { key: 'ultraball', names: ['Ultra Bola', 'Ultra Ball'], label: 'Ultra Bola', bonus: '+4' },
-        { key: 'netball', names: ['Net Bola', 'Net Ball'], label: 'Net Bola', bonus: '+3 Bug/Água' },
-        { key: 'healball', names: ['Cura Bola', 'Heal Ball'], label: 'Cura Bola', bonus: 'cura' },
-        { key: 'masterball', names: ['Master Ball'], label: 'Master Ball', bonus: 'garantida' },
+        { key: 'pokeball', names: ['pokebola', 'pokeball'], label: 'Pokébola', bonus: '+0' },
+        { key: 'greatball', names: ['superbola', 'superball', 'greatball', 'bolasuper'], label: 'Super Bola', bonus: '+2' },
+        { key: 'ultraball', names: ['ultrabola', 'ultraball', 'bolaultra'], label: 'Ultra Bola', bonus: '+4' },
+        { key: 'netball', names: ['netbola', 'netball'], label: 'Net Bola', bonus: '+3 Bug/Água' },
+        { key: 'healball', names: ['curabola', 'healball', 'bolacura'], label: 'Cura Bola', bonus: 'cura' },
+        { key: 'masterball', names: ['masterball', 'bolamaster'], label: 'Master Ball', bonus: 'garantida' },
     ];
     const bag = window.bagItems || [];
-    // bolsas legadas guardam PLURAL ("5 Pokébolas" → "Pokébolas") — sem
-    // tolerar o 's' final, todas as opções apareciam ×0 (desabilitadas)
-    const _sing = (s) => { const x = (s || '').toLowerCase().trim(); return x.endsWith('s') ? x.slice(0, -1) : x; };
+    const _norm = (s) => (s || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '');
+    // plural legado ("Pokébolas") também casa
     const qtyOf = (names) => {
-        const it = bag.find(b => names.some(n => _sing(b.name) === _sing(n)));
+        const it = bag.find(b => {
+            const n = _norm(b.name);
+            return names.includes(n) || (n.endsWith('s') && names.includes(n.slice(0, -1)));
+        });
         return it ? (it.qty || 0) : 0;
     };
     return balls.map(b => {
