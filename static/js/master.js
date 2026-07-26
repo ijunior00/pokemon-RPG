@@ -592,10 +592,13 @@ function _renderHuntRoll(r) {
     const when = new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
     const nat = r.roll === 20 ? ' 🌟NAT20' : r.roll === 1 ? ' 💀NAT1' : '';
     const src = r.manual ? '🎲 dado real' : '🖥️ virtual';
+    // Nat 1 DIGITADO arma emboscada 1v2 — vale o mestre conferir na mesa
+    const typedNat1 = (r.roll === 1 && r.manual)
+        ? ' <span style="color:#e53935;font-weight:700;">⚠️ digitado — confirme o dado na mesa</span>' : '';
     const card = document.createElement('div');
     card.style.cssText = 'padding:0.45rem 0.6rem;border-radius:8px;background:rgba(255,203,5,0.1);border:1px solid rgba(255,203,5,0.35);font-size:0.88rem;';
     const mod = r.skill_mod ?? r.wis_mod ?? 0;
-    card.innerHTML = `<strong>${r.player_name || 'Jogador'}</strong> — 🧭 Exploração: d20(${r.roll})${nat} ` +
+    card.innerHTML = `<strong>${r.player_name || 'Jogador'}</strong> — 🧭 Exploração: d20(${r.roll})${nat}${typedNat1} ` +
         `${mod >= 0 ? '+' : ''}${mod}${r.proficient ? ' (prof.)' : ''} = <strong>${r.total}</strong> ` +
         `<span style="opacity:0.7;">· ${src} · ${r.used}/${r.limit} · ${when}</span>` +
         `<button class="btn btn-sm btn-success" style="margin-left:0.5rem;padding:0.1rem 0.5rem;" ` +
