@@ -850,6 +850,39 @@ async function givePokemon() {
         : `❌ ${r.error || 'Falha'}`;
 }
 
+// 🎯 Teste de captura FORA de batalha: oferece (ou recolhe) a chance ao
+// jogador selecionado no card de presentes. CD = 10 + SR + nível + mod.
+async function masterOfferCaptureTest(revoke) {
+    const out = document.getElementById('gift-result');
+    const body = revoke
+        ? { player_id: document.getElementById('gift-player')?.value, revoke: true }
+        : {
+            player_id: document.getElementById('gift-player')?.value,
+            species: document.getElementById('gift-species')?.value?.trim(),
+            level: parseInt(document.getElementById('gift-level')?.value || 5),
+            shiny: !!document.getElementById('gift-shiny')?.checked,
+            scene_mod: parseInt(document.getElementById('capture-scene-mod')?.value || 0),
+            note: document.getElementById('capture-scene-note')?.value || '',
+        };
+    if (!body.player_id || (!revoke && !body.species)) { alert('Selecione o jogador e a espécie.'); return; }
+    try {
+        const resp = await fetch('/master/capture-test', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const r = await resp.json();
+        if (out) out.textContent = r.ok
+            ? (revoke ? (r.revoked ? '✋ Oferta de captura recolhida.' : 'Não havia oferta pendente.')
+                      : `🎯 Teste de captura oferecido: ${r.offer.name} Nv.${r.offer.level} (CD ${r.offer.dc}).`)
+            : `❌ ${r.error || 'Falha'}`;
+    } catch (e) { if (out) out.textContent = '❌ Erro de conexão.'; }
+}
+
+socket.on('capture_test_result', (d) => {
+    showNotification(d.message + (d.dice ? ` (d20 ${d.dice.roll} + Afinidade ${d.dice.afinidade} + bola ${d.dice.ball_bonus} = ${d.dice.total} vs CD ${d.dice.dc})` : ''),
+                     d.caught ? 'success' : 'info');
+});
+
 async function giveItem() {
     const out = document.getElementById('gift-result');
     const body = {

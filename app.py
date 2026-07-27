@@ -2894,6 +2894,175 @@ def master_give_pokemon():
     return jsonify({'ok': True, 'pokemon': poke, 'destination': destino})
 
 
+@app.route('/master/capture-test', methods=['POST'])
+@login_required
+def master_capture_test():
+    """🎯 TESTE DE CAPTURA FORA DE BATALHA (condição especial de mesa): o
+    mestre oferece um Pokémon capturável (dormindo na caverna, evento,
+    filhote abandonado...) com um MODIFICADOR DE CENA que mexe na CD.
+    O jogador arremessa UMA bola (/player/capture-test) — errou, a chance
+    passou (o mestre pode oferecer de novo). revoke=true cancela a oferta."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    pid = str(data.get('player_id') or '')
+    users = get_users()
+    if not _player_in_master_table(pid, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+
+    gs = get_game_state()
+    if data.get('revoke'):
+        had = (gs.get('capture_tests') or {}).pop(pid, None)
+        save_game_state(gs)
+        socketio.emit('capture_test_offer', {'revoked': True}, room=pid)
+        return jsonify({'ok': True, 'revoked': bool(had)})
+
+    species = (data.get('species') or '').strip()
+    base = POKEMON_BY_NAME.get(species.lower())
+    if not base and str(species).isdigit():
+        base = next((p for p in POKEMON_DB if int(p.get('number', 0)) == int(species)), None)
+    if not base:
+        return jsonify({'error': f'Espécie não encontrada: {species}'}), 404
+    try:
+        level = max(1, min(100, int(data.get('level') or 5)))
+    except (TypeError, ValueError):
+        level = 5
+    try:
+        scene_mod = max(-10, min(10, int(data.get('scene_mod') or 0)))
+    except (TypeError, ValueError):
+        scene_mod = 0
+
+    dc = max(5, 10 + _sr_int(base.get('sr')) + level + scene_mod)
+    offer = {'number': base['number'], 'name': base['name'], 'level': level,
+             'scene_mod': scene_mod, 'dc': dc,
+             'shiny': bool(data.get('shiny')),
+             'note': str(data.get('note') or '')[:120]}
+    gs.setdefault('capture_tests', {})[pid] = offer
+    save_game_state(gs)
+    socketio.emit('capture_test_offer', offer, room=pid)
+    return jsonify({'ok': True, 'offer': offer})
+
+
+@app.route('/player/capture-test', methods=['POST'])
+@login_required
+def player_capture_test():
+    """Arremesso do TESTE DE CAPTURA fora de batalha — servidor resolve.
+
+    CD = 10 + SR + nível + modificador de cena (mín. 5); teste = d20 +
+    Afinidade + bônus da bola (Master Ball garante). SEM teto de HP (o
+    Pokémon não está enfraquecido — a 'condição especial' é o modificador
+    do mestre). A oferta é consumida no arremesso, capturando ou não."""
+    if _rate_limit(15, 60, bucket='capture'):
+        return jsonify({'error': 'Muitas tentativas de captura em pouco tempo.'}), 429
+    pid = str(current_user.id)
+    gs = get_game_state()
+    offer = (gs.get('capture_tests') or {}).get(pid)
+    if not offer:
+        return jsonify({'error': 'Nenhum teste de captura oferecido a você.'}), 400
+
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {}) or {}
+    if trainer.get('dead'):
+        return jsonify({'error': '☠️ Seu treinador está morto — fale com o Mestre.'}), 403
+    trainer_attrs.migrate_trainer(trainer)
+
+    base = POKEMON_BY_NUMBER.get(offer.get('number'))
+    if not base:
+        (gs.get('capture_tests') or {}).pop(pid, None)
+        save_game_state(gs)
+        return jsonify({'error': 'Espécie da oferta inválida.'}), 400
+
+    ball_type = str((request.json or {}).get('ball_type') or 'pokeball').strip().lower()
+    if ball_type not in CAPTURE_BALLS:
+        ball_type = 'pokeball'
+    bag = trainer.get('bag', []) or []
+    ball = _find_ball_in_bag(bag, ball_type)
+    ball_label = CAPTURE_BALLS[ball_type]['label']
+    if not ball or int(ball.get('qty') or 0) < 1:
+        return jsonify({'error': f'Você não tem {ball_label} na bolsa.'}), 400
+    ball['qty'] = int(ball['qty']) - 1
+    trainer['bag'] = [i for i in bag if i is not ball] if ball['qty'] <= 0 else bag
+
+    # a oferta é de UMA chance: consome no arremesso (o mestre re-oferece)
+    (gs.get('capture_tests') or {}).pop(pid, None)
+    save_game_state(gs)
+
+    level = int(offer.get('level') or 5)
+    dc = int(offer.get('dc') or max(5, 10 + _sr_int(base.get('sr')) + level))
+    log = [f'{ball_label} arremessada!']
+    if offer.get('note'):
+        log.insert(0, f"📜 {offer['note']}")
+
+    caught = False
+    dice = None
+    if ball_type == 'masterball':
+        caught = True
+        log.append('✅ CAPTURADO! (Master Ball — captura garantida!)')
+    else:
+        roll = random.randint(1, 20)
+        afinidade_bonus = trainer_attrs.skill_modifier(trainer, 'Afinidade')[0]
+        ball_bonus = CAPTURE_BALLS[ball_type]['bonus']
+        if ball_type == 'netball':
+            wtypes = [str(t).lower() for t in (base.get('types') or [])]
+            if any(t in ('bug', 'water') for t in wtypes):
+                ball_bonus += 3
+                log.append('🟢 Net Bola: +3 contra Bug/Water!')
+        total = roll + afinidade_bonus + ball_bonus
+        dice = {'roll': roll, 'dc': dc, 'total': total,
+                'afinidade': afinidade_bonus, 'ball_bonus': ball_bonus,
+                'scene_mod': int(offer.get('scene_mod') or 0)}
+        log.append(f'CD de Captura: {dc} · d20({roll})'
+                   f' + Afinidade({afinidade_bonus:+d})'
+                   + (f' + Bola(+{ball_bonus})' if ball_bonus else '')
+                   + f' = {total}')
+        caught = total >= dc
+
+    pname = users[current_user.id].get('username', 'O treinador')
+    poke = None
+    dest = None
+    if caught:
+        poke = _build_gift_pokemon(base, level, is_shiny=bool(offer.get('shiny')))
+        if ball_type == 'healball':
+            poke['currentHp'] = poke.get('maxHp', poke.get('hp', 20))
+        team = trainer.get('team', []) or []
+        if len(team) < 6:
+            team.append(poke); trainer['team'] = team; dest = 'team'
+        else:
+            pc = trainer.get('pc', []) or []
+            pc.append(poke); trainer['pc'] = pc; dest = 'pc'
+        if ball_type != 'masterball':
+            log.append(f'✅ CAPTURADO! 🎉 ({dice["total"]} ≥ {dc})')
+        if dest == 'pc':
+            log.append('📦 Time cheio — guardado no PC!')
+        _grant_encounter(pid, base['number'])   # registra na pokédex
+    else:
+        log.append(f'💥 A Pokébola quebrou! ({dice["total"]} < {dc}) '
+                   'A chance passou — o Mestre decide se haverá outra.')
+
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+    if poke is not None:
+        socketio.emit('team_update', {'player_id': current_user.id,
+                                      'team': trainer.get('team', [])},
+                      room=f'master_{_tid()}')
+    result_msg = (f"🎯 {pname} {'CAPTUROU' if caught else 'não capturou'} "
+                  f"{offer.get('name')} (Nv.{level}) no teste de captura!")
+    socketio.emit('capture_test_result',
+                  {'player_id': pid, 'player_name': pname, 'caught': caught,
+                   'pokemon_name': offer.get('name'), 'level': level,
+                   'message': result_msg, 'dice': dice},
+                  room=f'master_{_tid()}')
+    if caught:
+        socketio.emit('capture_test_result',
+                      {'player_id': pid, 'player_name': pname, 'caught': True,
+                       'pokemon_name': offer.get('name'), 'level': level,
+                       'message': result_msg},
+                      room=f'players_{_tid()}')
+    return jsonify({'ok': True, 'result': 'caught' if caught else 'broke',
+                    'log': log, 'dice': dice, 'captured': poke,
+                    'destination': dest, 'bag': trainer.get('bag', [])})
+
+
 @app.route('/master/give-item', methods=['POST'])
 @login_required
 def master_give_item():
@@ -5356,7 +5525,8 @@ def player_active_battle():
             group = gb.state_view(b)
             break
     return jsonify({'encounter': enc, 'group_battle': group,
-                    'wild_auto': _wild_auto_mode()})
+                    'wild_auto': _wild_auto_mode(),
+                    'capture_test': (get_game_state().get('capture_tests') or {}).get(pid)})
 
 
 @app.route('/player/capture', methods=['POST'])

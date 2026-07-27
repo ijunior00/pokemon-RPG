@@ -2127,6 +2127,58 @@ def main():
           r.status_code == 200
           and appmod._trainer_hp(_tr1)[0] == appmod._trainer_max_hp(_tr1))
 
+    # ── 🎯 TESTE DE CAPTURA FORA DE BATALHA (condição especial do mestre) ──
+    check(S, 'captura fora de batalha: jogador bloqueado na rota do mestre',
+          p1.post('/master/capture-test', json={'player_id': u1,
+                                                'species': 'Pikachu'}).status_code == 403)
+    check(S, 'captura fora de batalha: arremesso sem oferta é recusado',
+          p1.post('/player/capture-test', json={'ball_type': 'pokeball'}).status_code == 400)
+    r = m.post('/master/capture-test', json={'player_id': u1, 'species': 'Pikachu',
+                                             'level': 8, 'scene_mod': -4,
+                                             'note': 'Ele dorme profundamente'})
+    _off = (r.get_json() or {}).get('offer') or {}
+    check(S, 'captura fora de batalha: oferta criada com CD = 10+SR+nível+mod',
+          r.status_code == 200 and _off.get('name') == 'Pikachu'
+          and _off.get('dc') == max(5, 10 + appmod._sr_int(
+              appmod.POKEMON_BY_NAME['pikachu'].get('sr')) + 8 - 4))
+    r = p1.get('/player/battle/active')
+    check(S, 'captura fora de batalha: oferta sobrevive ao refresh (rehidratação)',
+          ((r.get_json() or {}).get('capture_test') or {}).get('name') == 'Pikachu')
+    # sem bola na bolsa → recusa (a oferta NÃO é consumida)
+    _uu = db.get_users()
+    _uu[u1]['trainer_data']['bag'] = [i for i in (_uu[u1]['trainer_data'].get('bag') or [])
+                                      if 'ball' not in appmod._norm_ball_name(i.get('name'))
+                                      and 'bola' not in appmod._norm_ball_name(i.get('name'))]
+    db.save_users(_uu)
+    check(S, 'captura fora de batalha: sem bola na bolsa é recusado',
+          p1.post('/player/capture-test', json={'ball_type': 'pokeball'}).status_code == 400)
+    # Master Ball: captura garantida + espécie/nível/shiny do mestre
+    _uu = db.get_users()
+    _uu[u1]['trainer_data'].setdefault('bag', []).append({'name': 'Master Ball', 'qty': 1})
+    _tot0 = (len(_uu[u1]['trainer_data'].get('team') or [])
+             + len(_uu[u1]['trainer_data'].get('pc') or []))
+    db.save_users(_uu)
+    r = p1.post('/player/capture-test', json={'ball_type': 'masterball'})
+    d = r.get_json() or {}
+    _td1 = db.get_users()[u1]['trainer_data']
+    _tot1 = len(_td1.get('team') or []) + len(_td1.get('pc') or [])
+    check(S, 'captura fora de batalha: Master Ball captura garantido',
+          r.status_code == 200 and d.get('result') == 'caught'
+          and (d.get('captured') or {}).get('name') == 'Pikachu'
+          and (d.get('captured') or {}).get('level') == 8
+          and _tot1 == _tot0 + 1, str(d.get('error') or d.get('result')))
+    check(S, 'captura fora de batalha: bola consumida da bolsa',
+          not appmod._find_ball_in_bag(_td1.get('bag') or [], 'masterball'))
+    check(S, 'captura fora de batalha: a oferta é consumida no arremesso',
+          p1.post('/player/capture-test', json={'ball_type': 'pokeball'}).status_code == 400)
+    # recolher a oferta (revoke) antes do arremesso
+    m.post('/master/capture-test', json={'player_id': u1, 'species': 'Eevee', 'level': 5})
+    r = m.post('/master/capture-test', json={'player_id': u1, 'revoke': True})
+    check(S, 'captura fora de batalha: mestre recolhe a oferta pendente',
+          (r.get_json() or {}).get('revoked') is True
+          and p1.post('/player/capture-test',
+                      json={'ball_type': 'pokeball'}).status_code == 400)
+
     # grupo: selvagens venceram → só quem ficou SEM time é alcançado
     # (revive os times ANTES de criar: o ativo precisa estar vivo e obediente)
     _uu = db.get_users()

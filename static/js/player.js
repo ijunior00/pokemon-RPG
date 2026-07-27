@@ -1175,6 +1175,11 @@ async function resumeActiveBattle() {
         try { renderGroupBattle(d.group_battle); } catch (e) { console.error('resume grupo falhou:', e); }
     }
 
+    // 🎯 teste de captura fora de batalha pendente sobrevive ao refresh
+    if (d.capture_test) {
+        try { showCaptureTest(d.capture_test); } catch (e) {}
+    }
+
     const enc = d.encounter;
     if (!enc || !enc.pokemon) return;
 
@@ -1803,6 +1808,89 @@ socket.on('group_battle_error', (d) => {
 // 💀 O selvagem derrotou o último Pokémon e AVANÇOU NO TREINADOR — para o
 // alvo é um momento dramático (o Mestre conduz a cena e pode pedir um
 // teste, que chega pelo fluxo normal de roll_request); a mesa toda vê.
+// ═══ 🎯 TESTE DE CAPTURA FORA DE BATALHA (condição especial do Mestre) ═══
+// O Mestre oferece um Pokémon capturável (dormindo, evento, filhote...);
+// o jogador tem UMA bola para arremessar. O servidor resolve tudo.
+function showCaptureTest(offer) {
+    let ov = document.getElementById('capture-test-overlay');
+    if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'capture-test-overlay';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:9997;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(6,10,20,0.92);';
+        document.body.appendChild(ov);
+    }
+    ov.style.display = 'flex';
+    const spr = offer.number ? getPokemonSpriteUrl(offer.number, offer.shiny) : '';
+    ov.innerHTML = `
+        <div id="capture-test-card" style="max-width:420px;width:100%;background:var(--card-bg,#151b2b);border:2px solid var(--accent,#ffcb05);border-radius:16px;padding:1rem 1.2rem;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.6);">
+            <div style="font-weight:800;font-size:1.05rem;">🎯 Chance de Captura!</div>
+            ${offer.note ? `<div style="font-size:0.85rem;opacity:0.85;margin-top:0.3rem;">📜 ${offer.note}</div>` : ''}
+            ${spr ? `<img src="${spr}" width="96" height="96" style="object-fit:contain;image-rendering:pixelated;margin-top:0.4rem;"${offer.shiny ? ' class="sprite-shiny"' : ''}>` : ''}
+            <div style="font-weight:700;">${offer.shiny ? '✨ ' : ''}${offer.name} Nv.${offer.level}</div>
+            <div style="font-size:0.8rem;opacity:0.8;margin-top:0.2rem;">CD de Captura: <strong>${offer.dc}</strong> · d20 + Afinidade + bônus da bola</div>
+            <div class="form-group" style="margin-top:0.6rem;text-align:left;"><label>Pokébola</label>
+                <select id="capture-test-ball">${pokeballOptionsHtml()}</select></div>
+            <div style="display:flex;gap:0.5rem;margin-top:0.6rem;">
+                <button class="btn btn-primary" style="flex:1;" onclick="throwCaptureTest()">🎯 Arremessar</button>
+                <button class="btn btn-secondary" onclick="closeCaptureTest()">Agora não</button>
+            </div>
+            <div id="capture-test-log" style="margin-top:0.6rem;font-size:0.82rem;text-align:left;"></div>
+        </div>`;
+    if (window.FX && FX.sendOut) { try { FX.sendOut(ov.querySelector('img')); } catch (e) {} }
+    try { playNotificationSound(); } catch (e) {}
+}
+
+function closeCaptureTest() {
+    const ov = document.getElementById('capture-test-overlay');
+    if (ov) ov.style.display = 'none';
+}
+
+async function throwCaptureTest() {
+    const ball = document.getElementById('capture-test-ball')?.value || 'pokeball';
+    const logEl = document.getElementById('capture-test-log');
+    try {
+        const r = await fetch('/player/capture-test', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ball_type: ball })
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) {
+            if (logEl) logEl.innerHTML = `<span style="color:#e53935;">❌ ${d.error || 'Falha no arremesso'}</span>`;
+            return;
+        }
+        if (d.bag) window.bagItems = d.bag;
+        if (logEl) logEl.innerHTML = (d.log || []).map(l => `<div>• ${l}</div>`).join('');
+        const card = document.getElementById('capture-test-card');
+        const img = card?.querySelector('img');
+        if (d.result === 'caught') {
+            try { FX.captureAbsorb && FX.captureAbsorb(img); FX.callout && FX.callout('CAPTURADO!', 'success', card); } catch (e) {}
+            try { playSound('capture'); } catch (e) {}
+            if (d.captured && d.destination === 'team') playerTeam = [...playerTeam, d.captured];
+            try { if (typeof renderTeam === 'function') renderTeam(); } catch (e) {}
+            setTimeout(closeCaptureTest, 3200);
+        } else {
+            try { FX.captureWobble && FX.captureWobble(img); FX.callout && FX.callout('QUEBROU...', 'muted', card); } catch (e) {}
+            setTimeout(closeCaptureTest, 3200);
+        }
+        // some botões: a chance foi consumida
+        card?.querySelectorAll('button').forEach(b => b.remove());
+    } catch (e) {
+        if (logEl) logEl.innerHTML = '<span style="color:#e53935;">❌ Erro de conexão.</span>';
+    }
+}
+
+socket.on('capture_test_offer', (d) => {
+    if (d && d.revoked) { closeCaptureTest(); showNotification('O Mestre recolheu a chance de captura.', 'info'); return; }
+    showCaptureTest(d);
+});
+
+socket.on('capture_test_result', (d) => {
+    // aviso para a mesa (o próprio jogador já viu o log no overlay)
+    if (String(d.player_id) !== String(window.CURRENT_USER_ID)) {
+        showNotification(d.message, d.caught ? 'success' : 'info');
+    }
+});
+
 // ❤️ HP do treinador: dano da cena de avanço / teste de morte / revive
 function _setTrainerHpUi(hp, maxHp, prevHp) {
     const bar = document.getElementById('trainer-hp-bar');

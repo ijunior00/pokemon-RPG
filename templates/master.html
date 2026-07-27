@@ -217,6 +217,21 @@
                     </div>
                     <button class="btn btn-success" onclick="givePokemon()">🐾 Dar Pokémon</button>
                 </div>
+                <!-- 🎯 Teste de captura FORA de batalha: usa os campos acima
+                     (jogador/espécie/nível/shiny) + modificador de cena na CD.
+                     O jogador arremessa UMA bola; o servidor resolve. -->
+                <div class="form-row" style="align-items:flex-end;gap:0.4rem;flex-wrap:wrap;">
+                    <div class="form-group" style="max-width:7rem;">
+                        <label title="Soma na CD: negativo facilita (dormindo -4), positivo dificulta (lendário +6)">Mod. da cena</label>
+                        <input type="number" id="capture-scene-mod" value="0" min="-10" max="10">
+                    </div>
+                    <div class="form-group" style="min-width:160px;">
+                        <label>Contexto (opc.)</label>
+                        <input type="text" id="capture-scene-note" maxlength="120" placeholder="ex.: Ele dorme profundamente...">
+                    </div>
+                    <button class="btn btn-primary" onclick="masterOfferCaptureTest()">🎯 Oferecer teste de captura</button>
+                    <button class="btn btn-secondary" onclick="masterOfferCaptureTest(true)" title="Cancela a oferta pendente do jogador selecionado">✋ Recolher</button>
+                </div>
                 <div class="form-row" style="align-items:flex-end;gap:0.4rem;flex-wrap:wrap;">
                     <div class="form-group" style="min-width:160px;">
                         <label>Item (catálogo ou nome livre)</label>
