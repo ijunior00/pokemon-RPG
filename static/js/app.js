@@ -45,7 +45,10 @@ document.querySelectorAll('.tab').forEach(tab => {
         
         // Activate clicked tab
         tab.classList.add('active');
-        document.getElementById(`tab-${tabId}`).classList.add('active');
+        const content = document.getElementById(`tab-${tabId}`);
+        content.classList.add('active');
+        // transição fluida (FX/GSAP) — no-op sem GSAP ou com reduced-motion
+        if (window.FX && FX.tabIn) FX.tabIn(content);
     });
 });
 

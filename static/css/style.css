@@ -827,6 +827,32 @@ h1, h2 {
 .switch-option.current { border-color: var(--success); opacity: 0.6; cursor: default; }
 .switch-option.fainted { opacity: 0.35; cursor: default; text-decoration: line-through; }
 
+/* Carrossel de escolha de Pokémon (troca em batalha: 1v1, PvP e grupo) —
+   cards com sprite, rolagem horizontal com snap (fluida no celular). */
+.poke-carousel { display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.4rem 0.2rem;
+                 scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+.poke-carousel::-webkit-scrollbar { height: 6px; }
+.poke-carousel::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 3px; }
+.poke-card { flex: 0 0 auto; width: 104px; scroll-snap-align: center; text-align: center;
+             background: var(--darker); border: 2px solid var(--card-border);
+             border-radius: var(--radius); padding: 0.5rem 0.35rem; cursor: pointer;
+             transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s; }
+.poke-card:hover:not(.disabled) { transform: translateY(-3px); border-color: var(--primary);
+             box-shadow: 0 4px 12px rgba(0,0,0,0.35); }
+.poke-card img { width: 56px; height: 56px; object-fit: contain; image-rendering: pixelated; }
+.poke-card .pc-name { font-weight: 700; font-size: 0.78rem; white-space: nowrap;
+             overflow: hidden; text-overflow: ellipsis; }
+.poke-card .pc-sub { font-size: 0.68rem; opacity: 0.8; }
+.poke-card .pc-hpbox { background: rgba(255,255,255,0.12); border-radius: 4px; height: 7px;
+             overflow: hidden; margin-top: 3px; }
+.poke-card .pc-hp { height: 100%; background: #4caf50; }
+.poke-card .pc-hp.mid { background: #ffcb05; }
+.poke-card .pc-hp.low { background: #e53935; }
+.poke-card .pc-tag { font-size: 0.64rem; font-style: italic; opacity: 0.85; display: block; }
+.poke-card.current { border-color: var(--success); opacity: 0.65; cursor: default; }
+.poke-card.disabled { opacity: 0.35; cursor: default; filter: grayscale(0.8); }
+.poke-card.disabled img { filter: grayscale(1); }
+
 /* ============================================
    SETTINGS PANEL
    ============================================ */
