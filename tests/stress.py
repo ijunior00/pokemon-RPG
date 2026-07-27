@@ -1936,6 +1936,34 @@ def main():
     _uu[u1]['trainer_data']['bag'] = _bag_bak
     db.save_users(_uu)
 
+    # 💤 captura com STATUS EM DICT (formato das batalhas reais) — a rota
+    # assumia string e crashava com 500 em toda captura de selvagem com
+    # status ("dormir + bola" inteiro quebrado em produção)
+    _seed_exploit_enc(php=30, pmax=60, whp=10, wmax=40)
+    _gs = gstate()
+    _gs['active_encounters'][str(u1)]['battle_state']['wild_status'] = \
+        {'condition': 'dormindo', 'turns_active': 1}
+    db.save_game_state(_gs, TID)
+    appmod._rate_store.clear()
+    r = p1.post('/player/capture', json={'ball_type': 'pokeball', 'trapped': True})
+    d = r.get_json() or {}
+    check(S, 'captura com status em DICT não crasha (dormindo)',
+          r.status_code == 200 and d.get('ok') is True, f'status {r.status_code}')
+    check(S, 'captura com status em DICT aplica o bônus (+6 sono)',
+          d.get('status') == 'dormindo'
+          and ((d.get('dice') or {}).get('status_bonus') == 6
+               or d.get('result') == 'caught'),
+          str(d.get('dice')))
+    if d.get('result') == 'caught':
+        _uu = db.get_users()
+        if d.get('destination') == 'team':
+            _uu[u1]['trainer_data']['team'].pop()
+        elif (_uu[u1]['trainer_data'].get('pc') or []):
+            _uu[u1]['trainer_data']['pc'].pop()
+        db.save_users(_uu)
+    _gs = gstate(); (_gs.get('active_encounters') or {}).pop(str(u1), None)
+    db.save_game_state(_gs, TID)
+
     # ── ☠️ OBEDIÊNCIA: Pokémon acima de (treinador×5)+10 não entra em batalha ──
     check(S, 'obediência: teto = nível×5+10 (unit)',
           appmod._poke_obeys({'level': 2}, {'level': 20})

@@ -5126,7 +5126,14 @@ def player_capture():
     wild_cur = max(0, min(wild_max, wild_cur))
     hp_pct = wild_cur / wild_max
     fainted = wild_cur <= 0
-    status = (bs.get('wild_status') or '').strip().lower() or None
+    # status vem como DICT nas batalhas reais ({'condition': 'dormindo', ...})
+    # e como string nos fluxos legados — normaliza os dois (sem isso, capturar
+    # um selvagem com status crashava a rota com 500: a estratégia inteira de
+    # "dormir + bola" estava quebrada)
+    _ws = bs.get('wild_status')
+    if isinstance(_ws, dict):
+        _ws = _ws.get('condition')
+    status = (str(_ws or '').strip().lower()) or None
 
     users = get_users()
     trainer = users.get(current_user.id, {}).get('trainer_data', {}) or {}
