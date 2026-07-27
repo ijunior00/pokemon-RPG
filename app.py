@@ -6063,6 +6063,172 @@ def pokemon_center():
     return jsonify({'ok': True, 'team': team})
 
 
+# ── 💊 MEDICINA FORA DE BATALHA ──
+# Efeitos dos itens de cura da loja, usáveis da bolsa (fora de combate).
+# Chaves em forma normalizada (_norm_ball_name) com aliases PT/EN;
+# heal = (dados, lados, bônus) ou 'full'; cure = condição ou 'any';
+# revive = fração do HP máximo.
+MEDICINE_ITEMS = {
+    'potion':       {'names': ['pocao', 'potion'], 'label': '🧪 Poção',
+                     'heal': (2, 4, 2)},
+    'superpotion':  {'names': ['superpocao', 'superpotion'], 'label': '🧪 Super Poção',
+                     'heal': (4, 4, 4)},
+    'hyperpotion':  {'names': ['hiperpocao', 'hyperpotion'], 'label': '🧪 Hiper Poção',
+                     'heal': (6, 4, 12)},
+    'maxpotion':    {'names': ['pocaomaxima', 'maxpotion'], 'label': '🧪 Poção Máxima',
+                     'heal': 'full'},
+    'fullrestore':  {'names': ['restauracao', 'fullrestore'], 'label': '💊 Restauração',
+                     'heal': 'full', 'cure': 'any'},
+    'antidote':     {'names': ['antidoto', 'antidote'], 'label': '💊 Antídoto',
+                     'cure': 'envenenado'},
+    'burnheal':     {'names': ['curaqueimadura', 'burnheal'], 'label': '💊 Cura Queimadura',
+                     'cure': 'queimado'},
+    'iceheal':      {'names': ['curagelo', 'iceheal'], 'label': '💊 Cura Gelo',
+                     'cure': 'congelado'},
+    'awakening':    {'names': ['despertar', 'awakening'], 'label': '💊 Despertar',
+                     'cure': 'dormindo'},
+    'paralyzeheal': {'names': ['curaparalisia', 'paralyzeheal'], 'label': '💊 Cura Paralisia',
+                     'cure': 'paralisado'},
+    'fullheal':     {'names': ['curatotal', 'fullheal'], 'label': '💊 Cura Total',
+                     'cure': 'any'},
+    'revive':       {'names': ['reviver', 'revive'], 'label': '⭐ Reviver',
+                     'revive': 0.5},
+    'maxrevive':    {'names': ['revivermax', 'maxrevive'], 'label': '⭐ Reviver Máx',
+                     'revive': 1.0},
+}
+
+
+def _find_medicine(name):
+    """(chave, def) do item de medicina pelo nome livre da bolsa, ou (None, None)."""
+    nm = _norm_ball_name(name)
+    for key, md in MEDICINE_ITEMS.items():
+        if nm in md['names'] or (nm.endswith('s') and nm[:-1] in md['names']):
+            return key, md
+    return None, None
+
+
+@app.route('/player/use-item', methods=['POST'])
+@login_required
+def player_use_item():
+    """💊 Usa um item de MEDICINA da bolsa num Pokémon do time — FORA de
+    batalha (em combate os itens têm fluxo próprio). Servidor rola a cura
+    (2d4+2...), valida alvo (Reviver exige desmaiado; curas de status exigem
+    a condição) e consome o item."""
+    if _rate_limit(20, 60, bucket='useitem'):
+        return jsonify({'error': 'Muitos usos de item em pouco tempo.'}), 429
+    pid = str(current_user.id)
+    # fora de batalha: sem encontro 1v1, sem PvP ativo, sem batalha em grupo
+    if (get_game_state().get('active_encounters') or {}).get(pid):
+        return jsonify({'error': 'Você está em batalha — itens fora de batalha apenas.'}), 400
+    if any(pid in (b.get('player1', {}).get('id'), b.get('player2', {}).get('id'))
+           and b.get('phase') == 'battle' for b in ACTIVE_PVP.values()):
+        return jsonify({'error': 'Você está em um PvP — itens fora de batalha apenas.'}), 400
+    if any(b.get('phase') == 'active'
+           and any(c.get('player_id') == pid and c.get('side') == 'ally'
+                   for c in b['combatants'].values())
+           for b in ACTIVE_GROUP_BATTLES.values()):
+        return jsonify({'error': 'Você está em uma batalha em grupo — itens fora de batalha apenas.'}), 400
+
+    data = request.json or {}
+    item_name = str(data.get('item_name') or '')
+    key, med = _find_medicine(item_name)
+    if not med:
+        return jsonify({'error': f'"{item_name}" não é um item de medicina usável.'}), 400
+
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {}) or {}
+    bag = trainer.get('bag', []) or []
+    slot = next((it for it in bag if isinstance(it, dict)
+                 and _find_medicine(it.get('name'))[0] == key
+                 and int(it.get('qty') or 0) > 0), None)
+    if not slot:
+        return jsonify({'error': f'Você não tem {med["label"]} na bolsa.'}), 400
+
+    team = trainer.get('team', []) or []
+    # alvo por uid (estável) com fallback para índice
+    target = None
+    t_uid = data.get('target_uid')
+    if t_uid:
+        target = next((p for p in team if p.get('uid') == t_uid), None)
+    if target is None:
+        try:
+            idx = int(data.get('target_idx'))
+            if 0 <= idx < len(team):
+                target = team[idx]
+        except (TypeError, ValueError):
+            pass
+    if target is None:
+        return jsonify({'error': 'Escolha um Pokémon do time.'}), 400
+
+    tname = target.get('nickname') or target.get('name', 'Pokémon')
+    max_hp = int(target.get('maxHp') or target.get('hp') or 20)
+    cur_raw = target.get('currentHp')
+    cur = int(cur_raw) if isinstance(cur_raw, (int, float)) else max_hp
+    fainted = cur <= 0
+    _st = target.get('status')
+    if isinstance(_st, dict):
+        _st = _st.get('condition')
+    status = (str(_st or '').strip().lower()) or None
+
+    log = []
+    dice = None
+
+    if 'revive' in med:
+        if not fainted:
+            return jsonify({'error': f'{tname} não está desmaiado — Reviver é para Pokémon desmaiado.'}), 400
+        cur = max(1, int(max_hp * med['revive']))
+        target['currentHp'] = cur
+        target.pop('status', None)
+        log.append(f"⭐ {med['label']}: {tname} voltou à luta com {cur}/{max_hp} HP!")
+    else:
+        if fainted:
+            return jsonify({'error': f'{tname} está desmaiado — use um Reviver.'}), 400
+        heal = med.get('heal')
+        cure = med.get('cure')
+        if cure and not heal:
+            # item SÓ de status: exige a condição certa (ou alguma, no 'any')
+            if not status:
+                return jsonify({'error': f'{tname} não tem condição de status para curar.'}), 400
+            if cure != 'any' and status != cure:
+                return jsonify({'error': f"{med['label']} não cura '{status}' "
+                                         f"(cura apenas {cure})."}), 400
+        if heal:
+            if cur >= max_hp and not (cure and status):
+                return jsonify({'error': f'{tname} já está com o HP cheio.'}), 400
+            if heal == 'full':
+                healed = max_hp - cur
+                cur = max_hp
+                log.append(f"🧪 {med['label']}: {tname} recuperou TODO o HP ({max_hp}/{max_hp})!")
+            else:
+                n, sides, flat = heal
+                rolls = [random.randint(1, sides) for _ in range(n)]
+                amount = sum(rolls) + flat
+                healed = min(amount, max_hp - cur)
+                cur = min(max_hp, cur + amount)
+                dice = {'rolls': rolls, 'flat': flat, 'total': amount}
+                log.append(f"🧪 {med['label']}: {n}d{sides}+{flat} = {amount} "
+                           f"→ {tname} recuperou {healed} HP ({cur}/{max_hp}).")
+            target['currentHp'] = cur
+        if cure and status and (cure == 'any' or status == cure):
+            target.pop('status', None)
+            log.append(f"💊 {tname} foi curado de '{status}'!")
+
+    # consome 1 do item
+    slot['qty'] = int(slot['qty']) - 1
+    trainer['bag'] = [i for i in bag if i is not slot] if slot['qty'] <= 0 else bag
+    trainer['team'] = team
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+    socketio.emit('team_update', {'player_id': current_user.id, 'team': team},
+                  room=f'master_{_tid()}')
+    return jsonify({'ok': True, 'log': log, 'dice': dice,
+                    'pokemon': {'uid': target.get('uid'), 'name': tname,
+                                'currentHp': target.get('currentHp'),
+                                'maxHp': max_hp,
+                                'status': target.get('status')},
+                    'bag': trainer.get('bag', [])})
+
+
 @app.route('/player/level-evolve', methods=['POST'])
 @login_required
 def level_evolve():

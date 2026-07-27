@@ -4320,6 +4320,7 @@ function renderBag() {
     }
     grid.innerHTML = window.bagItems.map((item, idx) => {
         const imgSrc = item.file ? `/static/img/items/${item.file}` : '/static/img/pokeball-icon.svg';
+        const usable = !!medicineKind(item.name);   // 💊 medicina usa fora de batalha
         return `
             <div class="bag-item" title="${item.name}">
                 <button class="bag-item-remove" onclick="removeBagItem(${idx})">×</button>
@@ -4330,9 +4331,99 @@ function renderBag() {
                     <button onclick="changeBagQty(${idx}, -1)">−</button>
                     <button onclick="changeBagQty(${idx}, 1)">+</button>
                 </div>
+                ${usable ? `<button class="btn btn-sm btn-primary" style="width:100%;margin-top:0.25rem;" onclick="useMedicineItem(${idx})">💊 Usar</button>` : ''}
             </div>
         `;
     }).join('');
+}
+
+// ── 💊 Medicina fora de batalha (espelha MEDICINE_ITEMS do servidor) ──
+// kind: 'heal' | 'cure' | 'revive' — decide quais alvos fazem sentido.
+function medicineKind(name) {
+    const n = (name || '').toLowerCase().normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '').replace(/s$/, '');
+    const heal = ['pocao', 'potion', 'superpocao', 'superpotion', 'hiperpocao',
+                  'hyperpotion', 'pocaomaxima', 'maxpotion', 'restauracao', 'fullrestore'];
+    const cure = ['antidoto', 'antidote', 'curaqueimadura', 'burnheal', 'curagelo',
+                  'iceheal', 'despertar', 'awakening', 'curaparalisia', 'paralyzeheal',
+                  'curatotal', 'fullheal'];
+    const revive = ['reviver', 'revive', 'revivermax', 'maxrevive'];
+    if (heal.includes(n)) return 'heal';
+    if (cure.includes(n)) return 'cure';
+    if (revive.includes(n)) return 'revive';
+    return null;
+}
+
+function useMedicineItem(bagIdx) {
+    const item = (window.bagItems || [])[bagIdx];
+    if (!item) return;
+    const kind = medicineKind(item.name);
+    let ov = document.getElementById('use-item-overlay');
+    if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'use-item-overlay';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:9997;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(6,10,20,0.92);';
+        document.body.appendChild(ov);
+    }
+    ov.style.display = 'flex';
+    const cards = (playerTeam || []).map((p, i) => {
+        const hp = (p.currentHp !== undefined && p.currentHp !== null) ? p.currentHp : (p.maxHp || 20);
+        const fainted = hp <= 0;
+        // Reviver mira desmaiados; cura/poção mira quem está de pé
+        const selectable = kind === 'revive' ? fainted : !fainted;
+        return {
+            number: p.number, is_shiny: p.is_shiny,
+            name: p.nickname || p.name, level: p.level,
+            hp: hp, maxHp: p.maxHp || 20,
+            cls: selectable ? '' : 'disabled',
+            tag: fainted ? '(desmaiado)' : '',
+            onclick: selectable ? `applyMedicine(${bagIdx}, ${i})` : '',
+        };
+    });
+    ov.innerHTML = `
+        <div style="max-width:520px;width:100%;background:var(--card-bg,#151b2b);border:2px solid var(--accent,#ffcb05);border-radius:16px;padding:1rem 1.2rem;">
+            <div style="font-weight:800;">💊 Usar ${item.name} em quem?</div>
+            ${pokeCarouselHtml(cards)}
+            <div id="use-item-log" style="font-size:0.82rem;margin-top:0.4rem;"></div>
+            <button class="btn btn-secondary" style="width:100%;margin-top:0.5rem;" onclick="document.getElementById('use-item-overlay').style.display='none'">Cancelar</button>
+        </div>`;
+    pokeCarouselFx(ov);
+}
+
+async function applyMedicine(bagIdx, teamIdx) {
+    const item = (window.bagItems || [])[bagIdx];
+    const logEl = document.getElementById('use-item-log');
+    if (!item) return;
+    try {
+        const r = await fetch('/player/use-item', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ item_name: item.name, target_idx: teamIdx,
+                                   target_uid: (playerTeam[teamIdx] || {}).uid })
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) {
+            if (logEl) logEl.innerHTML = `<span style="color:#e53935;">❌ ${d.error || 'Falha ao usar o item'}</span>`;
+            return;
+        }
+        window.bagItems = d.bag || window.bagItems;
+        const p = playerTeam[teamIdx];
+        if (p && d.pokemon) {
+            p.currentHp = d.pokemon.currentHp;
+            if (d.pokemon.status === undefined || d.pokemon.status === null) delete p.status;
+        }
+        renderBag();
+        try { if (typeof renderTeam === 'function') renderTeam(); } catch (e) {}
+        if (logEl) logEl.innerHTML = (d.log || []).map(l => `<div>• ${l}</div>`).join('');
+        const healed = d.pokemon && typeof d.pokemon.currentHp === 'number';
+        try {
+            const ovCard = document.getElementById('use-item-overlay');
+            if (window.FX && FX.damagePop && healed && d.dice) FX.damagePop(ovCard, `+${d.dice.total}`, 'heal');
+        } catch (e) {}
+        showNotification((d.log || [])[0] || '💊 Item usado!', 'success');
+        setTimeout(() => { const o = document.getElementById('use-item-overlay'); if (o) o.style.display = 'none'; }, 1600);
+    } catch (e) {
+        if (logEl) logEl.innerHTML = '<span style="color:#e53935;">❌ Erro de conexão.</span>';
+    }
 }
 
 function addBagItem() {

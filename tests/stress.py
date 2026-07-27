@@ -2179,6 +2179,83 @@ def main():
           and p1.post('/player/capture-test',
                       json={'ball_type': 'pokeball'}).status_code == 400)
 
+    # ── 💊 MEDICINA FORA DE BATALHA (poção/antídoto/reviver da bolsa) ──
+    check(S, 'medicina: item que não é medicina é recusado',
+          p1.post('/player/use-item', json={'item_name': 'Pedra Fogo',
+                                            'target_idx': 0}).status_code == 400)
+    check(S, 'medicina: sem o item na bolsa é recusado',
+          p1.post('/player/use-item', json={'item_name': 'Poção',
+                                            'target_idx': 0}).status_code == 400)
+    _uu = db.get_users()
+    _td1 = _uu[u1]['trainer_data']
+    _td1.setdefault('bag', []).extend([{'name': 'Poção', 'qty': 2},
+                                       {'name': 'Antídoto', 'qty': 1},
+                                       {'name': 'Reviver', 'qty': 1}])
+    _p0 = _td1['team'][0]
+    _p0max = int(_p0.get('maxHp') or 20)
+    _p0['currentHp'] = max(1, _p0max - 15)
+    _p0.pop('status', None)
+    db.save_users(_uu)
+    r = p1.post('/player/use-item', json={'item_name': 'Poção', 'target_idx': 0})
+    d = r.get_json() or {}
+    _t1 = db.get_users()[u1]['trainer_data']
+    _healed_to = int(_t1['team'][0].get('currentHp') or 0)
+    check(S, 'medicina: Poção cura 2d4+2 e consome o item',
+          r.status_code == 200 and 4 <= (d.get('dice') or {}).get('total', 0) <= 10
+          and _healed_to == min(_p0max, (_p0max - 15) + d['dice']['total'])
+          and next((i for i in _t1.get('bag', [])
+                    if i.get('name') == 'Poção'), {}).get('qty') == 1,
+          str(d.get('error') or (d.get('dice') or {}).get('total')))
+    # HP cheio → recusa
+    _uu = db.get_users(); _uu[u1]['trainer_data']['team'][0]['currentHp'] = _p0max
+    db.save_users(_uu)
+    check(S, 'medicina: Poção com HP cheio é recusada',
+          p1.post('/player/use-item', json={'item_name': 'Poção',
+                                            'target_idx': 0}).status_code == 400)
+    # Antídoto: exige a condição CERTA (status em dict, como as batalhas gravam)
+    _uu = db.get_users()
+    _uu[u1]['trainer_data']['team'][0]['status'] = {'condition': 'queimado'}
+    db.save_users(_uu)
+    check(S, 'medicina: Antídoto não cura queimadura (condição errada)',
+          p1.post('/player/use-item', json={'item_name': 'Antídoto',
+                                            'target_idx': 0}).status_code == 400)
+    _uu = db.get_users()
+    _uu[u1]['trainer_data']['team'][0]['status'] = {'condition': 'envenenado'}
+    db.save_users(_uu)
+    r = p1.post('/player/use-item', json={'item_name': 'Antídoto', 'target_idx': 0})
+    _t1 = db.get_users()[u1]['trainer_data']
+    check(S, 'medicina: Antídoto cura envenenamento e some da bolsa',
+          r.status_code == 200 and not _t1['team'][0].get('status')
+          and not any(i.get('name') == 'Antídoto' for i in _t1.get('bag', [])))
+    # Reviver: só em desmaiado; devolve metade do HP
+    check(S, 'medicina: Reviver em Pokémon de pé é recusado',
+          p1.post('/player/use-item', json={'item_name': 'Reviver',
+                                            'target_idx': 0}).status_code == 400)
+    _uu = db.get_users(); _uu[u1]['trainer_data']['team'][0]['currentHp'] = 0
+    db.save_users(_uu)
+    r = p1.post('/player/use-item', json={'item_name': 'Reviver', 'target_idx': 0})
+    _t1 = db.get_users()[u1]['trainer_data']
+    check(S, 'medicina: Reviver levanta desmaiado com metade do HP',
+          r.status_code == 200
+          and int(_t1['team'][0].get('currentHp') or 0) == max(1, _p0max // 2))
+    # em batalha → recusa (gate de encontro ativo)
+    _gs = gstate()
+    _gs.setdefault('active_encounters', {})[str(u1)] = {'pokemon': {'name': 'X'},
+                                                        'battle_state': {}}
+    db.save_game_state(_gs, TID)
+    _uu = db.get_users()
+    _uu[u1]['trainer_data'].setdefault('bag', []).append({'name': 'Poção', 'qty': 1})
+    _uu[u1]['trainer_data']['team'][0]['currentHp'] = 1
+    db.save_users(_uu)
+    check(S, 'medicina: bloqueada durante batalha (encontro ativo)',
+          p1.post('/player/use-item', json={'item_name': 'Poção',
+                                            'target_idx': 0}).status_code == 400)
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+    _uu = db.get_users()
+    for _p in _uu[u1]['trainer_data']['team']:
+        _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
+
     # grupo: selvagens venceram → só quem ficou SEM time é alcançado
     # (revive os times ANTES de criar: o ativo precisa estar vivo e obediente)
     _uu = db.get_users()
