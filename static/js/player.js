@@ -1803,6 +1803,48 @@ socket.on('group_battle_error', (d) => {
 // 💀 O selvagem derrotou o último Pokémon e AVANÇOU NO TREINADOR — para o
 // alvo é um momento dramático (o Mestre conduz a cena e pode pedir um
 // teste, que chega pelo fluxo normal de roll_request); a mesa toda vê.
+// ❤️ HP do treinador: dano da cena de avanço / teste de morte / revive
+function _setTrainerHpUi(hp, maxHp, prevHp) {
+    const bar = document.getElementById('trainer-hp-bar');
+    const txt = document.getElementById('trainer-hp-text');
+    if (txt) txt.textContent = `${hp}/${maxHp} HP`;
+    if (!bar || !maxHp) return;
+    const pct = Math.max(0, Math.min(100, hp / maxHp * 100));
+    if (window.FX && FX.hpHit && typeof prevHp === 'number' && prevHp > hp) {
+        FX.hpHit(bar, Math.max(0, prevHp / maxHp * 100), pct);
+    } else bar.style.width = pct + '%';
+}
+
+socket.on('trainer_damage', (d) => {
+    const mine = String(d.player_id) === String(window.CURRENT_USER_ID);
+    if (mine) {
+        _setTrainerHpUi(d.hp, d.max_hp, d.hp + d.damage);
+        try {
+            const box = document.getElementById('trainer-hp-box') || document.body;
+            FX.damagePop && FX.damagePop(box, `-${d.damage}`, 'dmg');
+            FX.callout && FX.callout(d.downed ? '💀 VOCÊ CAIU!' : '🩸 FERIDO!', 'danger');
+        } catch (e) {}
+        try { playSound(d.downed ? 'faint' : 'hit'); } catch (e) {}
+        try { addBattleLog(d.message); } catch (e) {}
+    }
+    showNotification(d.message, 'error');
+});
+
+socket.on('death_test', (d) => {
+    const mine = String(d.player_id) === String(window.CURRENT_USER_ID);
+    if (mine) {
+        try { FX.callout && FX.callout(d.survived ? '🛡️ SOBREVIVEU!' : '☠️ MORTO', d.survived ? 'success' : 'danger'); } catch (e) {}
+        if (d.survived) _setTrainerHpUi(1, parseInt((document.getElementById('trainer-hp-text')?.textContent || '/1').split('/')[1]) || 1);
+    }
+    showNotification(d.message, d.survived ? 'success' : 'error');
+    if (!d.survived && mine) setTimeout(() => location.reload(), 2500);   // ficha mostra ☠️
+});
+
+socket.on('trainer_revived', (d) => {
+    showNotification(d.message, 'success');
+    if (String(d.player_id) === String(window.CURRENT_USER_ID)) setTimeout(() => location.reload(), 1500);
+});
+
 socket.on('trainer_threatened', (d) => {
     const mine = String(d.player_id) === String(window.CURRENT_USER_ID);
     if (mine) {

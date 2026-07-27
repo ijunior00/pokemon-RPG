@@ -2050,6 +2050,83 @@ def main():
     check(S, 'avanço no treinador: só 1x por encontro (dedup)',
           not recv(msio, 'trainer_threatened'))
     _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+
+    # ── ❤️ HP DO TREINADOR: ataque na cena de avanço + teste de morte ──
+    _uu = db.get_users()
+    _tr1 = _uu[u1]['trainer_data']
+    check(S, 'HP treinador: máximo = 20 + nível×2 + Det×2',
+          appmod._trainer_max_hp(_tr1) == 20 + int(_tr1.get('level') or 1) * 2
+          + appmod.trainer_attrs.attr_mod(_tr1, 'determinacao') * 2)
+    _thpmax = appmod._trainer_max_hp(_tr1)
+    check(S, 'HP treinador: ficha sem o campo nasce com HP cheio',
+          appmod._trainer_hp({'level': 4}) == (28, 28))   # 20 + 8 + 0
+    check(S, 'HP treinador: jogador bloqueado na rota de ataque',
+          p1.post('/master/threat-attack', json={'player_id': u1}).status_code == 403)
+    check(S, 'HP treinador: sem cena de ameaça ativa é recusado',
+          m.post('/master/threat-attack', json={'player_id': u1}).status_code == 400)
+    # cena de ameaça armada (selvagem Nv.14 → CD 17, dano 1d8+7)
+    _gs = gstate()
+    _gs.setdefault('active_encounters', {})[str(u1)] = {
+        'pokemon': {'name': 'Ursaring', 'number': 217}, 'level': 14,
+        'player_name': 'p1', 'player_pokemon_idx': 0,
+        'battle_state': {'trainer_threatened': True, 'player_hp_current': 0},
+    }
+    db.save_game_state(_gs, TID)
+    _hp0 = appmod._trainer_hp(_tr1)[0]   # HP atual real (o Centro pode ter
+    # gravado um máximo antigo — o nível do treinador subiu durante a suíte)
+    r = m.post('/master/threat-attack', json={'player_id': u1})
+    d = r.get_json() or {}
+    check(S, 'HP treinador: ataque sem reação dá dano cheio (1d8+7)',
+          r.status_code == 200 and 8 <= d.get('damage', 0) <= 15
+          and d.get('hp') == max(0, _hp0 - d['damage']), str(d.get('damage')))
+    r = m.post('/master/threat-attack', json={'player_id': u1, 'reaction_total': 17})
+    d = r.get_json() or {}
+    check(S, 'HP treinador: reação ≥ CD corta o dano pela metade',
+          r.status_code == 200 and d.get('reacted') is True
+          and 4 <= d.get('damage', 0) <= 7, str(d.get('damage')))
+    # derruba: HP baixo + ataque → downed
+    _uu = db.get_users(); _uu[u1]['trainer_data']['trainer_hp'] = 2; db.save_users(_uu)
+    r = m.post('/master/threat-attack', json={'player_id': u1})
+    d = r.get_json() or {}
+    check(S, 'HP treinador: chegar a 0 marca o treinador como caído',
+          d.get('hp') == 0 and d.get('downed') is True)
+    # teste de morte: sucesso estabiliza com 1 HP
+    r = m.post('/master/death-test', json={'player_id': u1, 'roll_total': 15})
+    d = r.get_json() or {}
+    check(S, 'teste de morte: sucesso (≥10) estabiliza com 1 HP',
+          d.get('survived') is True
+          and db.get_users()[u1]['trainer_data'].get('trainer_hp') == 1)
+    # falha = morte
+    _uu = db.get_users(); _uu[u1]['trainer_data']['trainer_hp'] = 0; db.save_users(_uu)
+    r = m.post('/master/death-test', json={'player_id': u1, 'roll_total': 9})
+    d = r.get_json() or {}
+    check(S, 'teste de morte: falha (<10) mata o personagem',
+          d.get('survived') is False
+          and db.get_users()[u1]['trainer_data'].get('dead') is True)
+    check(S, 'treinador morto: caçada bloqueada (403)',
+          p1.post('/api/hunt/roll', json={'manual_roll': 10}).status_code == 403)
+    s1.get_received()
+    s1.emit('start_encounter', {'pokemon': {'number': 25}})
+    _den = recv(s1, 'encounter_denied')
+    check(S, 'treinador morto: encontro negado',
+          bool(_den) and 'morto' in (_den[0]['args'][0].get('message') or ''))
+    check(S, 'teste de morte: com HP > 0 é recusado (400)',
+          m.post('/master/death-test', json={'player_id': u2, 'roll_total': 5}).status_code == 400)
+    # revive do mestre desfaz a morte
+    r = m.post('/master/trainer-revive', json={'player_id': u1})
+    _tr1 = db.get_users()[u1]['trainer_data']
+    check(S, 'revive do mestre: limpa a morte e devolve 1 HP',
+          (r.get_json() or {}).get('ok') is True
+          and not _tr1.get('dead') and appmod._trainer_hp(_tr1)[0] >= 1)
+    # Centro Pokémon cura o treinador também (fora de batalha)
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+    _uu = db.get_users(); _uu[u1]['trainer_data']['trainer_hp'] = 5; db.save_users(_uu)
+    r = p1.post('/player/pokemon-center')
+    _tr1 = db.get_users()[u1]['trainer_data']
+    check(S, 'Centro Pokémon: cura o HP do treinador',
+          r.status_code == 200
+          and appmod._trainer_hp(_tr1)[0] == appmod._trainer_max_hp(_tr1))
+
     # grupo: selvagens venceram → só quem ficou SEM time é alcançado
     # (revive os times ANTES de criar: o ativo precisa estar vivo e obediente)
     _uu = db.get_users()

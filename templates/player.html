@@ -550,9 +550,22 @@
                     </div>
                 </div>
                 <div class="trainer-info">
-                    <input type="text" id="trainer-name-input" class="trainer-name-input" 
+                    <input type="text" id="trainer-name-input" class="trainer-name-input"
                            value="{{ trainer.name or current_user.username }}" placeholder="Nome do Treinador">
                     <span class="level-badge level-lg" id="trainer-level-badge">Nível {{ trainer.level or 1 }}</span>
+                    {% if trainer.dead %}
+                    <div id="trainer-dead-badge" style="color:#e53935;font-weight:800;margin-top:0.3rem;">☠️ MORTO — fale com o Mestre</div>
+                    {% endif %}
+                    <!-- ❤️ HP do TREINADOR: 20 + nível×2 + Determinação×2.
+                         Selvagem avançando pode te machucar de verdade. -->
+                    <div style="margin-top:0.4rem;">
+                        <div style="font-size:0.75rem;opacity:0.8;">❤️ HP do Treinador</div>
+                        <div class="hp-bar-container" id="trainer-hp-box" style="max-width:220px;">
+                            <div class="hp-bar player-hp" id="trainer-hp-bar"
+                                 style="width: {{ (trainer_hp / trainer_hp_max * 100) if trainer_hp_max else 0 }}%"></div>
+                        </div>
+                        <span class="hp-text" id="trainer-hp-text">{{ trainer_hp }}/{{ trainer_hp_max }} HP</span>
+                    </div>
                 </div>
                 <div class="xp-section">
                     <h4>Experiência</h4>

@@ -3776,6 +3776,8 @@ def api_hunt_roll():
         return jsonify({'error': 'Muitas rolagens em pouco tempo. Aguarde um momento.'}), 429
     data = request.json or {}
     pid = str(current_user.id)
+    if get_users().get(pid, {}).get('trainer_data', {}).get('dead'):
+        return jsonify({'error': '☠️ Seu treinador está morto — fale com o Mestre.'}), 403
     state = get_game_state()
     entry, dkey = _hunt_entry(state, pid)
     limit = MAX_HUNTS_PER_DAY + int(entry.get('bonus', 0))
@@ -3991,6 +3993,137 @@ def master_request_roll():
     return jsonify({'ok': True})
 
 
+@app.route('/master/threat-attack', methods=['POST'])
+@login_required
+def master_threat_attack():
+    """🩸 O selvagem ATACA O TREINADOR — só na cena de avanço (o time caiu e
+    o selvagem partiu para cima). Dano server-side: 1d8 + nível//2 do
+    selvagem. Reação do jogador (Coragem/Atletismo, dado físico digitado
+    pelo mestre) contra CD 10 + nível//2: sucesso = METADE do dano.
+    A 0 HP o treinador cai — e o teste de morte decide (/master/death-test)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    pid = str(data.get('player_id') or '')
+    users = get_users()
+    if not _player_in_master_table(pid, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    encounter = (get_game_state().get('active_encounters') or {}).get(pid)
+    bs = (encounter or {}).get('battle_state') or {}
+    if not encounter or not bs.get('trainer_threatened'):
+        return jsonify({'error': 'Não há avanço de selvagem sobre esse treinador '
+                                 '(a cena de ameaça precisa estar ativa).'}), 400
+
+    trainer = users[pid].get('trainer_data', {}) or {}
+    if trainer.get('dead'):
+        return jsonify({'error': '☠️ Esse treinador está morto.'}), 400
+    wild_level = int(encounter.get('level') or 1)
+    wild_name = (encounter.get('pokemon') or {}).get('name', 'O selvagem')
+    dc = 10 + wild_level // 2
+
+    reaction = data.get('reaction_total')
+    try:
+        reaction = int(reaction) if reaction not in (None, '') else None
+    except (TypeError, ValueError):
+        reaction = None
+    reacted = reaction is not None and reaction >= dc
+
+    dmg = random.randint(1, 8) + wild_level // 2
+    if reacted:
+        dmg = max(1, dmg // 2)
+
+    hp, mx = _trainer_hp(trainer)
+    hp = max(0, hp - dmg)
+    trainer['trainer_hp'] = hp
+    users[pid]['trainer_data'] = trainer
+    save_users(users)
+
+    pname = users[pid].get('username', 'O treinador')
+    downed = hp <= 0
+    msg = (f"🩸 {wild_name} atacou {pname}! "
+           + (f"Reação (total {reaction} vs CD {dc}) — metade do dano: " if reacted
+              else (f"Reação falhou (total {reaction} vs CD {dc}) — dano cheio: "
+                    if reaction is not None else "Sem reação — dano cheio: "))
+           + f"-{dmg} HP ({hp}/{mx}).")
+    if downed:
+        msg += f" 💀 {pname} CAIU! O teste de morte decide (Determinação, CD 10)."
+    payload = {'player_id': pid, 'player_name': pname, 'wild_name': wild_name,
+               'damage': dmg, 'hp': hp, 'max_hp': mx, 'reacted': reacted,
+               'reaction_total': reaction, 'dc': dc, 'downed': downed, 'message': msg}
+    socketio.emit('trainer_damage', payload, room=f'players_{_tid()}')
+    socketio.emit('trainer_damage', payload, room=f'master_{_tid()}')
+    return jsonify(dict(payload, ok=True))
+
+
+@app.route('/master/death-test', methods=['POST'])
+@login_required
+def master_death_test():
+    """💀 TESTE DE MORTE (hardcore, decisão de mesa): treinador a 0 HP rola
+    d20 + mod(Determinação) — dado físico, total digitado pelo mestre —
+    contra CD 10. Sucesso: estabiliza com 1 HP (inconsciente, o mestre
+    narra). Falha: o personagem MORRE (flag na ficha; caçadas bloqueadas;
+    /master/trainer-revive desfaz — nova ficha, milagre, decisão de mesa)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    pid = str(data.get('player_id') or '')
+    users = get_users()
+    if not _player_in_master_table(pid, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    trainer = users[pid].get('trainer_data', {}) or {}
+    if trainer.get('dead'):
+        return jsonify({'error': '☠️ Esse treinador já está morto.'}), 400
+    hp, mx = _trainer_hp(trainer)
+    if hp > 0:
+        return jsonify({'error': 'O treinador não está caído (HP > 0).'}), 400
+    try:
+        total = int(data.get('roll_total'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Informe o total do teste (d20 + Determinação).'}), 400
+
+    pname = users[pid].get('username', 'O treinador')
+    survived = total >= 10
+    if survived:
+        trainer['trainer_hp'] = 1
+        msg = (f"🛡️ {pname} venceu o teste de morte ({total} vs CD 10)! "
+               f"Estabilizou com 1 HP — inconsciente, o Mestre narra o resgate.")
+    else:
+        trainer['dead'] = True
+        msg = (f"☠️ {pname} FALHOU no teste de morte ({total} vs CD 10). "
+               f"O personagem morreu — decisão de mesa define o que vem agora.")
+    users[pid]['trainer_data'] = trainer
+    save_users(users)
+    payload = {'player_id': pid, 'player_name': pname, 'survived': survived,
+               'roll_total': total, 'message': msg}
+    socketio.emit('death_test', payload, room=f'players_{_tid()}')
+    socketio.emit('death_test', payload, room=f'master_{_tid()}')
+    return jsonify(dict(payload, ok=True))
+
+
+@app.route('/master/trainer-revive', methods=['POST'])
+@login_required
+def master_trainer_revive():
+    """Desfaz a morte (nova ficha aprovada, milagre, retcon): limpa a flag e
+    devolve 1 HP. O resto (time, itens) fica como o mestre decidir."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    pid = str((request.json or {}).get('player_id') or '')
+    users = get_users()
+    if not _player_in_master_table(pid, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    trainer = users[pid].get('trainer_data', {}) or {}
+    trainer.pop('dead', None)
+    trainer['trainer_hp'] = max(1, _trainer_hp(trainer)[0])
+    users[pid]['trainer_data'] = trainer
+    save_users(users)
+    pname = users[pid].get('username', 'O treinador')
+    payload = {'player_id': pid, 'player_name': pname,
+               'message': f'✨ {pname} voltou à ativa (decisão do Mestre).'}
+    socketio.emit('trainer_revived', payload, room=f'players_{_tid()}')
+    socketio.emit('trainer_revived', payload, room=f'master_{_tid()}')
+    return jsonify(dict(payload, ok=True))
+
+
 @app.route('/api/skill/list')
 @login_required
 def api_skill_list():
@@ -4164,6 +4297,31 @@ def _disobey_msg(trainer, poke):
     return (f"☠️ {nm} (Nv.{(poke or {}).get('level', '?')}) não obedece você ainda! "
             f"Teto de obediência: Nv.{_obedience_cap(trainer)} "
             f"(treinador nível {(trainer or {}).get('level', 1)} ×5 +10).")
+
+
+# ── ❤️ HP DO TREINADOR ──
+# O treinador também tem vida: quando um selvagem avança nele (cena de
+# ameaça), o mestre pode mandar o ataque de verdade. A 0 HP rola teste de
+# morte (hardcore, decisão de mesa). Máximo DERIVADO (nível + Determinação)
+# — nunca gravado, então subir de nível/atributo atualiza sozinho.
+
+def _trainer_max_hp(trainer):
+    """HP máximo: 20 + nível×2 + mod(Determinação)×2 (mínimo 1)."""
+    try:
+        lvl = int((trainer or {}).get('level') or 1)
+    except (TypeError, ValueError):
+        lvl = 1
+    return max(1, 20 + lvl * 2 + trainer_attrs.attr_mod(trainer or {}, 'determinacao') * 2)
+
+
+def _trainer_hp(trainer):
+    """(HP atual, HP máximo). Ficha sem o campo nasce com HP cheio; o atual
+    é clampado no máximo (Determinação/nível podem ter descido)."""
+    mx = _trainer_max_hp(trainer)
+    cur = (trainer or {}).get('trainer_hp')
+    if not isinstance(cur, (int, float)) or isinstance(cur, bool):
+        cur = mx
+    return max(0, min(mx, int(cur))), mx
 
 
 def _same_poke(a, b):
@@ -4979,8 +5137,10 @@ def player_dashboard():
     # Filter quests for this player
     my_quests = [q for q in game_state.get('quests', [])
                  if current_user.id in q.get('assigned_to', []) or not q.get('assigned_to')]
+    _thp, _thp_max = _trainer_hp(trainer_data)
     return render_template('player.html',
                          trainer=trainer_data,
+                         trainer_hp=_thp, trainer_hp_max=_thp_max,
                          quests=my_quests,
                          routes=ROUTES_DATA,
                          current_user_id=current_user.id)
@@ -5718,6 +5878,10 @@ def pokemon_center():
         poke.pop('status', None)
 
     trainer['team'] = team
+    # ❤️ o Centro também cura o TREINADOR (morto não: só o teste de morte /
+    # revive do mestre mexem nisso)
+    if not trainer.get('dead'):
+        trainer['trainer_hp'] = _trainer_max_hp(trainer)
     users[current_user.id]['trainer_data'] = trainer
     save_users(users)
 
@@ -6744,6 +6908,14 @@ def handle_disconnect():
 def handle_encounter(data):
     """Player starts a wild encounter - notify master with full battle data."""
     if current_user.is_authenticated:
+        # ☠️ treinador morto não caça (só o revive do mestre desfaz)
+        _tr_dead = get_users().get(str(current_user.id), {}) \
+            .get('trainer_data', {}).get('dead')
+        if _tr_dead:
+            emit('encounter_denied', {
+                'message': '☠️ Seu treinador está morto — fale com o Mestre.'
+            }, room=str(current_user.id))
+            return
         # GATE: o jogador só inicia um encontro que o MESTRE liberou (por
         # espécie). Sem isto, dava para emitir start_encounter à vontade,
         # ignorando o teto de caçadas e a aprovação do mestre.

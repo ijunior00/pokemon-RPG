@@ -668,7 +668,81 @@ socket.on('trainer_threatened', (d) => {
         `<div style="margin-top:0.3rem;display:flex;gap:0.4rem;flex-wrap:wrap;">` +
         `<button class="btn btn-sm btn-danger" onclick="requestThreatRoll('${d.player_id}', 'Coragem')">🦁 Pedir Coragem</button>` +
         `<button class="btn btn-sm btn-danger" onclick="requestThreatRoll('${d.player_id}', 'Atletismo')">💪 Pedir Atletismo</button>` +
+        `<button class="btn btn-sm btn-danger" style="border:2px solid #e53935;" onclick="masterThreatAttack('${d.player_id}')">🩸 Selvagem ATACA o treinador</button>` +
         `</div>`;
+    inbox.insertBefore(card, inbox.firstChild);
+});
+
+// 🩸 O selvagem ataca o TREINADOR: dano 1d8 + nível//2 (servidor); a reação
+// do jogador (Coragem/Atletismo, total do dado físico) contra CD 10+nível//2
+// corta o dano pela metade. Vazio = sem reação (dano cheio).
+async function masterThreatAttack(playerId) {
+    const raw = prompt('Total da REAÇÃO do jogador (d20 + Coragem/Atletismo)?\n' +
+                       'Vazio = sem reação (dano cheio).', '');
+    if (raw === null) return;
+    try {
+        const r = await fetch('/master/threat-attack', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_id: playerId,
+                                   reaction_total: raw.trim() === '' ? null : parseInt(raw) })
+        });
+        const d = await r.json();
+        showNotification(d.ok ? d.message : `❌ ${d.error || 'Falha no ataque'}`,
+                         d.ok ? 'success' : 'error');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
+
+// 💀 Teste de morte (treinador a 0 HP): d20 + Determinação vs CD 10 —
+// o jogador rola o dado físico e o mestre digita o total.
+async function masterDeathTest(playerId) {
+    const raw = prompt('💀 TESTE DE MORTE — total do jogador (d20 + Determinação) vs CD 10:', '');
+    if (raw === null || raw.trim() === '') return;
+    try {
+        const r = await fetch('/master/death-test', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_id: playerId, roll_total: parseInt(raw) })
+        });
+        const d = await r.json();
+        showNotification(d.ok ? d.message : `❌ ${d.error || 'Falha no teste'}`,
+                         d.ok && d.survived ? 'success' : 'error');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
+
+async function masterTrainerRevive(playerId) {
+    if (!confirm('✨ Reverter a morte deste treinador (nova ficha/milagre/decisão de mesa)?')) return;
+    try {
+        const r = await fetch('/master/trainer-revive', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_id: playerId })
+        });
+        const d = await r.json();
+        showNotification(d.ok ? d.message : `❌ ${d.error || 'Falha'}`, d.ok ? 'success' : 'error');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
+
+// Resultado do dano no treinador: card no inbox; se CAIU, botão do teste
+// de morte (e o de reviver aparece após uma falha).
+socket.on('trainer_damage', (d) => {
+    showNotification(d.message, d.downed ? 'error' : 'success');
+    const inbox = document.getElementById('hunt-rolls-inbox');
+    if (!inbox) return;
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:0.55rem 0.7rem;border-radius:8px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.6);font-size:0.88rem;';
+    card.innerHTML = `${d.message}` + (d.downed
+        ? `<div style="margin-top:0.3rem;"><button class="btn btn-sm btn-danger" onclick="masterDeathTest('${d.player_id}')">💀 Teste de morte (CD 10)</button></div>`
+        : '');
+    inbox.insertBefore(card, inbox.firstChild);
+});
+
+socket.on('death_test', (d) => {
+    showNotification(d.message, d.survived ? 'success' : 'error');
+    if (d.survived) return;
+    const inbox = document.getElementById('hunt-rolls-inbox');
+    if (!inbox) return;
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:0.55rem 0.7rem;border-radius:8px;background:rgba(0,0,0,0.35);border:1px solid #e53935;font-size:0.88rem;';
+    card.innerHTML = `${d.message}<div style="margin-top:0.3rem;">` +
+        `<button class="btn btn-sm btn-secondary" onclick="masterTrainerRevive('${d.player_id}')">✨ Reverter morte</button></div>`;
     inbox.insertBefore(card, inbox.firstChild);
 });
 
