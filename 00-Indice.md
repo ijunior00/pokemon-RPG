@@ -36,6 +36,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 - [[Decisoes/cache-de-processo-db]] — leituras da memória, Postgres só p/ escrever (cota do Neon; requer 1 worker)
 - [[Decisoes/obediencia-teto-de-nivel]] — Pokémon acima de (treinador×5)+10 não entra em batalha (só uso; NPCs isentos)
 - [[Decisoes/batalha-de-vilao]] — grupo vs NPCs no motor de grupo: 1 em campo + banco com reforço automático, sem captura
+- [[Decisoes/hp-do-treinador]] — 20+Nv×2+Det×2; ataque só na cena de avanço; 0 HP = teste de morte (hardcore)
 
 ## Bugs resolvidos (postmortems)
 
