@@ -668,7 +668,81 @@ socket.on('trainer_threatened', (d) => {
         `<div style="margin-top:0.3rem;display:flex;gap:0.4rem;flex-wrap:wrap;">` +
         `<button class="btn btn-sm btn-danger" onclick="requestThreatRoll('${d.player_id}', 'Coragem')">🦁 Pedir Coragem</button>` +
         `<button class="btn btn-sm btn-danger" onclick="requestThreatRoll('${d.player_id}', 'Atletismo')">💪 Pedir Atletismo</button>` +
+        `<button class="btn btn-sm btn-danger" style="border:2px solid #e53935;" onclick="masterThreatAttack('${d.player_id}')">🩸 Selvagem ATACA o treinador</button>` +
         `</div>`;
+    inbox.insertBefore(card, inbox.firstChild);
+});
+
+// 🩸 O selvagem ataca o TREINADOR: dano 1d8 + nível//2 (servidor); a reação
+// do jogador (Coragem/Atletismo, total do dado físico) contra CD 10+nível//2
+// corta o dano pela metade. Vazio = sem reação (dano cheio).
+async function masterThreatAttack(playerId) {
+    const raw = prompt('Total da REAÇÃO do jogador (d20 + Coragem/Atletismo)?\n' +
+                       'Vazio = sem reação (dano cheio).', '');
+    if (raw === null) return;
+    try {
+        const r = await fetch('/master/threat-attack', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_id: playerId,
+                                   reaction_total: raw.trim() === '' ? null : parseInt(raw) })
+        });
+        const d = await r.json();
+        showNotification(d.ok ? d.message : `❌ ${d.error || 'Falha no ataque'}`,
+                         d.ok ? 'success' : 'error');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
+
+// 💀 Teste de morte (treinador a 0 HP): d20 + Determinação vs CD 10 —
+// o jogador rola o dado físico e o mestre digita o total.
+async function masterDeathTest(playerId) {
+    const raw = prompt('💀 TESTE DE MORTE — total do jogador (d20 + Determinação) vs CD 10:', '');
+    if (raw === null || raw.trim() === '') return;
+    try {
+        const r = await fetch('/master/death-test', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_id: playerId, roll_total: parseInt(raw) })
+        });
+        const d = await r.json();
+        showNotification(d.ok ? d.message : `❌ ${d.error || 'Falha no teste'}`,
+                         d.ok && d.survived ? 'success' : 'error');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
+
+async function masterTrainerRevive(playerId) {
+    if (!confirm('✨ Reverter a morte deste treinador (nova ficha/milagre/decisão de mesa)?')) return;
+    try {
+        const r = await fetch('/master/trainer-revive', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_id: playerId })
+        });
+        const d = await r.json();
+        showNotification(d.ok ? d.message : `❌ ${d.error || 'Falha'}`, d.ok ? 'success' : 'error');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
+
+// Resultado do dano no treinador: card no inbox; se CAIU, botão do teste
+// de morte (e o de reviver aparece após uma falha).
+socket.on('trainer_damage', (d) => {
+    showNotification(d.message, d.downed ? 'error' : 'success');
+    const inbox = document.getElementById('hunt-rolls-inbox');
+    if (!inbox) return;
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:0.55rem 0.7rem;border-radius:8px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.6);font-size:0.88rem;';
+    card.innerHTML = `${d.message}` + (d.downed
+        ? `<div style="margin-top:0.3rem;"><button class="btn btn-sm btn-danger" onclick="masterDeathTest('${d.player_id}')">💀 Teste de morte (CD 10)</button></div>`
+        : '');
+    inbox.insertBefore(card, inbox.firstChild);
+});
+
+socket.on('death_test', (d) => {
+    showNotification(d.message, d.survived ? 'success' : 'error');
+    if (d.survived) return;
+    const inbox = document.getElementById('hunt-rolls-inbox');
+    if (!inbox) return;
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:0.55rem 0.7rem;border-radius:8px;background:rgba(0,0,0,0.35);border:1px solid #e53935;font-size:0.88rem;';
+    card.innerHTML = `${d.message}<div style="margin-top:0.3rem;">` +
+        `<button class="btn btn-sm btn-secondary" onclick="masterTrainerRevive('${d.player_id}')">✨ Reverter morte</button></div>`;
     inbox.insertBefore(card, inbox.firstChild);
 });
 
@@ -775,6 +849,39 @@ async function givePokemon() {
         ? `✅ ${r.pokemon.is_shiny ? '✨ ' : ''}${r.pokemon.nickname || r.pokemon.name} (Nv.${r.pokemon.level}) entregue — foi para o ${r.destination}.`
         : `❌ ${r.error || 'Falha'}`;
 }
+
+// 🎯 Teste de captura FORA de batalha: oferece (ou recolhe) a chance ao
+// jogador selecionado no card de presentes. CD = 10 + SR + nível + mod.
+async function masterOfferCaptureTest(revoke) {
+    const out = document.getElementById('gift-result');
+    const body = revoke
+        ? { player_id: document.getElementById('gift-player')?.value, revoke: true }
+        : {
+            player_id: document.getElementById('gift-player')?.value,
+            species: document.getElementById('gift-species')?.value?.trim(),
+            level: parseInt(document.getElementById('gift-level')?.value || 5),
+            shiny: !!document.getElementById('gift-shiny')?.checked,
+            scene_mod: parseInt(document.getElementById('capture-scene-mod')?.value || 0),
+            note: document.getElementById('capture-scene-note')?.value || '',
+        };
+    if (!body.player_id || (!revoke && !body.species)) { alert('Selecione o jogador e a espécie.'); return; }
+    try {
+        const resp = await fetch('/master/capture-test', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const r = await resp.json();
+        if (out) out.textContent = r.ok
+            ? (revoke ? (r.revoked ? '✋ Oferta de captura recolhida.' : 'Não havia oferta pendente.')
+                      : `🎯 Teste de captura oferecido: ${r.offer.name} Nv.${r.offer.level} (CD ${r.offer.dc}).`)
+            : `❌ ${r.error || 'Falha'}`;
+    } catch (e) { if (out) out.textContent = '❌ Erro de conexão.'; }
+}
+
+socket.on('capture_test_result', (d) => {
+    showNotification(d.message + (d.dice ? ` (d20 ${d.dice.roll} + Afinidade ${d.dice.afinidade} + bola ${d.dice.ball_bonus} = ${d.dice.total} vs CD ${d.dice.dc})` : ''),
+                     d.caught ? 'success' : 'info');
+});
 
 async function giveItem() {
     const out = document.getElementById('gift-result');
@@ -889,10 +996,12 @@ function renderGroupMonitor(view) {
         const turn = c.cid === view.turn_cid ? '▶️ ' : '';
         const dead = c.fainted ? ' 💀' : '';
         const icon = c.side === 'ally' ? '🟢' : '🔴';
-        const bench = c.side === 'ally'
+        const bench = (c.side === 'ally' || view.villain)
             ? ` <span style="opacity:0.6;font-size:0.75rem;">· banco ${c.bench || 0}</span>` : '';
+        const owner = (c.side === 'wild' && c.trainer_name)
+            ? ` <span style="opacity:0.65;font-size:0.75rem;">🎭 ${c.trainer_name}</span>` : '';
         return `<div style="margin:0.25rem 0;font-size:0.85rem;">
-            ${turn}${icon} <strong>${c.name}</strong> Nv.${c.level || '?'}${dead}
+            ${turn}${icon} <strong>${c.name}</strong> Nv.${c.level || '?'}${dead}${owner}
             <span style="opacity:0.7;">(${c.hp}/${c.maxHp})</span>${bench}
             ${_hpBar(c)}</div>`;
     }).join('');
@@ -1679,6 +1788,14 @@ async function loadNpcs() {
         pvpSel.innerHTML = '<option value="">Selecionar NPC...</option>' +
             npcs.map(n => `<option value="${n.id}">${n.name}${n.role ? ' — ' + (NPC_ROLE_LABELS[n.role]||n.role) : ''}</option>`).join('');
     }
+    // Populate villain battle multiselect (só NPCs com time)
+    const vilSel = document.getElementById('villain-npcs');
+    if (vilSel) {
+        const withTeam = npcs.filter(n => (n.team || []).length);
+        vilSel.innerHTML = withTeam.length
+            ? withTeam.map(n => `<option value="${n.id}">${n.name} (${(n.team || []).length} Pokémon)${n.role ? ' — ' + (NPC_ROLE_LABELS[n.role]||n.role) : ''}</option>`).join('')
+            : '<option value="" disabled>Nenhum NPC com time</option>';
+    }
     // Populate gym leader NPC select
     const gymSel = document.getElementById('gym-leader-npc');
     if (gymSel) {
@@ -2330,6 +2447,30 @@ function renderMasterPvpBattles() {
             </div>
         </div>`;
     }).join('');
+}
+
+// 🎭 Batalha de Vilão: 1-4 jogadores vs 1-3 NPCs no motor de grupo
+async function masterStartVillainBattle() {
+    const npcIds = [...(document.getElementById('villain-npcs')?.selectedOptions || [])]
+        .map(o => o.value).filter(Boolean);
+    const playerIds = [...(document.getElementById('villain-players')?.selectedOptions || [])]
+        .map(o => o.value).filter(Boolean);
+    const msg = document.getElementById('villain-battle-msg');
+    if (!npcIds.length || !playerIds.length) {
+        if (msg) msg.textContent = '⚠️ Selecione ao menos 1 NPC e 1 jogador.';
+        return;
+    }
+    if (msg) msg.textContent = '⏳ Montando a batalha...';
+    try {
+        const r = await fetch('/master/villain-battle', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ npc_ids: npcIds, player_ids: playerIds })
+        });
+        const d = await r.json();
+        if (d.error) { if (msg) msg.textContent = `❌ ${d.error}`; return; }
+        if (msg) msg.textContent = `🎭 Batalha ${d.battle?.mode || ''} iniciada!`;
+        if (d.battle) renderGroupMonitor(d.battle);
+    } catch (e) { if (msg) msg.textContent = '❌ Erro de conexão.'; }
 }
 
 function masterSendNpcChallenge() {

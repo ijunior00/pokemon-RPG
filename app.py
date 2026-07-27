@@ -2894,6 +2894,175 @@ def master_give_pokemon():
     return jsonify({'ok': True, 'pokemon': poke, 'destination': destino})
 
 
+@app.route('/master/capture-test', methods=['POST'])
+@login_required
+def master_capture_test():
+    """🎯 TESTE DE CAPTURA FORA DE BATALHA (condição especial de mesa): o
+    mestre oferece um Pokémon capturável (dormindo na caverna, evento,
+    filhote abandonado...) com um MODIFICADOR DE CENA que mexe na CD.
+    O jogador arremessa UMA bola (/player/capture-test) — errou, a chance
+    passou (o mestre pode oferecer de novo). revoke=true cancela a oferta."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    pid = str(data.get('player_id') or '')
+    users = get_users()
+    if not _player_in_master_table(pid, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+
+    gs = get_game_state()
+    if data.get('revoke'):
+        had = (gs.get('capture_tests') or {}).pop(pid, None)
+        save_game_state(gs)
+        socketio.emit('capture_test_offer', {'revoked': True}, room=pid)
+        return jsonify({'ok': True, 'revoked': bool(had)})
+
+    species = (data.get('species') or '').strip()
+    base = POKEMON_BY_NAME.get(species.lower())
+    if not base and str(species).isdigit():
+        base = next((p for p in POKEMON_DB if int(p.get('number', 0)) == int(species)), None)
+    if not base:
+        return jsonify({'error': f'Espécie não encontrada: {species}'}), 404
+    try:
+        level = max(1, min(100, int(data.get('level') or 5)))
+    except (TypeError, ValueError):
+        level = 5
+    try:
+        scene_mod = max(-10, min(10, int(data.get('scene_mod') or 0)))
+    except (TypeError, ValueError):
+        scene_mod = 0
+
+    dc = max(5, 10 + _sr_int(base.get('sr')) + level + scene_mod)
+    offer = {'number': base['number'], 'name': base['name'], 'level': level,
+             'scene_mod': scene_mod, 'dc': dc,
+             'shiny': bool(data.get('shiny')),
+             'note': str(data.get('note') or '')[:120]}
+    gs.setdefault('capture_tests', {})[pid] = offer
+    save_game_state(gs)
+    socketio.emit('capture_test_offer', offer, room=pid)
+    return jsonify({'ok': True, 'offer': offer})
+
+
+@app.route('/player/capture-test', methods=['POST'])
+@login_required
+def player_capture_test():
+    """Arremesso do TESTE DE CAPTURA fora de batalha — servidor resolve.
+
+    CD = 10 + SR + nível + modificador de cena (mín. 5); teste = d20 +
+    Afinidade + bônus da bola (Master Ball garante). SEM teto de HP (o
+    Pokémon não está enfraquecido — a 'condição especial' é o modificador
+    do mestre). A oferta é consumida no arremesso, capturando ou não."""
+    if _rate_limit(15, 60, bucket='capture'):
+        return jsonify({'error': 'Muitas tentativas de captura em pouco tempo.'}), 429
+    pid = str(current_user.id)
+    gs = get_game_state()
+    offer = (gs.get('capture_tests') or {}).get(pid)
+    if not offer:
+        return jsonify({'error': 'Nenhum teste de captura oferecido a você.'}), 400
+
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {}) or {}
+    if trainer.get('dead'):
+        return jsonify({'error': '☠️ Seu treinador está morto — fale com o Mestre.'}), 403
+    trainer_attrs.migrate_trainer(trainer)
+
+    base = POKEMON_BY_NUMBER.get(offer.get('number'))
+    if not base:
+        (gs.get('capture_tests') or {}).pop(pid, None)
+        save_game_state(gs)
+        return jsonify({'error': 'Espécie da oferta inválida.'}), 400
+
+    ball_type = str((request.json or {}).get('ball_type') or 'pokeball').strip().lower()
+    if ball_type not in CAPTURE_BALLS:
+        ball_type = 'pokeball'
+    bag = trainer.get('bag', []) or []
+    ball = _find_ball_in_bag(bag, ball_type)
+    ball_label = CAPTURE_BALLS[ball_type]['label']
+    if not ball or int(ball.get('qty') or 0) < 1:
+        return jsonify({'error': f'Você não tem {ball_label} na bolsa.'}), 400
+    ball['qty'] = int(ball['qty']) - 1
+    trainer['bag'] = [i for i in bag if i is not ball] if ball['qty'] <= 0 else bag
+
+    # a oferta é de UMA chance: consome no arremesso (o mestre re-oferece)
+    (gs.get('capture_tests') or {}).pop(pid, None)
+    save_game_state(gs)
+
+    level = int(offer.get('level') or 5)
+    dc = int(offer.get('dc') or max(5, 10 + _sr_int(base.get('sr')) + level))
+    log = [f'{ball_label} arremessada!']
+    if offer.get('note'):
+        log.insert(0, f"📜 {offer['note']}")
+
+    caught = False
+    dice = None
+    if ball_type == 'masterball':
+        caught = True
+        log.append('✅ CAPTURADO! (Master Ball — captura garantida!)')
+    else:
+        roll = random.randint(1, 20)
+        afinidade_bonus = trainer_attrs.skill_modifier(trainer, 'Afinidade')[0]
+        ball_bonus = CAPTURE_BALLS[ball_type]['bonus']
+        if ball_type == 'netball':
+            wtypes = [str(t).lower() for t in (base.get('types') or [])]
+            if any(t in ('bug', 'water') for t in wtypes):
+                ball_bonus += 3
+                log.append('🟢 Net Bola: +3 contra Bug/Water!')
+        total = roll + afinidade_bonus + ball_bonus
+        dice = {'roll': roll, 'dc': dc, 'total': total,
+                'afinidade': afinidade_bonus, 'ball_bonus': ball_bonus,
+                'scene_mod': int(offer.get('scene_mod') or 0)}
+        log.append(f'CD de Captura: {dc} · d20({roll})'
+                   f' + Afinidade({afinidade_bonus:+d})'
+                   + (f' + Bola(+{ball_bonus})' if ball_bonus else '')
+                   + f' = {total}')
+        caught = total >= dc
+
+    pname = users[current_user.id].get('username', 'O treinador')
+    poke = None
+    dest = None
+    if caught:
+        poke = _build_gift_pokemon(base, level, is_shiny=bool(offer.get('shiny')))
+        if ball_type == 'healball':
+            poke['currentHp'] = poke.get('maxHp', poke.get('hp', 20))
+        team = trainer.get('team', []) or []
+        if len(team) < 6:
+            team.append(poke); trainer['team'] = team; dest = 'team'
+        else:
+            pc = trainer.get('pc', []) or []
+            pc.append(poke); trainer['pc'] = pc; dest = 'pc'
+        if ball_type != 'masterball':
+            log.append(f'✅ CAPTURADO! 🎉 ({dice["total"]} ≥ {dc})')
+        if dest == 'pc':
+            log.append('📦 Time cheio — guardado no PC!')
+        _grant_encounter(pid, base['number'])   # registra na pokédex
+    else:
+        log.append(f'💥 A Pokébola quebrou! ({dice["total"]} < {dc}) '
+                   'A chance passou — o Mestre decide se haverá outra.')
+
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+    if poke is not None:
+        socketio.emit('team_update', {'player_id': current_user.id,
+                                      'team': trainer.get('team', [])},
+                      room=f'master_{_tid()}')
+    result_msg = (f"🎯 {pname} {'CAPTUROU' if caught else 'não capturou'} "
+                  f"{offer.get('name')} (Nv.{level}) no teste de captura!")
+    socketio.emit('capture_test_result',
+                  {'player_id': pid, 'player_name': pname, 'caught': caught,
+                   'pokemon_name': offer.get('name'), 'level': level,
+                   'message': result_msg, 'dice': dice},
+                  room=f'master_{_tid()}')
+    if caught:
+        socketio.emit('capture_test_result',
+                      {'player_id': pid, 'player_name': pname, 'caught': True,
+                       'pokemon_name': offer.get('name'), 'level': level,
+                       'message': result_msg},
+                      room=f'players_{_tid()}')
+    return jsonify({'ok': True, 'result': 'caught' if caught else 'broke',
+                    'log': log, 'dice': dice, 'captured': poke,
+                    'destination': dest, 'bag': trainer.get('bag', [])})
+
+
 @app.route('/master/give-item', methods=['POST'])
 @login_required
 def master_give_item():
@@ -3776,6 +3945,8 @@ def api_hunt_roll():
         return jsonify({'error': 'Muitas rolagens em pouco tempo. Aguarde um momento.'}), 429
     data = request.json or {}
     pid = str(current_user.id)
+    if get_users().get(pid, {}).get('trainer_data', {}).get('dead'):
+        return jsonify({'error': '☠️ Seu treinador está morto — fale com o Mestre.'}), 403
     state = get_game_state()
     entry, dkey = _hunt_entry(state, pid)
     limit = MAX_HUNTS_PER_DAY + int(entry.get('bonus', 0))
@@ -3991,6 +4162,137 @@ def master_request_roll():
     return jsonify({'ok': True})
 
 
+@app.route('/master/threat-attack', methods=['POST'])
+@login_required
+def master_threat_attack():
+    """🩸 O selvagem ATACA O TREINADOR — só na cena de avanço (o time caiu e
+    o selvagem partiu para cima). Dano server-side: 1d8 + nível//2 do
+    selvagem. Reação do jogador (Coragem/Atletismo, dado físico digitado
+    pelo mestre) contra CD 10 + nível//2: sucesso = METADE do dano.
+    A 0 HP o treinador cai — e o teste de morte decide (/master/death-test)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    pid = str(data.get('player_id') or '')
+    users = get_users()
+    if not _player_in_master_table(pid, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    encounter = (get_game_state().get('active_encounters') or {}).get(pid)
+    bs = (encounter or {}).get('battle_state') or {}
+    if not encounter or not bs.get('trainer_threatened'):
+        return jsonify({'error': 'Não há avanço de selvagem sobre esse treinador '
+                                 '(a cena de ameaça precisa estar ativa).'}), 400
+
+    trainer = users[pid].get('trainer_data', {}) or {}
+    if trainer.get('dead'):
+        return jsonify({'error': '☠️ Esse treinador está morto.'}), 400
+    wild_level = int(encounter.get('level') or 1)
+    wild_name = (encounter.get('pokemon') or {}).get('name', 'O selvagem')
+    dc = 10 + wild_level // 2
+
+    reaction = data.get('reaction_total')
+    try:
+        reaction = int(reaction) if reaction not in (None, '') else None
+    except (TypeError, ValueError):
+        reaction = None
+    reacted = reaction is not None and reaction >= dc
+
+    dmg = random.randint(1, 8) + wild_level // 2
+    if reacted:
+        dmg = max(1, dmg // 2)
+
+    hp, mx = _trainer_hp(trainer)
+    hp = max(0, hp - dmg)
+    trainer['trainer_hp'] = hp
+    users[pid]['trainer_data'] = trainer
+    save_users(users)
+
+    pname = users[pid].get('username', 'O treinador')
+    downed = hp <= 0
+    msg = (f"🩸 {wild_name} atacou {pname}! "
+           + (f"Reação (total {reaction} vs CD {dc}) — metade do dano: " if reacted
+              else (f"Reação falhou (total {reaction} vs CD {dc}) — dano cheio: "
+                    if reaction is not None else "Sem reação — dano cheio: "))
+           + f"-{dmg} HP ({hp}/{mx}).")
+    if downed:
+        msg += f" 💀 {pname} CAIU! O teste de morte decide (Determinação, CD 10)."
+    payload = {'player_id': pid, 'player_name': pname, 'wild_name': wild_name,
+               'damage': dmg, 'hp': hp, 'max_hp': mx, 'reacted': reacted,
+               'reaction_total': reaction, 'dc': dc, 'downed': downed, 'message': msg}
+    socketio.emit('trainer_damage', payload, room=f'players_{_tid()}')
+    socketio.emit('trainer_damage', payload, room=f'master_{_tid()}')
+    return jsonify(dict(payload, ok=True))
+
+
+@app.route('/master/death-test', methods=['POST'])
+@login_required
+def master_death_test():
+    """💀 TESTE DE MORTE (hardcore, decisão de mesa): treinador a 0 HP rola
+    d20 + mod(Determinação) — dado físico, total digitado pelo mestre —
+    contra CD 10. Sucesso: estabiliza com 1 HP (inconsciente, o mestre
+    narra). Falha: o personagem MORRE (flag na ficha; caçadas bloqueadas;
+    /master/trainer-revive desfaz — nova ficha, milagre, decisão de mesa)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    pid = str(data.get('player_id') or '')
+    users = get_users()
+    if not _player_in_master_table(pid, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    trainer = users[pid].get('trainer_data', {}) or {}
+    if trainer.get('dead'):
+        return jsonify({'error': '☠️ Esse treinador já está morto.'}), 400
+    hp, mx = _trainer_hp(trainer)
+    if hp > 0:
+        return jsonify({'error': 'O treinador não está caído (HP > 0).'}), 400
+    try:
+        total = int(data.get('roll_total'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Informe o total do teste (d20 + Determinação).'}), 400
+
+    pname = users[pid].get('username', 'O treinador')
+    survived = total >= 10
+    if survived:
+        trainer['trainer_hp'] = 1
+        msg = (f"🛡️ {pname} venceu o teste de morte ({total} vs CD 10)! "
+               f"Estabilizou com 1 HP — inconsciente, o Mestre narra o resgate.")
+    else:
+        trainer['dead'] = True
+        msg = (f"☠️ {pname} FALHOU no teste de morte ({total} vs CD 10). "
+               f"O personagem morreu — decisão de mesa define o que vem agora.")
+    users[pid]['trainer_data'] = trainer
+    save_users(users)
+    payload = {'player_id': pid, 'player_name': pname, 'survived': survived,
+               'roll_total': total, 'message': msg}
+    socketio.emit('death_test', payload, room=f'players_{_tid()}')
+    socketio.emit('death_test', payload, room=f'master_{_tid()}')
+    return jsonify(dict(payload, ok=True))
+
+
+@app.route('/master/trainer-revive', methods=['POST'])
+@login_required
+def master_trainer_revive():
+    """Desfaz a morte (nova ficha aprovada, milagre, retcon): limpa a flag e
+    devolve 1 HP. O resto (time, itens) fica como o mestre decidir."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    pid = str((request.json or {}).get('player_id') or '')
+    users = get_users()
+    if not _player_in_master_table(pid, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    trainer = users[pid].get('trainer_data', {}) or {}
+    trainer.pop('dead', None)
+    trainer['trainer_hp'] = max(1, _trainer_hp(trainer)[0])
+    users[pid]['trainer_data'] = trainer
+    save_users(users)
+    pname = users[pid].get('username', 'O treinador')
+    payload = {'player_id': pid, 'player_name': pname,
+               'message': f'✨ {pname} voltou à ativa (decisão do Mestre).'}
+    socketio.emit('trainer_revived', payload, room=f'players_{_tid()}')
+    socketio.emit('trainer_revived', payload, room=f'master_{_tid()}')
+    return jsonify(dict(payload, ok=True))
+
+
 @app.route('/api/skill/list')
 @login_required
 def api_skill_list():
@@ -4166,6 +4468,31 @@ def _disobey_msg(trainer, poke):
             f"(treinador nível {(trainer or {}).get('level', 1)} ×5 +10).")
 
 
+# ── ❤️ HP DO TREINADOR ──
+# O treinador também tem vida: quando um selvagem avança nele (cena de
+# ameaça), o mestre pode mandar o ataque de verdade. A 0 HP rola teste de
+# morte (hardcore, decisão de mesa). Máximo DERIVADO (nível + Determinação)
+# — nunca gravado, então subir de nível/atributo atualiza sozinho.
+
+def _trainer_max_hp(trainer):
+    """HP máximo: 20 + nível×2 + mod(Determinação)×2 (mínimo 1)."""
+    try:
+        lvl = int((trainer or {}).get('level') or 1)
+    except (TypeError, ValueError):
+        lvl = 1
+    return max(1, 20 + lvl * 2 + trainer_attrs.attr_mod(trainer or {}, 'determinacao') * 2)
+
+
+def _trainer_hp(trainer):
+    """(HP atual, HP máximo). Ficha sem o campo nasce com HP cheio; o atual
+    é clampado no máximo (Determinação/nível podem ter descido)."""
+    mx = _trainer_max_hp(trainer)
+    cur = (trainer or {}).get('trainer_hp')
+    if not isinstance(cur, (int, float)) or isinstance(cur, bool):
+        cur = mx
+    return max(0, min(mx, int(cur))), mx
+
+
 def _same_poke(a, b):
     """Mesmo Pokémon do time? uid quando existe; senão nome+nível."""
     if (a or {}).get('uid') and (b or {}).get('uid'):
@@ -4186,6 +4513,43 @@ def _group_stamp_bench(battle):
     for c in battle['combatants'].values():
         if c.get('side') == 'ally':
             c['bench'] = _group_bench(c.get('player_id'), c.get('pokemon'))
+
+
+def _group_villain_reinforce(battle):
+    """🎭 REFORÇO do vilão: o Pokémon de campo caiu e há time no banco → o
+    próximo entra automaticamente no MESMO slot (espelho da reposição dos
+    jogadores; gb._check_over segura a batalha aberta pelo bench do lado
+    selvagem). No-op fora de batalhas de vilão."""
+    if not battle.get('villain') or battle.get('phase') != 'active':
+        return
+    benches = battle.get('villain_bench') or {}
+    for cid, c in battle['combatants'].items():
+        if c.get('side') != 'wild' or not c.get('fainted') or c.get('captured'):
+            continue
+        bench = benches.get(cid) or []
+        nxt = next((p for p in bench
+                    if int(p.get('currentHp') or p.get('maxHp') or 0) > 0), None)
+        if nxt is None:
+            c['bench'] = 0
+            continue
+        bench.remove(nxt)
+        poke = dict(nxt)
+        effects.new_battle_reset([poke])
+        maxhp = int(poke.get('maxHp') or poke.get('hp') or 20)
+        cur = int(poke.get('currentHp') or maxhp)
+        c['pokemon'] = poke
+        c['name'] = poke.get('nickname') or poke.get('name', 'Pokémon')
+        c['moves'] = list(poke.get('moves') or ['Tackle'])[:4]
+        c['level'] = int(poke.get('level') or 1)
+        c['hp'] = max(1, min(maxhp, cur))
+        c['maxHp'] = maxhp
+        c['status'] = None
+        c['fainted'] = False
+        c['bench'] = sum(1 for p in bench
+                         if int(p.get('currentHp') or p.get('maxHp') or 0) > 0)
+        battle['log'].append({'type': 'villain_send', 'cid': cid,
+                              'message': f"🎭 {c.get('trainer_name') or 'O vilão'} "
+                                         f"enviou {c['name']}!"})
 
 
 def _spectate(kind, payload, table_id=None):
@@ -4619,6 +4983,80 @@ def master_group_hunt():
     return jsonify({'ok': True, 'battle': gb.state_view(battle)})
 
 
+@app.route('/master/villain-battle', methods=['POST'])
+@login_required
+def master_villain_battle():
+    """🎭 BATALHA DE VILÃO: 1-4 jogadores contra 1-3 NPCs treinadores.
+
+    Cada vilão põe UM Pokémon em campo; o resto do time fica no banco e
+    entra automaticamente quando o de campo cai (_group_villain_reinforce)
+    — espelho da troca/reposição dos jogadores. Sem captura (têm dono);
+    fuga permitida; AUTO/manual do selvagem vale para os vilões (o mestre
+    pode conduzir cada golpe no modo manual)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    player_ids = list(dict.fromkeys(str(p) for p in (data.get('player_ids') or []) if p))[:4]
+    npc_ids = list(dict.fromkeys(str(n) for n in (data.get('npc_ids') or []) if n))[:3]
+    if not player_ids:
+        return jsonify({'error': 'Selecione ao menos 1 jogador'}), 400
+    if not npc_ids:
+        return jsonify({'error': 'Selecione ao menos 1 vilão (NPC)'}), 400
+
+    users = get_users()
+    allies = []
+    for pid in player_ids:
+        if not _player_in_master_table(pid, users, _tid()):
+            return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+        name, poke = _group_active_pokemon(pid)
+        if not poke:
+            uname = users.get(pid, {}).get('username', pid)
+            return jsonify({'error': f'{uname} não tem Pokémon disponível'}), 400
+        _mig([poke])
+        _stamp_tatica([poke], users.get(pid, {}).get('trainer_data'))
+        allies.append({'player_id': pid, 'name': name or 'Treinador', 'pokemon': poke})
+
+    npcs = db.get_npcs()
+    wilds, benches, tnames = [], [], []
+    for nid in npc_ids:
+        npc = next((n for n in npcs if n['id'] == nid), None)
+        if not npc or not npc.get('team'):
+            return jsonify({'error': 'NPC sem time para batalhar'}), 400
+        team = [dict(p) for p in npc['team'] if isinstance(p, dict)]
+        _mig(team)
+        alive = [p for p in team
+                 if int(p.get('currentHp') or p.get('maxHp') or 0) > 0]
+        if not alive:
+            return jsonify({'error': f"{npc.get('name')} está com o time todo desmaiado"}), 400
+        first = alive[0]
+        wilds.append({'pokemon': first, 'level': int(first.get('level') or 1),
+                      'moves': list(first.get('moves') or ['Tackle'])[:4]})
+        benches.append(alive[1:])
+        tnames.append(npc.get('name') or 'Vilão')
+
+    battle = gb.build_battle(allies, wilds, 'normal', None, _tid())
+    battle['villain'] = True
+    _group_stamp_bench(battle)
+    vb = {}
+    for i in range(len(wilds)):
+        c = battle['combatants'][f'w{i}']
+        c['trainer_name'] = tnames[i]
+        c['bench'] = len(benches[i])
+        vb[f'w{i}'] = benches[i]
+    battle['villain_bench'] = vb
+    battle['log'].insert(0, {'type': 'villain',
+                             'message': '🎭 BATALHA DE VILÃO! ' + ' e '.join(tnames)
+                                        + (' desafiam' if len(tnames) > 1 else ' desafia')
+                                        + ' o grupo!'})
+    ACTIVE_GROUP_BATTLES[battle['id']] = battle
+
+    if _wild_auto_mode():
+        _group_run_wild_turns(battle)
+    _group_villain_reinforce(battle)
+    _group_broadcast(battle, 'group_battle_start')
+    return jsonify({'ok': True, 'battle': gb.state_view(battle)})
+
+
 def _group_switch(battle, data):
     """🔄 TROCA na batalha em grupo (inclui a emboscada 1v2).
 
@@ -4705,6 +5143,7 @@ def _group_switch(battle, data):
     if _wild_auto_mode():
         _group_run_wild_turns(battle)
     _group_field_round_hook(battle)
+    _group_villain_reinforce(battle)
     if battle['phase'] == 'finished':
         _group_broadcast(battle, 'group_battle_end')
         ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
@@ -4767,6 +5206,7 @@ def handle_group_battle_action(data):
             if _wild_auto_mode():
                 _group_run_wild_turns(battle)
             _group_field_round_hook(battle)
+            _group_villain_reinforce(battle)
         if battle['phase'] == 'finished':
             _group_broadcast(battle, 'group_battle_end')
             ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
@@ -4817,7 +5257,8 @@ def handle_group_battle_action(data):
     if _wild_auto_mode():
         _group_run_wild_turns(battle)
 
-    _group_field_round_hook(battle)   # F5: chip/cura + duração do campo
+    _group_field_round_hook(battle)
+    _group_villain_reinforce(battle)
     if battle['phase'] == 'finished':
         _group_broadcast(battle, 'group_battle_end')
         ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
@@ -4837,7 +5278,8 @@ def handle_group_wild_turn(data):
     if not cur or cur['side'] != 'wild':
         return
     _group_run_wild_turns(battle)
-    _group_field_round_hook(battle)   # F5: chip/cura + duração do campo
+    _group_field_round_hook(battle)
+    _group_villain_reinforce(battle)
     if battle['phase'] == 'finished':
         _group_broadcast(battle, 'group_battle_end')
         ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
@@ -4864,8 +5306,10 @@ def player_dashboard():
     # Filter quests for this player
     my_quests = [q for q in game_state.get('quests', [])
                  if current_user.id in q.get('assigned_to', []) or not q.get('assigned_to')]
+    _thp, _thp_max = _trainer_hp(trainer_data)
     return render_template('player.html',
                          trainer=trainer_data,
+                         trainer_hp=_thp, trainer_hp_max=_thp_max,
                          quests=my_quests,
                          routes=ROUTES_DATA,
                          current_user_id=current_user.id)
@@ -5081,7 +5525,8 @@ def player_active_battle():
             group = gb.state_view(b)
             break
     return jsonify({'encounter': enc, 'group_battle': group,
-                    'wild_auto': _wild_auto_mode()})
+                    'wild_auto': _wild_auto_mode(),
+                    'capture_test': (get_game_state().get('capture_tests') or {}).get(pid)})
 
 
 @app.route('/player/capture', methods=['POST'])
@@ -5301,6 +5746,10 @@ def _group_capture(data, ball_type):
     battle = ACTIVE_GROUP_BATTLES.get(str(data.get('battle_id') or ''))
     if not battle or battle.get('phase') != 'active' or battle.get('table_id') != _tid():
         return jsonify({'error': 'Batalha em dupla não encontrada.'}), 400
+    # 🎭 vilão: Pokémon de treinador não é capturável
+    if battle.get('villain'):
+        return jsonify({'error': '🎭 Esse Pokémon tem dono — não dá para capturar '
+                                 'Pokémon de treinador!'}), 400
     cur = gb.current_combatant(battle)
     if not cur or cur.get('side') != 'ally' or str(cur.get('player_id')) != pid:
         return jsonify({'error': 'Arremesse a Pokébola no SEU turno.'}), 400
@@ -5414,6 +5863,7 @@ def _group_capture(data, ball_type):
         if _wild_auto_mode():
             _group_run_wild_turns(battle)
         _group_field_round_hook(battle)
+        _group_villain_reinforce(battle)
 
     users[current_user.id]['trainer_data'] = trainer
     save_users(users)
@@ -5598,6 +6048,10 @@ def pokemon_center():
         poke.pop('status', None)
 
     trainer['team'] = team
+    # ❤️ o Centro também cura o TREINADOR (morto não: só o teste de morte /
+    # revive do mestre mexem nisso)
+    if not trainer.get('dead'):
+        trainer['trainer_hp'] = _trainer_max_hp(trainer)
     users[current_user.id]['trainer_data'] = trainer
     save_users(users)
 
@@ -5607,6 +6061,172 @@ def pokemon_center():
     }, room=f'master_{_tid()}')
 
     return jsonify({'ok': True, 'team': team})
+
+
+# ── 💊 MEDICINA FORA DE BATALHA ──
+# Efeitos dos itens de cura da loja, usáveis da bolsa (fora de combate).
+# Chaves em forma normalizada (_norm_ball_name) com aliases PT/EN;
+# heal = (dados, lados, bônus) ou 'full'; cure = condição ou 'any';
+# revive = fração do HP máximo.
+MEDICINE_ITEMS = {
+    'potion':       {'names': ['pocao', 'potion'], 'label': '🧪 Poção',
+                     'heal': (2, 4, 2)},
+    'superpotion':  {'names': ['superpocao', 'superpotion'], 'label': '🧪 Super Poção',
+                     'heal': (4, 4, 4)},
+    'hyperpotion':  {'names': ['hiperpocao', 'hyperpotion'], 'label': '🧪 Hiper Poção',
+                     'heal': (6, 4, 12)},
+    'maxpotion':    {'names': ['pocaomaxima', 'maxpotion'], 'label': '🧪 Poção Máxima',
+                     'heal': 'full'},
+    'fullrestore':  {'names': ['restauracao', 'fullrestore'], 'label': '💊 Restauração',
+                     'heal': 'full', 'cure': 'any'},
+    'antidote':     {'names': ['antidoto', 'antidote'], 'label': '💊 Antídoto',
+                     'cure': 'envenenado'},
+    'burnheal':     {'names': ['curaqueimadura', 'burnheal'], 'label': '💊 Cura Queimadura',
+                     'cure': 'queimado'},
+    'iceheal':      {'names': ['curagelo', 'iceheal'], 'label': '💊 Cura Gelo',
+                     'cure': 'congelado'},
+    'awakening':    {'names': ['despertar', 'awakening'], 'label': '💊 Despertar',
+                     'cure': 'dormindo'},
+    'paralyzeheal': {'names': ['curaparalisia', 'paralyzeheal'], 'label': '💊 Cura Paralisia',
+                     'cure': 'paralisado'},
+    'fullheal':     {'names': ['curatotal', 'fullheal'], 'label': '💊 Cura Total',
+                     'cure': 'any'},
+    'revive':       {'names': ['reviver', 'revive'], 'label': '⭐ Reviver',
+                     'revive': 0.5},
+    'maxrevive':    {'names': ['revivermax', 'maxrevive'], 'label': '⭐ Reviver Máx',
+                     'revive': 1.0},
+}
+
+
+def _find_medicine(name):
+    """(chave, def) do item de medicina pelo nome livre da bolsa, ou (None, None)."""
+    nm = _norm_ball_name(name)
+    for key, md in MEDICINE_ITEMS.items():
+        if nm in md['names'] or (nm.endswith('s') and nm[:-1] in md['names']):
+            return key, md
+    return None, None
+
+
+@app.route('/player/use-item', methods=['POST'])
+@login_required
+def player_use_item():
+    """💊 Usa um item de MEDICINA da bolsa num Pokémon do time — FORA de
+    batalha (em combate os itens têm fluxo próprio). Servidor rola a cura
+    (2d4+2...), valida alvo (Reviver exige desmaiado; curas de status exigem
+    a condição) e consome o item."""
+    if _rate_limit(20, 60, bucket='useitem'):
+        return jsonify({'error': 'Muitos usos de item em pouco tempo.'}), 429
+    pid = str(current_user.id)
+    # fora de batalha: sem encontro 1v1, sem PvP ativo, sem batalha em grupo
+    if (get_game_state().get('active_encounters') or {}).get(pid):
+        return jsonify({'error': 'Você está em batalha — itens fora de batalha apenas.'}), 400
+    if any(pid in (b.get('player1', {}).get('id'), b.get('player2', {}).get('id'))
+           and b.get('phase') == 'battle' for b in ACTIVE_PVP.values()):
+        return jsonify({'error': 'Você está em um PvP — itens fora de batalha apenas.'}), 400
+    if any(b.get('phase') == 'active'
+           and any(c.get('player_id') == pid and c.get('side') == 'ally'
+                   for c in b['combatants'].values())
+           for b in ACTIVE_GROUP_BATTLES.values()):
+        return jsonify({'error': 'Você está em uma batalha em grupo — itens fora de batalha apenas.'}), 400
+
+    data = request.json or {}
+    item_name = str(data.get('item_name') or '')
+    key, med = _find_medicine(item_name)
+    if not med:
+        return jsonify({'error': f'"{item_name}" não é um item de medicina usável.'}), 400
+
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {}) or {}
+    bag = trainer.get('bag', []) or []
+    slot = next((it for it in bag if isinstance(it, dict)
+                 and _find_medicine(it.get('name'))[0] == key
+                 and int(it.get('qty') or 0) > 0), None)
+    if not slot:
+        return jsonify({'error': f'Você não tem {med["label"]} na bolsa.'}), 400
+
+    team = trainer.get('team', []) or []
+    # alvo por uid (estável) com fallback para índice
+    target = None
+    t_uid = data.get('target_uid')
+    if t_uid:
+        target = next((p for p in team if p.get('uid') == t_uid), None)
+    if target is None:
+        try:
+            idx = int(data.get('target_idx'))
+            if 0 <= idx < len(team):
+                target = team[idx]
+        except (TypeError, ValueError):
+            pass
+    if target is None:
+        return jsonify({'error': 'Escolha um Pokémon do time.'}), 400
+
+    tname = target.get('nickname') or target.get('name', 'Pokémon')
+    max_hp = int(target.get('maxHp') or target.get('hp') or 20)
+    cur_raw = target.get('currentHp')
+    cur = int(cur_raw) if isinstance(cur_raw, (int, float)) else max_hp
+    fainted = cur <= 0
+    _st = target.get('status')
+    if isinstance(_st, dict):
+        _st = _st.get('condition')
+    status = (str(_st or '').strip().lower()) or None
+
+    log = []
+    dice = None
+
+    if 'revive' in med:
+        if not fainted:
+            return jsonify({'error': f'{tname} não está desmaiado — Reviver é para Pokémon desmaiado.'}), 400
+        cur = max(1, int(max_hp * med['revive']))
+        target['currentHp'] = cur
+        target.pop('status', None)
+        log.append(f"⭐ {med['label']}: {tname} voltou à luta com {cur}/{max_hp} HP!")
+    else:
+        if fainted:
+            return jsonify({'error': f'{tname} está desmaiado — use um Reviver.'}), 400
+        heal = med.get('heal')
+        cure = med.get('cure')
+        if cure and not heal:
+            # item SÓ de status: exige a condição certa (ou alguma, no 'any')
+            if not status:
+                return jsonify({'error': f'{tname} não tem condição de status para curar.'}), 400
+            if cure != 'any' and status != cure:
+                return jsonify({'error': f"{med['label']} não cura '{status}' "
+                                         f"(cura apenas {cure})."}), 400
+        if heal:
+            if cur >= max_hp and not (cure and status):
+                return jsonify({'error': f'{tname} já está com o HP cheio.'}), 400
+            if heal == 'full':
+                healed = max_hp - cur
+                cur = max_hp
+                log.append(f"🧪 {med['label']}: {tname} recuperou TODO o HP ({max_hp}/{max_hp})!")
+            else:
+                n, sides, flat = heal
+                rolls = [random.randint(1, sides) for _ in range(n)]
+                amount = sum(rolls) + flat
+                healed = min(amount, max_hp - cur)
+                cur = min(max_hp, cur + amount)
+                dice = {'rolls': rolls, 'flat': flat, 'total': amount}
+                log.append(f"🧪 {med['label']}: {n}d{sides}+{flat} = {amount} "
+                           f"→ {tname} recuperou {healed} HP ({cur}/{max_hp}).")
+            target['currentHp'] = cur
+        if cure and status and (cure == 'any' or status == cure):
+            target.pop('status', None)
+            log.append(f"💊 {tname} foi curado de '{status}'!")
+
+    # consome 1 do item
+    slot['qty'] = int(slot['qty']) - 1
+    trainer['bag'] = [i for i in bag if i is not slot] if slot['qty'] <= 0 else bag
+    trainer['team'] = team
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+    socketio.emit('team_update', {'player_id': current_user.id, 'team': team},
+                  room=f'master_{_tid()}')
+    return jsonify({'ok': True, 'log': log, 'dice': dice,
+                    'pokemon': {'uid': target.get('uid'), 'name': tname,
+                                'currentHp': target.get('currentHp'),
+                                'maxHp': max_hp,
+                                'status': target.get('status')},
+                    'bag': trainer.get('bag', [])})
 
 
 @app.route('/player/level-evolve', methods=['POST'])
@@ -6624,6 +7244,14 @@ def handle_disconnect():
 def handle_encounter(data):
     """Player starts a wild encounter - notify master with full battle data."""
     if current_user.is_authenticated:
+        # ☠️ treinador morto não caça (só o revive do mestre desfaz)
+        _tr_dead = get_users().get(str(current_user.id), {}) \
+            .get('trainer_data', {}).get('dead')
+        if _tr_dead:
+            emit('encounter_denied', {
+                'message': '☠️ Seu treinador está morto — fale com o Mestre.'
+            }, room=str(current_user.id))
+            return
         # GATE: o jogador só inicia um encontro que o MESTRE liberou (por
         # espécie). Sem isto, dava para emitir start_encounter à vontade,
         # ignorando o teto de caçadas e a aprovação do mestre.

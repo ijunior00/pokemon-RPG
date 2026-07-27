@@ -236,24 +236,78 @@ function _gbHpBar(c) {
     const pct = c.maxHp ? Math.max(0, Math.round(100 * c.hp / c.maxHp)) : 0;
     const col = c.fainted ? '#555' : c.side === 'ally' ? '#4caf50' : '#e53935';
     return `<div style="background:rgba(255,255,255,0.12);border-radius:6px;height:12px;overflow:hidden;margin-top:2px;">
-        <div style="width:${pct}%;height:100%;background:${col};transition:width 0.3s;"></div></div>`;
+        <div id="gb-hp-${c.cid}" style="width:${pct}%;height:100%;background:${col};transition:width 0.3s;"></div></div>`;
 }
 
 function _gbCombatantHtml(c, isTurn) {
     const spr = c.number ? getPokemonSpriteUrl(c.number, c.is_shiny) : '';
     const ring = isTurn ? 'box-shadow:0 0 0 3px var(--accent,#ffcb05);' : '';
     const dead = c.fainted ? 'opacity:0.4;filter:grayscale(1);' : '';
-    return `<div style="flex:1;min-width:130px;background:rgba(255,255,255,0.05);border-radius:10px;padding:0.5rem;${ring}${dead}">
+    return `<div id="gb-card-${c.cid}" style="flex:1;min-width:130px;background:rgba(255,255,255,0.05);border-radius:10px;padding:0.5rem;${ring}${dead}">
         <div style="display:flex;align-items:center;gap:0.4rem;">
-            ${spr ? `<img src="${spr}" width="42" height="42" alt="" style="object-fit:contain;"${c.is_shiny ? ' class="sprite-shiny"' : ''}>` : ''}
+            ${spr ? `<img id="gb-spr-${c.cid}" src="${spr}" width="42" height="42" alt="" style="object-fit:contain;"${c.is_shiny ? ' class="sprite-shiny"' : ''}>` : ''}
             <div style="flex:1;">
                 <div style="font-weight:700;font-size:0.85rem;">${isTurn ? '▶️ ' : ''}${c.name}${c.fainted ? ' 💀' : ''}</div>
+                ${c.side === 'wild' && c.trainer_name ? `<div style="font-size:0.68rem;color:#ab47bc;font-weight:700;">🎭 ${c.trainer_name}${c.bench > 0 ? ` (+${c.bench} no time)` : ''}</div>` : ''}
                 <div style="font-size:0.72rem;opacity:0.8;">Nv.${c.level || '?'} · ${c.hp}/${c.maxHp} HP</div>
             </div>
         </div>${_gbHpBar(c)}<div>${renderStageBadges(c.stat_stages)}</div></div>`;
 }
 
+// FX da batalha em grupo: compara o estado anterior com o novo e anima o que
+// mudou (dano, cura, desmaio, entrada de Pokémon) no DOM RECÉM-renderizado.
+function _gbApplyFx(prev, view) {
+    if (!prev || !window.FX || prev.id !== view.id) return;
+    const prevBy = {};
+    for (const c of (prev.combatants || [])) prevBy[c.cid] = c;
+    for (const c of (view.combatants || [])) {
+        const p = prevBy[c.cid];
+        if (!p) continue;
+        const card = document.getElementById(`gb-card-${c.cid}`);
+        const spr = document.getElementById(`gb-spr-${c.cid}`) || card;
+        const fill = document.getElementById(`gb-hp-${c.cid}`);
+        // troca/reposição/reforço do vilão: mesmo slot, Pokémon diferente
+        if (p.name !== c.name && !c.fainted) {
+            if (FX.sendOut) FX.sendOut(spr);
+            continue;
+        }
+        if (c.hp < p.hp) {
+            const dmg = p.hp - c.hp;
+            if (FX.hitShake) FX.hitShake(card, dmg >= (c.maxHp || 99) * 0.25);
+            if (FX.hpHit && fill && c.maxHp) {
+                FX.hpHit(fill, Math.max(0, p.hp / c.maxHp * 100),
+                               Math.max(0, c.hp / c.maxHp * 100));
+            }
+            if (FX.damagePop) FX.damagePop(spr, `-${dmg}`, 'dmg');
+            if (c.fainted && !p.fainted) {
+                if (FX.faintDrop) FX.faintDrop(spr);
+                playSound('faint');
+            } else playSound('hit');
+        } else if (c.hp > p.hp && FX.damagePop) {
+            FX.damagePop(spr, `+${c.hp - p.hp}`, 'heal');
+        }
+    }
+    // callouts (crítico/super efetivo/reforço...) das entradas novas do log
+    const _all = view.log || [];
+    const newLog = _all.slice(_all.length - _gbNewLogCount(prev, view));
+    const host = document.getElementById('group-battle-card');
+    for (const l of newLog) _maybeCallout(l.message || '', host);
+}
+
+// Quantas entradas do log são novas (o servidor manda só as últimas 25 —
+// compara pelo conteúdo do fim do log anterior dentro do novo).
+function _gbNewLogCount(prev, view) {
+    const a = prev.log || [], b = view.log || [];
+    if (!a.length) return b.length;
+    const lastMsg = JSON.stringify(a[a.length - 1]);
+    for (let i = b.length - 1; i >= 0; i--) {
+        if (JSON.stringify(b[i]) === lastMsg) return b.length - 1 - i;
+    }
+    return b.length;
+}
+
 function renderGroupBattle(view) {
+    const _prevView = _groupBattleView;
     _groupBattleView = view;
     const ov = _ensureGroupOverlay();
     const card = ov.querySelector('#group-battle-card');
@@ -276,10 +330,12 @@ function renderGroupBattle(view) {
     let controls = '';
     if (view.phase === 'finished') {
         const win = view.winner === 'ally';
-        const endMsg = win ? (view.ambush ? '🎉 Você sobreviveu à emboscada!' : '🎉 Vitória da dupla!')
+        const endMsg = win ? (view.villain ? '🎉 Os vilões foram derrotados!'
+                : view.ambush ? '🎉 Você sobreviveu à emboscada!' : '🎉 Vitória da dupla!')
             : view.winner === 'fled' ? '🏃 A dupla fugiu da batalha.'
             : view.winner === 'master_ended' ? '⏹ O Mestre encerrou a batalha.'
-            : (view.ambush ? '💀 A emboscada te venceu!' : '💀 A dupla foi derrotada!');
+            : (view.villain ? '💀 Os vilões venceram a batalha!'
+                : view.ambush ? '💀 A emboscada te venceu!' : '💀 A dupla foi derrotada!');
         const endCol = win ? '#66bb6a' : (view.winner === 'fled' || view.winner === 'master_ended') ? '#ffcb05' : '#e53935';
         controls = `<div style="text-align:center;font-size:1.3rem;font-weight:800;margin:0.6rem 0;color:${endCol};">
             ${endMsg}</div>
@@ -298,29 +354,25 @@ function renderGroupBattle(view) {
                 <button class="btn btn-danger" onclick="groupBattleAttack()">⚔️ Atacar</button>
                 ${view.ambush ? '' : '<button class="btn btn-secondary" onclick="groupBattleFlee()">🏃 Fugir</button>'}
             </div>
+            ${view.villain ? '' : `
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin-top:0.5rem;border-top:1px dashed rgba(255,255,255,0.2);padding-top:0.5rem;">
                 <div class="form-group" style="flex:1;min-width:150px;"><label>Pokébola</label>
                     <select id="gb-ball">${pokeballOptionsHtml()}</select></div>
                 <button class="btn btn-primary" onclick="groupBattleCapture()">🎯 Capturar</button>
             </div>
-            <div style="font-size:0.72rem;opacity:0.7;margin-top:0.2rem;">A bola vai no alvo selecionado acima. Regra: ≤40% do HP (65% se dormindo/congelado). O arremesso consome o seu turno; se quebrar, o selvagem continua na luta.</div>
+            <div style="font-size:0.72rem;opacity:0.7;margin-top:0.2rem;">A bola vai no alvo selecionado acima. Regra: ≤40% do HP (65% se dormindo/congelado). O arremesso consome o seu turno; se quebrar, o selvagem continua na luta.</div>`}
             ${myBenchHtml ? `
-            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin-top:0.5rem;border-top:1px dashed rgba(255,255,255,0.2);padding-top:0.5rem;">
-                <div class="form-group" style="flex:1;min-width:150px;"><label>Trocar por</label>
-                    <select id="gb-switch">${myBenchHtml}</select></div>
-                <button class="btn btn-secondary" onclick="groupBattleSwitch()">🔄 Trocar</button>
+            <div style="margin-top:0.5rem;border-top:1px dashed rgba(255,255,255,0.2);padding-top:0.5rem;">
+                <label style="font-size:0.8rem;">🔄 Trocar por (toque no card):</label>
+                ${myBenchHtml}
             </div>
             <div style="font-size:0.72rem;opacity:0.7;margin-top:0.2rem;">A troca consome o seu turno. Quem sai guarda o HP da luta.</div>` : ''}
             </div>`;
     } else if (myDown && myBenchHtml) {
         // 💀 Meu Pokémon caiu, mas tenho banco: REPOSIÇÃO fora do turno
         controls = `<div style="margin-top:0.6rem;padding:0.6rem;border:2px solid #e53935;border-radius:10px;">
-            <div style="font-weight:800;margin-bottom:0.4rem;color:#e53935;">💀 ${myC.name} desmaiou — envie o próximo Pokémon!</div>
-            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;">
-                <div class="form-group" style="flex:1;min-width:150px;"><label>Enviar</label>
-                    <select id="gb-switch">${myBenchHtml}</select></div>
-                <button class="btn btn-danger" onclick="groupBattleSwitch()">🔄 Enviar Pokémon</button>
-            </div></div>`;
+            <div style="font-weight:800;margin-bottom:0.4rem;color:#e53935;">💀 ${myC.name} desmaiou — toque no próximo Pokémon para enviar!</div>
+            ${myBenchHtml}</div>`;
     } else if (view.phase === 'active') {
         const who = turnC ? turnC.name : '...';
         const wildWaiting = turnC && turnC.side === 'wild' && view.wild_auto === false;
@@ -329,7 +381,8 @@ function renderGroupBattle(view) {
             : `<div style="text-align:center;opacity:0.85;margin-top:0.6rem;">⏳ Vez de <strong>${who}</strong> — aguarde.</div>`;
     }
 
-    const gbTitle = view.ambush ? `💀 EMBOSCADA — ${view.mode}`
+    const gbTitle = view.villain ? `🎭 Batalha de Vilão — ${view.mode}`
+        : view.ambush ? `💀 EMBOSCADA — ${view.mode}`
         : `👥 Batalha em Dupla — ${view.mode}`;
     card.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
@@ -340,10 +393,14 @@ function renderGroupBattle(view) {
         <div style="font-size:0.75rem;opacity:0.7;margin-bottom:0.2rem;">${view.ambush ? '🟢 Seu Pokémon' : '🟢 Sua dupla'}</div>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">${alliesHtml}</div>
         <div style="text-align:center;font-weight:800;margin:0.4rem 0;opacity:0.8;">⚔️ VS ⚔️</div>
-        <div style="font-size:0.75rem;opacity:0.7;margin-bottom:0.2rem;">🔴 Selvagens</div>
+        <div style="font-size:0.75rem;opacity:0.7;margin-bottom:0.2rem;">${view.villain ? '🔴 Pokémon dos vilões' : '🔴 Selvagens'}</div>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">${wildsHtml}</div>
         ${controls}
         <div style="margin-top:0.6rem;font-size:0.8rem;opacity:0.85;max-height:120px;overflow-y:auto;background:rgba(0,0,0,0.25);border-radius:8px;padding:0.4rem 0.6rem;">${log}</div>`;
+
+    // FX: anima o DOM novo comparando com o estado anterior (dano, desmaio,
+    // entrada de Pokémon, callouts) — depois do innerHTML, nunca antes
+    try { _gbApplyFx(_prevView, view); } catch (e) {}
 }
 
 function groupBattleAttack() {
@@ -356,23 +413,26 @@ function groupBattleAttack() {
     });
 }
 
-// Opções de troca: Pokémon VIVOS do time fora de campo (o servidor valida)
+// Opções de troca: Pokémon VIVOS do time fora de campo (o servidor valida) —
+// carrossel com sprites; devolve '' se não há ninguém para entrar
 function _gbBenchOptions(myC) {
     if (!myC) return '';
-    return (playerTeam || [])
+    const cards = (playerTeam || [])
         .map((p, i) => ({ p, i }))
         .filter(({ p }) => (p.currentHp === undefined || p.currentHp > 0)
             && pokeObeys(p)   // ☠️ acima do teto de obediência não entra
             && !((p.nickname || p.name) === myC.name && p.level === myC.level))
-        .map(({ p, i }) => `<option value="${i}">${p.nickname || p.name} Nv.${p.level}` +
-             ` (${p.currentHp ?? p.maxHp ?? '?'}/${p.maxHp ?? '?'} HP)</option>`)
-        .join('');
+        .map(({ p, i }) => ({
+            number: p.number, is_shiny: p.is_shiny,
+            name: p.nickname || p.name, level: p.level,
+            hp: p.currentHp ?? p.maxHp ?? 20, maxHp: p.maxHp || 20,
+            cls: '', tag: '', onclick: `groupBattleSwitchTo(${i})`,
+        }));
+    return cards.length ? pokeCarouselHtml(cards) : '';
 }
 
-function groupBattleSwitch() {
+function groupBattleSwitchTo(idx) {
     if (!_groupBattleView) return;
-    const idx = parseInt(document.getElementById('gb-switch')?.value);
-    if (isNaN(idx)) { showNotification('Escolha um Pokémon', 'error'); return; }
     socket.emit('group_battle_action', {
         battle_id: _groupBattleView.id, action: 'switch', new_index: idx
     });
@@ -1115,6 +1175,11 @@ async function resumeActiveBattle() {
         try { renderGroupBattle(d.group_battle); } catch (e) { console.error('resume grupo falhou:', e); }
     }
 
+    // 🎯 teste de captura fora de batalha pendente sobrevive ao refresh
+    if (d.capture_test) {
+        try { showCaptureTest(d.capture_test); } catch (e) {}
+    }
+
     const enc = d.encounter;
     if (!enc || !enc.pokemon) return;
 
@@ -1256,21 +1321,29 @@ socket.on('battle_update', (data) => {
     const prevPlayerHp = parseInt(document.getElementById('battle-player-hp-text-full')?.textContent) || bs.player_hp_current;
 
     // Update HP bars (also keep enemy.currentHp in sync as authoritative source)
+    // prevHp aciona o FX de dano (flash + rastro vermelho do HP perdido)
     if (window.currentBattleData?.enemy) window.currentBattleData.enemy.currentHp = bs.wild_hp_current;
-    setHpBar('battle-enemy-hp-bar-full', bs.wild_hp_current, bs.wild_hp_max);
+    setHpBar('battle-enemy-hp-bar-full', bs.wild_hp_current, bs.wild_hp_max, prevEnemyHp);
     document.getElementById('battle-enemy-hp-text-full').textContent = `${bs.wild_hp_current}/${bs.wild_hp_max} HP`;
-    setHpBar('battle-player-hp-bar-full', bs.player_hp_current, bs.player_hp_max);
+    setHpBar('battle-player-hp-bar-full', bs.player_hp_current, bs.player_hp_max, prevPlayerHp);
     document.getElementById('battle-player-hp-text-full').textContent = `${bs.player_hp_current}/${bs.player_hp_max} HP`;
 
-    // Hit flash & sounds
+    // Hit flash & sounds + número de dano flutuante
     if (data.damage > 0) {
+        const _crit = /cr[ií]t/i.test(String(data.action_log || ''));
         if (data.action_by === 'player' && bs.wild_hp_current < prevEnemyHp) {
             battleSpriteHit('battle-enemy-sprite');
             hpBarShake(document.querySelector('.enemy-side .hp-bar-container'));
+            if (window.FX && FX.damagePop) FX.damagePop(
+                document.getElementById('battle-enemy-sprite'),
+                `-${prevEnemyHp - bs.wild_hp_current}`, _crit ? 'crit' : 'dmg');
             playSound('hit');
         } else if (data.action_by === 'master' && bs.player_hp_current < prevPlayerHp) {
             battleSpriteHit('battle-player-sprite');
             hpBarShake(document.querySelector('.player-side .hp-bar-container'));
+            if (window.FX && FX.damagePop) FX.damagePop(
+                document.getElementById('battle-player-sprite'),
+                `-${prevPlayerHp - bs.player_hp_current}`, _crit ? 'crit' : 'dmg');
             playSound('hit');
         }
     }
@@ -1735,6 +1808,131 @@ socket.on('group_battle_error', (d) => {
 // 💀 O selvagem derrotou o último Pokémon e AVANÇOU NO TREINADOR — para o
 // alvo é um momento dramático (o Mestre conduz a cena e pode pedir um
 // teste, que chega pelo fluxo normal de roll_request); a mesa toda vê.
+// ═══ 🎯 TESTE DE CAPTURA FORA DE BATALHA (condição especial do Mestre) ═══
+// O Mestre oferece um Pokémon capturável (dormindo, evento, filhote...);
+// o jogador tem UMA bola para arremessar. O servidor resolve tudo.
+function showCaptureTest(offer) {
+    let ov = document.getElementById('capture-test-overlay');
+    if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'capture-test-overlay';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:9997;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(6,10,20,0.92);';
+        document.body.appendChild(ov);
+    }
+    ov.style.display = 'flex';
+    const spr = offer.number ? getPokemonSpriteUrl(offer.number, offer.shiny) : '';
+    ov.innerHTML = `
+        <div id="capture-test-card" style="max-width:420px;width:100%;background:var(--card-bg,#151b2b);border:2px solid var(--accent,#ffcb05);border-radius:16px;padding:1rem 1.2rem;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.6);">
+            <div style="font-weight:800;font-size:1.05rem;">🎯 Chance de Captura!</div>
+            ${offer.note ? `<div style="font-size:0.85rem;opacity:0.85;margin-top:0.3rem;">📜 ${offer.note}</div>` : ''}
+            ${spr ? `<img src="${spr}" width="96" height="96" style="object-fit:contain;image-rendering:pixelated;margin-top:0.4rem;"${offer.shiny ? ' class="sprite-shiny"' : ''}>` : ''}
+            <div style="font-weight:700;">${offer.shiny ? '✨ ' : ''}${offer.name} Nv.${offer.level}</div>
+            <div style="font-size:0.8rem;opacity:0.8;margin-top:0.2rem;">CD de Captura: <strong>${offer.dc}</strong> · d20 + Afinidade + bônus da bola</div>
+            <div class="form-group" style="margin-top:0.6rem;text-align:left;"><label>Pokébola</label>
+                <select id="capture-test-ball">${pokeballOptionsHtml()}</select></div>
+            <div style="display:flex;gap:0.5rem;margin-top:0.6rem;">
+                <button class="btn btn-primary" style="flex:1;" onclick="throwCaptureTest()">🎯 Arremessar</button>
+                <button class="btn btn-secondary" onclick="closeCaptureTest()">Agora não</button>
+            </div>
+            <div id="capture-test-log" style="margin-top:0.6rem;font-size:0.82rem;text-align:left;"></div>
+        </div>`;
+    if (window.FX && FX.sendOut) { try { FX.sendOut(ov.querySelector('img')); } catch (e) {} }
+    try { playNotificationSound(); } catch (e) {}
+}
+
+function closeCaptureTest() {
+    const ov = document.getElementById('capture-test-overlay');
+    if (ov) ov.style.display = 'none';
+}
+
+async function throwCaptureTest() {
+    const ball = document.getElementById('capture-test-ball')?.value || 'pokeball';
+    const logEl = document.getElementById('capture-test-log');
+    try {
+        const r = await fetch('/player/capture-test', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ball_type: ball })
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) {
+            if (logEl) logEl.innerHTML = `<span style="color:#e53935;">❌ ${d.error || 'Falha no arremesso'}</span>`;
+            return;
+        }
+        if (d.bag) window.bagItems = d.bag;
+        if (logEl) logEl.innerHTML = (d.log || []).map(l => `<div>• ${l}</div>`).join('');
+        const card = document.getElementById('capture-test-card');
+        const img = card?.querySelector('img');
+        if (d.result === 'caught') {
+            try { FX.captureAbsorb && FX.captureAbsorb(img); FX.callout && FX.callout('CAPTURADO!', 'success', card); } catch (e) {}
+            try { playSound('capture'); } catch (e) {}
+            if (d.captured && d.destination === 'team') playerTeam = [...playerTeam, d.captured];
+            try { if (typeof renderTeam === 'function') renderTeam(); } catch (e) {}
+            setTimeout(closeCaptureTest, 3200);
+        } else {
+            try { FX.captureWobble && FX.captureWobble(img); FX.callout && FX.callout('QUEBROU...', 'muted', card); } catch (e) {}
+            setTimeout(closeCaptureTest, 3200);
+        }
+        // some botões: a chance foi consumida
+        card?.querySelectorAll('button').forEach(b => b.remove());
+    } catch (e) {
+        if (logEl) logEl.innerHTML = '<span style="color:#e53935;">❌ Erro de conexão.</span>';
+    }
+}
+
+socket.on('capture_test_offer', (d) => {
+    if (d && d.revoked) { closeCaptureTest(); showNotification('O Mestre recolheu a chance de captura.', 'info'); return; }
+    showCaptureTest(d);
+});
+
+socket.on('capture_test_result', (d) => {
+    // aviso para a mesa (o próprio jogador já viu o log no overlay)
+    if (String(d.player_id) !== String(window.CURRENT_USER_ID)) {
+        showNotification(d.message, d.caught ? 'success' : 'info');
+    }
+});
+
+// ❤️ HP do treinador: dano da cena de avanço / teste de morte / revive
+function _setTrainerHpUi(hp, maxHp, prevHp) {
+    const bar = document.getElementById('trainer-hp-bar');
+    const txt = document.getElementById('trainer-hp-text');
+    if (txt) txt.textContent = `${hp}/${maxHp} HP`;
+    if (!bar || !maxHp) return;
+    const pct = Math.max(0, Math.min(100, hp / maxHp * 100));
+    if (window.FX && FX.hpHit && typeof prevHp === 'number' && prevHp > hp) {
+        FX.hpHit(bar, Math.max(0, prevHp / maxHp * 100), pct);
+    } else bar.style.width = pct + '%';
+}
+
+socket.on('trainer_damage', (d) => {
+    const mine = String(d.player_id) === String(window.CURRENT_USER_ID);
+    if (mine) {
+        _setTrainerHpUi(d.hp, d.max_hp, d.hp + d.damage);
+        try {
+            const box = document.getElementById('trainer-hp-box') || document.body;
+            FX.damagePop && FX.damagePop(box, `-${d.damage}`, 'dmg');
+            FX.callout && FX.callout(d.downed ? '💀 VOCÊ CAIU!' : '🩸 FERIDO!', 'danger');
+        } catch (e) {}
+        try { playSound(d.downed ? 'faint' : 'hit'); } catch (e) {}
+        try { addBattleLog(d.message); } catch (e) {}
+    }
+    showNotification(d.message, 'error');
+});
+
+socket.on('death_test', (d) => {
+    const mine = String(d.player_id) === String(window.CURRENT_USER_ID);
+    if (mine) {
+        try { FX.callout && FX.callout(d.survived ? '🛡️ SOBREVIVEU!' : '☠️ MORTO', d.survived ? 'success' : 'danger'); } catch (e) {}
+        if (d.survived) _setTrainerHpUi(1, parseInt((document.getElementById('trainer-hp-text')?.textContent || '/1').split('/')[1]) || 1);
+    }
+    showNotification(d.message, d.survived ? 'success' : 'error');
+    if (!d.survived && mine) setTimeout(() => location.reload(), 2500);   // ficha mostra ☠️
+});
+
+socket.on('trainer_revived', (d) => {
+    showNotification(d.message, 'success');
+    if (String(d.player_id) === String(window.CURRENT_USER_ID)) setTimeout(() => location.reload(), 1500);
+});
+
 socket.on('trainer_threatened', (d) => {
     const mine = String(d.player_id) === String(window.CURRENT_USER_ID);
     if (mine) {
@@ -1918,7 +2116,7 @@ function _finishCaptureUI() {
 // Gancho no log = pega TODOS os caminhos (auto, manual, servidor) num só
 // lugar; as strings são nossas (PT-BR do próprio app). Throttle anti-spam.
 let _lastCalloutAt = 0;
-function _maybeCallout(msg) {
+function _maybeCallout(msg, hostEl) {
     if (!window.FX || !FX.callout) return;
     const now = Date.now();
     if (now - _lastCalloutAt < 700) return;
@@ -1931,7 +2129,8 @@ function _maybeCallout(msg) {
     else if (/super efetivo/i.test(s))   hit = ['SUPER EFETIVO!', 'danger'];
     else if (/n[ãa]o efetivo/i.test(s))  hit = ['POUCO EFETIVO', 'muted'];
     else if (/⛔ imune|é imune/i.test(s)) hit = ['IMUNE!', 'muted'];
-    if (hit) { _lastCalloutAt = now; FX.callout(hit[0], hit[1]); }
+    else if (/🎭 .*enviou/i.test(s))      hit = ['🎭 REFORÇO!', 'danger'];
+    if (hit) { _lastCalloutAt = now; FX.callout(hit[0], hit[1], hostEl); }
 }
 
 function addBattleLog(msg) {
@@ -2825,13 +3024,18 @@ function hpBarShake(barContainerEl) {
     barContainerEl.addEventListener('animationend', () => barContainerEl.classList.remove('hp-shake'), { once: true });
 }
 
-function setHpBar(barId, current, max) {
+function setHpBar(barId, current, max, prevCurrent) {
     const el = document.getElementById(barId);
     if (!el) return;
     // Bar shows 0% when negative (dead), but HP text shows the real negative number
     const pct = max > 0 ? Math.max(0, Math.min(100, (current / max) * 100)) : 0;
-    // dreno suave (GSAP) — degrada para width instantâneo se o FX não existir
-    if (window.FX) FX.tweenWidth(el, pct); else el.style.width = pct + '%';
+    // dreno suave (GSAP) — degrada para width instantâneo se o FX não existir.
+    // Com prevCurrent (dano levado agora): flash + rastro vermelho do HP perdido.
+    if (window.FX && FX.hpHit && typeof prevCurrent === 'number' && prevCurrent > current && max > 0) {
+        const fromPct = Math.max(0, Math.min(100, (prevCurrent / max) * 100));
+        FX.hpHit(el, fromPct, pct);
+    } else if (window.FX) FX.tweenWidth(el, pct);
+    else el.style.width = pct + '%';
     el.classList.remove('hp-mid', 'hp-low');
     if (current <= -30) el.classList.add('hp-low'); // permadeath zone — pulse red
     else if (current <= 0) el.classList.add('hp-low');
@@ -3885,6 +4089,53 @@ socket.on('mega_evolved', (data) => {
 // ============================================
 // SWITCH POKEMON IN BATTLE
 // ============================================
+// ── Carrossel de escolha de Pokémon (com sprite) ──
+// cards: [{number, is_shiny, name, level, hp, maxHp, tag, cls, onclick}]
+// cls: '' | 'current' | 'disabled'; tag: rótulo pequeno ("(ativo)", "☠️ não obedece"...)
+function pokeCarouselHtml(cards) {
+    const inner = cards.map(c => {
+        const pct = c.maxHp ? Math.max(0, Math.min(100, Math.round(100 * c.hp / c.maxHp))) : 0;
+        const hpCls = pct <= 20 ? 'low' : pct <= 50 ? 'mid' : '';
+        const spr = c.number
+            ? `<img src="${getPokemonSpriteUrl(c.number, c.is_shiny)}" alt=""${c.is_shiny ? ' class="sprite-shiny"' : ''}>`
+            : '<div style="font-size:2.2rem;line-height:56px;">🔴</div>';
+        return `<div class="poke-card ${c.cls || ''}"${(!c.cls && c.onclick) ? ` onclick="${c.onclick}"` : ''}>
+            ${spr}
+            <div class="pc-name">${c.name}</div>
+            <div class="pc-sub">Nv.${c.level} · ${c.hp}/${c.maxHp} HP</div>
+            <div class="pc-hpbox"><div class="pc-hp ${hpCls}" style="width:${pct}%"></div></div>
+            ${c.tag ? `<span class="pc-tag">${c.tag}</span>` : ''}
+        </div>`;
+    }).join('');
+    return `<div class="poke-carousel">${inner}</div>`;
+}
+
+// Entrada em cascata dos cards (stagger) — chamar DEPOIS de inserir no DOM
+function pokeCarouselFx(rootEl) {
+    if (!rootEl || !window.FX || !FX.staggerIn) return;
+    FX.staggerIn(rootEl.querySelectorAll('.poke-card'));
+}
+
+// Monta os cards do MEU time para os fluxos de troca (estados compartilhados)
+function _teamCarouselCards(isCurrentFn, isBlockedFn, onclickFn) {
+    return (playerTeam || []).map((p, i) => {
+        const hp = (p.currentHp !== undefined && p.currentHp !== null) ? p.currentHp : (p.maxHp || 20);
+        const isCurrent = isCurrentFn(p, i);
+        const isFainted = hp <= 0;
+        const disobeys = !pokeObeys(p);
+        const blocked = isBlockedFn ? isBlockedFn(p, i) : false;
+        const cls = isCurrent ? 'current' : (isFainted || disobeys || blocked) ? 'disabled' : '';
+        const tag = isCurrent ? '(em batalha)' : isFainted ? '(desmaiado)'
+            : disobeys ? '☠️ não obedece' : blocked ? '(bloqueado)' : '';
+        return {
+            number: p.number, is_shiny: p.is_shiny,
+            name: p.nickname || p.name, level: p.level,
+            hp: hp, maxHp: p.maxHp || 20, tag: tag, cls: cls,
+            onclick: cls ? '' : onclickFn(i),
+        };
+    });
+}
+
 function switchPokemon() {
     if (window.currentTurn !== 'player') { alert('Não é seu turno!'); return; }
     // Trapping moves — player cannot switch
@@ -3895,24 +4146,15 @@ function switchPokemon() {
     
     const currentPoke = window.currentBattleData?.playerPokemon;
     const list = document.getElementById('switch-pokemon-list');
-    
-    list.innerHTML = playerTeam.map((p, i) => {
-        const isCurrent = p.name === currentPoke?.name && p.level === currentPoke?.level;
-        const isFainted = (p.currentHp || 0) <= 0;
-        const disobeys = !pokeObeys(p);   // ☠️ acima do teto de obediência
-        return `
-            <div class="switch-option ${isCurrent ? 'current' : ''} ${(isFainted || disobeys) ? 'fainted' : ''}"
-                 ${!isCurrent && !isFainted && !disobeys ? `onclick="confirmSwitch(${i})"` : ''}>
-                <strong>${p.nickname || p.name}</strong> Nv.${p.level}
-                <span>HP: ${p.currentHp || p.maxHp || '?'}/${p.maxHp || '?'}</span>
-                ${isCurrent ? '<em>(em batalha)</em>' : ''}
-                ${isFainted ? '<em>(desmaiado)</em>' : ''}
-                ${disobeys ? '<em>☠️ não obedece</em>' : ''}
-            </div>
-        `;
-    }).join('');
-    
+
+    // Carrossel com sprites (rolagem horizontal + entrada em cascata)
+    list.innerHTML = pokeCarouselHtml(_teamCarouselCards(
+        (p) => p.name === currentPoke?.name && p.level === currentPoke?.level,
+        null,
+        (i) => `confirmSwitch(${i})`));
+
     showElement('switch-pokemon-modal');
+    pokeCarouselFx(list);
 }
 
 async function confirmSwitch(teamIdx) {
@@ -4078,6 +4320,7 @@ function renderBag() {
     }
     grid.innerHTML = window.bagItems.map((item, idx) => {
         const imgSrc = item.file ? `/static/img/items/${item.file}` : '/static/img/pokeball-icon.svg';
+        const usable = !!medicineKind(item.name);   // 💊 medicina usa fora de batalha
         return `
             <div class="bag-item" title="${item.name}">
                 <button class="bag-item-remove" onclick="removeBagItem(${idx})">×</button>
@@ -4088,9 +4331,99 @@ function renderBag() {
                     <button onclick="changeBagQty(${idx}, -1)">−</button>
                     <button onclick="changeBagQty(${idx}, 1)">+</button>
                 </div>
+                ${usable ? `<button class="btn btn-sm btn-primary" style="width:100%;margin-top:0.25rem;" onclick="useMedicineItem(${idx})">💊 Usar</button>` : ''}
             </div>
         `;
     }).join('');
+}
+
+// ── 💊 Medicina fora de batalha (espelha MEDICINE_ITEMS do servidor) ──
+// kind: 'heal' | 'cure' | 'revive' — decide quais alvos fazem sentido.
+function medicineKind(name) {
+    const n = (name || '').toLowerCase().normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '').replace(/s$/, '');
+    const heal = ['pocao', 'potion', 'superpocao', 'superpotion', 'hiperpocao',
+                  'hyperpotion', 'pocaomaxima', 'maxpotion', 'restauracao', 'fullrestore'];
+    const cure = ['antidoto', 'antidote', 'curaqueimadura', 'burnheal', 'curagelo',
+                  'iceheal', 'despertar', 'awakening', 'curaparalisia', 'paralyzeheal',
+                  'curatotal', 'fullheal'];
+    const revive = ['reviver', 'revive', 'revivermax', 'maxrevive'];
+    if (heal.includes(n)) return 'heal';
+    if (cure.includes(n)) return 'cure';
+    if (revive.includes(n)) return 'revive';
+    return null;
+}
+
+function useMedicineItem(bagIdx) {
+    const item = (window.bagItems || [])[bagIdx];
+    if (!item) return;
+    const kind = medicineKind(item.name);
+    let ov = document.getElementById('use-item-overlay');
+    if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'use-item-overlay';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:9997;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(6,10,20,0.92);';
+        document.body.appendChild(ov);
+    }
+    ov.style.display = 'flex';
+    const cards = (playerTeam || []).map((p, i) => {
+        const hp = (p.currentHp !== undefined && p.currentHp !== null) ? p.currentHp : (p.maxHp || 20);
+        const fainted = hp <= 0;
+        // Reviver mira desmaiados; cura/poção mira quem está de pé
+        const selectable = kind === 'revive' ? fainted : !fainted;
+        return {
+            number: p.number, is_shiny: p.is_shiny,
+            name: p.nickname || p.name, level: p.level,
+            hp: hp, maxHp: p.maxHp || 20,
+            cls: selectable ? '' : 'disabled',
+            tag: fainted ? '(desmaiado)' : '',
+            onclick: selectable ? `applyMedicine(${bagIdx}, ${i})` : '',
+        };
+    });
+    ov.innerHTML = `
+        <div style="max-width:520px;width:100%;background:var(--card-bg,#151b2b);border:2px solid var(--accent,#ffcb05);border-radius:16px;padding:1rem 1.2rem;">
+            <div style="font-weight:800;">💊 Usar ${item.name} em quem?</div>
+            ${pokeCarouselHtml(cards)}
+            <div id="use-item-log" style="font-size:0.82rem;margin-top:0.4rem;"></div>
+            <button class="btn btn-secondary" style="width:100%;margin-top:0.5rem;" onclick="document.getElementById('use-item-overlay').style.display='none'">Cancelar</button>
+        </div>`;
+    pokeCarouselFx(ov);
+}
+
+async function applyMedicine(bagIdx, teamIdx) {
+    const item = (window.bagItems || [])[bagIdx];
+    const logEl = document.getElementById('use-item-log');
+    if (!item) return;
+    try {
+        const r = await fetch('/player/use-item', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ item_name: item.name, target_idx: teamIdx,
+                                   target_uid: (playerTeam[teamIdx] || {}).uid })
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) {
+            if (logEl) logEl.innerHTML = `<span style="color:#e53935;">❌ ${d.error || 'Falha ao usar o item'}</span>`;
+            return;
+        }
+        window.bagItems = d.bag || window.bagItems;
+        const p = playerTeam[teamIdx];
+        if (p && d.pokemon) {
+            p.currentHp = d.pokemon.currentHp;
+            if (d.pokemon.status === undefined || d.pokemon.status === null) delete p.status;
+        }
+        renderBag();
+        try { if (typeof renderTeam === 'function') renderTeam(); } catch (e) {}
+        if (logEl) logEl.innerHTML = (d.log || []).map(l => `<div>• ${l}</div>`).join('');
+        const healed = d.pokemon && typeof d.pokemon.currentHp === 'number';
+        try {
+            const ovCard = document.getElementById('use-item-overlay');
+            if (window.FX && FX.damagePop && healed && d.dice) FX.damagePop(ovCard, `+${d.dice.total}`, 'heal');
+        } catch (e) {}
+        showNotification((d.log || [])[0] || '💊 Item usado!', 'success');
+        setTimeout(() => { const o = document.getElementById('use-item-overlay'); if (o) o.style.display = 'none'; }, 1600);
+    } catch (e) {
+        if (logEl) logEl.innerHTML = '<span style="color:#e53935;">❌ Erro de conexão.</span>';
+    }
 }
 
 function addBagItem() {
@@ -4750,34 +5083,32 @@ function pvpSwitchPokemon() {
     if (mode === 'official' || mode === 'tournament') {
         html += '<p style="color:var(--warning);font-size:0.8rem;">⚠️ Modo Oficial: Pokémon trocado voluntariamente fica bloqueado para esta batalha.</p>';
     }
-    html += '<div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem;">';
-    
-    team.forEach((p, i) => {
+
+    // Carrossel com sprites — o time do PvP vem do ESTADO da batalha (snapshot
+    // do servidor), não do playerTeam
+    const cards = team.map((p, i) => {
         const isCurrent = i === state.your_active_idx;
         // fallback p/ maxHp: pokémon sem currentHp definido NÃO está desmaiado
         const hp = (p.currentHp !== undefined && p.currentHp !== null) ? p.currentHp : (p.maxHp || 20);
         const isFainted = hp <= 0;
         const isBlocked = (mode === 'official' || mode === 'tournament') && used.includes(i) && !isCurrent;
         const disobeys = !pokeObeys(p);   // ☠️ acima do teto de obediência
-        const canSelect = !isCurrent && !isFainted && !isBlocked && !disobeys;
-
-        html += `
-            <div class="switch-option ${isCurrent ? 'current' : ''} ${isFainted ? 'fainted' : ''} ${(isBlocked || disobeys) ? 'fainted' : ''}"
-                 ${canSelect ? `onclick="pvpConfirmSwitch(${i})"` : ''} style="cursor:${canSelect ? 'pointer' : 'default'};">
-                <strong>${p.nickname || p.name}</strong> Nv.${p.level} — HP: ${hp}/${p.maxHp || 20}
-                ${isCurrent ? '<em>(ativo)</em>' : ''}
-                ${isFainted ? '<em>(desmaiado)</em>' : ''}
-                ${isBlocked ? '<em>(bloqueado)</em>' : ''}
-                ${disobeys ? '<em>☠️ não obedece</em>' : ''}
-            </div>
-        `;
+        const cls = isCurrent ? 'current' : (isFainted || isBlocked || disobeys) ? 'disabled' : '';
+        return {
+            number: p.number, is_shiny: p.is_shiny,
+            name: p.nickname || p.name, level: p.level,
+            hp: hp, maxHp: p.maxHp || 20, cls: cls,
+            tag: isCurrent ? '(ativo)' : isFainted ? '(desmaiado)'
+                : isBlocked ? '(bloqueado)' : disobeys ? '☠️ não obedece' : '',
+            onclick: cls ? '' : `pvpConfirmSwitch(${i})`,
+        };
     });
-    html += '</div>';
-    
+    html += pokeCarouselHtml(cards);
+
     // Show in a modal-like overlay in the battle area
     const area = document.getElementById('pvp-battle-content');
-    const originalHtml = area.innerHTML;
     area.innerHTML = html + `<button class="btn btn-secondary" style="margin-top:1rem;" onclick="renderPvpBattle(window.pvpState.battleData)">Cancelar</button>`;
+    pokeCarouselFx(area);
 }
 
 function pvpConfirmSwitch(idx) {
@@ -4884,44 +5215,58 @@ socket.on('pvp_battle_state', async (state) => {
         await loadMovesData(myActive.moves);
     }
 
-    // VFX: detect HP changes vs previous state
+    // FX: renderiza PRIMEIRO e anima o DOM novo depois — animar antes do
+    // re-render matava o efeito no mesmo frame (o innerHTML substituía tudo).
     const prev = window.pvpState.battleData;
+    window.pvpState.battleData = state;
+    renderPvpBattle(state);
+
     if (prev && state.phase === 'battle') {
         const prevOpp = prev.opponent_active || {};
         const curOpp  = state.opponent_active || {};
         const prevMyActive = (prev.your_team || [])[prev.your_active_idx] || {};
         const curMyActive  = (state.your_team || [])[state.your_active_idx] || {};
+        const _fxSide = (prevP, curP, sprId, barId) => {
+            const el = document.getElementById(sprId);
+            const fill = document.querySelector(`#${barId} .hp-bar`);
+            // troca de Pokémon (mesmo lado, nome diferente): entrada "da bola"
+            if (el && (prevP.name || '') !== (curP.name || '') && curP.name) {
+                if (window.FX && FX.sendOut) FX.sendOut(el);
+                return;
+            }
+            if (prevP.currentHp != null && curP.currentHp != null
+                && curP.currentHp < prevP.currentHp) {
+                const dmg = prevP.currentHp - curP.currentHp;
+                if (window.FX && FX.hitShake) FX.hitShake(el, dmg >= (curP.maxHp || 99) * 0.25);
+                else if (el) battleSpriteHit(el);
+                if (window.FX && FX.hpHit && fill && curP.maxHp) {
+                    FX.hpHit(fill, Math.max(0, prevP.currentHp / curP.maxHp * 100),
+                                   Math.max(0, curP.currentHp / curP.maxHp * 100));
+                }
+                if (window.FX && FX.damagePop) FX.damagePop(el, `-${dmg}`, 'dmg');
+                if (curP.currentHp <= 0) {
+                    if (window.FX && FX.faintDrop) FX.faintDrop(el);
+                    playSound('faint');
+                } else playSound('hit');
+            } else if (prevP.currentHp != null && curP.currentHp != null
+                       && curP.currentHp > prevP.currentHp) {
+                if (window.FX && FX.damagePop) FX.damagePop(el, `+${curP.currentHp - prevP.currentHp}`, 'heal');
+            }
+        };
+        _fxSide(prevOpp, curOpp, 'pvp-opp-sprite', 'pvp-opp-hpbar');
+        _fxSide(prevMyActive, curMyActive, 'pvp-my-sprite', 'pvp-my-hpbar');
 
-        // Opponent took damage
-        if (prevOpp.currentHp != null && curOpp.currentHp != null && curOpp.currentHp < prevOpp.currentHp) {
-            const el = document.getElementById('pvp-opp-sprite');
-            const bar = document.getElementById('pvp-opp-hpbar');
-            if (el) battleSpriteHit(el);
-            if (bar) hpBarShake(bar);
-            if (curOpp.currentHp <= 0) { if (el) battleSpriteFaint(el); playSound('faint'); }
-            else playSound('hit');
-        }
-
-        // My pokemon took damage
-        if (prevMyActive.currentHp != null && curMyActive.currentHp != null && curMyActive.currentHp < prevMyActive.currentHp) {
-            const el = document.getElementById('pvp-my-sprite');
-            const bar = document.getElementById('pvp-my-hpbar');
-            if (el) battleSpriteHit(el);
-            if (bar) hpBarShake(bar);
-            if (curMyActive.currentHp <= 0) { if (el) battleSpriteFaint(el); playSound('faint'); }
-            else playSound('hit');
-        }
-
-        // Status applied this update
+        // Callouts + som de status a partir das entradas novas do log
         const prevLogLen = (prev.log || []).length;
         const newLog = (state.log || []).slice(prevLogLen);
         if (newLog.some(e => e.type === 'status_applied' || e.type === 'status_damage')) {
             playSound('status');
         }
+        const _host = document.getElementById('pvp-battle-content');
+        for (const e of newLog) {
+            _maybeCallout(`${e.message || ''} ${e.log || ''}`, _host);
+        }
     }
-
-    window.pvpState.battleData = state;
-    renderPvpBattle(state);
 });
 
 

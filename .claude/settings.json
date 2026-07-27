@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{ git fetch origin cofre --quiet 2>/dev/null; echo '🧠 ÍNDICE DO COFRE (memória do projeto — branch cofre). Leia as notas relevantes via: git show origin/cofre:<caminho>'; echo; git show origin/cofre:00-Indice.md 2>/dev/null; } || echo '(cofre indisponível nesta sessão — veja CLAUDE.md)'",
+            "timeout": 30,
+            "statusMessage": "Carregando o índice do cofre…"
+          }
+        ]
+      }
+    ]
+  }
+}

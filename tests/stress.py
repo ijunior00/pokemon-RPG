@@ -2050,6 +2050,212 @@ def main():
     check(S, 'avanço no treinador: só 1x por encontro (dedup)',
           not recv(msio, 'trainer_threatened'))
     _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+
+    # ── ❤️ HP DO TREINADOR: ataque na cena de avanço + teste de morte ──
+    _uu = db.get_users()
+    _tr1 = _uu[u1]['trainer_data']
+    check(S, 'HP treinador: máximo = 20 + nível×2 + Det×2',
+          appmod._trainer_max_hp(_tr1) == 20 + int(_tr1.get('level') or 1) * 2
+          + appmod.trainer_attrs.attr_mod(_tr1, 'determinacao') * 2)
+    _thpmax = appmod._trainer_max_hp(_tr1)
+    check(S, 'HP treinador: ficha sem o campo nasce com HP cheio',
+          appmod._trainer_hp({'level': 4}) == (28, 28))   # 20 + 8 + 0
+    check(S, 'HP treinador: jogador bloqueado na rota de ataque',
+          p1.post('/master/threat-attack', json={'player_id': u1}).status_code == 403)
+    check(S, 'HP treinador: sem cena de ameaça ativa é recusado',
+          m.post('/master/threat-attack', json={'player_id': u1}).status_code == 400)
+    # cena de ameaça armada (selvagem Nv.14 → CD 17, dano 1d8+7)
+    _gs = gstate()
+    _gs.setdefault('active_encounters', {})[str(u1)] = {
+        'pokemon': {'name': 'Ursaring', 'number': 217}, 'level': 14,
+        'player_name': 'p1', 'player_pokemon_idx': 0,
+        'battle_state': {'trainer_threatened': True, 'player_hp_current': 0},
+    }
+    db.save_game_state(_gs, TID)
+    _hp0 = appmod._trainer_hp(_tr1)[0]   # HP atual real (o Centro pode ter
+    # gravado um máximo antigo — o nível do treinador subiu durante a suíte)
+    r = m.post('/master/threat-attack', json={'player_id': u1})
+    d = r.get_json() or {}
+    check(S, 'HP treinador: ataque sem reação dá dano cheio (1d8+7)',
+          r.status_code == 200 and 8 <= d.get('damage', 0) <= 15
+          and d.get('hp') == max(0, _hp0 - d['damage']), str(d.get('damage')))
+    r = m.post('/master/threat-attack', json={'player_id': u1, 'reaction_total': 17})
+    d = r.get_json() or {}
+    check(S, 'HP treinador: reação ≥ CD corta o dano pela metade',
+          r.status_code == 200 and d.get('reacted') is True
+          and 4 <= d.get('damage', 0) <= 7, str(d.get('damage')))
+    # derruba: HP baixo + ataque → downed
+    _uu = db.get_users(); _uu[u1]['trainer_data']['trainer_hp'] = 2; db.save_users(_uu)
+    r = m.post('/master/threat-attack', json={'player_id': u1})
+    d = r.get_json() or {}
+    check(S, 'HP treinador: chegar a 0 marca o treinador como caído',
+          d.get('hp') == 0 and d.get('downed') is True)
+    # teste de morte: sucesso estabiliza com 1 HP
+    r = m.post('/master/death-test', json={'player_id': u1, 'roll_total': 15})
+    d = r.get_json() or {}
+    check(S, 'teste de morte: sucesso (≥10) estabiliza com 1 HP',
+          d.get('survived') is True
+          and db.get_users()[u1]['trainer_data'].get('trainer_hp') == 1)
+    # falha = morte
+    _uu = db.get_users(); _uu[u1]['trainer_data']['trainer_hp'] = 0; db.save_users(_uu)
+    r = m.post('/master/death-test', json={'player_id': u1, 'roll_total': 9})
+    d = r.get_json() or {}
+    check(S, 'teste de morte: falha (<10) mata o personagem',
+          d.get('survived') is False
+          and db.get_users()[u1]['trainer_data'].get('dead') is True)
+    check(S, 'treinador morto: caçada bloqueada (403)',
+          p1.post('/api/hunt/roll', json={'manual_roll': 10}).status_code == 403)
+    s1.get_received()
+    s1.emit('start_encounter', {'pokemon': {'number': 25}})
+    _den = recv(s1, 'encounter_denied')
+    check(S, 'treinador morto: encontro negado',
+          bool(_den) and 'morto' in (_den[0]['args'][0].get('message') or ''))
+    check(S, 'teste de morte: com HP > 0 é recusado (400)',
+          m.post('/master/death-test', json={'player_id': u2, 'roll_total': 5}).status_code == 400)
+    # revive do mestre desfaz a morte
+    r = m.post('/master/trainer-revive', json={'player_id': u1})
+    _tr1 = db.get_users()[u1]['trainer_data']
+    check(S, 'revive do mestre: limpa a morte e devolve 1 HP',
+          (r.get_json() or {}).get('ok') is True
+          and not _tr1.get('dead') and appmod._trainer_hp(_tr1)[0] >= 1)
+    # Centro Pokémon cura o treinador também (fora de batalha)
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+    _uu = db.get_users(); _uu[u1]['trainer_data']['trainer_hp'] = 5; db.save_users(_uu)
+    r = p1.post('/player/pokemon-center')
+    _tr1 = db.get_users()[u1]['trainer_data']
+    check(S, 'Centro Pokémon: cura o HP do treinador',
+          r.status_code == 200
+          and appmod._trainer_hp(_tr1)[0] == appmod._trainer_max_hp(_tr1))
+
+    # ── 🎯 TESTE DE CAPTURA FORA DE BATALHA (condição especial do mestre) ──
+    check(S, 'captura fora de batalha: jogador bloqueado na rota do mestre',
+          p1.post('/master/capture-test', json={'player_id': u1,
+                                                'species': 'Pikachu'}).status_code == 403)
+    check(S, 'captura fora de batalha: arremesso sem oferta é recusado',
+          p1.post('/player/capture-test', json={'ball_type': 'pokeball'}).status_code == 400)
+    r = m.post('/master/capture-test', json={'player_id': u1, 'species': 'Pikachu',
+                                             'level': 8, 'scene_mod': -4,
+                                             'note': 'Ele dorme profundamente'})
+    _off = (r.get_json() or {}).get('offer') or {}
+    check(S, 'captura fora de batalha: oferta criada com CD = 10+SR+nível+mod',
+          r.status_code == 200 and _off.get('name') == 'Pikachu'
+          and _off.get('dc') == max(5, 10 + appmod._sr_int(
+              appmod.POKEMON_BY_NAME['pikachu'].get('sr')) + 8 - 4))
+    r = p1.get('/player/battle/active')
+    check(S, 'captura fora de batalha: oferta sobrevive ao refresh (rehidratação)',
+          ((r.get_json() or {}).get('capture_test') or {}).get('name') == 'Pikachu')
+    # sem bola na bolsa → recusa (a oferta NÃO é consumida)
+    _uu = db.get_users()
+    _uu[u1]['trainer_data']['bag'] = [i for i in (_uu[u1]['trainer_data'].get('bag') or [])
+                                      if 'ball' not in appmod._norm_ball_name(i.get('name'))
+                                      and 'bola' not in appmod._norm_ball_name(i.get('name'))]
+    db.save_users(_uu)
+    check(S, 'captura fora de batalha: sem bola na bolsa é recusado',
+          p1.post('/player/capture-test', json={'ball_type': 'pokeball'}).status_code == 400)
+    # Master Ball: captura garantida + espécie/nível/shiny do mestre
+    _uu = db.get_users()
+    _uu[u1]['trainer_data'].setdefault('bag', []).append({'name': 'Master Ball', 'qty': 1})
+    _tot0 = (len(_uu[u1]['trainer_data'].get('team') or [])
+             + len(_uu[u1]['trainer_data'].get('pc') or []))
+    db.save_users(_uu)
+    r = p1.post('/player/capture-test', json={'ball_type': 'masterball'})
+    d = r.get_json() or {}
+    _td1 = db.get_users()[u1]['trainer_data']
+    _tot1 = len(_td1.get('team') or []) + len(_td1.get('pc') or [])
+    check(S, 'captura fora de batalha: Master Ball captura garantido',
+          r.status_code == 200 and d.get('result') == 'caught'
+          and (d.get('captured') or {}).get('name') == 'Pikachu'
+          and (d.get('captured') or {}).get('level') == 8
+          and _tot1 == _tot0 + 1, str(d.get('error') or d.get('result')))
+    check(S, 'captura fora de batalha: bola consumida da bolsa',
+          not appmod._find_ball_in_bag(_td1.get('bag') or [], 'masterball'))
+    check(S, 'captura fora de batalha: a oferta é consumida no arremesso',
+          p1.post('/player/capture-test', json={'ball_type': 'pokeball'}).status_code == 400)
+    # recolher a oferta (revoke) antes do arremesso
+    m.post('/master/capture-test', json={'player_id': u1, 'species': 'Eevee', 'level': 5})
+    r = m.post('/master/capture-test', json={'player_id': u1, 'revoke': True})
+    check(S, 'captura fora de batalha: mestre recolhe a oferta pendente',
+          (r.get_json() or {}).get('revoked') is True
+          and p1.post('/player/capture-test',
+                      json={'ball_type': 'pokeball'}).status_code == 400)
+
+    # ── 💊 MEDICINA FORA DE BATALHA (poção/antídoto/reviver da bolsa) ──
+    check(S, 'medicina: item que não é medicina é recusado',
+          p1.post('/player/use-item', json={'item_name': 'Pedra Fogo',
+                                            'target_idx': 0}).status_code == 400)
+    check(S, 'medicina: sem o item na bolsa é recusado',
+          p1.post('/player/use-item', json={'item_name': 'Poção',
+                                            'target_idx': 0}).status_code == 400)
+    _uu = db.get_users()
+    _td1 = _uu[u1]['trainer_data']
+    _td1.setdefault('bag', []).extend([{'name': 'Poção', 'qty': 2},
+                                       {'name': 'Antídoto', 'qty': 1},
+                                       {'name': 'Reviver', 'qty': 1}])
+    _p0 = _td1['team'][0]
+    _p0max = int(_p0.get('maxHp') or 20)
+    _p0['currentHp'] = max(1, _p0max - 15)
+    _p0.pop('status', None)
+    db.save_users(_uu)
+    r = p1.post('/player/use-item', json={'item_name': 'Poção', 'target_idx': 0})
+    d = r.get_json() or {}
+    _t1 = db.get_users()[u1]['trainer_data']
+    _healed_to = int(_t1['team'][0].get('currentHp') or 0)
+    check(S, 'medicina: Poção cura 2d4+2 e consome o item',
+          r.status_code == 200 and 4 <= (d.get('dice') or {}).get('total', 0) <= 10
+          and _healed_to == min(_p0max, (_p0max - 15) + d['dice']['total'])
+          and next((i for i in _t1.get('bag', [])
+                    if i.get('name') == 'Poção'), {}).get('qty') == 1,
+          str(d.get('error') or (d.get('dice') or {}).get('total')))
+    # HP cheio → recusa
+    _uu = db.get_users(); _uu[u1]['trainer_data']['team'][0]['currentHp'] = _p0max
+    db.save_users(_uu)
+    check(S, 'medicina: Poção com HP cheio é recusada',
+          p1.post('/player/use-item', json={'item_name': 'Poção',
+                                            'target_idx': 0}).status_code == 400)
+    # Antídoto: exige a condição CERTA (status em dict, como as batalhas gravam)
+    _uu = db.get_users()
+    _uu[u1]['trainer_data']['team'][0]['status'] = {'condition': 'queimado'}
+    db.save_users(_uu)
+    check(S, 'medicina: Antídoto não cura queimadura (condição errada)',
+          p1.post('/player/use-item', json={'item_name': 'Antídoto',
+                                            'target_idx': 0}).status_code == 400)
+    _uu = db.get_users()
+    _uu[u1]['trainer_data']['team'][0]['status'] = {'condition': 'envenenado'}
+    db.save_users(_uu)
+    r = p1.post('/player/use-item', json={'item_name': 'Antídoto', 'target_idx': 0})
+    _t1 = db.get_users()[u1]['trainer_data']
+    check(S, 'medicina: Antídoto cura envenenamento e some da bolsa',
+          r.status_code == 200 and not _t1['team'][0].get('status')
+          and not any(i.get('name') == 'Antídoto' for i in _t1.get('bag', [])))
+    # Reviver: só em desmaiado; devolve metade do HP
+    check(S, 'medicina: Reviver em Pokémon de pé é recusado',
+          p1.post('/player/use-item', json={'item_name': 'Reviver',
+                                            'target_idx': 0}).status_code == 400)
+    _uu = db.get_users(); _uu[u1]['trainer_data']['team'][0]['currentHp'] = 0
+    db.save_users(_uu)
+    r = p1.post('/player/use-item', json={'item_name': 'Reviver', 'target_idx': 0})
+    _t1 = db.get_users()[u1]['trainer_data']
+    check(S, 'medicina: Reviver levanta desmaiado com metade do HP',
+          r.status_code == 200
+          and int(_t1['team'][0].get('currentHp') or 0) == max(1, _p0max // 2))
+    # em batalha → recusa (gate de encontro ativo)
+    _gs = gstate()
+    _gs.setdefault('active_encounters', {})[str(u1)] = {'pokemon': {'name': 'X'},
+                                                        'battle_state': {}}
+    db.save_game_state(_gs, TID)
+    _uu = db.get_users()
+    _uu[u1]['trainer_data'].setdefault('bag', []).append({'name': 'Poção', 'qty': 1})
+    _uu[u1]['trainer_data']['team'][0]['currentHp'] = 1
+    db.save_users(_uu)
+    check(S, 'medicina: bloqueada durante batalha (encontro ativo)',
+          p1.post('/player/use-item', json={'item_name': 'Poção',
+                                            'target_idx': 0}).status_code == 400)
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+    _uu = db.get_users()
+    for _p in _uu[u1]['trainer_data']['team']:
+        _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
+
     # grupo: selvagens venceram → só quem ficou SEM time é alcançado
     # (revive os times ANTES de criar: o ativo precisa estar vivo e obediente)
     _uu = db.get_users()
@@ -2208,6 +2414,73 @@ def main():
                     'reposição pós-desmaio entra em campo'):
             check(S, f'troca: {_nm}', False, 'batalha não criada')
     # restaura HP dos times
+    _uu = db.get_users()
+    for _uid in (u1, u2):
+        for _p in _uu[_uid]['trainer_data']['team']:
+            _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
+
+    # ── 🎭 BATALHA DE VILÃO: jogadores vs NPCs treinadores no motor de
+    #    grupo — 1 Pokémon do vilão em campo + resto no banco (reforço
+    #    automático); captura bloqueada; bench segura o fim ──
+    r = m.post('/master/npcs/generate', json={'npc_class': 'Trainer',
+                                              'level': 10, 'team_size': 2})
+    _vnpc = r.get_json()
+    for q in _vnpc['team']:
+        q['moves'] = ['Tackle']
+        q['currentHp'] = q.get('maxHp', 20)
+    db.save_npc(_vnpc, TID)
+    r = p1.post('/master/villain-battle', json={'npc_ids': [_vnpc['id']],
+                                                'player_ids': [u1, u2]})
+    check(S, 'vilão: jogador bloqueado na rota do mestre', r.status_code == 403)
+    for c in (s1, s2, msio):
+        c.get_received()
+    r = m.post('/master/villain-battle', json={'npc_ids': [_vnpc['id']],
+                                               'player_ids': [u1, u2]})
+    vvl = (r.get_json() or {}).get('battle')
+    bvl = appmod.ACTIVE_GROUP_BATTLES.get(vvl['id']) if vvl else None
+    if bvl:
+        check(S, 'vilão: batalha criada 2v1 com flag villain',
+              vvl.get('villain') is True and vvl.get('mode') == '2v1')
+        _w0 = bvl['combatants']['w0']
+        check(S, 'vilão: combatente leva o nome do treinador e banco de 1',
+              _w0.get('trainer_name') == _vnpc.get('name')
+              and int(_w0.get('bench') or 0) == 1,
+              f"{_w0.get('trainer_name')}/{_w0.get('bench')}")
+        # captura bloqueada (mesmo no turno do jogador)
+        _acid = next(c['cid'] for c in bvl['combatants'].values()
+                     if c['side'] == 'ally' and c['player_id'] == str(u1))
+        bvl['turn_idx'] = bvl['order'].index(_acid)
+        r = p1.post('/player/capture', json={'battle_id': vvl['id'],
+                                             'ball_type': 'pokeball',
+                                             'target_cid': 'w0'})
+        check(S, 'vilão: captura de Pokémon com dono é recusada',
+              r.status_code == 400
+              and 'dono' in ((r.get_json() or {}).get('error') or ''))
+        # campo caiu mas há banco → a batalha NÃO termina; reforço entra
+        _w0['hp'] = 0; _w0['fainted'] = True
+        check(S, 'vilão: banco segura a batalha aberta (sem vencedor)',
+              not appmod.gb._check_over(bvl) and bvl['phase'] == 'active')
+        appmod._group_villain_reinforce(bvl)
+        check(S, 'vilão: reforço entra automaticamente no lugar do caído',
+              not _w0['fainted'] and _w0['hp'] > 0
+              and int(_w0.get('bench') or 0) == 0
+              and any('enviou' in (l.get('message') or '') for l in bvl['log']),
+              str(_w0.get('hp')))
+        # segundo caiu com banco vazio → vitória dos jogadores
+        _w0['hp'] = 0; _w0['fainted'] = True
+        check(S, 'vilão: último Pokémon caído encerra com vitória do grupo',
+              appmod.gb._check_over(bvl) and bvl.get('winner') == 'ally')
+        appmod.ACTIVE_GROUP_BATTLES.pop(vvl['id'], None)
+    else:
+        for _nm in ('batalha criada 2v1 com flag villain',
+                    'combatente leva o nome do treinador e banco de 1',
+                    'captura de Pokémon com dono é recusada',
+                    'banco segura a batalha aberta (sem vencedor)',
+                    'reforço entra automaticamente no lugar do caído',
+                    'último Pokémon caído encerra com vitória do grupo'):
+            check(S, f'vilão: {_nm}', False, 'batalha não criada')
+    # restaura HP dos times (a batalha de vilão usou os ativos)
     _uu = db.get_users()
     for _uid in (u1, u2):
         for _p in _uu[_uid]['trainer_data']['team']:
