@@ -147,6 +147,13 @@ def advance_turn(battle):
 
 def _check_over(battle):
     if not alive_cids(battle, 'wild'):
+        # 🎭 VILÃO: inimigo de campo caído mas com REFORÇO no time (bench)
+        # ainda repõe — a batalha espera o próximo Pokémon do vilão entrar
+        # (app._group_villain_reinforce) em vez de declarar vitória.
+        if any(c['side'] == 'wild' and not c.get('captured')
+               and int(c.get('bench') or 0) > 0
+               for c in battle['combatants'].values()):
+            return False
         battle['phase'] = 'finished'
         battle['winner'] = 'ally'
         battle['log'].append({'type': 'end', 'winner': 'ally',
@@ -223,6 +230,7 @@ def state_view(battle):
         p = c['pokemon']
         combatants.append({
             'cid': cid, 'side': c['side'], 'name': c['name'],
+            'trainer_name': c.get('trainer_name', ''),
             'player_id': c.get('player_id'),
             'number': p.get('number'), 'types': p.get('types', []),
             'level': p.get('level') or c.get('level'),
@@ -237,6 +245,7 @@ def state_view(battle):
     return {
         'id': battle['id'], 'mode': battle['mode'], 'phase': battle['phase'],
         'ambush': bool(battle.get('ambush')),
+        'villain': bool(battle.get('villain')),
         'turn_cid': cur, 'round': battle['round'], 'winner': battle.get('winner'),
         'combatants': combatants,
         'player_ids': battle['player_ids'],

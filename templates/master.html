@@ -843,6 +843,35 @@
             <button class="btn btn-primary" onclick="masterSendNpcChallenge()">⚔️ Iniciar Batalha</button>
             <span id="master-pvp-msg" style="margin-left:1rem;font-size:0.9rem;"></span>
         </div>
+
+        <div class="card">
+            <h3>🎭 Batalha de Vilão (grupo)</h3>
+            <p style="color:var(--muted);font-size:0.9rem;">
+                1–4 jogadores contra 1–3 NPCs numa batalha só. Cada vilão põe
+                <strong>um Pokémon em campo</strong> e o resto do time entra de
+                <strong>reforço automático</strong> quando o de campo cai — igual
+                à troca dos jogadores. Sem captura; fuga permitida.
+                Segure Ctrl/Cmd para selecionar vários.
+            </p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+                <div>
+                    <label>Vilões (NPCs)</label>
+                    <select id="villain-npcs" class="form-input" multiple size="4">
+                        <option value="">Carregando NPCs...</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Jogadores</label>
+                    <select id="villain-players" class="form-input" multiple size="4">
+                        {% for uid, player in players.items() %}
+                        <option value="{{ uid }}">{{ player.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <button class="btn btn-danger" onclick="masterStartVillainBattle()">🎭 Iniciar Batalha de Vilão</button>
+            <span id="villain-battle-msg" style="margin-left:1rem;font-size:0.9rem;"></span>
+        </div>
     </div>
 
     <div class="tab-content" id="tab-tournament">

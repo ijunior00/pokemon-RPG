@@ -889,10 +889,12 @@ function renderGroupMonitor(view) {
         const turn = c.cid === view.turn_cid ? '▶️ ' : '';
         const dead = c.fainted ? ' 💀' : '';
         const icon = c.side === 'ally' ? '🟢' : '🔴';
-        const bench = c.side === 'ally'
+        const bench = (c.side === 'ally' || view.villain)
             ? ` <span style="opacity:0.6;font-size:0.75rem;">· banco ${c.bench || 0}</span>` : '';
+        const owner = (c.side === 'wild' && c.trainer_name)
+            ? ` <span style="opacity:0.65;font-size:0.75rem;">🎭 ${c.trainer_name}</span>` : '';
         return `<div style="margin:0.25rem 0;font-size:0.85rem;">
-            ${turn}${icon} <strong>${c.name}</strong> Nv.${c.level || '?'}${dead}
+            ${turn}${icon} <strong>${c.name}</strong> Nv.${c.level || '?'}${dead}${owner}
             <span style="opacity:0.7;">(${c.hp}/${c.maxHp})</span>${bench}
             ${_hpBar(c)}</div>`;
     }).join('');
@@ -1679,6 +1681,14 @@ async function loadNpcs() {
         pvpSel.innerHTML = '<option value="">Selecionar NPC...</option>' +
             npcs.map(n => `<option value="${n.id}">${n.name}${n.role ? ' — ' + (NPC_ROLE_LABELS[n.role]||n.role) : ''}</option>`).join('');
     }
+    // Populate villain battle multiselect (só NPCs com time)
+    const vilSel = document.getElementById('villain-npcs');
+    if (vilSel) {
+        const withTeam = npcs.filter(n => (n.team || []).length);
+        vilSel.innerHTML = withTeam.length
+            ? withTeam.map(n => `<option value="${n.id}">${n.name} (${(n.team || []).length} Pokémon)${n.role ? ' — ' + (NPC_ROLE_LABELS[n.role]||n.role) : ''}</option>`).join('')
+            : '<option value="" disabled>Nenhum NPC com time</option>';
+    }
     // Populate gym leader NPC select
     const gymSel = document.getElementById('gym-leader-npc');
     if (gymSel) {
@@ -2330,6 +2340,30 @@ function renderMasterPvpBattles() {
             </div>
         </div>`;
     }).join('');
+}
+
+// 🎭 Batalha de Vilão: 1-4 jogadores vs 1-3 NPCs no motor de grupo
+async function masterStartVillainBattle() {
+    const npcIds = [...(document.getElementById('villain-npcs')?.selectedOptions || [])]
+        .map(o => o.value).filter(Boolean);
+    const playerIds = [...(document.getElementById('villain-players')?.selectedOptions || [])]
+        .map(o => o.value).filter(Boolean);
+    const msg = document.getElementById('villain-battle-msg');
+    if (!npcIds.length || !playerIds.length) {
+        if (msg) msg.textContent = '⚠️ Selecione ao menos 1 NPC e 1 jogador.';
+        return;
+    }
+    if (msg) msg.textContent = '⏳ Montando a batalha...';
+    try {
+        const r = await fetch('/master/villain-battle', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ npc_ids: npcIds, player_ids: playerIds })
+        });
+        const d = await r.json();
+        if (d.error) { if (msg) msg.textContent = `❌ ${d.error}`; return; }
+        if (msg) msg.textContent = `🎭 Batalha ${d.battle?.mode || ''} iniciada!`;
+        if (d.battle) renderGroupMonitor(d.battle);
+    } catch (e) { if (msg) msg.textContent = '❌ Erro de conexão.'; }
 }
 
 function masterSendNpcChallenge() {

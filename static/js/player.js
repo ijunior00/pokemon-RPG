@@ -248,6 +248,7 @@ function _gbCombatantHtml(c, isTurn) {
             ${spr ? `<img src="${spr}" width="42" height="42" alt="" style="object-fit:contain;"${c.is_shiny ? ' class="sprite-shiny"' : ''}>` : ''}
             <div style="flex:1;">
                 <div style="font-weight:700;font-size:0.85rem;">${isTurn ? '▶️ ' : ''}${c.name}${c.fainted ? ' 💀' : ''}</div>
+                ${c.side === 'wild' && c.trainer_name ? `<div style="font-size:0.68rem;color:#ab47bc;font-weight:700;">🎭 ${c.trainer_name}${c.bench > 0 ? ` (+${c.bench} no time)` : ''}</div>` : ''}
                 <div style="font-size:0.72rem;opacity:0.8;">Nv.${c.level || '?'} · ${c.hp}/${c.maxHp} HP</div>
             </div>
         </div>${_gbHpBar(c)}<div>${renderStageBadges(c.stat_stages)}</div></div>`;
@@ -276,10 +277,12 @@ function renderGroupBattle(view) {
     let controls = '';
     if (view.phase === 'finished') {
         const win = view.winner === 'ally';
-        const endMsg = win ? (view.ambush ? '🎉 Você sobreviveu à emboscada!' : '🎉 Vitória da dupla!')
+        const endMsg = win ? (view.villain ? '🎉 Os vilões foram derrotados!'
+                : view.ambush ? '🎉 Você sobreviveu à emboscada!' : '🎉 Vitória da dupla!')
             : view.winner === 'fled' ? '🏃 A dupla fugiu da batalha.'
             : view.winner === 'master_ended' ? '⏹ O Mestre encerrou a batalha.'
-            : (view.ambush ? '💀 A emboscada te venceu!' : '💀 A dupla foi derrotada!');
+            : (view.villain ? '💀 Os vilões venceram a batalha!'
+                : view.ambush ? '💀 A emboscada te venceu!' : '💀 A dupla foi derrotada!');
         const endCol = win ? '#66bb6a' : (view.winner === 'fled' || view.winner === 'master_ended') ? '#ffcb05' : '#e53935';
         controls = `<div style="text-align:center;font-size:1.3rem;font-weight:800;margin:0.6rem 0;color:${endCol};">
             ${endMsg}</div>
@@ -298,12 +301,13 @@ function renderGroupBattle(view) {
                 <button class="btn btn-danger" onclick="groupBattleAttack()">⚔️ Atacar</button>
                 ${view.ambush ? '' : '<button class="btn btn-secondary" onclick="groupBattleFlee()">🏃 Fugir</button>'}
             </div>
+            ${view.villain ? '' : `
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin-top:0.5rem;border-top:1px dashed rgba(255,255,255,0.2);padding-top:0.5rem;">
                 <div class="form-group" style="flex:1;min-width:150px;"><label>Pokébola</label>
                     <select id="gb-ball">${pokeballOptionsHtml()}</select></div>
                 <button class="btn btn-primary" onclick="groupBattleCapture()">🎯 Capturar</button>
             </div>
-            <div style="font-size:0.72rem;opacity:0.7;margin-top:0.2rem;">A bola vai no alvo selecionado acima. Regra: ≤40% do HP (65% se dormindo/congelado). O arremesso consome o seu turno; se quebrar, o selvagem continua na luta.</div>
+            <div style="font-size:0.72rem;opacity:0.7;margin-top:0.2rem;">A bola vai no alvo selecionado acima. Regra: ≤40% do HP (65% se dormindo/congelado). O arremesso consome o seu turno; se quebrar, o selvagem continua na luta.</div>`}
             ${myBenchHtml ? `
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin-top:0.5rem;border-top:1px dashed rgba(255,255,255,0.2);padding-top:0.5rem;">
                 <div class="form-group" style="flex:1;min-width:150px;"><label>Trocar por</label>
@@ -329,7 +333,8 @@ function renderGroupBattle(view) {
             : `<div style="text-align:center;opacity:0.85;margin-top:0.6rem;">⏳ Vez de <strong>${who}</strong> — aguarde.</div>`;
     }
 
-    const gbTitle = view.ambush ? `💀 EMBOSCADA — ${view.mode}`
+    const gbTitle = view.villain ? `🎭 Batalha de Vilão — ${view.mode}`
+        : view.ambush ? `💀 EMBOSCADA — ${view.mode}`
         : `👥 Batalha em Dupla — ${view.mode}`;
     card.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
@@ -340,7 +345,7 @@ function renderGroupBattle(view) {
         <div style="font-size:0.75rem;opacity:0.7;margin-bottom:0.2rem;">${view.ambush ? '🟢 Seu Pokémon' : '🟢 Sua dupla'}</div>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">${alliesHtml}</div>
         <div style="text-align:center;font-weight:800;margin:0.4rem 0;opacity:0.8;">⚔️ VS ⚔️</div>
-        <div style="font-size:0.75rem;opacity:0.7;margin-bottom:0.2rem;">🔴 Selvagens</div>
+        <div style="font-size:0.75rem;opacity:0.7;margin-bottom:0.2rem;">${view.villain ? '🔴 Pokémon dos vilões' : '🔴 Selvagens'}</div>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">${wildsHtml}</div>
         ${controls}
         <div style="margin-top:0.6rem;font-size:0.8rem;opacity:0.85;max-height:120px;overflow-y:auto;background:rgba(0,0,0,0.25);border-radius:8px;padding:0.4rem 0.6rem;">${log}</div>`;

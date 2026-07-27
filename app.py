@@ -4188,6 +4188,43 @@ def _group_stamp_bench(battle):
             c['bench'] = _group_bench(c.get('player_id'), c.get('pokemon'))
 
 
+def _group_villain_reinforce(battle):
+    """🎭 REFORÇO do vilão: o Pokémon de campo caiu e há time no banco → o
+    próximo entra automaticamente no MESMO slot (espelho da reposição dos
+    jogadores; gb._check_over segura a batalha aberta pelo bench do lado
+    selvagem). No-op fora de batalhas de vilão."""
+    if not battle.get('villain') or battle.get('phase') != 'active':
+        return
+    benches = battle.get('villain_bench') or {}
+    for cid, c in battle['combatants'].items():
+        if c.get('side') != 'wild' or not c.get('fainted') or c.get('captured'):
+            continue
+        bench = benches.get(cid) or []
+        nxt = next((p for p in bench
+                    if int(p.get('currentHp') or p.get('maxHp') or 0) > 0), None)
+        if nxt is None:
+            c['bench'] = 0
+            continue
+        bench.remove(nxt)
+        poke = dict(nxt)
+        effects.new_battle_reset([poke])
+        maxhp = int(poke.get('maxHp') or poke.get('hp') or 20)
+        cur = int(poke.get('currentHp') or maxhp)
+        c['pokemon'] = poke
+        c['name'] = poke.get('nickname') or poke.get('name', 'Pokémon')
+        c['moves'] = list(poke.get('moves') or ['Tackle'])[:4]
+        c['level'] = int(poke.get('level') or 1)
+        c['hp'] = max(1, min(maxhp, cur))
+        c['maxHp'] = maxhp
+        c['status'] = None
+        c['fainted'] = False
+        c['bench'] = sum(1 for p in bench
+                         if int(p.get('currentHp') or p.get('maxHp') or 0) > 0)
+        battle['log'].append({'type': 'villain_send', 'cid': cid,
+                              'message': f"🎭 {c.get('trainer_name') or 'O vilão'} "
+                                         f"enviou {c['name']}!"})
+
+
 def _spectate(kind, payload, table_id=None):
     """Modo ESPECTADOR: transmite um snapshot compacto da batalha para todos
     os jogadores da mesa (sala players_{tid}). O cliente filtra as batalhas
@@ -4619,6 +4656,80 @@ def master_group_hunt():
     return jsonify({'ok': True, 'battle': gb.state_view(battle)})
 
 
+@app.route('/master/villain-battle', methods=['POST'])
+@login_required
+def master_villain_battle():
+    """🎭 BATALHA DE VILÃO: 1-4 jogadores contra 1-3 NPCs treinadores.
+
+    Cada vilão põe UM Pokémon em campo; o resto do time fica no banco e
+    entra automaticamente quando o de campo cai (_group_villain_reinforce)
+    — espelho da troca/reposição dos jogadores. Sem captura (têm dono);
+    fuga permitida; AUTO/manual do selvagem vale para os vilões (o mestre
+    pode conduzir cada golpe no modo manual)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    player_ids = list(dict.fromkeys(str(p) for p in (data.get('player_ids') or []) if p))[:4]
+    npc_ids = list(dict.fromkeys(str(n) for n in (data.get('npc_ids') or []) if n))[:3]
+    if not player_ids:
+        return jsonify({'error': 'Selecione ao menos 1 jogador'}), 400
+    if not npc_ids:
+        return jsonify({'error': 'Selecione ao menos 1 vilão (NPC)'}), 400
+
+    users = get_users()
+    allies = []
+    for pid in player_ids:
+        if not _player_in_master_table(pid, users, _tid()):
+            return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+        name, poke = _group_active_pokemon(pid)
+        if not poke:
+            uname = users.get(pid, {}).get('username', pid)
+            return jsonify({'error': f'{uname} não tem Pokémon disponível'}), 400
+        _mig([poke])
+        _stamp_tatica([poke], users.get(pid, {}).get('trainer_data'))
+        allies.append({'player_id': pid, 'name': name or 'Treinador', 'pokemon': poke})
+
+    npcs = db.get_npcs()
+    wilds, benches, tnames = [], [], []
+    for nid in npc_ids:
+        npc = next((n for n in npcs if n['id'] == nid), None)
+        if not npc or not npc.get('team'):
+            return jsonify({'error': 'NPC sem time para batalhar'}), 400
+        team = [dict(p) for p in npc['team'] if isinstance(p, dict)]
+        _mig(team)
+        alive = [p for p in team
+                 if int(p.get('currentHp') or p.get('maxHp') or 0) > 0]
+        if not alive:
+            return jsonify({'error': f"{npc.get('name')} está com o time todo desmaiado"}), 400
+        first = alive[0]
+        wilds.append({'pokemon': first, 'level': int(first.get('level') or 1),
+                      'moves': list(first.get('moves') or ['Tackle'])[:4]})
+        benches.append(alive[1:])
+        tnames.append(npc.get('name') or 'Vilão')
+
+    battle = gb.build_battle(allies, wilds, 'normal', None, _tid())
+    battle['villain'] = True
+    _group_stamp_bench(battle)
+    vb = {}
+    for i in range(len(wilds)):
+        c = battle['combatants'][f'w{i}']
+        c['trainer_name'] = tnames[i]
+        c['bench'] = len(benches[i])
+        vb[f'w{i}'] = benches[i]
+    battle['villain_bench'] = vb
+    battle['log'].insert(0, {'type': 'villain',
+                             'message': '🎭 BATALHA DE VILÃO! ' + ' e '.join(tnames)
+                                        + (' desafiam' if len(tnames) > 1 else ' desafia')
+                                        + ' o grupo!'})
+    ACTIVE_GROUP_BATTLES[battle['id']] = battle
+
+    if _wild_auto_mode():
+        _group_run_wild_turns(battle)
+    _group_villain_reinforce(battle)
+    _group_broadcast(battle, 'group_battle_start')
+    return jsonify({'ok': True, 'battle': gb.state_view(battle)})
+
+
 def _group_switch(battle, data):
     """🔄 TROCA na batalha em grupo (inclui a emboscada 1v2).
 
@@ -4705,6 +4816,7 @@ def _group_switch(battle, data):
     if _wild_auto_mode():
         _group_run_wild_turns(battle)
     _group_field_round_hook(battle)
+    _group_villain_reinforce(battle)
     if battle['phase'] == 'finished':
         _group_broadcast(battle, 'group_battle_end')
         ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
@@ -4767,6 +4879,7 @@ def handle_group_battle_action(data):
             if _wild_auto_mode():
                 _group_run_wild_turns(battle)
             _group_field_round_hook(battle)
+            _group_villain_reinforce(battle)
         if battle['phase'] == 'finished':
             _group_broadcast(battle, 'group_battle_end')
             ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
@@ -4817,7 +4930,8 @@ def handle_group_battle_action(data):
     if _wild_auto_mode():
         _group_run_wild_turns(battle)
 
-    _group_field_round_hook(battle)   # F5: chip/cura + duração do campo
+    _group_field_round_hook(battle)
+    _group_villain_reinforce(battle)
     if battle['phase'] == 'finished':
         _group_broadcast(battle, 'group_battle_end')
         ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
@@ -4837,7 +4951,8 @@ def handle_group_wild_turn(data):
     if not cur or cur['side'] != 'wild':
         return
     _group_run_wild_turns(battle)
-    _group_field_round_hook(battle)   # F5: chip/cura + duração do campo
+    _group_field_round_hook(battle)
+    _group_villain_reinforce(battle)
     if battle['phase'] == 'finished':
         _group_broadcast(battle, 'group_battle_end')
         ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
@@ -5301,6 +5416,10 @@ def _group_capture(data, ball_type):
     battle = ACTIVE_GROUP_BATTLES.get(str(data.get('battle_id') or ''))
     if not battle or battle.get('phase') != 'active' or battle.get('table_id') != _tid():
         return jsonify({'error': 'Batalha em dupla não encontrada.'}), 400
+    # 🎭 vilão: Pokémon de treinador não é capturável
+    if battle.get('villain'):
+        return jsonify({'error': '🎭 Esse Pokémon tem dono — não dá para capturar '
+                                 'Pokémon de treinador!'}), 400
     cur = gb.current_combatant(battle)
     if not cur or cur.get('side') != 'ally' or str(cur.get('player_id')) != pid:
         return jsonify({'error': 'Arremesse a Pokébola no SEU turno.'}), 400
@@ -5414,6 +5533,7 @@ def _group_capture(data, ball_type):
         if _wild_auto_mode():
             _group_run_wild_turns(battle)
         _group_field_round_hook(battle)
+        _group_villain_reinforce(battle)
 
     users[current_user.id]['trainer_data'] = trainer
     save_users(users)

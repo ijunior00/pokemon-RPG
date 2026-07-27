@@ -2214,6 +2214,73 @@ def main():
             _p['currentHp'] = _p.get('maxHp', 20)
     db.save_users(_uu)
 
+    # ── 🎭 BATALHA DE VILÃO: jogadores vs NPCs treinadores no motor de
+    #    grupo — 1 Pokémon do vilão em campo + resto no banco (reforço
+    #    automático); captura bloqueada; bench segura o fim ──
+    r = m.post('/master/npcs/generate', json={'npc_class': 'Trainer',
+                                              'level': 10, 'team_size': 2})
+    _vnpc = r.get_json()
+    for q in _vnpc['team']:
+        q['moves'] = ['Tackle']
+        q['currentHp'] = q.get('maxHp', 20)
+    db.save_npc(_vnpc, TID)
+    r = p1.post('/master/villain-battle', json={'npc_ids': [_vnpc['id']],
+                                                'player_ids': [u1, u2]})
+    check(S, 'vilão: jogador bloqueado na rota do mestre', r.status_code == 403)
+    for c in (s1, s2, msio):
+        c.get_received()
+    r = m.post('/master/villain-battle', json={'npc_ids': [_vnpc['id']],
+                                               'player_ids': [u1, u2]})
+    vvl = (r.get_json() or {}).get('battle')
+    bvl = appmod.ACTIVE_GROUP_BATTLES.get(vvl['id']) if vvl else None
+    if bvl:
+        check(S, 'vilão: batalha criada 2v1 com flag villain',
+              vvl.get('villain') is True and vvl.get('mode') == '2v1')
+        _w0 = bvl['combatants']['w0']
+        check(S, 'vilão: combatente leva o nome do treinador e banco de 1',
+              _w0.get('trainer_name') == _vnpc.get('name')
+              and int(_w0.get('bench') or 0) == 1,
+              f"{_w0.get('trainer_name')}/{_w0.get('bench')}")
+        # captura bloqueada (mesmo no turno do jogador)
+        _acid = next(c['cid'] for c in bvl['combatants'].values()
+                     if c['side'] == 'ally' and c['player_id'] == str(u1))
+        bvl['turn_idx'] = bvl['order'].index(_acid)
+        r = p1.post('/player/capture', json={'battle_id': vvl['id'],
+                                             'ball_type': 'pokeball',
+                                             'target_cid': 'w0'})
+        check(S, 'vilão: captura de Pokémon com dono é recusada',
+              r.status_code == 400
+              and 'dono' in ((r.get_json() or {}).get('error') or ''))
+        # campo caiu mas há banco → a batalha NÃO termina; reforço entra
+        _w0['hp'] = 0; _w0['fainted'] = True
+        check(S, 'vilão: banco segura a batalha aberta (sem vencedor)',
+              not appmod.gb._check_over(bvl) and bvl['phase'] == 'active')
+        appmod._group_villain_reinforce(bvl)
+        check(S, 'vilão: reforço entra automaticamente no lugar do caído',
+              not _w0['fainted'] and _w0['hp'] > 0
+              and int(_w0.get('bench') or 0) == 0
+              and any('enviou' in (l.get('message') or '') for l in bvl['log']),
+              str(_w0.get('hp')))
+        # segundo caiu com banco vazio → vitória dos jogadores
+        _w0['hp'] = 0; _w0['fainted'] = True
+        check(S, 'vilão: último Pokémon caído encerra com vitória do grupo',
+              appmod.gb._check_over(bvl) and bvl.get('winner') == 'ally')
+        appmod.ACTIVE_GROUP_BATTLES.pop(vvl['id'], None)
+    else:
+        for _nm in ('batalha criada 2v1 com flag villain',
+                    'combatente leva o nome do treinador e banco de 1',
+                    'captura de Pokémon com dono é recusada',
+                    'banco segura a batalha aberta (sem vencedor)',
+                    'reforço entra automaticamente no lugar do caído',
+                    'último Pokémon caído encerra com vitória do grupo'):
+            check(S, f'vilão: {_nm}', False, 'batalha não criada')
+    # restaura HP dos times (a batalha de vilão usou os ativos)
+    _uu = db.get_users()
+    for _uid in (u1, u2):
+        for _p in _uu[_uid]['trainer_data']['team']:
+            _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
+
     msio.emit('set_auto_mode', {'enabled': True}); recv(msio)
     for c in (s1, s2, msio):
         c.get_received()
