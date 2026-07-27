@@ -35,6 +35,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 - [[Decisoes/emboscada-1v2]] — Nat 1 na caçada → 1 jogador vs 2 selvagens (motor de grupo, sem fuga)
 - [[Decisoes/cache-de-processo-db]] — leituras da memória, Postgres só p/ escrever (cota do Neon; requer 1 worker)
 - [[Decisoes/obediencia-teto-de-nivel]] — Pokémon acima de (treinador×5)+10 não entra em batalha (só uso; NPCs isentos)
+- [[Decisoes/batalha-de-vilao]] — grupo vs NPCs no motor de grupo: 1 em campo + banco com reforço automático, sem captura
 
 ## Bugs resolvidos (postmortems)
 
