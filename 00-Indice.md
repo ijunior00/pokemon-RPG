@@ -51,7 +51,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 
 ## Material de campanha (mesa)
 
-- [[Índice - Material de Mesa]] — monólogos, narrações, handouts e interlúdios prontos para a mesa (pasta `12 - Material de Mesa`)
+- O material de mesa vive no vault **CNE-OBSIDIAN** (outro repo — fora do escopo deste). Aqui fica só o padrão:
 - [[Estilo-de-Escrita-da-Mesa]] — **o padrão de escrita para todo material novo** (três sentidos + uma coisa errada, vilão diz a verdade, documento entediante, plantar e cobrar)
 
 ## Outras notas
