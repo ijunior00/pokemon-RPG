@@ -98,6 +98,77 @@ socket.on('npc_awaiting_master', (data) => {
     showNotification(data.message || '🤖 NPC aguardando ação do Mestre.', 'info');
 });
 
+// ═══ 🔥 BÔNUS DO INIMIGO (marca "perguntar % em toda batalha") ═══
+function askBoostOn() {
+    return !!document.getElementById('ask-boost-mode')?.checked;
+}
+
+function _paintAskBoostLabel(enabled) {
+    const lbl = document.getElementById('ask-boost-label');
+    if (lbl) lbl.textContent = enabled
+        ? '🔥 BÔNUS: ON — toda batalha pergunta o % do inimigo'
+        : '🔥 BÔNUS: OFF — inimigos com stats normais';
+}
+
+function toggleAskBoost(enabled) {
+    _paintAskBoostLabel(enabled);
+    socket.emit('set_ask_boost', { enabled });
+}
+
+socket.on('ask_boost_changed', (d) => {
+    const cb = document.getElementById('ask-boost-mode');
+    if (cb) cb.checked = !!d.enabled;
+    _paintAskBoostLabel(!!d.enabled);
+});
+
+// Overlay SÓ do mestre: escolhe o % de bônus do inimigo desta batalha.
+// ctx = {player_id} (1v1) ou {battle_id} (grupo/vilão).
+function showEnemyBoostOverlay(ctx, title) {
+    let ov = document.getElementById('enemy-boost-overlay');
+    if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'enemy-boost-overlay';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:9996;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(6,10,20,0.9);';
+        document.body.appendChild(ov);
+    }
+    ov.style.display = 'flex';
+    const btn = (pct, label, cls) =>
+        `<button class="btn ${cls || 'btn-danger'}" style="min-width:72px;" onclick="applyEnemyBoost(${pct})">${label}</button>`;
+    ov.innerHTML = `
+        <div style="max-width:420px;width:100%;background:var(--card-bg,#151b2b);border:2px solid #e53935;border-radius:16px;padding:1rem 1.2rem;text-align:center;">
+            <div style="font-weight:800;font-size:1.05rem;">🔥 Bônus do inimigo</div>
+            <div style="font-size:0.85rem;opacity:0.85;margin-top:0.3rem;">${title || 'Nova batalha'} — quantos % de bônus nos stats?</div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin-top:0.7rem;">
+                ${btn(0, 'Sem bônus', 'btn-secondary')}${btn(10, '+10%')}${btn(25, '+25%')}
+                ${btn(50, '+50%')}${btn(75, '+75%')}${btn(100, '+100%')}
+            </div>
+            <div style="font-size:0.72rem;opacity:0.7;margin-top:0.5rem;">Aplica em stats e HP de todos os inimigos da batalha (uma vez). Os jogadores veem só a "aura intensa" — o % fica com você.</div>
+        </div>`;
+    window._boostCtx = ctx;
+}
+
+async function applyEnemyBoost(pct) {
+    const ov = document.getElementById('enemy-boost-overlay');
+    if (ov) ov.style.display = 'none';
+    const ctx = window._boostCtx || {};
+    window._boostCtx = null;
+    if (!pct) return;   // sem bônus
+    try {
+        const r = await fetch('/master/enemy-boost', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({ pct }, ctx)),
+        });
+        const d = await r.json();
+        showNotification(d.ok ? `🔥 Inimigos com +${pct}% aplicado!`
+                              : `❌ ${d.error || 'Falha ao aplicar o bônus'}`,
+                         d.ok ? 'success' : 'error');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
+
+socket.on('enemy_boosted', (d) => {
+    if (d.pct) showNotification(`🔥 Bônus de +${d.pct}% aplicado no selvagem.`, 'success');
+});
+
 // ============================================
 // ENCOUNTERS - MASTER BATTLE CONTROL
 // ============================================
@@ -105,6 +176,11 @@ socket.on('encounter_started', (data) => {
     console.log('Encounter started:', data);
     addEncounterCard(data);
     playNotificationSound();
+    // 🔥 marca ligada → pergunta o % de bônus do inimigo desta batalha
+    if (askBoostOn()) {
+        showEnemyBoostOverlay({ player_id: data.player_id },
+            `${data.player_name || 'Jogador'} vs ${(data.pokemon || {}).name || 'selvagem'}`);
+    }
 });
 
 socket.on('encounter_ended', (data) => {
@@ -1040,7 +1116,14 @@ async function forceEndGroupBattle(battleId) {
     } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
 }
 
-socket.on('group_battle_start',  (v) => renderGroupMonitor(v));
+socket.on('group_battle_start',  (v) => {
+    renderGroupMonitor(v);
+    // 🔥 marca ligada → pergunta o % de bônus dos inimigos do grupo/vilão
+    if (askBoostOn()) {
+        const t = v.villain ? '🎭 Batalha de Vilão' : v.ambush ? '💀 Emboscada' : '👥 Batalha em grupo';
+        showEnemyBoostOverlay({ battle_id: v.id }, `${t} (${v.mode})`);
+    }
+});
 socket.on('group_battle_update', (v) => renderGroupMonitor(v));
 socket.on('group_battle_end',    (v) => renderGroupMonitor(v));
 

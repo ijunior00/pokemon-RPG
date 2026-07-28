@@ -1300,6 +1300,22 @@ socket.on('initiative_result', (data) => {
     }
 });
 
+// 🔥 O mestre fortaleceu o selvagem (bônus secreto de %): atualiza HP e clima
+socket.on('enemy_boosted', (d) => {
+    if (battleActive && typeof d.wild_hp_max === 'number') {
+        if (window.currentBattleData?.enemy) {
+            window.currentBattleData.enemy.maxHp = d.wild_hp_max;
+            window.currentBattleData.enemy.currentHp = d.wild_hp_current;
+        }
+        const txt = document.getElementById('battle-enemy-hp-text-full');
+        if (txt) txt.textContent = `${d.wild_hp_current}/${d.wild_hp_max} HP`;
+        setHpBar('battle-enemy-hp-bar-full', d.wild_hp_current, d.wild_hp_max);
+        try { addBattleLog(d.message); } catch (e) {}
+        try { FX.callout && FX.callout('🔥 AURA INTENSA!', 'danger'); } catch (e) {}
+        try { FX.hitShake && FX.hitShake(document.getElementById('battle-enemy-sprite')); } catch (e) {}
+    }
+});
+
 // Mestre ligou/desligou o modo automático no meio da sessão
 socket.on('auto_mode_changed', (data) => {
     window._wildAuto = !!data.enabled;
@@ -2130,6 +2146,7 @@ function _maybeCallout(msg, hostEl) {
     else if (/n[ãa]o efetivo/i.test(s))  hit = ['POUCO EFETIVO', 'muted'];
     else if (/⛔ imune|é imune/i.test(s)) hit = ['IMUNE!', 'muted'];
     else if (/🎭 .*enviou/i.test(s))      hit = ['🎭 REFORÇO!', 'danger'];
+    else if (/aura intensa/i.test(s))     hit = ['🔥 AURA INTENSA!', 'danger'];
     if (hit) { _lastCalloutAt = now; FX.callout(hit[0], hit[1], hostEl); }
 }
 

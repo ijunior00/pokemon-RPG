@@ -2179,6 +2179,69 @@ def main():
           and p1.post('/player/capture-test',
                       json={'ball_type': 'pokeball'}).status_code == 400)
 
+    # ── 🔥 BÔNUS DO INIMIGO (marca do mestre + rota de aplicação) ──
+    msio.get_received()
+    msio.emit('set_ask_boost', {'enabled': True})
+    recv(msio, 'ask_boost_changed')
+    check(S, 'bônus do inimigo: marca liga e persiste por mesa',
+          gstate().get('ask_enemy_boost') is True
+          and appmod._ask_boost_mode(gstate()))
+    msio.emit('set_ask_boost', {'enabled': False}); recv(msio)
+    check(S, 'bônus do inimigo: marca desliga',
+          gstate().get('ask_enemy_boost') is False)
+    check(S, 'bônus do inimigo: jogador bloqueado (403)',
+          p1.post('/master/enemy-boost', json={'pct': 50, 'player_id': u1}).status_code == 403)
+    check(S, 'bônus do inimigo: percentual fora da tabela é recusado',
+          m.post('/master/enemy-boost', json={'pct': 33, 'player_id': u1}).status_code == 400)
+    # 1v1: stats e HP escalam; segunda aplicação é recusada
+    _gs = gstate()
+    _gs.setdefault('active_encounters', {})[str(u1)] = {
+        'pokemon': {'name': 'Machop', 'number': 66,
+                    'stats': {'ATK': 20, 'DEF': 14, 'SPA': 10, 'SPD': 10,
+                              'SPE': 12, 'HP': 16}, 'maxHp': 40},
+        'level': 10, 'battle_state': {'wild_hp_max': 40, 'wild_hp_current': 30},
+    }
+    db.save_game_state(_gs, TID)
+    r = m.post('/master/enemy-boost', json={'pct': 50, 'player_id': u1})
+    _enc = gstate()['active_encounters'][str(u1)]
+    check(S, 'bônus do inimigo (1v1): +50% em stats e HP',
+          r.status_code == 200
+          and _enc['pokemon']['stats']['ATK'] == 30
+          and _enc['pokemon']['maxHp'] == 60
+          and _enc['battle_state']['wild_hp_max'] == 60
+          and _enc['battle_state']['wild_hp_current'] == 45
+          and _enc.get('enemy_boost') == 50)
+    check(S, 'bônus do inimigo (1v1): só uma vez por batalha',
+          m.post('/master/enemy-boost', json={'pct': 25, 'player_id': u1}).status_code == 400)
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+    # grupo: todos os inimigos vivos escalam (inclui banco do vilão)
+    _uu = db.get_users()
+    for _uid in (u1, u2):
+        for _p in _uu[_uid]['trainer_data']['team']:
+            _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
+                                           'hunt_mode': 'normal', 'route_id': 'route1'})
+    vbo = (r.get_json() or {}).get('battle')
+    bbo = appmod.ACTIVE_GROUP_BATTLES.get(vbo['id']) if vbo else None
+    if bbo:
+        _w = next(c for c in bbo['combatants'].values() if c['side'] == 'wild')
+        _atk0, _max0 = int(_w['pokemon']['stats'].get('ATK') or 10), int(_w['maxHp'])
+        r = m.post('/master/enemy-boost', json={'pct': 100, 'battle_id': vbo['id']})
+        check(S, 'bônus do inimigo (grupo): +100% dobra stats e HP',
+              r.status_code == 200
+              and int(_w['pokemon']['stats'].get('ATK') or 0) == _atk0 * 2
+              and int(_w['maxHp']) == _max0 * 2
+              and bbo.get('enemy_boost') == 100
+              and any('aura intensa' in (l.get('message') or '') for l in bbo['log']))
+        check(S, 'bônus do inimigo (grupo): só uma vez por batalha',
+              m.post('/master/enemy-boost',
+                     json={'pct': 10, 'battle_id': vbo['id']}).status_code == 400)
+        appmod.ACTIVE_GROUP_BATTLES.pop(vbo['id'], None)
+    else:
+        for _nm in ('+100% dobra stats e HP', 'só uma vez por batalha'):
+            check(S, f'bônus do inimigo (grupo): {_nm}', False, 'batalha não criada')
+
     # ── 💊 MEDICINA FORA DE BATALHA (poção/antídoto/reviver da bolsa) ──
     check(S, 'medicina: item que não é medicina é recusado',
           p1.post('/player/use-item', json={'item_name': 'Pedra Fogo',

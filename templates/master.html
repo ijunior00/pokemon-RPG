@@ -42,6 +42,15 @@
             </label>
             <span class="auto-label" id="auto-mode-label">{% if game_state.get('wild_auto_mode', True) %}🤖 AUTO: ON — Wild/NPC atacam sozinhos{% else %}🎮 AUTO: OFF — você joga pelos selvagens{% endif %}</span>
         </div>
+        <!-- 🔥 Marca do bônus do inimigo: ligada, TODA batalha abre um overlay
+             (só para o mestre) perguntando o % de bônus nos stats do inimigo -->
+        <div class="auto-toggle-container">
+            <label class="toggle-switch">
+                <input type="checkbox" id="ask-boost-mode" {% if game_state.get('ask_enemy_boost') %}checked{% endif %} onchange="toggleAskBoost(this.checked)">
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="auto-label" id="ask-boost-label">{% if game_state.get('ask_enemy_boost') %}🔥 BÔNUS: ON — toda batalha pergunta o % do inimigo{% else %}🔥 BÔNUS: OFF — inimigos com stats normais{% endif %}</span>
+        </div>
         <div id="active-encounters" class="encounters-grid">
             <p class="empty-state">Nenhum encontro ativo. Aguardando jogadores...</p>
         </div>
