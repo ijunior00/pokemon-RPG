@@ -23,7 +23,6 @@
         <button class="tab" data-tab="pokedex">📖 Pokédex</button>
         <button class="tab" data-tab="quests">📜 Quests</button>
         <button class="tab" data-tab="calendar">📅 Calendário</button>
-        <button class="tab" data-tab="xp">⭐ XP</button>
         <button class="tab" data-tab="pvp-master">🥊 PVP</button>
         <button class="tab" data-tab="tournament">🏆 Campeonato</button>
         <button class="tab" data-tab="map">🗺️ Mapa</button>
@@ -389,22 +388,93 @@
 
     <!-- TAB: PLAYERS (FULL VISION) -->
     <div class="tab-content" id="tab-players">
-        <h2>Visão Completa dos Jogadores</h2>
+        <h2>Jogadores</h2>
+
+        <!-- ⭐ XP e pontos (fundido da antiga aba XP — mesmos ids/handlers) -->
+        <div class="encounter-manual" style="margin-bottom:1rem;">
+            <strong style="font-size:0.95rem;">⭐ Experiência do Treinador</strong>
+        <div class="xp-controls">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Jogador</label>
+                    <select id="xp-player">
+                        {% for uid, player in players.items() %}
+                        <option value="{{ uid }}">{{ player.username }} (Nv. {{ player.trainer_data.level if player.trainer_data else 1 }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>XP a dar</label>
+                    <input type="number" id="xp-amount" value="50" min="1">
+                </div>
+                <button class="btn btn-primary" onclick="giveXP()">Dar XP</button>
+                <button class="btn btn-secondary" onclick="giveXPAll()">Dar XP a Todos</button>
+            </div>
+        </div>
+
+        <h3>XP para Pokémon</h3>
+        <div class="xp-controls">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Jogador</label>
+                    <select id="poke-xp-player" onchange="loadPokemonXPSlots()">
+                        <option value="">Selecionar jogador...</option>
+                        {% for uid, player in players.items() %}
+                        <option value="{{ uid }}">{{ player.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Pokémon</label>
+                    <select id="poke-xp-slot">
+                        <option value="">Selecione o jogador primeiro</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>XP a dar</label>
+                    <input type="number" id="poke-xp-amount" value="20" min="1">
+                </div>
+                <button class="btn btn-primary" onclick="givePokemonXP()">Dar XP ao Pokémon</button>
+            </div>
+            <!-- Custom EVs: conceder/remover Pontos de Potencial ou Treinamento -->
+            <div class="form-row" style="align-items:flex-end;">
+                <div class="form-group">
+                    <label>Pontos (Custom EVs) — usa o jogador/Pokémon acima</label>
+                    <input type="number" id="poke-points-amount" value="1" title="Use valor negativo para remover">
+                </div>
+                <button class="btn btn-secondary" onclick="givePokemonPoints('potential')">⭐ Dar Potencial</button>
+                <button class="btn btn-secondary" onclick="givePokemonPoints('training')">🏋️ Dar Treinamento</button>
+            </div>
+        </div>
+        </div>
+
+        <!-- Cartões compactos: nome + nível + barra de XP + ₽; o resto expande -->
         <div class="players-full-grid">
             {% for uid, player in players.items() %}
             <div class="player-full-card" data-player-id="{{ uid }}">
                 <div class="player-full-header">
                     <h3>{{ player.username }}</h3>
-                    <span class="level-badge">Nv. {{ player.trainer_data.level if player.trainer_data else 1 }}</span>
                     <button class="btn btn-sm btn-secondary" onclick="togglePlayerDetails('{{ uid }}')">Expandir</button>
                     <button class="btn btn-sm btn-warning" onclick="openMasterEdit('{{ uid }}', '{{ player.username }}')">✏️ Editar</button>
                     <button class="btn btn-sm btn-secondary" onclick="masterResetPassword('{{ uid }}', '{{ player.username }}')">🔑 Senha</button>
                 </div>
-                <div class="player-summary">
-                    <span>XP: {{ player.trainer_data.xp if player.trainer_data else 0 }}</span>
-                    <span>💰 ₽{{ player.trainer_data.money if player.trainer_data and player.trainer_data.money else 0 }}</span>
+                <!-- xp-player-card embutido: o socket xp_update atualiza aqui -->
+                <div class="xp-player-card" data-player-id="{{ uid }}" style="padding:0.4rem 0 0;border:0;background:none;">
+                    <div class="xp-bar-container">
+                        <div class="xp-bar" style="width: {{ ((player.trainer_data.xp or 0) / (player.trainer_data.xp_to_next or 100)) * 100 }}%"></div>
+                    </div>
+                    <div class="xp-info">
+                        <span class="level-badge">Nv. {{ player.trainer_data.level if player.trainer_data else 1 }}</span>
+                        <span>{{ player.trainer_data.xp if player.trainer_data else 0 }} / {{ player.trainer_data.xp_to_next if player.trainer_data else 100 }} XP</span>
+                    </div>
                 </div>
-                
+                <div class="player-summary">
+                    <span>💰 ₽{{ player.trainer_data.money if player.trainer_data and player.trainer_data.money else 0 }}</span>
+                    <span>⚔️ {{ player.trainer_data.team|length if player.trainer_data and player.trainer_data.team else 0 }} Pokémon</span>
+                </div>
+
+                <!-- Expandir: time + bolsa + atributos + notas + rotas -->
+                <div class="player-details hidden" id="details-{{ uid }}">
                 <!-- Team -->
                 <div class="player-team-section">
                     <h4>⚔️ Time:</h4>
@@ -419,9 +489,7 @@
                         <span class="empty-team">Sem Pokémon</span>
                     {% endif %}
                 </div>
-                
-                <!-- Expandable Details -->
-                <div class="player-details hidden" id="details-{{ uid }}">
+
                     <div class="detail-section">
                         <h4>🎒 Bolsa:</h4>
                         <p>{{ player.trainer_data.bag|join(', ') if player.trainer_data and player.trainer_data.bag else 'Vazia' }}</p>
@@ -805,95 +873,23 @@
     </div>
 
     <!-- TAB: XP -->
-    <div class="tab-content" id="tab-xp">
-        <h2>Gerenciar Experiência</h2>
-        <div class="xp-controls">
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Jogador</label>
-                    <select id="xp-player">
-                        {% for uid, player in players.items() %}
-                        <option value="{{ uid }}">{{ player.username }} (Nv. {{ player.trainer_data.level if player.trainer_data else 1 }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>XP a dar</label>
-                    <input type="number" id="xp-amount" value="50" min="1">
-                </div>
-                <button class="btn btn-primary" onclick="giveXP()">Dar XP</button>
-                <button class="btn btn-secondary" onclick="giveXPAll()">Dar XP a Todos</button>
-            </div>
-        </div>
-
-        <h3>XP para Pokémon</h3>
-        <div class="xp-controls">
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Jogador</label>
-                    <select id="poke-xp-player" onchange="loadPokemonXPSlots()">
-                        <option value="">Selecionar jogador...</option>
-                        {% for uid, player in players.items() %}
-                        <option value="{{ uid }}">{{ player.username }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Pokémon</label>
-                    <select id="poke-xp-slot">
-                        <option value="">Selecione o jogador primeiro</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>XP a dar</label>
-                    <input type="number" id="poke-xp-amount" value="20" min="1">
-                </div>
-                <button class="btn btn-primary" onclick="givePokemonXP()">Dar XP ao Pokémon</button>
-            </div>
-            <!-- Custom EVs: conceder/remover Pontos de Potencial ou Treinamento -->
-            <div class="form-row" style="align-items:flex-end;">
-                <div class="form-group">
-                    <label>Pontos (Custom EVs) — usa o jogador/Pokémon acima</label>
-                    <input type="number" id="poke-points-amount" value="1" title="Use valor negativo para remover">
-                </div>
-                <button class="btn btn-secondary" onclick="givePokemonPoints('potential')">⭐ Dar Potencial</button>
-                <button class="btn btn-secondary" onclick="givePokemonPoints('training')">🏋️ Dar Treinamento</button>
-            </div>
-        </div>
-
-        <h3>Status dos Jogadores</h3>
-        <div class="xp-players-list">
-            {% for uid, player in players.items() %}
-            <div class="xp-player-card" data-player-id="{{ uid }}">
-                <h4>{{ player.username }}</h4>
-                <div class="xp-bar-container">
-                    <div class="xp-bar" style="width: {{ ((player.trainer_data.xp or 0) / (player.trainer_data.xp_to_next or 100)) * 100 }}%"></div>
-                </div>
-                <div class="xp-info">
-                    <span class="level-badge">Nv. {{ player.trainer_data.level if player.trainer_data else 1 }}</span>
-                    <span>{{ player.trainer_data.xp if player.trainer_data else 0 }} / {{ player.trainer_data.xp_to_next if player.trainer_data else 100 }} XP</span>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
 
     <!-- TAB: TOURNAMENT -->
     <!-- TAB: PVP MASTER -->
     <div class="tab-content" id="tab-pvp-master">
         <h2>🥊 PVP — Controle do Mestre</h2>
 
-        <!-- Active PVP battles monitor -->
-        <div class="card" style="margin-bottom:1.5rem;">
-            <h3>⚔️ Batalhas em Andamento</h3>
+        <!-- Active PVP battles monitor: dono da tela (o ao-vivo primeiro) -->
+        <div class="card" style="margin-bottom:1.5rem;border-color:rgba(229,57,53,0.5);">
+            <h3>⚔️ Batalhas em Andamento <span class="live-chip" id="pvp-live-count" style="margin-left:0.5rem;">0</span></h3>
             <div id="master-pvp-battles" style="display:flex;flex-direction:column;gap:0.75rem;">
                 <em style="color:var(--muted)">Nenhuma batalha PVP ativa no momento.</em>
             </div>
         </div>
 
-        <!-- Master challenge: NPC vs Player -->
-        <div class="card">
-            <h3>🤖 Desafiar Jogador com NPC</h3>
+        <!-- Master challenge: NPC vs Player — ferramenta recolhível -->
+        <details class="card" style="margin-bottom:1rem;">
+            <summary style="cursor:pointer;font-weight:800;padding:0.2rem 0;">🤖 Desafiar Jogador com NPC</summary>
             <p style="color:var(--muted);font-size:0.9rem;">Inicia uma batalha PVP onde um NPC enfrenta um jogador.</p>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
                 <div>
@@ -926,7 +922,7 @@
             </div>
             <button class="btn btn-primary" onclick="masterSendNpcChallenge()">⚔️ Iniciar Batalha</button>
             <span id="master-pvp-msg" style="margin-left:1rem;font-size:0.9rem;"></span>
-        </div>
+        </details>
 
     </div>
 

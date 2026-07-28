@@ -1824,6 +1824,31 @@ socket.on('group_battle_error', (d) => {
 // 💀 O selvagem derrotou o último Pokémon e AVANÇOU NO TREINADOR — para o
 // alvo é um momento dramático (o Mestre conduz a cena e pode pedir um
 // teste, que chega pelo fluxo normal de roll_request); a mesa toda vê.
+// ═══ Sub-abas da Ficha do Treinador (Ficha / Perícias / Mochila) ═══
+function playerSheetTab(name) {
+    document.querySelectorAll('#trainer-subtabs .subtab').forEach(b =>
+        b.classList.toggle('active', b.dataset.sub === name));
+    ['ficha', 'pericias', 'mochila'].forEach(k => {
+        const c = document.getElementById('sheet-' + k);
+        if (!c) return;
+        const on = k === name;
+        c.classList.toggle('active', on);
+        if (on && window.FX && FX.enabled() && window.gsap) {
+            gsap.fromTo(c, { opacity: 0, x: 26 },
+                           { opacity: 1, x: 0, duration: 0.28, ease: 'power2.out',
+                             clearProps: 'transform,opacity' });
+        }
+    });
+    try { localStorage.setItem('playerSheetTab', name); } catch (e) {}
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (!document.getElementById('trainer-subtabs')) return;
+    let saved = null;
+    try { saved = localStorage.getItem('playerSheetTab'); } catch (e) {}
+    if (saved && document.getElementById('sheet-' + saved)) playerSheetTab(saved);
+});
+
 // ═══ 🎯 TESTE DE CAPTURA FORA DE BATALHA (condição especial do Mestre) ═══
 // O Mestre oferece um Pokémon capturável (dormindo, evento, filhote...);
 // o jogador tem UMA bola para arremessar. O servidor resolve tudo.

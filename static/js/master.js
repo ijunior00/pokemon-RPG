@@ -2524,6 +2524,12 @@ function renderMasterPvpBattles() {
     if (!el) return;
     const battles = Object.values(masterActivePvp);
     const alive = battles.filter(b => b.event !== 'battle_ended');
+    // contagem viva no título da aba PvP
+    const chip = document.getElementById('pvp-live-count');
+    if (chip) {
+        chip.textContent = String(alive.length);
+        chip.classList.toggle('hot', alive.length > 0);
+    }
     if (!alive.length) {
         el.innerHTML = '<em style="color:var(--muted)">Nenhuma batalha PVP ativa no momento.</em>';
         return;
