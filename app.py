@@ -4177,17 +4177,36 @@ def master_threat_attack():
     users = get_users()
     if not _player_in_master_table(pid, users, _tid()):
         return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
-    encounter = (get_game_state().get('active_encounters') or {}).get(pid)
-    bs = (encounter or {}).get('battle_state') or {}
-    if not encounter or not bs.get('trainer_threatened'):
+    gs = get_game_state()
+    # A cena vive em trainer_threats (sobrevive ao fim do encontro — o
+    # avanço acontece exatamente quando a derrota FECHA a batalha).
+    # Fallback: encontro ainda aberto com a flag antiga.
+    threat = (gs.get('trainer_threats') or {}).get(pid)
+    if not threat:
+        enc = (gs.get('active_encounters') or {}).get(pid)
+        if enc and (enc.get('battle_state') or {}).get('trainer_threatened'):
+            threat = {'wild_name': (enc.get('pokemon') or {}).get('name', 'O selvagem'),
+                      'level': int(enc.get('level') or 1)}
+    if not threat:
         return jsonify({'error': 'Não há avanço de selvagem sobre esse treinador '
                                  '(a cena de ameaça precisa estar ativa).'}), 400
+
+    # ✅ encerrar a cena sem ataque (o treinador escapou / o mestre narrou)
+    if data.get('end_scene'):
+        (gs.get('trainer_threats') or {}).pop(pid, None)
+        save_game_state(gs)
+        pname = users[pid].get('username', 'O treinador')
+        payload = {'player_id': pid, 'player_name': pname,
+                   'message': f'✅ A cena do avanço sobre {pname} foi encerrada pelo Mestre.'}
+        socketio.emit('trainer_damage', dict(payload, damage=0, ended=True),
+                      room=f'master_{_tid()}')
+        return jsonify(dict(payload, ok=True, ended=True))
 
     trainer = users[pid].get('trainer_data', {}) or {}
     if trainer.get('dead'):
         return jsonify({'error': '☠️ Esse treinador está morto.'}), 400
-    wild_level = int(encounter.get('level') or 1)
-    wild_name = (encounter.get('pokemon') or {}).get('name', 'O selvagem')
+    wild_level = int(threat.get('level') or 1)
+    wild_name = threat.get('wild_name') or 'O selvagem'
     dc = 10 + wild_level // 2
 
     reaction = data.get('reaction_total')
@@ -4209,6 +4228,10 @@ def master_threat_attack():
 
     pname = users[pid].get('username', 'O treinador')
     downed = hp <= 0
+    if downed:
+        # o treinador caiu: a cena termina aqui — o teste de morte assume
+        (gs.get('trainer_threats') or {}).pop(pid, None)
+        save_game_state(gs)
     msg = (f"🩸 {wild_name} atacou {pname}! "
            + (f"Reação (total {reaction} vs CD {dc}) — metade do dano: " if reacted
               else (f"Reação falhou (total {reaction} vs CD {dc}) — dano cheio: "
@@ -4723,8 +4746,13 @@ def _wild_trainer_threat(player_id, encounter, game_state, table_id):
             return
     bs['trainer_threatened'] = True
     encounter['battle_state'] = bs
-    _db_raw.save_game_state(game_state, table_id)   # bs é o mesmo dict do game_state
     wild_name = (encounter.get('pokemon') or {}).get('name', 'O selvagem')
+    # A CENA sobrevive ao fim do encontro: o botão "selvagem ataca o
+    # treinador" lê daqui — o encontro é removido quando a derrota fecha,
+    # mas o avanço continua até o mestre resolver (bugfix da mesa 28/07).
+    game_state.setdefault('trainer_threats', {})[str(player_id)] = {
+        'wild_name': wild_name, 'level': int(encounter.get('level') or 1)}
+    _db_raw.save_game_state(game_state, table_id)   # bs é o mesmo dict do game_state
     poke = encounter.get('player_pokemon') or {}
     pname = encounter.get('player_name') or 'o treinador'
     _emit_trainer_threat(table_id, {
@@ -4776,11 +4804,20 @@ def _group_trainer_threat(battle):
         if others_alive:
             continue
         uname = users.get(str(pid), {}).get('username') or 'o treinador'
+        # persiste a CENA (o ataque ao treinador lê daqui; o nível do
+        # selvagem mais forte define dano e CD da reação)
+        _wlvl = max((int(c.get('level') or (c.get('pokemon') or {}).get('level') or 1)
+                     for c in battle['combatants'].values() if c['side'] == 'wild'),
+                    default=1)
+        _gs_t = _db_raw.get_game_state(battle['table_id'])
+        _gs_t.setdefault('trainer_threats', {})[str(pid)] = {
+            'wild_name': wild_names, 'level': _wlvl}
+        _db_raw.save_game_state(_gs_t, battle['table_id'])
         _emit_trainer_threat(battle['table_id'], {
             'player_id': str(pid),
             'player_name': uname,
             'wild_name': wild_names,
-            'wild_level': None,
+            'wild_level': _wlvl,
             'pokemon_name': mine[0].get('name') or 'o Pokémon',
             'message': f'💀 {wild_names} derrotaram o último Pokémon de {uname} '
                        'e AVANÇARAM NO TREINADOR!',
@@ -7376,9 +7413,11 @@ def handle_encounter(data):
                 'message': 'Aguarde o Mestre liberar um encontro (Caçada Aleatória).'
             }, room=str(current_user.id))
             return
-        # consome o vale (um encontro por liberação)
+        # consome o vale (um encontro por liberação); batalha nova também
+        # encerra qualquer cena de avanço pendente sobre este treinador
         _pend.pop(str(current_user.id), None)
         _gs['pending_encounters'] = _pend
+        (_gs.get('trainer_threats') or {}).pop(str(current_user.id), None)
         save_game_state(_gs)
 
         users = get_users()
