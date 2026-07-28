@@ -822,8 +822,29 @@ async function masterThreatAttack(playerId) {
     } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
 }
 
+// 🎲 Dadão de mesa: o mestre também vê as rolagens gigantes
+socket.on('dice_show', (d) => {
+    try { if (window.FX && FX.diceRoll) FX.diceRoll(d); } catch (e) {}
+});
+
+// 📨 Pede o TESTE DE MORTE ao jogador (aviso na tela dele com botão de
+// rolar Determinação; o resultado volta na caixa de rolagens + dadão).
+async function masterAskDeathRoll(playerId) {
+    try {
+        const r = await fetch('/master/request-roll', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_id: playerId, kind: 'attr', target: 'determinacao',
+                                   note: '💀 TESTE DE MORTE — role d20 + Determinação!',
+                                   cd: 10 })
+        });
+        const d = await r.json();
+        showNotification(d.ok ? '📨 Teste de morte pedido ao jogador — aguarde a rolagem e então RESOLVA.'
+                              : `❌ ${d.error || 'Falha ao pedir o teste'}`, d.ok ? 'success' : 'error');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
+
 // 💀 Teste de morte (treinador a 0 HP): d20 + Determinação vs CD 10 —
-// o jogador rola o dado físico e o mestre digita o total.
+// o jogador rola (virtual ou dado físico) e o mestre digita o total.
 async function masterDeathTest(playerId) {
     const raw = prompt('💀 TESTE DE MORTE — total do jogador (d20 + Determinação) vs CD 10:', '');
     if (raw === null || raw.trim() === '') return;
@@ -859,7 +880,10 @@ socket.on('trainer_damage', (d) => {
     const card = document.createElement('div');
     card.style.cssText = 'padding:0.55rem 0.7rem;border-radius:8px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.6);font-size:0.88rem;';
     card.innerHTML = `${d.message}` + (d.downed
-        ? `<div style="margin-top:0.3rem;"><button class="btn btn-sm btn-danger" onclick="masterDeathTest('${d.player_id}')">💀 Teste de morte (CD 10)</button></div>`
+        ? `<div style="margin-top:0.3rem;display:flex;gap:0.4rem;flex-wrap:wrap;">` +
+          `<button class="btn btn-sm btn-danger" onclick="masterAskDeathRoll('${d.player_id}')">📨 Pedir o teste ao jogador</button>` +
+          `<button class="btn btn-sm btn-danger" style="border:2px solid #e53935;" onclick="masterDeathTest('${d.player_id}')">💀 Resolver (digitar total)</button>` +
+          `</div>`
         : '');
     inbox.insertBefore(card, inbox.firstChild);
 });

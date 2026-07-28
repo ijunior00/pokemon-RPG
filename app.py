@@ -3016,6 +3016,12 @@ def player_capture_test():
                    + (f' + Bola(+{ball_bonus})' if ball_bonus else '')
                    + f' = {total}')
         caught = total >= dc
+        _dice_show({'player_name': users[current_user.id].get('username', ''),
+                    'emoji': '🎯', 'label': f"Captura — {offer.get('name')}",
+                    'roll': roll, 'sides': 20,
+                    'bonus': afinidade_bonus + ball_bonus, 'total': total,
+                    'cd': dc, 'success': caught,
+                    'nat1': roll == 1, 'nat20': roll == 20})
 
     pname = users[current_user.id].get('username', 'O treinador')
     poke = None
@@ -3994,6 +4000,10 @@ def api_hunt_roll():
     # Avisa o mestre (caixa de rolagens) e atualiza o contador do jogador
     socketio.emit('hunt_roll', roll_info, room=f'master_{_tid()}')
     socketio.emit('hunts_update', {'used': entry['used'], 'limit': limit}, room=pid)
+    _dice_show({'player_name': current_user.username, 'emoji': '🎲',
+                'label': 'Teste de Caçada', 'roll': roll, 'sides': 20,
+                'bonus': skill_mod, 'total': total, 'manual': is_manual,
+                'nat1': roll == 1, 'nat20': roll == 20})
     return jsonify({'ok': True, **roll_info})
 
 
@@ -4120,6 +4130,7 @@ def api_free_roll():
         'nat1': sides == 20 and roll == 1, 'nat20': sides == 20 and roll == 20,
     }
     socketio.emit('free_roll', roll_info, room=f'master_{_tid()}')
+    _dice_show(roll_info)   # 🎲 dadão no centro da tela para a mesa toda
     return jsonify({'ok': True, **roll_info})
 
 
@@ -4377,6 +4388,10 @@ def master_death_test():
     save_users(users)
     payload = {'player_id': pid, 'player_name': pname, 'survived': survived,
                'roll_total': total, 'message': msg}
+    # 💀 momento mais dramático da mesa: o dadão mostra o total para todos
+    _dice_show({'player_name': pname, 'emoji': '💀', 'label': 'TESTE DE MORTE',
+                'roll': total, 'sides': 20, 'bonus': 0, 'total': total,
+                'cd': 10, 'success': survived, 'manual': True})
     socketio.emit('death_test', payload, room=f'players_{_tid()}')
     socketio.emit('death_test', payload, room=f'master_{_tid()}')
     return jsonify(dict(payload, ok=True))
@@ -4718,6 +4733,16 @@ def _emit_trainer_threat(table_id, payload):
     """Anuncia o avanço no TREINADOR para a mesa inteira + mestre."""
     socketio.emit('trainer_threatened', payload, room=f'players_{table_id}')
     socketio.emit('trainer_threatened', payload, room=f'master_{table_id}')
+
+
+def _dice_show(payload, table_id=None):
+    """🎲 DADO GIGANTE: transmite uma rolagem de teste para a MESA INTEIRA
+    (jogadores + mestre) — o cliente mostra o dadão animado no centro da
+    tela. Usado em todos os testes de mesa: perícia/atributo/dado livre,
+    teste de caçada, captura especial e teste de morte."""
+    tid = table_id or _tid()
+    socketio.emit('dice_show', payload, room=f'players_{tid}')
+    socketio.emit('dice_show', payload, room=f'master_{tid}')
 
 
 def _wild_trainer_threat(player_id, encounter, game_state, table_id):

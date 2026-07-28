@@ -1932,6 +1932,11 @@ socket.on('capture_test_result', (d) => {
     }
 });
 
+// 🎲 Dadão de mesa: toda rolagem de teste aparece gigante para todos
+socket.on('dice_show', (d) => {
+    try { if (window.FX && FX.diceRoll) FX.diceRoll(d); } catch (e) {}
+});
+
 // ❤️ HP do treinador: dano da cena de avanço / teste de morte / revive
 function _setTrainerHpUi(hp, maxHp, prevHp) {
     const bar = document.getElementById('trainer-hp-bar');
