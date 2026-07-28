@@ -2127,6 +2127,47 @@ def main():
     check(S, 'revive do mestre: limpa a morte e devolve 1 HP',
           (r.get_json() or {}).get('ok') is True
           and not _tr1.get('dead') and appmod._trainer_hp(_tr1)[0] >= 1)
+
+    # ── CD do teste de morte é do MESTRE + 🕯️ ÚLTIMO SUSPIRO ──
+    _uu = db.get_users(); _uu[u1]['trainer_data']['trainer_hp'] = 0; db.save_users(_uu)
+    r = m.post('/master/death-test', json={'player_id': u1, 'roll_total': 12, 'cd': 15})
+    d = r.get_json() or {}
+    check(S, 'teste de morte: CD escolhida pelo mestre (12 vs CD 15 = morte)',
+          d.get('survived') is False and d.get('cd') == 15
+          and db.get_users()[u1]['trainer_data'].get('dead') is True)
+    check(S, 'último suspiro: jogador bloqueado na rota do mestre',
+          p1.post('/master/last-breath', json={'player_id': u1}).status_code == 403)
+    check(S, 'último suspiro: sem concessão o jogador não escolhe',
+          p1.post('/player/last-breath', json={'target_idx': 0}).status_code == 400)
+    check(S, 'último suspiro: consumar sem Pokémon marcado é recusado',
+          m.post('/master/last-breath',
+                 json={'player_id': u1, 'consume': True}).status_code == 400)
+    r = m.post('/master/last-breath', json={'player_id': u1})
+    check(S, 'último suspiro: mestre concede ao treinador morto',
+          (r.get_json() or {}).get('ok') is True
+          and db.get_users()[u1]['trainer_data'].get('last_breath_pending') is True)
+    _t0 = db.get_users()[u1]['trainer_data']['team'][0]
+    _atk0 = int((_t0.get('stats') or {}).get('ATK') or 10)
+    r = p1.post('/player/last-breath', json={'target_idx': 0,
+                                             'target_uid': _t0.get('uid')})
+    _td = db.get_users()[u1]['trainer_data']
+    _p0lb = _td['team'][0]
+    check(S, 'último suspiro: Pokémon revive com 1 HP e stats ×3, treinador salvo',
+          r.status_code == 200
+          and int(_p0lb.get('currentHp') or 0) == 1
+          and int((_p0lb.get('stats') or {}).get('ATK') or 0) == round(_atk0 * 3)
+          and _p0lb.get('last_breath') is True
+          and not _td.get('dead') and not _td.get('last_breath_pending')
+          and appmod._trainer_hp(_td)[0] == 1)
+    _n0 = len(_td.get('team') or [])
+    _npc0 = len(_td.get('pc') or [])
+    r = m.post('/master/last-breath', json={'player_id': u1, 'consume': True})
+    _td = db.get_users()[u1]['trainer_data']
+    check(S, 'último suspiro: consumar DELETA o Pokémon (morte real, sem PC)',
+          (r.get_json() or {}).get('ok') is True
+          and len(_td.get('team') or []) == _n0 - 1
+          and len(_td.get('pc') or []) == _npc0
+          and not any(p.get('last_breath') for p in _td.get('team') or []))
     # Centro Pokémon cura o treinador também (fora de batalha)
     _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
     _uu = db.get_users(); _uu[u1]['trainer_data']['trainer_hp'] = 5; db.save_users(_uu)

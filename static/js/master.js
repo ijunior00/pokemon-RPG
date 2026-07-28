@@ -830,34 +830,69 @@ socket.on('dice_show', (d) => {
 // 📨 Pede o TESTE DE MORTE ao jogador (aviso na tela dele com botão de
 // rolar Determinação; o resultado volta na caixa de rolagens + dadão).
 async function masterAskDeathRoll(playerId) {
+    const rawCd = prompt('💀 CD do teste de morte? (você decide a dureza da cena)', '10');
+    if (rawCd === null) return;
+    const cd = parseInt(rawCd) || 10;
     try {
         const r = await fetch('/master/request-roll', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ player_id: playerId, kind: 'attr', target: 'determinacao',
-                                   note: '💀 TESTE DE MORTE — role d20 + Determinação!',
-                                   cd: 10 })
+                                   note: `💀 TESTE DE MORTE — role d20 + Determinação! (CD ${cd})`,
+                                   cd: cd })
         });
         const d = await r.json();
-        showNotification(d.ok ? '📨 Teste de morte pedido ao jogador — aguarde a rolagem e então RESOLVA.'
+        showNotification(d.ok ? `📨 Teste de morte (CD ${cd}) pedido ao jogador — aguarde a rolagem e então RESOLVA.`
                               : `❌ ${d.error || 'Falha ao pedir o teste'}`, d.ok ? 'success' : 'error');
     } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
 }
 
-// 💀 Teste de morte (treinador a 0 HP): d20 + Determinação vs CD 10 —
+// 💀 Teste de morte (treinador a 0 HP): d20 + Determinação vs CD do MESTRE —
 // o jogador rola (virtual ou dado físico) e o mestre digita o total.
 async function masterDeathTest(playerId) {
-    const raw = prompt('💀 TESTE DE MORTE — total do jogador (d20 + Determinação) vs CD 10:', '');
+    const rawCd = prompt('💀 CD do teste de morte?', '10');
+    if (rawCd === null) return;
+    const cd = parseInt(rawCd) || 10;
+    const raw = prompt(`💀 Total do jogador (d20 + Determinação) vs CD ${cd}:`, '');
     if (raw === null || raw.trim() === '') return;
     try {
         const r = await fetch('/master/death-test', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ player_id: playerId, roll_total: parseInt(raw) })
+            body: JSON.stringify({ player_id: playerId, roll_total: parseInt(raw), cd: cd })
         });
         const d = await r.json();
         showNotification(d.ok ? d.message : `❌ ${d.error || 'Falha no teste'}`,
                          d.ok && d.survived ? 'success' : 'error');
     } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
 }
+
+// 🕯️ ÚLTIMO SUSPIRO: concede (treinador morto) ou consuma o sacrifício
+async function masterLastBreath(playerId, consume) {
+    if (consume && !confirm('⚰️ Consumar o sacrifício? O Pokémon marcado será DELETADO da ficha (morte real).')) return;
+    try {
+        const r = await fetch('/master/last-breath', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_id: playerId, consume: !!consume })
+        });
+        const d = await r.json();
+        showNotification(d.ok ? d.message : `❌ ${d.error || 'Falha'}`, d.ok ? 'success' : 'error');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
+
+socket.on('last_breath_offer', (d) => showNotification(d.message, 'info'));
+
+// jogador escolheu: card com o botão de consumar quando a cena terminar
+socket.on('last_breath_chosen', (d) => {
+    showNotification(d.message, 'success');
+    const inbox = document.getElementById('hunt-rolls-inbox');
+    if (!inbox) return;
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:0.55rem 0.7rem;border-radius:8px;background:rgba(255,203,5,0.10);border:1px solid rgba(255,203,5,0.6);font-size:0.88rem;';
+    card.innerHTML = `${d.message}<div style="margin-top:0.3rem;">` +
+        `<button class="btn btn-sm btn-danger" onclick="masterLastBreath('${d.player_id}', true)">⚰️ Consumar sacrifício (deleta ${d.pokemon_name})</button></div>`;
+    inbox.insertBefore(card, inbox.firstChild);
+});
+
+socket.on('last_breath_end', (d) => showNotification(d.message, 'info'));
 
 async function masterTrainerRevive(playerId) {
     if (!confirm('✨ Reverter a morte deste treinador (nova ficha/milagre/decisão de mesa)?')) return;
@@ -895,7 +930,8 @@ socket.on('death_test', (d) => {
     if (!inbox) return;
     const card = document.createElement('div');
     card.style.cssText = 'padding:0.55rem 0.7rem;border-radius:8px;background:rgba(0,0,0,0.35);border:1px solid #e53935;font-size:0.88rem;';
-    card.innerHTML = `${d.message}<div style="margin-top:0.3rem;">` +
+    card.innerHTML = `${d.message}<div style="margin-top:0.3rem;display:flex;gap:0.4rem;flex-wrap:wrap;">` +
+        `<button class="btn btn-sm btn-danger" style="border:2px solid #ffcb05;" onclick="masterLastBreath('${d.player_id}')">🕯️ Último Suspiro</button>` +
         `<button class="btn btn-sm btn-secondary" onclick="masterTrainerRevive('${d.player_id}')">✨ Reverter morte</button></div>`;
     inbox.insertBefore(card, inbox.firstChild);
 });
