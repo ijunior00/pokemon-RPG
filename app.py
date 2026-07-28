@@ -4353,9 +4353,10 @@ def master_enemy_boost():
 def master_death_test():
     """💀 TESTE DE MORTE (hardcore, decisão de mesa): treinador a 0 HP rola
     d20 + mod(Determinação) — dado físico, total digitado pelo mestre —
-    contra CD 10. Sucesso: estabiliza com 1 HP (inconsciente, o mestre
-    narra). Falha: o personagem MORRE (flag na ficha; caçadas bloqueadas;
-    /master/trainer-revive desfaz — nova ficha, milagre, decisão de mesa)."""
+    contra a CD que o MESTRE escolher (padrão 10). Sucesso: estabiliza com
+    1 HP (inconsciente, o mestre narra). Falha: o personagem MORRE (flag
+    na ficha; caçadas bloqueadas; /master/trainer-revive desfaz — ou o
+    🕯️ Último Suspiro, /master/last-breath)."""
     if current_user.role != 'master':
         return jsonify({'error': 'Unauthorized'}), 403
     data = request.json or {}
@@ -4373,25 +4374,30 @@ def master_death_test():
         total = int(data.get('roll_total'))
     except (TypeError, ValueError):
         return jsonify({'error': 'Informe o total do teste (d20 + Determinação).'}), 400
+    # a CD é do MESTRE (padrão 10) — cena fácil ou implacável, ele decide
+    try:
+        cd = max(2, min(30, int(data.get('cd') or 10)))
+    except (TypeError, ValueError):
+        cd = 10
 
     pname = users[pid].get('username', 'O treinador')
-    survived = total >= 10
+    survived = total >= cd
     if survived:
         trainer['trainer_hp'] = 1
-        msg = (f"🛡️ {pname} venceu o teste de morte ({total} vs CD 10)! "
+        msg = (f"🛡️ {pname} venceu o teste de morte ({total} vs CD {cd})! "
                f"Estabilizou com 1 HP — inconsciente, o Mestre narra o resgate.")
     else:
         trainer['dead'] = True
-        msg = (f"☠️ {pname} FALHOU no teste de morte ({total} vs CD 10). "
+        msg = (f"☠️ {pname} FALHOU no teste de morte ({total} vs CD {cd}). "
                f"O personagem morreu — decisão de mesa define o que vem agora.")
     users[pid]['trainer_data'] = trainer
     save_users(users)
     payload = {'player_id': pid, 'player_name': pname, 'survived': survived,
-               'roll_total': total, 'message': msg}
+               'roll_total': total, 'cd': cd, 'message': msg}
     # 💀 momento mais dramático da mesa: o dadão mostra o total para todos
     _dice_show({'player_name': pname, 'emoji': '💀', 'label': 'TESTE DE MORTE',
                 'roll': total, 'sides': 20, 'bonus': 0, 'total': total,
-                'cd': 10, 'success': survived, 'manual': True})
+                'cd': cd, 'success': survived, 'manual': True})
     socketio.emit('death_test', payload, room=f'players_{_tid()}')
     socketio.emit('death_test', payload, room=f'master_{_tid()}')
     return jsonify(dict(payload, ok=True))
@@ -4419,6 +4425,120 @@ def master_trainer_revive():
     socketio.emit('trainer_revived', payload, room=f'players_{_tid()}')
     socketio.emit('trainer_revived', payload, room=f'master_{_tid()}')
     return jsonify(dict(payload, ok=True))
+
+
+LAST_BREATH_MULT = 3   # buff de +200% nos stats (mesma escala do bônus: ×3)
+
+
+@app.route('/master/last-breath', methods=['POST'])
+@login_required
+def master_last_breath():
+    """🕯️ ÚLTIMO SUSPIRO — o mestre concede a um treinador MORTO a chance
+    final: o jogador escolhe UM Pokémon do time, que revive com 1 HP e um
+    buff de +200% nos stats (×3) para dar a vida pelo treinador e salvá-lo.
+    consume=true: consuma o sacrifício quando a cena termina — o Pokémon
+    marcado é DELETADO da ficha (morte real, sem PC)."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    pid = str(data.get('player_id') or '')
+    users = get_users()
+    if not _player_in_master_table(pid, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    trainer = users[pid].get('trainer_data', {}) or {}
+    pname = users[pid].get('username', 'O treinador')
+
+    # ⚰️ consumar: deleta o Pokémon marcado (morte real)
+    if data.get('consume'):
+        team = trainer.get('team', []) or []
+        poke = next((p for p in team if p.get('last_breath')), None)
+        if not poke:
+            return jsonify({'error': 'Nenhum Pokémon em Último Suspiro nesse time.'}), 400
+        nm = poke.get('nickname') or poke.get('name', 'O Pokémon')
+        trainer['team'] = [p for p in team if p is not poke]
+        users[pid]['trainer_data'] = trainer
+        save_users(users)
+        payload = {'player_id': pid, 'player_name': pname, 'pokemon_name': nm,
+                   'message': f'⚰️ {nm} deu a própria vida por {pname} e se extinguiu. '
+                              f'Adeus, amigo — sua chama salvou um treinador.'}
+        socketio.emit('last_breath_end', payload, room=f'players_{_tid()}')
+        socketio.emit('last_breath_end', dict(payload, team=trainer['team']), room=pid)
+        socketio.emit('last_breath_end', payload, room=f'master_{_tid()}')
+        socketio.emit('team_update', {'player_id': pid, 'team': trainer['team']},
+                      room=f'master_{_tid()}')
+        return jsonify(dict(payload, ok=True))
+
+    # conceder: só para treinador MORTO, e só se houver Pokémon no time
+    if not trainer.get('dead'):
+        return jsonify({'error': 'O Último Suspiro é para treinadores MORTOS '
+                                 '(use após a falha no teste de morte).'}), 400
+    if not (trainer.get('team') or []):
+        return jsonify({'error': 'Esse treinador não tem Pokémon no time.'}), 400
+    trainer['last_breath_pending'] = True
+    users[pid]['trainer_data'] = trainer
+    save_users(users)
+    payload = {'player_id': pid, 'player_name': pname,
+               'message': f'🕯️ O Mestre concedeu o ÚLTIMO SUSPIRO a {pname} — '
+                          f'um Pokémon dará a vida pelo treinador!'}
+    socketio.emit('last_breath_offer', payload, room=pid)
+    socketio.emit('last_breath_offer', payload, room=f'players_{_tid()}')
+    socketio.emit('last_breath_offer', payload, room=f'master_{_tid()}')
+    return jsonify(dict(payload, ok=True))
+
+
+@app.route('/player/last-breath', methods=['POST'])
+@login_required
+def player_last_breath():
+    """O jogador MORTO escolhe o Pokémon do Último Suspiro: revive com 1 HP
+    + stats ×3 (marcado 🕯️) e o TREINADOR é salvo (volta com 1 HP). O
+    sacrifício se consuma depois, pelo mestre (consume=true)."""
+    pid = str(current_user.id)
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {}) or {}
+    if not trainer.get('dead') or not trainer.get('last_breath_pending'):
+        return jsonify({'error': 'O Último Suspiro não foi concedido a você.'}), 400
+    team = trainer.get('team', []) or []
+    data = request.json or {}
+    target = None
+    if data.get('target_uid'):
+        target = next((p for p in team if p.get('uid') == data['target_uid']), None)
+    if target is None:
+        try:
+            idx = int(data.get('target_idx'))
+            if 0 <= idx < len(team):
+                target = team[idx]
+        except (TypeError, ValueError):
+            pass
+    if target is None:
+        return jsonify({'error': 'Escolha um Pokémon do time.'}), 400
+
+    # revive com 1 HP + buff ×3 nos stats de batalha; marcado para o fim
+    stats = target.get('stats') or {}
+    for k in ('ATK', 'DEF', 'SPA', 'SPD', 'SPE'):
+        if isinstance(stats.get(k), (int, float)):
+            stats[k] = max(1, round(stats[k] * LAST_BREATH_MULT))
+    target['stats'] = stats
+    target['currentHp'] = 1
+    target.pop('status', None)
+    target['last_breath'] = True
+
+    # o sacrifício SALVA o treinador: vivo, de pé, com 1 HP
+    trainer.pop('dead', None)
+    trainer.pop('last_breath_pending', None)
+    trainer['trainer_hp'] = 1
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+
+    nm = target.get('nickname') or target.get('name', 'O Pokémon')
+    pname = users[current_user.id].get('username', 'O treinador')
+    payload = {'player_id': pid, 'player_name': pname, 'pokemon_name': nm,
+               'message': f'🕯️ {nm} ergueu-se com a chama da vida — stats ×3, '
+                          f'1 HP, pronto para dar tudo por {pname}!'}
+    socketio.emit('last_breath_chosen', payload, room=f'players_{_tid()}')
+    socketio.emit('last_breath_chosen', payload, room=f'master_{_tid()}')
+    socketio.emit('team_update', {'player_id': current_user.id, 'team': team},
+                  room=f'master_{_tid()}')
+    return jsonify({'ok': True, 'pokemon': target, 'message': payload['message']})
 
 
 @app.route('/api/skill/list')

@@ -1932,6 +1932,79 @@ socket.on('capture_test_result', (d) => {
     }
 });
 
+// ═══ 🕯️ ÚLTIMO SUSPIRO: o mestre concedeu — escolha quem dá a vida ═══
+socket.on('last_breath_offer', (d) => {
+    if (String(d.player_id) !== String(window.CURRENT_USER_ID)) {
+        showNotification(d.message, 'info');
+        return;
+    }
+    let ov = document.getElementById('last-breath-overlay');
+    if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'last-breath-overlay';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(6,8,16,0.95);';
+        document.body.appendChild(ov);
+    }
+    ov.style.display = 'flex';
+    const cards = (playerTeam || []).map((p, i) => ({
+        number: p.number, is_shiny: p.is_shiny,
+        name: p.nickname || p.name, level: p.level,
+        hp: p.currentHp ?? 0, maxHp: p.maxHp || 20,
+        cls: '', tag: '', onclick: `chooseLastBreath(${i})`,
+    }));
+    ov.innerHTML = `
+        <div style="max-width:520px;width:100%;background:var(--card-bg,#151b2b);border:2px solid #ffcb05;border-radius:16px;padding:1rem 1.2rem;text-align:center;box-shadow:0 0 60px rgba(255,203,5,0.25);">
+            <div style="font-weight:900;font-size:1.15rem;color:#ffcb05;">🕯️ ÚLTIMO SUSPIRO</div>
+            <div style="font-size:0.85rem;opacity:0.9;margin-top:0.4rem;">O Mestre concedeu a chance final.
+                Escolha <strong>UM</strong> Pokémon: ele erguerá com <strong>1 HP e stats ×3</strong>
+                para dar a vida por você — e se extinguirá ao fim da cena.
+                <strong style="color:#e53935;">A escolha é para sempre.</strong></div>
+            ${pokeCarouselHtml(cards)}
+            <div id="last-breath-log" style="font-size:0.82rem;margin-top:0.4rem;"></div>
+        </div>`;
+    pokeCarouselFx(ov);
+    try { playNotificationSound(); } catch (e) {}
+});
+
+async function chooseLastBreath(idx) {
+    const logEl = document.getElementById('last-breath-log');
+    const p = playerTeam[idx];
+    if (!p) return;
+    if (!confirm(`🕯️ Escolher ${p.nickname || p.name} para o Último Suspiro?\n` +
+                 'Ele dará a vida por você e será DELETADO da ficha ao fim da cena.')) return;
+    try {
+        const r = await fetch('/player/last-breath', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target_idx: idx, target_uid: p.uid })
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) {
+            if (logEl) logEl.innerHTML = `<span style="color:#e53935;">❌ ${d.error || 'Falha'}</span>`;
+            return;
+        }
+        if (d.pokemon) playerTeam[idx] = d.pokemon;
+        try { if (typeof renderTeam === 'function') renderTeam(); } catch (e) {}
+        try { FX.callout && FX.callout('🕯️ ÚLTIMO SUSPIRO!', 'gold'); } catch (e) {}
+        const o = document.getElementById('last-breath-overlay');
+        if (o) o.style.display = 'none';
+        setTimeout(() => location.reload(), 2200);   // ficha volta viva (sem ☠️)
+    } catch (e) {
+        if (logEl) logEl.innerHTML = '<span style="color:#e53935;">❌ Erro de conexão.</span>';
+    }
+}
+
+socket.on('last_breath_chosen', (d) => showNotification(d.message, 'success'));
+
+socket.on('last_breath_end', (d) => {
+    showNotification(d.message, 'info');
+    if (String(d.player_id) === String(window.CURRENT_USER_ID) && d.team) {
+        playerTeam.length = 0;
+        for (const p of d.team) playerTeam.push(p);
+        try { if (typeof renderTeam === 'function') renderTeam(); } catch (e) {}
+        try { FX.callout && FX.callout(`⚰️ ADEUS, ${(d.pokemon_name || '').toUpperCase()}...`, 'muted'); } catch (e) {}
+    }
+});
+
 // 🎲 Dadão de mesa: toda rolagem de teste aparece gigante para todos
 socket.on('dice_show', (d) => {
     try { if (window.FX && FX.diceRoll) FX.diceRoll(d); } catch (e) {}
