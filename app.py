@@ -4532,8 +4532,8 @@ def player_last_breath():
     nm = target.get('nickname') or target.get('name', 'O Pokémon')
     pname = users[current_user.id].get('username', 'O treinador')
     payload = {'player_id': pid, 'player_name': pname, 'pokemon_name': nm,
-               'message': f'🕯️ {nm} ergueu-se com a chama da vida — stats ×3, '
-                          f'1 HP, pronto para dar tudo por {pname}!'}
+               'message': f'🕯️ {nm} ergueu-se uma última vez — e vai proteger '
+                          f'{pname} com toda a sua vontade!'}
     socketio.emit('last_breath_chosen', payload, room=f'players_{_tid()}')
     socketio.emit('last_breath_chosen', payload, room=f'master_{_tid()}')
     socketio.emit('team_update', {'player_id': current_user.id, 'team': team},
