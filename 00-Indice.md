@@ -49,6 +49,11 @@ mestre e jogadores, deploy no Render a partir do `main`.
 - [[Bugs-Resolvidos/evolucao-por-nivel-nunca-disparava]] — gatilho no nível do treinador + escala 5e sem ×5 + Pikachu evoluía sem pedra
 - [[Bugs-Resolvidos/cura-gratis-via-pivo-na-troca]] — HP de batalha não persistia no time; pivotar na troca curava de graça
 
+## Material de campanha (mesa)
+
+- [[Índice - Material de Mesa]] — monólogos, narrações, handouts e interlúdios prontos para a mesa (pasta `12 - Material de Mesa`)
+- [[Estilo-de-Escrita-da-Mesa]] — **o padrão de escrita para todo material novo** (três sentidos + uma coisa errada, vilão diz a verdade, documento entediante, plantar e cobrar)
+
 ## Outras notas
 
 - [[Backlog-Ideias]] — em aberto, adiado e descartado (com o porquê)
