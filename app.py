@@ -5538,6 +5538,81 @@ def handle_group_battle_action(data):
         _group_broadcast(battle)
 
 
+@app.route('/master/force-actions', methods=['POST'])
+@login_required
+def master_force_actions():
+    """⚡ DESTRAVAR BATALHAS — botão central do mestre: percorre TODAS as
+    batalhas ativas da mesa e força a ação de quem não é jogador:
+    - 1v1: vez do selvagem → cutuca o cliente do jogador a rodar o turno
+      (cobre o stall clássico: refresh no meio do turno do selvagem perde
+      o timer do auto-attack e a batalha congela);
+    - grupo/emboscada/vilão: vez de selvagem → roda os turnos agora
+      (mesmo caminho do botão manual, vale também no AUTO);
+    - PvP: vez de um NPC → força a jogada (handle_npc_turn).
+    Turno de jogador humano não é forçado — só reportado."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    tid = _tid()
+    users = get_users()
+    details = []
+    waiting = []
+
+    # 1v1: vez do selvagem → nudge no cliente (auto OU manual, é o mestre mandando)
+    gs = get_game_state()
+    for pid, enc in list((gs.get('active_encounters') or {}).items()):
+        bs = (enc or {}).get('battle_state') or {}
+        uname = users.get(str(pid), {}).get('username', str(pid))
+        if bs.get('turn') == 'wild':
+            socketio.emit('force_wild_turn', {}, room=str(pid))
+            details.append(f"selvagem vs {uname} (1v1)")
+        elif enc:
+            waiting.append(f'{uname} (1v1)')
+
+    # grupo (dupla/emboscada/vilão): vez de selvagem → roda agora
+    for battle in list(ACTIVE_GROUP_BATTLES.values()):
+        if battle.get('table_id') != tid or battle.get('phase') != 'active':
+            continue
+        cur = gb.current_combatant(battle)
+        if cur and cur['side'] == 'wild':
+            _group_run_wild_turns(battle)
+            _group_field_round_hook(battle)
+            _group_villain_reinforce(battle)
+            if battle['phase'] == 'finished':
+                _group_broadcast(battle, 'group_battle_end')
+                ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
+            else:
+                _group_broadcast(battle)
+            details.append(f"{cur['name']} (grupo {battle.get('mode')})")
+        elif cur:
+            waiting.append(f"{cur['name']} (grupo)")
+
+    # PvP: vez de um NPC → força a jogada; humano travado só reporta
+    for battle in list(ACTIVE_PVP.values()):
+        if battle.get('phase') != 'battle':
+            continue
+        _ids = [str((battle.get(k) or {}).get('id')) for k in ('player1', 'player2')]
+        if not any(_player_in_master_table(i, users, tid) for i in _ids if i in users):
+            continue   # batalha de outra mesa
+        turn = battle.get('turn')
+        actor = battle.get(turn) or {}
+        if actor.get('is_npc'):
+            try:
+                handle_npc_turn(battle, turn, forced=True)
+                details.append('NPC (PvP)')
+            except Exception as e:
+                print(f'[FORCE] PvP {battle.get("id")}: {e}')
+        elif turn:
+            _an = users.get(str(actor.get('id')), {}).get('username', 'jogador')
+            waiting.append(f'{_an} (PvP)')
+
+    msg = (f"⚡ {len(details)} ação(ões) forçada(s): " + '; '.join(details)) \
+        if details else '✅ Nenhum inimigo com turno pendente.'
+    if waiting:
+        msg += ' · Aguardando jogador: ' + '; '.join(waiting)
+    return jsonify({'ok': True, 'forced': len(details), 'details': details,
+                    'waiting': waiting, 'message': msg})
+
+
 @socketio.on('group_wild_turn')
 def handle_group_wild_turn(data):
     """Mestre avança manualmente as jogadas dos selvagens (AUTO desligado)."""
