@@ -78,6 +78,39 @@ function _paintAutoModeLabel(enabled) {
     }
 }
 
+// 📜 LOG DE MENSAGENS: renderiza o buffer global (window._msgLog, alimentado
+// pelo showNotification em app.js) na sub-aba Log — nada some sem ler.
+window._msgLogRender = function () {
+    const host = document.getElementById('master-msg-log');
+    if (!host) return;
+    const log = window._msgLog || [];
+    const chip = document.getElementById('chip-log-count');
+    if (chip) chip.textContent = log.length ? `(${log.length})` : '';
+    if (!log.length) {
+        host.innerHTML = '<p class="empty-state" style="margin:0;font-size:0.85rem;">Nenhuma mensagem ainda nesta sessão.</p>';
+        return;
+    }
+    const color = { success: '#66bb6a', error: '#e53935', warning: '#ffcb05', info: '#9aa5bf' };
+    host.innerHTML = '';
+    for (const e of log) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:0.6rem;align-items:baseline;padding:0.35rem 0.5rem;' +
+            `border-left:3px solid ${color[e.type] || color.info};background:rgba(255,255,255,0.03);border-radius:6px;font-size:0.85rem;`;
+        const when = document.createElement('span');
+        when.style.cssText = 'flex:0 0 auto;font-size:0.72rem;opacity:0.6;font-variant-numeric:tabular-nums;';
+        when.textContent = e.t.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const msg = document.createElement('span');
+        msg.textContent = e.msg;   // textContent: nunca interpreta HTML
+        row.appendChild(when); row.appendChild(msg);
+        host.appendChild(row);
+    }
+};
+
+function clearMsgLog() {
+    window._msgLog = [];
+    window._msgLogRender();
+}
+
 // ⚡ DESTRAVAR: força a ação de todo inimigo com turno pendente na mesa
 // (1v1, grupo/emboscada/vilão e PvP com NPC) — o remédio para batalha travada
 async function masterForceActions(btn) {

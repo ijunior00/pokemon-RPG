@@ -6285,6 +6285,28 @@ def pc_withdraw():
     return jsonify({'ok': True, 'team': team, 'pc': pc})
 
 
+@app.route('/player/pc/release', methods=['POST'])
+@login_required
+def pc_release():
+    """🕊️ SOLTA um Pokémon do PC de volta à natureza — remoção permanente.
+    Só do PC (o time não tem soltura — deposite antes), com o nome exigido
+    de volta pelo cliente na confirmação."""
+    data = request.json or {}
+    idx = _int_arg(data, 'pc_idx', -1)
+    users = get_users()
+    trainer = users.get(current_user.id, {}).get('trainer_data', {})
+    pc = trainer.get('pc', [])
+    if idx < 0 or idx >= len(pc):
+        return jsonify({'error': 'Índice inválido'}), 400
+    poke = pc.pop(idx)
+    trainer['pc'] = pc
+    users[current_user.id]['trainer_data'] = trainer
+    save_users(users)
+    nm = poke.get('nickname') or poke.get('name', 'O Pokémon')
+    return jsonify({'ok': True, 'pc': pc,
+                    'message': f'🕊️ {nm} foi solto na natureza. Boa jornada!'})
+
+
 @app.route('/player/pc/swap', methods=['POST'])
 @login_required
 def pc_swap():

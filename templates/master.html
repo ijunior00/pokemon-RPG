@@ -67,6 +67,7 @@
             <button type="button" class="subtab" data-sub="batalhas" onclick="masterSubTab('batalhas')">⚔️ Batalhas</button>
             <button type="button" class="subtab" data-sub="presentes" onclick="masterSubTab('presentes')">🎁 Presentes</button>
             <button type="button" class="subtab" data-sub="testes" onclick="masterSubTab('testes')">🎯 Testes</button>
+            <button type="button" class="subtab" data-sub="log" onclick="masterSubTab('log')">📜 Log <b id="chip-log-count" style="font-weight:800;"></b></button>
         </div>
 
         <div class="subtab-content active" id="sub-cacadas">
@@ -384,6 +385,22 @@
                     <button class="btn btn-primary" onclick="requestRoll()">Pedir</button>
                 </div>
             </div>
+            </div>
+        </div>
+
+        <!-- 📜 LOG DE MENSAGENS: tudo que passou como notificação fica aqui,
+             com hora — nada mais some sem dar tempo de ler -->
+        <div class="subtab-content" id="sub-log">
+            <div class="encounter-manual">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <strong style="font-size:0.95rem;">📜 Log de mensagens da sessão</strong>
+                    <button class="btn btn-sm btn-secondary" onclick="clearMsgLog()">🧹 Limpar</button>
+                </div>
+                <p style="opacity:0.7;font-size:0.8rem;margin:0.3rem 0;">Toda notificação que aparece
+                    (e some em 3,5s) fica registrada aqui com o horário, da mais nova para a mais antiga.</p>
+                <div id="master-msg-log" style="display:flex;flex-direction:column;gap:0.3rem;max-height:65vh;overflow-y:auto;">
+                    <p class="empty-state" style="margin:0;font-size:0.85rem;">Nenhuma mensagem ainda nesta sessão.</p>
+                </div>
             </div>
         </div>
     </div>
