@@ -1955,10 +1955,11 @@ socket.on('last_breath_offer', (d) => {
     ov.innerHTML = `
         <div style="max-width:520px;width:100%;background:var(--card-bg,#151b2b);border:2px solid #ffcb05;border-radius:16px;padding:1rem 1.2rem;text-align:center;box-shadow:0 0 60px rgba(255,203,5,0.25);">
             <div style="font-weight:900;font-size:1.15rem;color:#ffcb05;">🕯️ ÚLTIMO SUSPIRO</div>
-            <div style="font-size:0.85rem;opacity:0.9;margin-top:0.4rem;">O Mestre concedeu a chance final.
-                Escolha <strong>UM</strong> Pokémon: ele erguerá com <strong>1 HP e stats ×3</strong>
-                para dar a vida por você — e se extinguirá ao fim da cena.
-                <strong style="color:#e53935;">A escolha é para sempre.</strong></div>
+            <div style="font-size:0.9rem;opacity:0.92;margin-top:0.4rem;">
+                Escolha <strong>UM</strong> de seus companheiros.
+                Ele irá levantar-se <strong>UMA última vez</strong> —
+                e te proteger com toda a sua vontade.
+                <br><strong style="color:#e53935;">A despedida é para sempre.</strong></div>
             ${pokeCarouselHtml(cards)}
             <div id="last-breath-log" style="font-size:0.82rem;margin-top:0.4rem;"></div>
         </div>`;
@@ -1970,8 +1971,8 @@ async function chooseLastBreath(idx) {
     const logEl = document.getElementById('last-breath-log');
     const p = playerTeam[idx];
     if (!p) return;
-    if (!confirm(`🕯️ Escolher ${p.nickname || p.name} para o Último Suspiro?\n` +
-                 'Ele dará a vida por você e será DELETADO da ficha ao fim da cena.')) return;
+    if (!confirm(`🕯️ ${p.nickname || p.name} se levantará uma última vez por você.\n` +
+                 'Quando a luta acabar, ele partirá — para sempre.\n\nÉ ele quem você chama?')) return;
     try {
         const r = await fetch('/player/last-breath', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
