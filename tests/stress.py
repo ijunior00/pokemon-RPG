@@ -2050,6 +2050,10 @@ def main():
     check(S, 'avanço no treinador: só 1x por encontro (dedup)',
           not recv(msio, 'trainer_threatened'))
     _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+    # a CENA sobrevive ao fim do encontro (bugfix 28/07: o encontro fecha na
+    # derrota, mas o avanço continua até o mestre resolver)
+    check(S, 'avanço no treinador: cena persiste após o fim do encontro',
+          bool((gstate().get('trainer_threats') or {}).get(str(u1))))
 
     # ── ❤️ HP DO TREINADOR: ataque na cena de avanço + teste de morte ──
     _uu = db.get_users()
@@ -2062,15 +2066,18 @@ def main():
           appmod._trainer_hp({'level': 4}) == (28, 28))   # 20 + 8 + 0
     check(S, 'HP treinador: jogador bloqueado na rota de ataque',
           p1.post('/master/threat-attack', json={'player_id': u1}).status_code == 403)
+    # ✅ encerrar a cena pendente (deixada pela seção anterior) sem ataque
+    r = m.post('/master/threat-attack', json={'player_id': u1, 'end_scene': True})
+    check(S, 'HP treinador: mestre encerra a cena sem ataque',
+          (r.get_json() or {}).get('ended') is True
+          and str(u1) not in (gstate().get('trainer_threats') or {}))
     check(S, 'HP treinador: sem cena de ameaça ativa é recusado',
           m.post('/master/threat-attack', json={'player_id': u1}).status_code == 400)
-    # cena de ameaça armada (selvagem Nv.14 → CD 17, dano 1d8+7)
+    # cena de ameaça armada DIRETO no estado (como o avanço grava agora) —
+    # sem encontro ativo nenhum: selvagem Nv.14 → CD 17, dano 1d8+7
     _gs = gstate()
-    _gs.setdefault('active_encounters', {})[str(u1)] = {
-        'pokemon': {'name': 'Ursaring', 'number': 217}, 'level': 14,
-        'player_name': 'p1', 'player_pokemon_idx': 0,
-        'battle_state': {'trainer_threatened': True, 'player_hp_current': 0},
-    }
+    _gs.setdefault('trainer_threats', {})[str(u1)] = {'wild_name': 'Ursaring',
+                                                      'level': 14}
     db.save_game_state(_gs, TID)
     _hp0 = appmod._trainer_hp(_tr1)[0]   # HP atual real (o Centro pode ter
     # gravado um máximo antigo — o nível do treinador subiu durante a suíte)
@@ -2090,6 +2097,8 @@ def main():
     d = r.get_json() or {}
     check(S, 'HP treinador: chegar a 0 marca o treinador como caído',
           d.get('hp') == 0 and d.get('downed') is True)
+    check(S, 'HP treinador: a queda encerra a cena (teste de morte assume)',
+          str(u1) not in (gstate().get('trainer_threats') or {}))
     # teste de morte: sucesso estabiliza com 1 HP
     r = m.post('/master/death-test', json={'player_id': u1, 'roll_total': 15})
     d = r.get_json() or {}
@@ -2345,6 +2354,13 @@ def main():
         _ids = [p['args'][0]['player_id'] for p in recv(s1, 'trainer_threatened')]
         check(S, 'avanço no treinador (grupo): só o jogador sem time é alcançado',
               str(u1) in _ids and str(u2) not in _ids, str(_ids))
+        _tt = gstate().get('trainer_threats') or {}
+        check(S, 'avanço no treinador (grupo): cena persistida com nível do selvagem',
+              str(u1) in _tt and int(_tt[str(u1)].get('level') or 0) >= 1
+              and str(u2) not in _tt)
+        # limpa a cena para não vazar nas seções seguintes
+        _gs = gstate(); (_gs.get('trainer_threats') or {}).pop(str(u1), None)
+        db.save_game_state(_gs, TID)
         appmod.ACTIVE_GROUP_BATTLES.pop(vg['id'], None)
     else:
         check(S, 'avanço no treinador (grupo): só o jogador sem time é alcançado',

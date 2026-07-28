@@ -786,9 +786,22 @@ socket.on('trainer_threatened', (d) => {
         `<button class="btn btn-sm btn-danger" onclick="requestThreatRoll('${d.player_id}', 'Coragem')">🦁 Pedir Coragem</button>` +
         `<button class="btn btn-sm btn-danger" onclick="requestThreatRoll('${d.player_id}', 'Atletismo')">💪 Pedir Atletismo</button>` +
         `<button class="btn btn-sm btn-danger" style="border:2px solid #e53935;" onclick="masterThreatAttack('${d.player_id}')">🩸 Selvagem ATACA o treinador</button>` +
+        `<button class="btn btn-sm btn-secondary" onclick="masterEndThreat('${d.player_id}')">✅ Encerrar cena</button>` +
         `</div>`;
     inbox.insertBefore(card, inbox.firstChild);
 });
+
+// ✅ encerra a cena de avanço sem ataque (o treinador escapou / narrativa)
+async function masterEndThreat(playerId) {
+    try {
+        const r = await fetch('/master/threat-attack', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ player_id: playerId, end_scene: true })
+        });
+        const d = await r.json();
+        showNotification(d.ok ? d.message : `❌ ${d.error || 'Falha'}`, d.ok ? 'success' : 'error');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
 
 // 🩸 O selvagem ataca o TREINADOR: dano 1d8 + nível//2 (servidor); a reação
 // do jogador (Coragem/Atletismo, total do dado físico) contra CD 10+nível//2
