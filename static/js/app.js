@@ -168,6 +168,14 @@ document.addEventListener('keydown', (e) => {
 // TOAST NOTIFICATIONS
 // ============================================
 function showNotification(message, type = 'info') {
+    // 📜 LOG DE MENSAGENS: toda notificação fica registrada (o toast some
+    // em 3,5s — o log não). A UI que quiser exibir define _msgLogRender.
+    try {
+        window._msgLog = window._msgLog || [];
+        window._msgLog.unshift({ t: new Date(), msg: String(message), type: type });
+        if (window._msgLog.length > 300) window._msgLog.length = 300;
+        if (typeof window._msgLogRender === 'function') window._msgLogRender();
+    } catch (e) {}
     const container = document.getElementById('notification-container') || (() => {
         const el = document.createElement('div');
         el.id = 'notification-container';

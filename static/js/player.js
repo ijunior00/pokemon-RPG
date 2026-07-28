@@ -7306,6 +7306,11 @@ function pcPokemonCard(p, idx, source) {
         ? `<button class="btn btn-sm btn-secondary" onclick="openSwapModal(${idx})" title="Trocar direto com um do time">⇄</button>`
         : '';
 
+    // 🕊️ soltar (só do PC): remoção permanente, com confirmação pelo nome
+    const releaseBtn = source === 'box'
+        ? `<button class="btn btn-sm btn-danger" onclick="pcRelease(${idx})" title="Soltar na natureza (permanente)">🕊️</button>`
+        : '';
+
     return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0.75rem;background:var(--darker);border-radius:var(--radius);">
         <img src="${getPokemonSpriteUrl(p.number||0, p.is_shiny)}" style="width:40px;height:40px;object-fit:contain;">
         <div style="flex:1;min-width:0;">
@@ -7316,8 +7321,34 @@ function pcPokemonCard(p, idx, source) {
             </div>
             <div style="font-size:0.75rem;color:var(--muted);">HP ${p.currentHp}/${p.maxHp}</div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:0.25rem;">${actionBtn}${swapBtn}</div>
+        <div style="display:flex;flex-direction:column;gap:0.25rem;">${actionBtn}${swapBtn}${releaseBtn}</div>
     </div>`;
+}
+
+// 🕊️ Soltar do PC: permanente — confirmação exige digitar o nome
+async function pcRelease(idx) {
+    const p = pcBoxData[idx];
+    if (!p) return;
+    const nm = p.nickname || p.name;
+    const typed = prompt(`🕊️ Soltar ${nm} (Nv.${p.level}) na natureza?\n` +
+                         `Isso é PERMANENTE — não dá para desfazer.\n\n` +
+                         `Digite o nome dele para confirmar:`, '');
+    if (typed === null) return;
+    if (typed.trim().toLowerCase() !== nm.toLowerCase()) {
+        showNotification('Nome não confere — soltura cancelada.', 'info');
+        return;
+    }
+    try {
+        const r = await fetch('/player/pc/release', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pc_idx: idx })
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) { showNotification(`❌ ${d.error || 'Falha ao soltar'}`, 'error'); return; }
+        pcBoxData = d.pc || [];
+        renderPC();
+        showNotification(d.message || `🕊️ ${nm} foi solto na natureza.`, 'success');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
 }
 
 async function pcDeposit(teamIdx) {

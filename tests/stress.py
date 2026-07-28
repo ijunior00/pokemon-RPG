@@ -3318,6 +3318,22 @@ def main():
     r = p1.post('/player/pc/withdraw', json={'pc_idx': 0})
     d = r.get_json() or {}
     check(S, 'retirar pokémon', d.get('ok') or d.get('success'), f'{list(d.keys())}')
+    # 🕊️ soltar do PC (permanente): cria um descartável, deposita e solta —
+    # o time volta EXATAMENTE como estava
+    m.post('/master/give-pokemon', json={'player_id': u1, 'species': 'Rattata',
+                                         'level': 3})
+    _tl = len(db.get_users()[u1]['trainer_data']['team'])
+    p1.post('/player/pc/deposit', json={'team_idx': _tl - 1})   # o Rattata
+    _td_r = db.get_users()[u1]['trainer_data']
+    _npc_r, _ntm_r = len(_td_r.get('pc') or []), len(_td_r.get('team') or [])
+    r = p1.post('/player/pc/release', json={'pc_idx': _npc_r - 1})
+    _td_r2 = db.get_users()[u1]['trainer_data']
+    check(S, 'soltar do PC: remove permanente sem tocar no time',
+          (r.get_json() or {}).get('ok') is True
+          and len(_td_r2.get('pc') or []) == _npc_r - 1
+          and len(_td_r2.get('team') or []) == _ntm_r)
+    check(S, 'soltar do PC: índice inválido é recusado',
+          p1.post('/player/pc/release', json={'pc_idx': 99}).status_code == 400)
     # QA LOOP 4: índice não-int no PC não derruba a request com 500
     for _ep, _body in (('/player/pc/deposit', {'team_idx': 'x'}),
                        ('/player/pc/withdraw', {'pc_idx': 'x'}),
