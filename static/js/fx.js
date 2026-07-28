@@ -206,6 +206,73 @@
                         clearProps: 'transform,opacity' });
     };
 
+    // 🎲 DADÃO DE MESA: rolagem gigante no centro da tela, para todos verem.
+    // d = {player_name, emoji, label, roll, sides, bonus, total, cd, success,
+    //      nat1, nat20, manual}. Cicla números rápido e "cai" no resultado.
+    FX.diceRoll = function (d) {
+        if (!d || typeof d.total !== 'number') return;
+        let ov = document.getElementById('fx-dice-overlay');
+        if (ov) ov.remove();   // rolagem nova substitui a anterior
+        ov = document.createElement('div');
+        ov.id = 'fx-dice-overlay';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:10001;display:flex;' +
+            'flex-direction:column;align-items:center;justify-content:center;' +
+            'background:rgba(5,8,16,0.78);pointer-events:none;';
+        const color = d.nat20 ? '#ffcb05' : d.nat1 ? '#e53935'
+            : d.success === true ? '#66bb6a' : d.success === false ? '#e53935' : '#ffcb05';
+        const sub = [];
+        if (typeof d.bonus === 'number' && d.bonus !== 0 && !d.manual) {
+            sub.push(`d${d.sides || 20}(${d.roll}) ${d.bonus >= 0 ? '+' : '−'}${Math.abs(d.bonus)} = ${d.total}`);
+        }
+        if (d.cd != null) sub.push(`vs CD ${d.cd}`);
+        const verdict = d.nat20 ? '🌟 NATURAL 20!' : d.nat1 ? '💀 NATURAL 1!'
+            : d.success === true ? '✅ SUCESSO' : d.success === false ? '❌ FALHOU' : '';
+        ov.innerHTML = `
+            <div style="font-weight:800;font-size:1rem;color:#e8ecf6;text-shadow:0 2px 8px #000;">
+                ${d.player_name || ''} · ${d.emoji || '🎲'} ${d.label || 'Rolagem'}${d.manual ? ' <small style="opacity:0.7;">(dado físico)</small>' : ''}</div>
+            <div id="fx-dice-cube" style="width:130px;height:130px;margin:0.9rem 0;display:flex;
+                align-items:center;justify-content:center;border-radius:26px;
+                background:linear-gradient(145deg,#1c2438,#0b101e);
+                border:4px solid ${color};box-shadow:0 0 42px ${color}66,inset 0 2px 10px rgba(255,255,255,0.08);
+                font-size:3.4rem;font-weight:900;color:${color};
+                font-family:ui-monospace,monospace;">?</div>
+            <div id="fx-dice-verdict" style="font-weight:900;font-size:1.25rem;color:${color};
+                text-shadow:0 2px 8px #000;opacity:0;">${verdict}</div>
+            <div style="font-size:0.85rem;color:#9aa5bf;margin-top:0.2rem;">${sub.join(' · ')}</div>`;
+        document.body.appendChild(ov);
+        const cube = ov.querySelector('#fx-dice-cube');
+        const verd = ov.querySelector('#fx-dice-verdict');
+        const done = () => { if (ov.parentElement) {
+            const gs2 = g();
+            if (gs2) gs2.to(ov, { opacity: 0, duration: 0.3, onComplete: () => ov.remove() });
+            else ov.remove();
+        } };
+        const gs = g();
+        if (!FX.enabled() || !gs) {
+            cube.textContent = String(d.roll ?? d.total);
+            verd.style.opacity = '1';
+            setTimeout(done, 1600);
+            return;
+        }
+        // cicla números aleatórios, desacelerando, e cai no resultado
+        const sides = Math.max(2, d.sides || 20);
+        const state = { p: 0 };
+        gs.timeline()
+          .fromTo(ov, { opacity: 0 }, { opacity: 1, duration: 0.15 })
+          .fromTo(cube, { scale: 0.4, rotation: -18 },
+                        { scale: 1, rotation: 0, duration: 0.3, ease: 'back.out(2)' }, 0)
+          .to(state, { p: 1, duration: 1.0, ease: 'power2.out',
+                       onUpdate: () => {
+                           cube.textContent = String(1 + Math.floor(Math.random() * sides));
+                       } })
+          .add(() => { cube.textContent = String(d.roll ?? d.total); })
+          .fromTo(cube, { scale: 1.35 }, { scale: 1, duration: 0.25, ease: 'back.out(3)' })
+          .to(cube, { x: -5, duration: 0.05, repeat: 5, yoyo: true, ease: 'steps(1)' }, '<')
+          .set(cube, { x: 0 })
+          .to(verd, { opacity: 1, y: -4, duration: 0.2 })
+          .add(done, '+=1.4');
+    };
+
     // Entrada em cascata (stagger) — usada nos cards do carrossel de Pokémon.
     FX.staggerIn = function (els) {
         const gs = g();

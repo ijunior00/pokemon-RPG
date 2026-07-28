@@ -2310,6 +2310,18 @@ def main():
     check(S, 'medicina: Reviver levanta desmaiado com metade do HP',
           r.status_code == 200
           and int(_t1['team'][0].get('currentHp') or 0) == max(1, _p0max // 2))
+    # ── 🎲 DADÃO DE MESA: rolagens de teste transmitidas para todos ──
+    for c in (s1, s2, msio):
+        c.get_received()
+    r = p1.post('/api/roll', json={'kind': 'die', 'die': 20})
+    _dtot = (r.get_json() or {}).get('total')
+    _dm = recv(msio, 'dice_show')
+    _dp = recv(s2, 'dice_show')
+    check(S, 'dadão: rolagem livre chega ao mestre',
+          bool(_dm) and _dm[0]['args'][0].get('total') == _dtot)
+    check(S, 'dadão: rolagem livre chega aos OUTROS jogadores da mesa',
+          bool(_dp) and _dp[0]['args'][0].get('total') == _dtot)
+
     # em batalha → recusa (gate de encontro ativo)
     _gs = gstate()
     _gs.setdefault('active_encounters', {})[str(u1)] = {'pokemon': {'name': 'X'},
