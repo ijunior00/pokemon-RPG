@@ -1300,6 +1300,22 @@ socket.on('initiative_result', (data) => {
     }
 });
 
+// 🔥 O mestre fortaleceu o selvagem (bônus secreto de %): atualiza HP e clima
+socket.on('enemy_boosted', (d) => {
+    if (battleActive && typeof d.wild_hp_max === 'number') {
+        if (window.currentBattleData?.enemy) {
+            window.currentBattleData.enemy.maxHp = d.wild_hp_max;
+            window.currentBattleData.enemy.currentHp = d.wild_hp_current;
+        }
+        const txt = document.getElementById('battle-enemy-hp-text-full');
+        if (txt) txt.textContent = `${d.wild_hp_current}/${d.wild_hp_max} HP`;
+        setHpBar('battle-enemy-hp-bar-full', d.wild_hp_current, d.wild_hp_max);
+        try { addBattleLog(d.message); } catch (e) {}
+        try { FX.callout && FX.callout('🔥 AURA INTENSA!', 'danger'); } catch (e) {}
+        try { FX.hitShake && FX.hitShake(document.getElementById('battle-enemy-sprite')); } catch (e) {}
+    }
+});
+
 // Mestre ligou/desligou o modo automático no meio da sessão
 socket.on('auto_mode_changed', (data) => {
     window._wildAuto = !!data.enabled;
@@ -1808,6 +1824,31 @@ socket.on('group_battle_error', (d) => {
 // 💀 O selvagem derrotou o último Pokémon e AVANÇOU NO TREINADOR — para o
 // alvo é um momento dramático (o Mestre conduz a cena e pode pedir um
 // teste, que chega pelo fluxo normal de roll_request); a mesa toda vê.
+// ═══ Sub-abas da Ficha do Treinador (Ficha / Perícias / Mochila) ═══
+function playerSheetTab(name) {
+    document.querySelectorAll('#trainer-subtabs .subtab').forEach(b =>
+        b.classList.toggle('active', b.dataset.sub === name));
+    ['ficha', 'pericias', 'mochila'].forEach(k => {
+        const c = document.getElementById('sheet-' + k);
+        if (!c) return;
+        const on = k === name;
+        c.classList.toggle('active', on);
+        if (on && window.FX && FX.enabled() && window.gsap) {
+            gsap.fromTo(c, { opacity: 0, x: 26 },
+                           { opacity: 1, x: 0, duration: 0.28, ease: 'power2.out',
+                             clearProps: 'transform,opacity' });
+        }
+    });
+    try { localStorage.setItem('playerSheetTab', name); } catch (e) {}
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (!document.getElementById('trainer-subtabs')) return;
+    let saved = null;
+    try { saved = localStorage.getItem('playerSheetTab'); } catch (e) {}
+    if (saved && document.getElementById('sheet-' + saved)) playerSheetTab(saved);
+});
+
 // ═══ 🎯 TESTE DE CAPTURA FORA DE BATALHA (condição especial do Mestre) ═══
 // O Mestre oferece um Pokémon capturável (dormindo, evento, filhote...);
 // o jogador tem UMA bola para arremessar. O servidor resolve tudo.
@@ -2130,6 +2171,7 @@ function _maybeCallout(msg, hostEl) {
     else if (/n[ãa]o efetivo/i.test(s))  hit = ['POUCO EFETIVO', 'muted'];
     else if (/⛔ imune|é imune/i.test(s)) hit = ['IMUNE!', 'muted'];
     else if (/🎭 .*enviou/i.test(s))      hit = ['🎭 REFORÇO!', 'danger'];
+    else if (/aura intensa/i.test(s))     hit = ['🔥 AURA INTENSA!', 'danger'];
     if (hit) { _lastCalloutAt = now; FX.callout(hit[0], hit[1], hostEl); }
 }
 

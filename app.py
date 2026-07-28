@@ -4224,6 +4224,96 @@ def master_threat_attack():
     return jsonify(dict(payload, ok=True))
 
 
+BOOST_PCTS = (10, 25, 50, 75, 100)
+
+
+def _boost_poke_stats(poke, factor):
+    """Multiplica os stats de batalha + HP de um dict de Pokémon (in place)."""
+    if not isinstance(poke, dict):
+        return
+    stats = poke.get('stats') or {}
+    for k in ('ATK', 'DEF', 'SPA', 'SPD', 'SPE', 'HP'):
+        if isinstance(stats.get(k), (int, float)):
+            stats[k] = max(1, round(stats[k] * factor))
+    for k in ('maxHp', 'hp'):
+        if isinstance(poke.get(k), (int, float)):
+            poke[k] = max(1, round(poke[k] * factor))
+    if isinstance(poke.get('currentHp'), (int, float)) and poke['currentHp'] > 0:
+        poke['currentHp'] = max(1, round(poke['currentHp'] * factor))
+
+
+@app.route('/master/enemy-boost', methods=['POST'])
+@login_required
+def master_enemy_boost():
+    """🔥 BÔNUS DO INIMIGO: o mestre fortalece o(s) inimigo(s) da batalha em
+    +pct% nos stats e no HP (10/25/50/75/100). Uma vez por batalha; vale
+    para encontro 1v1 (player_id) e batalha em grupo/vilão (battle_id).
+    Os jogadores veem só o clima ("aura intensa") — o % fica com o mestre."""
+    if current_user.role != 'master':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.json or {}
+    try:
+        pct = int(data.get('pct'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Percentual inválido'}), 400
+    if pct not in BOOST_PCTS:
+        return jsonify({'error': f'Percentual inválido — use {BOOST_PCTS}'}), 400
+    factor = 1 + pct / 100.0
+
+    # ── batalha em grupo / vilão ──
+    bid = str(data.get('battle_id') or '')
+    if bid:
+        battle = ACTIVE_GROUP_BATTLES.get(bid)
+        if not battle or battle.get('table_id') != _tid() or battle.get('phase') != 'active':
+            return jsonify({'error': 'Batalha em grupo não encontrada.'}), 400
+        if battle.get('enemy_boost'):
+            return jsonify({'error': 'O bônus já foi aplicado nesta batalha.'}), 400
+        for c in battle['combatants'].values():
+            if c.get('side') != 'wild' or c.get('captured') or c.get('fainted'):
+                continue
+            _boost_poke_stats(c.get('pokemon'), factor)
+            c['maxHp'] = max(1, round(int(c['maxHp']) * factor))
+            c['hp'] = max(1, round(int(c['hp']) * factor))
+        # reforços do vilão no banco também vêm mais fortes
+        for bench in (battle.get('villain_bench') or {}).values():
+            for p in bench:
+                _boost_poke_stats(p, factor)
+        battle['enemy_boost'] = pct
+        battle['log'].append({'type': 'boost',
+                              'message': '🔥 Uma aura intensa envolve os inimigos '
+                                         '— eles estão mais fortes!'})
+        _group_broadcast(battle, 'group_battle_update')
+        return jsonify({'ok': True, 'pct': pct, 'battle_id': bid})
+
+    # ── encontro 1v1 ──
+    pid = str(data.get('player_id') or '')
+    users = get_users()
+    if not _player_in_master_table(pid, users, _tid()):
+        return jsonify({'error': 'Jogador não pertence a esta mesa'}), 403
+    gs = get_game_state()
+    enc = (gs.get('active_encounters') or {}).get(pid)
+    if not enc:
+        return jsonify({'error': 'Esse jogador não está em um encontro.'}), 400
+    if enc.get('enemy_boost'):
+        return jsonify({'error': 'O bônus já foi aplicado nesta batalha.'}), 400
+    _boost_poke_stats(enc.get('pokemon'), factor)
+    bs = enc.get('battle_state') or {}
+    for k in ('wild_hp_max', 'wild_hp_current'):
+        if isinstance(bs.get(k), (int, float)) and bs[k] > 0:
+            bs[k] = max(1, round(bs[k] * factor))
+    enc['battle_state'] = bs
+    enc['enemy_boost'] = pct
+    save_game_state(gs)
+    payload = {'player_id': pid,
+               'wild_hp_max': bs.get('wild_hp_max'),
+               'wild_hp_current': bs.get('wild_hp_current'),
+               'message': '🔥 Uma aura intensa envolve o selvagem — ele está mais forte!'}
+    socketio.emit('enemy_boosted', payload, room=pid)
+    socketio.emit('enemy_boosted', dict(payload, pct=pct), room=f'master_{_tid()}')
+    return jsonify({'ok': True, 'pct': pct, 'player_id': pid,
+                    'wild_hp_max': bs.get('wild_hp_max')})
+
+
 @app.route('/master/death-test', methods=['POST'])
 @login_required
 def master_death_test():
@@ -7222,6 +7312,24 @@ def handle_set_auto_mode(data):
         emit('auto_mode_changed', payload, room=f'players_{_tid()}')
         emit('auto_mode_changed', payload, room=f'master_{_tid()}')
         print(f"[AUTO MODE] mesa={_tid()} {'ON' if state['wild_auto_mode'] else 'OFF'}")
+
+
+# 🔥 "Perguntar bônus do inimigo": com a marca ligada, toda batalha contra
+# selvagem/NPC abre um overlay SÓ para o mestre escolher o % de bônus nos
+# stats do inimigo (10/25/50/75/100). Por mesa, como o AUTO.
+def _ask_boost_mode(state=None):
+    st = state if state is not None else get_game_state()
+    return bool(st.get('ask_enemy_boost', False))
+
+
+@socketio.on('set_ask_boost')
+def handle_set_ask_boost(data):
+    if current_user.is_authenticated and current_user.role == 'master':
+        state = get_game_state()
+        state['ask_enemy_boost'] = bool(data.get('enabled', False))
+        save_game_state(state)
+        emit('ask_boost_changed', {'enabled': state['ask_enemy_boost']},
+             room=f'master_{_tid()}')
 
 @socketio.on('connect')
 def handle_connect():
