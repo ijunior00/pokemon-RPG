@@ -78,6 +78,47 @@ function _paintAutoModeLabel(enabled) {
     }
 }
 
+// ═══ Central de Batalhas: sub-abas deslizantes (opção B do redesign) ═══
+function masterSubTab(name) {
+    document.querySelectorAll('#battle-subtabs .subtab').forEach(b =>
+        b.classList.toggle('active', b.dataset.sub === name));
+    document.querySelectorAll('.subtab-content').forEach(c => {
+        const on = c.id === 'sub-' + name;
+        c.classList.toggle('active', on);
+        // entrada deslizante (anime.js-feel) — no-op sem GSAP/reduced-motion
+        if (on && window.FX && FX.enabled() && window.gsap) {
+            gsap.fromTo(c, { opacity: 0, x: 26 },
+                           { opacity: 1, x: 0, duration: 0.28, ease: 'power2.out',
+                             clearProps: 'transform,opacity' });
+        }
+    });
+    try { localStorage.setItem('masterSubTab', name); } catch (e) {}
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (!document.getElementById('battle-subtabs')) return;
+    // volta para a última sub-aba usada
+    let saved = null;
+    try { saved = localStorage.getItem('masterSubTab'); } catch (e) {}
+    if (saved && document.getElementById('sub-' + saved)) masterSubTab(saved);
+    // contadores da faixa viva (encontros ativos + rolagens no inbox)
+    const liveCount = (hostId, chipId) => {
+        const host = document.getElementById(hostId);
+        const chip = document.getElementById(chipId);
+        if (!host || !chip) return;
+        const upd = () => {
+            const n = Array.from(host.children)
+                .filter(el => !el.classList.contains('empty-state')).length;
+            chip.textContent = String(n);
+            chip.closest('.live-chip')?.classList.toggle('hot', n > 0);
+        };
+        new MutationObserver(upd).observe(host, { childList: true });
+        upd();
+    };
+    liveCount('active-encounters', 'chip-enc-count');
+    liveCount('hunt-rolls-inbox', 'chip-roll-count');
+});
+
 function toggleAutoMode(enabled) {
     wildAutoMode = enabled;
     _paintAutoModeLabel(enabled);

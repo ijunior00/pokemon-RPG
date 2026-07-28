@@ -34,7 +34,10 @@
 
     <!-- TAB: ENCOUNTERS/BATTLES -->
     <div class="tab-content active" id="tab-encounters">
-        <h2>Encontros Ativos</h2>
+        <h2>Central de Batalhas</h2>
+        <!-- 📡 FAIXA VIVA: interruptores + pulso da mesa — visível em
+             qualquer sub-aba (opção B do redesign do painel) -->
+        <div class="master-live-strip">
         <div class="auto-toggle-container">
             <label class="toggle-switch">
                 <input type="checkbox" id="wild-auto-mode" {% if game_state.get('wild_auto_mode', True) %}checked{% endif %} onchange="toggleAutoMode(this.checked)">
@@ -51,10 +54,86 @@
             </label>
             <span class="auto-label" id="ask-boost-label">{% if game_state.get('ask_enemy_boost') %}🔥 BÔNUS: ON — toda batalha pergunta o % do inimigo{% else %}🔥 BÔNUS: OFF — inimigos com stats normais{% endif %}</span>
         </div>
+            <div class="live-chips">
+                <button type="button" class="live-chip" onclick="masterSubTab('batalhas')">⚔️ Encontros: <b id="chip-enc-count">0</b></button>
+                <button type="button" class="live-chip" onclick="masterSubTab('cacadas')">📥 Rolagens: <b id="chip-roll-count">0</b></button>
+            </div>
+        </div>
+
+        <!-- Sub-abas deslizantes: um fluxo por tela -->
+        <div class="subtab-bar" id="battle-subtabs">
+            <button type="button" class="subtab active" data-sub="cacadas" onclick="masterSubTab('cacadas')">🎲 Caçadas</button>
+            <button type="button" class="subtab" data-sub="batalhas" onclick="masterSubTab('batalhas')">⚔️ Batalhas</button>
+            <button type="button" class="subtab" data-sub="presentes" onclick="masterSubTab('presentes')">🎁 Presentes</button>
+            <button type="button" class="subtab" data-sub="testes" onclick="masterSubTab('testes')">🎯 Testes</button>
+        </div>
+
+        <div class="subtab-content active" id="sub-cacadas">
+        <h3>🎲 Caçada Aleatória</h3>
+        <p style="opacity:0.75;font-size:0.85rem;margin-top:-0.4rem;">
+            O jogador rola o d20 (Teste de Caçada) e o resultado aparece abaixo.
+            Se você aprovar, gere uma caçada aleatória para ele conforme o horário e o terreno.
+        </p>
+        <div class="encounter-manual">
+            <div class="form-row" style="align-items:flex-end;">
+                <div class="form-group">
+                    <label>Para Jogador</label>
+                    <select id="random-hunt-player">
+                        {% for uid, player in players.items() %}
+                        <option value="{{ uid }}">{{ player.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Horário</label>
+                    <select id="random-hunt-period">
+                        <option value="day">☀️ Dia</option>
+                        <option value="night">🌙 Noite</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Terreno</label>
+                    <select id="random-hunt-terrain">
+                        <option value="normal">🌿 Campo aberto</option>
+                        <option value="dungeon">🏰 Dungeon</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Rota</label>
+                    <select id="random-hunt-route">
+                        {% for route_id, route in routes.items() %}
+                        <option value="{{ route_id }}">{{ route.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label title="Nat 1 no Teste de Caçada vira emboscada sozinho; marque para forçar">💀 Emboscada 1v2</label>
+                    <input type="checkbox" id="random-hunt-ambush" style="width:auto;transform:scale(1.3);margin-top:0.5rem;">
+                </div>
+                <button class="btn btn-success" onclick="sendRandomHunt()">🎯 Liberar Caçada</button>
+            </div>
+            <p id="random-hunt-result" style="font-size:0.85rem;margin:0.3rem 0;"></p>
+            <div style="margin:0.4rem 0;">
+                <button class="btn btn-sm btn-secondary" onclick="loadHuntState()">🔎 Estado das caçadas (Nat 1 armado?)</button>
+                <div id="hunt-state-box" style="margin-top:0.4rem;font-size:0.85rem;"></div>
+            </div>
+            </div>
+            <div class="encounter-manual" style="margin-top:0.6rem;">
+            <div style="margin-top:0.6rem;">
+                <strong style="font-size:0.9rem;">📨 Rolagens recebidas</strong>
+                <div id="hunt-rolls-inbox" style="margin-top:0.4rem;display:flex;flex-direction:column;gap:0.35rem;max-height:220px;overflow-y:auto;">
+                    <p class="empty-state" style="margin:0;font-size:0.85rem;">Aguardando os jogadores rolarem o Teste de Caçada...</p>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <div class="subtab-content" id="sub-batalhas">
+            <h3>⚔️ Encontros ativos</h3>
         <div id="active-encounters" class="encounters-grid">
             <p class="empty-state">Nenhum encontro ativo. Aguardando jogadores...</p>
         </div>
-        
+
         <h3>Gerar Encontro Manual</h3>
         <div class="encounter-manual">
             <div class="form-row">
@@ -108,83 +187,96 @@
             <div id="manual-pokemon-preview" class="pokemon-preview"></div>
         </div>
 
-        <h3>🎲 Caçada Aleatória</h3>
+        <h3>👥 Batalha em Dupla (caçada em grupo)</h3>
         <p style="opacity:0.75;font-size:0.85rem;margin-top:-0.4rem;">
-            O jogador rola o d20 (Teste de Caçada) e o resultado aparece abaixo.
-            Se você aprovar, gere uma caçada aleatória para ele conforme o horário e o terreno.
+            Dois jogadores caçam juntos: <strong>2v1</strong> (um selvagem forte) ou
+            <strong>2v2</strong> (dois selvagens). Turnos por iniciativa; no AUTO os selvagens agem sozinhos.
         </p>
         <div class="encounter-manual">
             <div class="form-row" style="align-items:flex-end;">
                 <div class="form-group">
-                    <label>Para Jogador</label>
-                    <select id="random-hunt-player">
+                    <label>Jogador 1</label>
+                    <select id="group-player-1">
                         {% for uid, player in players.items() %}
                         <option value="{{ uid }}">{{ player.username }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="form-group">
+                    <label>Jogador 2</label>
+                    <select id="group-player-2">
+                        {% for uid, player in players.items() %}
+                        <option value="{{ uid }}">{{ player.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Formato</label>
+                    <select id="group-mode">
+                        <option value="1">⚔️ 2v1 (1 selvagem forte)</option>
+                        <option value="2">⚔️⚔️ 2v2 (2 selvagens)</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label>Horário</label>
-                    <select id="random-hunt-period">
+                    <select id="group-period">
                         <option value="day">☀️ Dia</option>
                         <option value="night">🌙 Noite</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Terreno</label>
-                    <select id="random-hunt-terrain">
+                    <select id="group-terrain">
                         <option value="normal">🌿 Campo aberto</option>
                         <option value="dungeon">🏰 Dungeon</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Rota</label>
-                    <select id="random-hunt-route">
+                    <select id="group-route">
                         {% for route_id, route in routes.items() %}
                         <option value="{{ route_id }}">{{ route.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="form-group">
-                    <label title="Nat 1 no Teste de Caçada vira emboscada sozinho; marque para forçar">💀 Emboscada 1v2</label>
-                    <input type="checkbox" id="random-hunt-ambush" style="width:auto;transform:scale(1.3);margin-top:0.5rem;">
-                </div>
-                <button class="btn btn-success" onclick="sendRandomHunt()">🎯 Liberar Caçada</button>
+                <button class="btn btn-danger" onclick="startGroupHunt()">👥 Iniciar Batalha em Dupla</button>
             </div>
-            <p id="random-hunt-result" style="font-size:0.85rem;margin:0.3rem 0;"></p>
-            <div style="margin:0.4rem 0;">
-                <button class="btn btn-sm btn-secondary" onclick="loadHuntState()">🔎 Estado das caçadas (Nat 1 armado?)</button>
-                <div id="hunt-state-box" style="margin-top:0.4rem;font-size:0.85rem;"></div>
-            </div>
+            <p id="group-hunt-result" style="font-size:0.85rem;margin:0.3rem 0;"></p>
+            <div id="group-battle-monitor" class="hidden" style="margin-top:0.6rem;padding:0.6rem;border:1px solid var(--border,#33405a);border-radius:10px;"></div>
+        </div>
 
-            <!-- Pedir teste a um jogador (situações de mesa fora do sistema) -->
-            <div style="margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid var(--card-border,#333);">
-                <strong style="font-size:0.9rem;">🎲 Pedir teste a um jogador</strong>
-                <div class="form-row" style="align-items:flex-end;margin-top:0.4rem;gap:0.4rem;flex-wrap:wrap;">
-                    <div class="form-group">
-                        <label>Jogador</label>
-                        <select id="reqroll-player">
-                            {% for uid, player in players.items() %}
-                            <option value="{{ uid }}">{{ player.username }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Teste</label>
-                        <select id="reqroll-target"></select>
-                    </div>
-                    <div class="form-group" style="flex:1;min-width:150px;">
-                        <label>Motivo</label>
-                        <input type="text" id="reqroll-note" placeholder="ex.: convencer o guarda" maxlength="120">
-                    </div>
-                    <div class="form-group" style="max-width:5.5rem;">
-                        <label>CD (opc.)</label>
-                        <input type="number" id="reqroll-cd" placeholder="12" min="1">
-                    </div>
-                    <button class="btn btn-primary" onclick="requestRoll()">Pedir</button>
+        <div class="card">
+            <h3>🎭 Batalha de Vilão (grupo)</h3>
+            <p style="color:var(--muted);font-size:0.9rem;">
+                1–4 jogadores contra 1–3 NPCs numa batalha só. Cada vilão põe
+                <strong>um Pokémon em campo</strong> e o resto do time entra de
+                <strong>reforço automático</strong> quando o de campo cai — igual
+                à troca dos jogadores. Sem captura; fuga permitida.
+                Segure Ctrl/Cmd para selecionar vários.
+            </p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+                <div>
+                    <label>Vilões (NPCs)</label>
+                    <select id="villain-npcs" class="form-input" multiple size="4">
+                        <option value="">Carregando NPCs...</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Jogadores</label>
+                    <select id="villain-players" class="form-input" multiple size="4">
+                        {% for uid, player in players.items() %}
+                        <option value="{{ uid }}">{{ player.username }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
             </div>
+            <button class="btn btn-danger" onclick="masterStartVillainBattle()">🎭 Iniciar Batalha de Vilão</button>
+            <span id="villain-battle-msg" style="margin-left:1rem;font-size:0.9rem;"></span>
+        </div>
+        </div>
 
+        <div class="subtab-content" id="sub-presentes">
+            <div class="encounter-manual">
             <!-- 🎁 Presentes: dar Pokémon, itens ou dinheiro (quests/NPCs) -->
             <div style="margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid var(--card-border,#333);">
                 <strong style="font-size:0.9rem;">🎁 Dar a um jogador (quest, campeonato, presente de NPC)</strong>
@@ -259,71 +351,39 @@
                 </div>
                 <p id="gift-result" style="font-size:0.85rem;margin:0.3rem 0;"></p>
             </div>
-
-            <div style="margin-top:0.6rem;">
-                <strong style="font-size:0.9rem;">📨 Rolagens recebidas</strong>
-                <div id="hunt-rolls-inbox" style="margin-top:0.4rem;display:flex;flex-direction:column;gap:0.35rem;max-height:220px;overflow-y:auto;">
-                    <p class="empty-state" style="margin:0;font-size:0.85rem;">Aguardando os jogadores rolarem o Teste de Caçada...</p>
-                </div>
             </div>
         </div>
 
-        <h3>👥 Batalha em Dupla (caçada em grupo)</h3>
-        <p style="opacity:0.75;font-size:0.85rem;margin-top:-0.4rem;">
-            Dois jogadores caçam juntos: <strong>2v1</strong> (um selvagem forte) ou
-            <strong>2v2</strong> (dois selvagens). Turnos por iniciativa; no AUTO os selvagens agem sozinhos.
-        </p>
-        <div class="encounter-manual">
-            <div class="form-row" style="align-items:flex-end;">
-                <div class="form-group">
-                    <label>Jogador 1</label>
-                    <select id="group-player-1">
-                        {% for uid, player in players.items() %}
-                        <option value="{{ uid }}">{{ player.username }}</option>
-                        {% endfor %}
-                    </select>
+        <div class="subtab-content" id="sub-testes">
+            <div class="encounter-manual">
+            <!-- Pedir teste a um jogador (situações de mesa fora do sistema) -->
+            <div style="margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid var(--card-border,#333);">
+                <strong style="font-size:0.9rem;">🎲 Pedir teste a um jogador</strong>
+                <div class="form-row" style="align-items:flex-end;margin-top:0.4rem;gap:0.4rem;flex-wrap:wrap;">
+                    <div class="form-group">
+                        <label>Jogador</label>
+                        <select id="reqroll-player">
+                            {% for uid, player in players.items() %}
+                            <option value="{{ uid }}">{{ player.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Teste</label>
+                        <select id="reqroll-target"></select>
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:150px;">
+                        <label>Motivo</label>
+                        <input type="text" id="reqroll-note" placeholder="ex.: convencer o guarda" maxlength="120">
+                    </div>
+                    <div class="form-group" style="max-width:5.5rem;">
+                        <label>CD (opc.)</label>
+                        <input type="number" id="reqroll-cd" placeholder="12" min="1">
+                    </div>
+                    <button class="btn btn-primary" onclick="requestRoll()">Pedir</button>
                 </div>
-                <div class="form-group">
-                    <label>Jogador 2</label>
-                    <select id="group-player-2">
-                        {% for uid, player in players.items() %}
-                        <option value="{{ uid }}">{{ player.username }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Formato</label>
-                    <select id="group-mode">
-                        <option value="1">⚔️ 2v1 (1 selvagem forte)</option>
-                        <option value="2">⚔️⚔️ 2v2 (2 selvagens)</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Horário</label>
-                    <select id="group-period">
-                        <option value="day">☀️ Dia</option>
-                        <option value="night">🌙 Noite</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Terreno</label>
-                    <select id="group-terrain">
-                        <option value="normal">🌿 Campo aberto</option>
-                        <option value="dungeon">🏰 Dungeon</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Rota</label>
-                    <select id="group-route">
-                        {% for route_id, route in routes.items() %}
-                        <option value="{{ route_id }}">{{ route.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <button class="btn btn-danger" onclick="startGroupHunt()">👥 Iniciar Batalha em Dupla</button>
             </div>
-            <p id="group-hunt-result" style="font-size:0.85rem;margin:0.3rem 0;"></p>
-            <div id="group-battle-monitor" class="hidden" style="margin-top:0.6rem;padding:0.6rem;border:1px solid var(--border,#33405a);border-radius:10px;"></div>
+            </div>
         </div>
     </div>
 
@@ -868,34 +928,6 @@
             <span id="master-pvp-msg" style="margin-left:1rem;font-size:0.9rem;"></span>
         </div>
 
-        <div class="card">
-            <h3>🎭 Batalha de Vilão (grupo)</h3>
-            <p style="color:var(--muted);font-size:0.9rem;">
-                1–4 jogadores contra 1–3 NPCs numa batalha só. Cada vilão põe
-                <strong>um Pokémon em campo</strong> e o resto do time entra de
-                <strong>reforço automático</strong> quando o de campo cai — igual
-                à troca dos jogadores. Sem captura; fuga permitida.
-                Segure Ctrl/Cmd para selecionar vários.
-            </p>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
-                <div>
-                    <label>Vilões (NPCs)</label>
-                    <select id="villain-npcs" class="form-input" multiple size="4">
-                        <option value="">Carregando NPCs...</option>
-                    </select>
-                </div>
-                <div>
-                    <label>Jogadores</label>
-                    <select id="villain-players" class="form-input" multiple size="4">
-                        {% for uid, player in players.items() %}
-                        <option value="{{ uid }}">{{ player.username }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
-            <button class="btn btn-danger" onclick="masterStartVillainBattle()">🎭 Iniciar Batalha de Vilão</button>
-            <span id="villain-battle-msg" style="margin-left:1rem;font-size:0.9rem;"></span>
-        </div>
     </div>
 
     <div class="tab-content" id="tab-tournament">
