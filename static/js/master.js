@@ -78,6 +78,19 @@ function _paintAutoModeLabel(enabled) {
     }
 }
 
+// ⚡ DESTRAVAR: força a ação de todo inimigo com turno pendente na mesa
+// (1v1, grupo/emboscada/vilão e PvP com NPC) — o remédio para batalha travada
+async function masterForceActions(btn) {
+    if (btn) { btn.disabled = true; setTimeout(() => { btn.disabled = false; }, 1500); }
+    try {
+        const r = await fetch('/master/force-actions', { method: 'POST',
+            headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const d = await r.json();
+        showNotification(d.ok ? d.message : `❌ ${d.error || 'Falha ao destravar'}`,
+                         d.ok && d.forced > 0 ? 'success' : 'info');
+    } catch (e) { showNotification('❌ Erro de conexão.', 'error'); }
+}
+
 // ═══ Central de Batalhas: sub-abas deslizantes (opção B do redesign) ═══
 function masterSubTab(name) {
     document.querySelectorAll('#battle-subtabs .subtab').forEach(b =>

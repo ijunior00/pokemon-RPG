@@ -2011,6 +2011,15 @@ socket.on('dice_show', (d) => {
     try { if (window.FX && FX.diceRoll) FX.diceRoll(d); } catch (e) {}
 });
 
+// ⚡ Mestre destravou a batalha: se é a vez do selvagem, ele age AGORA
+// (cobre o refresh no meio do turno do selvagem, que perdia o timer)
+socket.on('force_wild_turn', () => {
+    if (battleActive && window.currentTurn === 'wild') {
+        try { addBattleLog('⚡ <em>O Mestre destravou a batalha — o selvagem age!</em>'); } catch (e) {}
+        setTimeout(() => wildPokemonAutoAttack(true), 300);
+    }
+});
+
 // ❤️ HP do treinador: dano da cena de avanço / teste de morte / revive
 function _setTrainerHpUi(hp, maxHp, prevHp) {
     const bar = document.getElementById('trainer-hp-bar');
@@ -5984,11 +5993,12 @@ updateTurnUI = async function() {
 // ============================================
 // WILD POKEMON AUTO-ATTACK (AI)
 // ============================================
-async function wildPokemonAutoAttack() {
+async function wildPokemonAutoAttack(force) {
     if (!battleActive || !window.currentBattleData || window.wildFainted) return;
     if (window.currentTurn !== 'wild') return;
-    // Modo manual (auto OFF): o MESTRE conduz o selvagem — o cliente não age
-    if (window._wildAuto === false) return;
+    // Modo manual (auto OFF): o MESTRE conduz o selvagem — o cliente não age.
+    // Exceção: force=true vem do botão ⚡ Destravar do próprio mestre.
+    if (window._wildAuto === false && !force) return;
     // Prevent re-entry: if the wild is already acting, exit
     if (window._wildIsActing) return;
     window._wildIsActing = true;

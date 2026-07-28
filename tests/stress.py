@@ -2363,6 +2363,63 @@ def main():
     check(S, 'dadão: rolagem livre chega aos OUTROS jogadores da mesa',
           bool(_dp) and _dp[0]['args'][0].get('total') == _dtot)
 
+    # ── ⚡ DESTRAVAR BATALHAS (botão central do mestre) ──
+    check(S, 'destravar: jogador bloqueado (403)',
+          p1.post('/master/force-actions').status_code == 403)
+    r = m.post('/master/force-actions')
+    check(S, 'destravar: sem batalhas pendentes força zero',
+          (r.get_json() or {}).get('forced') == 0)
+    # 1v1 na vez do selvagem → nudge chega ao cliente do jogador
+    _gs = gstate()
+    _gs.setdefault('active_encounters', {})[str(u1)] = {
+        'pokemon': {'name': 'Zubat'}, 'level': 5,
+        'battle_state': {'turn': 'wild'}}
+    db.save_game_state(_gs, TID)
+    s1.get_received()
+    r = m.post('/master/force-actions')
+    d = r.get_json() or {}
+    check(S, 'destravar: 1v1 na vez do selvagem cutuca o cliente do jogador',
+          d.get('forced') == 1 and any('1v1' in x for x in d.get('details') or [])
+          and bool(recv(s1, 'force_wild_turn')))
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+    # grupo na vez do selvagem → o servidor roda o turno na hora
+    _uu = db.get_users()
+    for _uid in (u1, u2):
+        for _p in _uu[_uid]['trainer_data']['team']:
+            _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
+                                           'hunt_mode': 'normal', 'route_id': 'route1'})
+    vfa = (r.get_json() or {}).get('battle')
+    bfa = appmod.ACTIVE_GROUP_BATTLES.get(vfa['id']) if vfa else None
+    if bfa:
+        _wc = next(c['cid'] for c in bfa['combatants'].values() if c['side'] == 'wild')
+        bfa['turn_idx'] = bfa['order'].index(_wc)   # trava na vez do selvagem
+        _r0 = bfa['round']; _log0 = len(bfa['log'])
+        r = m.post('/master/force-actions')
+        d = r.get_json() or {}
+        check(S, 'destravar: grupo na vez do selvagem age na hora',
+              d.get('forced') >= 1 and len(bfa['log']) > _log0
+              and any('grupo' in x for x in d.get('details') or []),
+              str(d.get('details')))
+        # vez de aliado → só reporta como aguardando
+        if bfa.get('phase') == 'active':
+            _ac = next(c['cid'] for c in bfa['combatants'].values()
+                       if c['side'] == 'ally' and not c['fainted'])
+            bfa['turn_idx'] = bfa['order'].index(_ac)
+            r = m.post('/master/force-actions')
+            d = r.get_json() or {}
+            check(S, 'destravar: vez de jogador não é forçada (só reporta)',
+                  d.get('forced') == 0 and any('grupo' in x for x in d.get('waiting') or []),
+                  str(d.get('waiting')))
+        else:
+            check(S, 'destravar: vez de jogador não é forçada (só reporta)', True)
+        appmod.ACTIVE_GROUP_BATTLES.pop(vfa['id'], None)
+    else:
+        for _nm in ('grupo na vez do selvagem age na hora',
+                    'vez de jogador não é forçada (só reporta)'):
+            check(S, f'destravar: {_nm}', False, 'batalha não criada')
+
     # em batalha → recusa (gate de encontro ativo)
     _gs = gstate()
     _gs.setdefault('active_encounters', {})[str(u1)] = {'pokemon': {'name': 'X'},
