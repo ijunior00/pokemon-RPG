@@ -38,6 +38,7 @@ mestre e jogadores, deploy no Render a partir do `main`.
 - [[Decisoes/batalha-de-vilao]] — grupo vs NPCs no motor de grupo: 1 em campo + banco com reforço automático, sem captura
 - [[Decisoes/hp-do-treinador]] — 20+Nv×2+Det×2; ataque só na cena de avanço; 0 HP = teste de morte (hardcore)
 - [[Decisoes/paineis-em-sub-abas]] — um fluxo por tela + faixa viva; reorganizar sem renomear ids
+- [[Decisoes/estado-duravel-e-vigia-de-turno]] — travamentos não eram escala: batalhas persistidas + watchdog server-side + resync no reconnect
 
 ## Bugs resolvidos (postmortems)
 
