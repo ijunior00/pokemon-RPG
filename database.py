@@ -471,6 +471,24 @@ def get_gyms(table_id='default'):
 def save_gyms(gyms_list, table_id='default'):
     _state_row_save(f'gyms_{table_id}', gyms_list)
 
+
+# ============================================================
+# BATALHAS AO VIVO — per table
+# ============================================================
+# PvP, batalha em grupo e torneios viviam SÓ na memória do processo: um
+# restart (deploy ou hibernação do plano free) apagava tudo e a tela do
+# jogador ficava mostrando uma batalha que o servidor não conhecia mais.
+# Uma linha por mesa (não uma por batalha): 1 UPSERT por flush.
+def get_live_battles(table_id='default'):
+    value = _state_row_get(f'live_battles_{table_id}')
+    if isinstance(value, dict):
+        return value
+    return {'group': {}, 'pvp': {}, 'tournaments': {}, 'saved_at': 0}
+
+
+def save_live_battles(payload, table_id='default'):
+    _state_row_save(f'live_battles_{table_id}', payload)
+
 # ============================================================
 # LEAGUE — per table
 # ============================================================

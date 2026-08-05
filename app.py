@@ -2540,6 +2540,7 @@ def master_force_end_pvp(battle_id):
     if winner_key:
         handle_pvp_victory(battle)
     else:
+        _live_mark_end()   # 💾 fim de batalha: grava já
         ACTIVE_PVP.pop(battle_id, None)
     return jsonify({'ok': True, 'winner': winner_key})
 
@@ -2561,6 +2562,7 @@ def master_force_end_group(battle_id):
     battle['log'].append({'type': 'end', 'winner': 'master_ended',
                           'message': '⏹ O Mestre encerrou a batalha em dupla.'})
     _group_broadcast(battle, 'group_battle_end')
+    _live_mark_end()   # 💾 fim de batalha: grava já
     ACTIVE_GROUP_BATTLES.pop(battle_id, None)
     return jsonify({'ok': True})
 
@@ -4853,6 +4855,7 @@ def _spectate_wild(player_id, encounter, last='', finished=False):
 
 
 def _group_broadcast(battle, event='group_battle_update'):
+    _live_mark(battle.get('table_id'))   # 💾 marca p/ gravar no próximo flush
     view = gb.state_view(battle)
     # o cliente precisa saber se os selvagens jogam sozinhos (AUTO) ou se é
     # o Mestre quem joga por eles — sem isso o jogador só vê "aguarde"
@@ -5439,6 +5442,7 @@ def _group_switch(battle, data):
     _group_villain_reinforce(battle)
     if battle['phase'] == 'finished':
         _group_broadcast(battle, 'group_battle_end')
+        _live_mark_end()   # 💾 fim de batalha: grava já
         ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
     else:
         _group_broadcast(battle)
@@ -5502,6 +5506,7 @@ def handle_group_battle_action(data):
             _group_villain_reinforce(battle)
         if battle['phase'] == 'finished':
             _group_broadcast(battle, 'group_battle_end')
+            _live_mark_end()   # 💾 fim de batalha: grava já
             ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
         else:
             _group_broadcast(battle)
@@ -5554,9 +5559,152 @@ def handle_group_battle_action(data):
     _group_villain_reinforce(battle)
     if battle['phase'] == 'finished':
         _group_broadcast(battle, 'group_battle_end')
+        _live_mark_end()   # 💾 fim de batalha: grava já
         ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
     else:
         _group_broadcast(battle)
+
+
+# ══════════════════════════════════════════════════════════════
+# 💾 BATALHAS AO VIVO SOBREVIVEM A REINÍCIO
+# ══════════════════════════════════════════════════════════════
+# PvP, grupo (dupla/emboscada/vilão) e torneios vivem em dicts de memória.
+# Qualquer restart — deploy ou hibernação do plano free do Render — apagava
+# tudo e a tela do jogador ficava com uma batalha que o servidor não
+# conhecia mais. Aqui elas passam a ser gravadas no Postgres (uma linha por
+# mesa, via game_state) e restauradas quando alguém conecta.
+LIVE_TTL = int(os.environ.get('LIVE_TTL', str(6 * 3600)))       # descarta > 6h
+LIVE_FLUSH_SECS = int(os.environ.get('LIVE_FLUSH_SECS', '10'))  # debounce
+_LIVE_DIRTY = set()       # mesas com mudança pendente de gravação
+_LIVE_LAST_HASH = {}      # table_id -> hash do último payload salvo
+_LIVE_RESTORED = set()    # mesas já restauradas neste processo
+
+
+def _live_mark(table_id):
+    """Marca a mesa como suja — o vigia grava no próximo flush."""
+    if table_id:
+        _LIVE_DIRTY.add(table_id)
+        _LIVE_TABLES.add(table_id)
+        # existe batalha viva ⇒ precisa existir quem grave: se o vigia ainda
+        # não subiu (nenhum socket conectou), sobe agora
+        _ensure_watchdog()
+
+
+def _live_mark_end():
+    """Fim de batalha: marca as mesas conhecidas para regravar o retrato SEM
+    ela. O flush roda logo depois (ciclo do vigia), já com o dict limpo —
+    marcar aqui e gravar depois evita persistir a batalha como se ainda
+    estivesse viva."""
+    for tid in set(list(_LIVE_TABLES) + list(_LIVE_RESTORED)):
+        _LIVE_DIRTY.add(tid)
+
+
+def _live_snapshot(table_id):
+    """Monta o retrato das batalhas ativas de uma mesa."""
+    group = {bid: b for bid, b in ACTIVE_GROUP_BATTLES.items()
+             if b.get('table_id') == table_id and b.get('phase') == 'active'}
+    pvp_b = {bid: b for bid, b in ACTIVE_PVP.items()
+             if b.get('table_id') == table_id and b.get('phase') in ('battle', 'selection')}
+    tourn = {tid_: t for tid_, t in ACTIVE_TOURNAMENTS.items()
+             if t.get('table_id') == table_id}
+    return {'group': group, 'pvp': pvp_b, 'tournaments': tourn,
+            'saved_at': _time.time()}
+
+
+def _live_flush(table_id, force=False):
+    """Grava as batalhas da mesa. Pula se nada mudou desde a última vez."""
+    try:
+        snap = _live_snapshot(table_id)
+        blob = json.dumps(snap, default=str, sort_keys=True)
+        h = hash(blob)
+        if not force and _LIVE_LAST_HASH.get(table_id) == h:
+            return False
+        _db_raw.save_live_battles(json.loads(blob), table_id)
+        _LIVE_LAST_HASH[table_id] = h
+        return True
+    except Exception as e:
+        print(f'[live] flush da mesa {table_id} falhou: {e}')
+        return False
+
+
+def _live_flush_dirty(force=False):
+    for tid in list(_LIVE_DIRTY):
+        _LIVE_DIRTY.discard(tid)
+        _live_flush(tid, force=force)
+
+
+def _restore_live_battles(table_id):
+    """Traz de volta as batalhas da mesa depois de um restart."""
+    data = _db_raw.get_live_battles(table_id)
+    if not isinstance(data, dict):
+        return
+    now = _time.time()
+    restored, dropped = 0, 0
+    for bid, b in (data.get('group') or {}).items():
+        if not isinstance(b, dict) or b.get('phase') != 'active' \
+                or bid in ACTIVE_GROUP_BATTLES:
+            dropped += 1
+            continue
+        if now - float(b.get('turn_at') or data.get('saved_at') or 0) > LIVE_TTL:
+            dropped += 1
+            continue
+        b['table_id'] = table_id
+        ACTIVE_GROUP_BATTLES[bid] = b
+        restored += 1
+    for bid, b in (data.get('pvp') or {}).items():
+        if not isinstance(b, dict) or b.get('phase') not in ('battle', 'selection') \
+                or bid in ACTIVE_PVP:
+            dropped += 1
+            continue
+        if now - float(b.get('turn_at') or data.get('saved_at') or 0) > LIVE_TTL:
+            dropped += 1
+            continue
+        ACTIVE_PVP[bid] = b
+        restored += 1
+    for tid_, t in (data.get('tournaments') or {}).items():
+        if isinstance(t, dict) and tid_ not in ACTIVE_TOURNAMENTS:
+            ACTIVE_TOURNAMENTS[tid_] = t
+            restored += 1
+    if restored or dropped:
+        print(f'[live] mesa {table_id}: {restored} batalha(s) restaurada(s), '
+              f'{dropped} descartada(s)')
+
+
+def _ensure_live_restored(table_id):
+    """Restaura uma vez por mesa, na primeira conexão (nunca no import)."""
+    if table_id in _LIVE_RESTORED:
+        return
+    _LIVE_RESTORED.add(table_id)   # marca ANTES: falha não vira laço
+    try:
+        _restore_live_battles(table_id)
+    except Exception as e:
+        print(f'[live] restauração da mesa {table_id} falhou: {e}')
+
+
+def _live_flush_all_now():
+    """Flush de TODAS as mesas conhecidas — usado no SIGTERM (o Render manda
+    antes de reiniciar/deployar) e no fim de batalha."""
+    for tid in set(list(_LIVE_DIRTY) + list(_LIVE_RESTORED) + list(_LIVE_TABLES)):
+        _LIVE_DIRTY.discard(tid)
+        _live_flush(tid, force=True)
+
+
+def _install_sigterm_flush():
+    """Grava as batalhas quando o processo é encerrado (deploy/hibernação)."""
+    try:
+        import signal
+
+        def _bye(signum, frame):
+            print('[live] SIGTERM — salvando batalhas antes de sair…')
+            try:
+                _live_flush_all_now()
+            except Exception as e:
+                print(f'[live] flush final falhou: {e}')
+            raise SystemExit(0)
+
+        signal.signal(signal.SIGTERM, _bye)
+    except Exception as e:
+        print(f'[live] SIGTERM não instalado: {e}')
 
 
 def _touch_turn(bs):
@@ -5707,6 +5855,7 @@ def _watchdog_pass():
                 _group_villain_reinforce(battle)
                 if battle['phase'] == 'finished':
                     _group_broadcast(battle, 'group_battle_end')
+                    _live_mark_end()   # 💾 fim de batalha: grava já
                     ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
                 else:
                     _group_broadcast(battle)
@@ -5736,12 +5885,20 @@ def _watchdog_pass():
 
 
 def _battle_watchdog():
+    last_flush = 0.0
     while True:
         socketio.sleep(WATCHDOG_TICK)
         try:
             _watchdog_pass()
         except Exception as e:
             print(f'[watchdog] passada falhou: {e}')
+        # 💾 grava as batalhas das mesas que mudaram (debounce)
+        try:
+            if _LIVE_DIRTY and _time.time() - last_flush >= LIVE_FLUSH_SECS:
+                last_flush = _time.time()
+                _live_flush_dirty()
+        except Exception as e:
+            print(f'[live] flush periódico falhou: {e}')
 
 
 def _ensure_watchdog():
@@ -5802,6 +5959,7 @@ def master_force_actions():
             _group_villain_reinforce(battle)
             if battle['phase'] == 'finished':
                 _group_broadcast(battle, 'group_battle_end')
+                _live_mark_end()   # 💾 fim de batalha: grava já
                 ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
             else:
                 _group_broadcast(battle)
@@ -5852,6 +6010,7 @@ def handle_group_wild_turn(data):
     _group_villain_reinforce(battle)
     if battle['phase'] == 'finished':
         _group_broadcast(battle, 'group_battle_end')
+        _live_mark_end()   # 💾 fim de batalha: grava já
         ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
     else:
         _group_broadcast(battle)
@@ -6444,6 +6603,7 @@ def _group_capture(data, ball_type):
 
     if battle['phase'] == 'finished':
         _group_broadcast(battle, 'group_battle_end')
+        _live_mark_end()   # 💾 fim de batalha: grava já
         ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
     else:
         _group_broadcast(battle)
@@ -7844,6 +8004,7 @@ def handle_connect():
             join_room(f'players_{tid}')
         print(f"[CONNECTED] {current_user.username} ({current_user.role}) table={tid}")
         _LIVE_TABLES.add(tid)   # o vigia só varre mesas com gente conectada
+        _ensure_live_restored(tid)   # 💾 traz de volta batalhas de antes do restart
         _ensure_watchdog()
         # 🔌 Empurra o estado das batalhas EM MEMÓRIA para quem (re)conectou.
         # O PvP não tem rota de reidratação (/player/battle/active só devolve
@@ -9187,6 +9348,7 @@ def handle_master_pvp_challenge(data):
         if target_team:
             pvp.select_pokemon(battle, 'player2', 0)
 
+    battle.setdefault('table_id', _tid())   # p/ persistência e vigia por mesa
     ACTIVE_PVP[battle['id']] = battle
     _emit_pvp_to_master(battle, 'created')
 
@@ -9238,6 +9400,7 @@ def handle_pvp_challenge(data):
             _mig(npc.get('team', []))
             pvp.set_team(battle, 'player2', npc.get('team', []))
             battle['player2']['is_npc'] = True
+            battle.setdefault('table_id', _tid())   # p/ persistência e vigia por mesa
             ACTIVE_PVP[battle['id']] = battle
 
             emit('pvp_battle_created', {
@@ -9298,6 +9461,7 @@ def handle_pvp_accept(data):
         _stamp_tatica(p2_team, users.get(current_user.id, {}).get('trainer_data'))
         pvp.set_team(battle, 'player2', p2_team)
         
+        battle.setdefault('table_id', _tid())   # p/ persistência e vigia por mesa
         ACTIVE_PVP[battle['id']] = battle
         
         # Notify both - send to selection phase
@@ -9747,6 +9911,7 @@ def handle_tournament_start_match(data):
     if p2.get('is_npc'):
         battle['player2']['is_npc'] = True
 
+    battle.setdefault('table_id', _tid())   # p/ persistência e vigia por mesa
     ACTIVE_PVP[battle['id']] = battle
     match['battle_id'] = battle['id']
 
@@ -9967,6 +10132,7 @@ def _pvp_field_round_hook(battle):
 
 def _broadcast_pvp_state(battle, event='update'):
     """Envia o estado atual da batalha PVP para os dois lados e para o mestre."""
+    _live_mark(battle.get('table_id'))   # 💾 marca p/ gravar no próximo flush
     if battle.get('phase') == 'battle':
         _pvp_field_round_hook(battle)   # F5: campo tica a cada rodada nova
     for key in ('player1', 'player2'):
@@ -10539,6 +10705,7 @@ def handle_pvp_victory(battle):
 
     # Cleanup
     if battle['id'] in ACTIVE_PVP:
+        _live_mark_end()   # 💾 fim de batalha: grava já
         del ACTIVE_PVP[battle['id']]
 
 # ============================================================
@@ -10679,6 +10846,7 @@ def create_tournament_route():
         'places': int(data.get('prize_places', 3))
     }
     tournament = pvp.create_tournament(name, prizes, max_participants)
+    tournament.setdefault('table_id', _tid())
     ACTIVE_TOURNAMENTS[tournament['id']] = tournament
     return jsonify(tournament)
 
@@ -11071,6 +11239,7 @@ def handle_gym_challenge(data):
     if npc.get('team'):
         pvp.select_pokemon(battle, 'player2', 0)
 
+    battle.setdefault('table_id', _tid())   # p/ persistência e vigia por mesa
     ACTIVE_PVP[battle['id']] = battle
 
     emit('pvp_battle_created', {
@@ -11104,6 +11273,7 @@ def handle_gym_challenge_accept(data):
     battle['extra'] = {'gym_id': gym_id, 'gym_badge': gym['badge_name'], 'gym_icon': gym.get('badge_icon', '🏅')}
     pvp.set_team(battle, 'player1', challenger_trainer.get('team', []))
     pvp.set_team(battle, 'player2', leader_trainer.get('team', []))
+    battle.setdefault('table_id', _tid())   # p/ persistência e vigia por mesa
     ACTIVE_PVP[battle['id']] = battle
 
     challenger_name = challenger_trainer.get('name', users[challenger_id]['username'])
@@ -11282,6 +11452,7 @@ def _start_league_battle(player_id, slot_index):
         if leader_team:
             pvp.select_pokemon(battle, 'player2', 0)
 
+    battle.setdefault('table_id', _tid())   # p/ persistência e vigia por mesa
     ACTIVE_PVP[battle['id']] = battle
 
     # Store battle_id in run
@@ -11382,6 +11553,12 @@ def _extended_handle_pvp_victory(battle):
 
 # Replace the global reference used by socket handlers
 handle_pvp_victory = _extended_handle_pvp_victory  # noqa: F811
+
+# 💾 SIGTERM = "vou reiniciar" (é o que o Render manda em todo deploy e antes
+# de hibernar). Instalado no import — não depende do banco nem de alguém ter
+# conectado — para que as batalhas ao vivo sejam gravadas antes de o processo
+# morrer, em vez de evaporarem.
+_install_sigterm_flush()
 
 # ============================================================
 # RUN

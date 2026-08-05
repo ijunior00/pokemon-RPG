@@ -9,6 +9,7 @@ NÃO usar em banco de produção.
 """
 import os
 import sys
+import json
 import random
 import time as _time_mod
 import traceback
@@ -2383,6 +2384,62 @@ def main():
           d.get('forced') == 1 and any('1v1' in x for x in d.get('details') or [])
           and bool(recv(s1, 'force_wild_turn')))
     _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+
+    # ── 💾 BATALHAS SOBREVIVEM A REINÍCIO (deploy/hibernação do Render) ──
+    _uu = db.get_users()
+    for _uid in (u1, u2):
+        for _p in _uu[_uid]['trainer_data']['team']:
+            _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
+                                           'hunt_mode': 'normal', 'route_id': 'route1'})
+    vps = (r.get_json() or {}).get('battle')
+    bps = appmod.ACTIVE_GROUP_BATTLES.get(vps['id']) if vps else None
+    if bps:
+        # o dict da batalha precisa ser serializável (é o que vai pro Postgres)
+        try:
+            _rt = json.loads(json.dumps(bps, default=str))
+            _serializa = appmod.gb.state_view(_rt).get('id') == bps['id']
+        except Exception as _e:
+            _serializa = False
+        check(S, 'persistência: batalha em grupo é serializável para o banco',
+              _serializa)
+        _hp_antes = {c['cid']: c['hp'] for c in bps['combatants'].values()}
+        _turno_antes = bps['turn_idx']
+        appmod._live_flush(TID, force=True)
+        # SIMULA O RESTART: a memória do processo é apagada
+        appmod.ACTIVE_GROUP_BATTLES.clear()
+        appmod._LIVE_RESTORED.discard(TID)
+        appmod._ensure_live_restored(TID)
+        _volta = appmod.ACTIVE_GROUP_BATTLES.get(vps['id'])
+        check(S, 'persistência: batalha em grupo volta depois do reinício',
+              bool(_volta) and _volta['turn_idx'] == _turno_antes
+              and {c['cid']: c['hp'] for c in _volta['combatants'].values()} == _hp_antes,
+              'não voltou' if not _volta else 'estado divergente')
+        # jogador enxerga a batalha restaurada (é o que destrava a tela dele)
+        r = p1.get('/player/battle/active')
+        check(S, 'persistência: jogador reidrata a batalha restaurada',
+              ((r.get_json() or {}).get('group_battle') or {}).get('id') == vps['id'])
+        # batalha VELHA (fora do TTL) não ressuscita
+        appmod.ACTIVE_GROUP_BATTLES.clear()
+        _snap = db.get_live_battles(TID)
+        for _b in (_snap.get('group') or {}).values():
+            _b['turn_at'] = _time_mod.time() - (appmod.LIVE_TTL + 60)
+        _snap['saved_at'] = _time_mod.time() - (appmod.LIVE_TTL + 60)
+        db.save_live_battles(_snap, TID)
+        appmod._LIVE_RESTORED.discard(TID)
+        appmod._ensure_live_restored(TID)
+        check(S, 'persistência: batalha velha (fora do TTL) não ressuscita',
+              vps['id'] not in appmod.ACTIVE_GROUP_BATTLES)
+        appmod.ACTIVE_GROUP_BATTLES.pop(vps['id'], None)
+        db.save_live_battles({'group': {}, 'pvp': {}, 'tournaments': {},
+                              'saved_at': _time_mod.time()}, TID)
+    else:
+        for _nm in ('batalha em grupo é serializável para o banco',
+                    'batalha em grupo volta depois do reinício',
+                    'jogador reidrata a batalha restaurada',
+                    'batalha velha (fora do TTL) não ressuscita'):
+            check(S, f'persistência: {_nm}', False, 'batalha não criada')
 
     # ── 🛡️ VIGIA DE TURNO: o servidor joga pelo selvagem quando o navegador
     #    do jogador não joga (celular bloqueado / aba fechada) ──
