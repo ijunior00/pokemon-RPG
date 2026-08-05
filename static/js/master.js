@@ -1289,7 +1289,7 @@ socket.on('group_battle_end',    (v) => renderGroupMonitor(v));
 
 // Rehidrata batalhas após reload da página — sem isso o mestre perdia os
 // cards de encontro 1v1 e o monitor da batalha em grupo (e a mesa travava).
-document.addEventListener('DOMContentLoaded', async () => {
+async function refreshActiveBattles() {
     try {
         const resp = await fetch('/master/battles/active');
         const data = await resp.json();
@@ -1305,7 +1305,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const groups = (data.group_battles || []).filter(g => g.phase === 'active');
         if (groups.length) renderGroupMonitor(groups[groups.length - 1]);
     } catch(e) {}
-});
+}
+
+document.addEventListener('DOMContentLoaded', refreshActiveBattles);
+
+// 🔌 Reconectou (celular desbloqueou, wi-fi voltou): re-busca o estado real
+// em vez de ficar com os cards congelados de antes da queda.
+window.onSocketReconnect = refreshActiveBattles;
 
 // Reaplica o battle_state persistido num card recém-remontado (reidratação)
 function _applyEncounterState(enc) {

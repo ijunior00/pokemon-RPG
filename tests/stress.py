@@ -9,7 +9,9 @@ NÃO usar em banco de produção.
 """
 import os
 import sys
+import json
 import random
+import time as _time_mod
 import traceback
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -2382,6 +2384,164 @@ def main():
           d.get('forced') == 1 and any('1v1' in x for x in d.get('details') or [])
           and bool(recv(s1, 'force_wild_turn')))
     _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+
+    # ── 💾 BATALHAS SOBREVIVEM A REINÍCIO (deploy/hibernação do Render) ──
+    _uu = db.get_users()
+    for _uid in (u1, u2):
+        for _p in _uu[_uid]['trainer_data']['team']:
+            _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
+    r = m.post('/master/group-hunt', json={'player_ids': [u1, u2], 'wild_count': 1,
+                                           'hunt_mode': 'normal', 'route_id': 'route1'})
+    vps = (r.get_json() or {}).get('battle')
+    bps = appmod.ACTIVE_GROUP_BATTLES.get(vps['id']) if vps else None
+    if bps:
+        # o dict da batalha precisa ser serializável (é o que vai pro Postgres)
+        try:
+            _rt = json.loads(json.dumps(bps, default=str))
+            _serializa = appmod.gb.state_view(_rt).get('id') == bps['id']
+        except Exception as _e:
+            _serializa = False
+        check(S, 'persistência: batalha em grupo é serializável para o banco',
+              _serializa)
+        _hp_antes = {c['cid']: c['hp'] for c in bps['combatants'].values()}
+        _turno_antes = bps['turn_idx']
+        appmod._live_flush(TID, force=True)
+        # SIMULA O RESTART: a memória do processo é apagada
+        appmod.ACTIVE_GROUP_BATTLES.clear()
+        appmod._LIVE_RESTORED.discard(TID)
+        appmod._ensure_live_restored(TID)
+        _volta = appmod.ACTIVE_GROUP_BATTLES.get(vps['id'])
+        check(S, 'persistência: batalha em grupo volta depois do reinício',
+              bool(_volta) and _volta['turn_idx'] == _turno_antes
+              and {c['cid']: c['hp'] for c in _volta['combatants'].values()} == _hp_antes,
+              'não voltou' if not _volta else 'estado divergente')
+        # jogador enxerga a batalha restaurada (é o que destrava a tela dele)
+        r = p1.get('/player/battle/active')
+        check(S, 'persistência: jogador reidrata a batalha restaurada',
+              ((r.get_json() or {}).get('group_battle') or {}).get('id') == vps['id'])
+        # batalha VELHA (fora do TTL) não ressuscita
+        appmod.ACTIVE_GROUP_BATTLES.clear()
+        _snap = db.get_live_battles(TID)
+        for _b in (_snap.get('group') or {}).values():
+            _b['turn_at'] = _time_mod.time() - (appmod.LIVE_TTL + 60)
+        _snap['saved_at'] = _time_mod.time() - (appmod.LIVE_TTL + 60)
+        db.save_live_battles(_snap, TID)
+        appmod._LIVE_RESTORED.discard(TID)
+        appmod._ensure_live_restored(TID)
+        check(S, 'persistência: batalha velha (fora do TTL) não ressuscita',
+              vps['id'] not in appmod.ACTIVE_GROUP_BATTLES)
+        appmod.ACTIVE_GROUP_BATTLES.pop(vps['id'], None)
+        db.save_live_battles({'group': {}, 'pvp': {}, 'tournaments': {},
+                              'saved_at': _time_mod.time()}, TID)
+    else:
+        for _nm in ('batalha em grupo é serializável para o banco',
+                    'batalha em grupo volta depois do reinício',
+                    'jogador reidrata a batalha restaurada',
+                    'batalha velha (fora do TTL) não ressuscita'):
+            check(S, f'persistência: {_nm}', False, 'batalha não criada')
+
+    # ── 🛡️ VIGIA DE TURNO: o servidor joga pelo selvagem quando o navegador
+    #    do jogador não joga (celular bloqueado / aba fechada) ──
+    appmod._LIVE_TABLES.add(TID)
+    _uu = db.get_users()
+    for _p in _uu[u1]['trainer_data']['team']:
+        _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
+    msio.emit('master_action', {'type': 'forced_encounter', 'player_id': u1,
+                                'pokemon': enc['pokemon'], 'level': enc['level'],
+                                'wild_moves': ['Tackle']})
+    recv(msio)
+    s1.get_received()
+    s1.emit('start_encounter', {'pokemon': dict(enc['pokemon'],
+                                                hp=enc['pokemon'].get('maxHp', 30)),
+                                'level': enc['level'], 'is_shiny': False,
+                                'route_id': 'route1', 'player_pokemon': 'Charmander',
+                                'player_pokemon_idx': 0, 'wild_moves': ['Tackle']})
+    recv(s1)
+    _wd_enc = gstate()['active_encounters'].get(str(u1))
+    if _wd_enc:
+        def _arm_wild_turn(stall=999, status=None):
+            """Deixa o encontro parado na vez do selvagem há `stall` segundos."""
+            _g = gstate()
+            _b = _g['active_encounters'][str(u1)]['battle_state']
+            _b['turn'] = 'wild'
+            _b['initiative_rolled'] = True
+            _b['player_hp_current'] = _b['player_hp_max']
+            _b['wild_hp_current'] = _b['wild_hp_max']
+            _b['wild_status'] = status
+            _b['turn_at'] = _time_mod.time() - stall
+            _b['turn_seq'] = int(_b.get('turn_seq') or 0) + 1
+            db.save_game_state(_g, TID)
+            return _b
+
+        _b0 = _arm_wild_turn()
+        _hp0 = _b0['player_hp_current']
+        s1.get_received()
+        appmod._watchdog_pass()
+        _b1 = gstate()['active_encounters'][str(u1)]['battle_state']
+        check(S, 'vigia: selvagem parado age sozinho (jogador offline)',
+              int(_b1['player_hp_current']) < int(_hp0) and _b1['turn'] == 'player',
+              f"hp {_hp0}→{_b1['player_hp_current']} turno={_b1['turn']}")
+        check(S, 'vigia: o jogador recebe o battle_update da jogada',
+              bool(recv(s1, 'battle_update')))
+        # idempotência: passada imediata não age de novo (turn_at renovado)
+        _hp1 = _b1['player_hp_current']
+        appmod._watchdog_pass()
+        check(S, 'vigia: não repete a jogada na passada seguinte',
+              int(gstate()['active_encounters'][str(u1)]['battle_state']
+                  ['player_hp_current']) == int(_hp1))
+        # turno do JOGADOR parado → nunca é forçado
+        _g = gstate(); _bp = _g['active_encounters'][str(u1)]['battle_state']
+        _bp['turn'] = 'player'; _bp['turn_at'] = _time_mod.time() - 999
+        _bp['player_hp_current'] = _bp['player_hp_max']
+        db.save_game_state(_g, TID)
+        appmod._watchdog_pass()
+        _bp2 = gstate()['active_encounters'][str(u1)]['battle_state']
+        check(S, 'vigia: turno do JOGADOR nunca é forçado',
+              _bp2['turn'] == 'player'
+              and int(_bp2['player_hp_current']) == int(_bp2['player_hp_max']))
+        # selvagem IMPEDIDO de agir (dormindo/congelado): perde o turno em vez
+        # de atacar. Determinístico: o sono real acorda por rolagem, então o
+        # que se testa aqui é o VIGIA respeitar o veredito do process_turn_start.
+        _b2 = _arm_wild_turn(status={'condition': 'dormindo', 'turns': 3})
+        _hp2 = _b2['player_hp_current']
+        _real_pts = appmod.effects.process_turn_start
+        appmod.effects.process_turn_start = lambda st, mx: (False, 0, ['zzz'], False)
+        try:
+            appmod._watchdog_pass()
+        finally:
+            appmod.effects.process_turn_start = _real_pts
+        _b3 = gstate()['active_encounters'][str(u1)]['battle_state']
+        check(S, 'vigia: selvagem sem poder agir passa o turno (não ataca)',
+              _b3['turn'] == 'player'
+              and int(_b3['player_hp_current']) == int(_hp2),
+              f"hp {_hp2}→{_b3['player_hp_current']}")
+        # MODO MANUAL: o vigia não joga — avisa o mestre (1x por turno)
+        msio.emit('set_auto_mode', {'enabled': False}); recv(msio)
+        _b4 = _arm_wild_turn()
+        _hp4 = _b4['player_hp_current']
+        msio.get_received()
+        appmod._watchdog_pass()
+        _b5 = gstate()['active_encounters'][str(u1)]['battle_state']
+        _warn = recv(msio, 'npc_awaiting_master')
+        check(S, 'vigia: no modo manual não joga sozinho, avisa o mestre',
+              int(_b5['player_hp_current']) == int(_hp4) and bool(_warn))
+        msio.get_received()
+        appmod._watchdog_pass()
+        check(S, 'vigia: aviso do modo manual não vira spam',
+              not recv(msio, 'npc_awaiting_master'))
+        msio.emit('set_auto_mode', {'enabled': True}); recv(msio)
+    else:
+        for _nm in ('selvagem parado age sozinho (jogador offline)',
+                    'o jogador recebe o battle_update da jogada',
+                    'não repete a jogada na passada seguinte',
+                    'turno do JOGADOR nunca é forçado',
+                    'selvagem sem poder agir passa o turno (não ataca)',
+                    'no modo manual não joga sozinho, avisa o mestre',
+                    'aviso do modo manual não vira spam'):
+            check(S, f'vigia: {_nm}', False, 'encontro não criado')
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
     # grupo na vez do selvagem → o servidor roda o turno na hora
     _uu = db.get_users()
     for _uid in (u1, u2):
@@ -3429,6 +3589,34 @@ def main():
     check(S, 'busca de pokémon', any(x['name'] == 'Pikachu' for x in (r.get_json() or [])))
     r = m.get('/health')
     check(S, 'healthcheck', (r.get_json() or {}).get('status') == 'ok')
+    # /ping é o keepalive BARATO: responde sem abrir conexão no Postgres
+    # (o /health abre — pingar nele de minuto em minuto queimava cota do Neon)
+    _c0 = db._conn_count
+    r = anon.get('/ping')
+    check(S, 'ping responde sem login', r.status_code == 200 and b'pong' in r.data)
+    check(S, 'ping NÃO abre conexão no banco', db._conn_count == _c0,
+          f'{db._conn_count - _c0} conexões')
+    # retry de conexão: Neon acordando falha 2x e conecta na 3ª
+    import psycopg2 as _pg2
+    _real_connect = _pg2.connect
+    _tries = {'n': 0}
+
+    def _flaky_connect(*a, **kw):
+        _tries['n'] += 1
+        if _tries['n'] <= 2:
+            raise _pg2.OperationalError('could not connect to server (simulado)')
+        return _real_connect(*a, **kw)
+
+    _pg2.connect = _flaky_connect
+    try:
+        _conn = db.get_conn()
+        _conn.close()
+        check(S, 'banco: reconecta sozinho quando o Neon está acordando',
+              _tries['n'] == 3)
+    except Exception as _e:
+        check(S, 'banco: reconecta sozinho quando o Neon está acordando', False, str(_e))
+    finally:
+        _pg2.connect = _real_connect
 
     section('17. Sistema v3 — cooldown/momentum/clima/casos especiais')
     S = 'Sistema v3'

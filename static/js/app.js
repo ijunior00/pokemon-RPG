@@ -5,8 +5,24 @@
 // Socket.IO connection
 const socket = io();
 
+// 🔌 RE-SINCRONIZAÇÃO: celular que bloqueia a tela derruba o socket, e todo
+// evento que passa nesse intervalo se perdia para sempre (a tela ficava com
+// HP/turno velhos, parecendo travada). Ao RECONECTAR, a página re-busca o
+// estado do servidor. Cada tela define window.onSocketReconnect.
+let _socketWasConnected = false;
+let _lastResyncAt = 0;
+
 socket.on('connect', () => {
-    console.log('Conectado ao servidor!');
+    const isReconnect = _socketWasConnected;
+    _socketWasConnected = true;
+    if (!isReconnect) { console.log('Conectado ao servidor!'); return; }
+    console.log('Reconectado — re-sincronizando estado…');
+    const now = Date.now();
+    if (now - _lastResyncAt < 2000) return;   // evita rajada de reconexões
+    _lastResyncAt = now;
+    try {
+        if (typeof window.onSocketReconnect === 'function') window.onSocketReconnect();
+    } catch (e) { console.error('resync falhou:', e); }
 });
 
 socket.on('disconnect', () => {

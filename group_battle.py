@@ -97,6 +97,7 @@ def build_battle(allies, wilds, hunt_mode='normal', route_id=None, table_id=None
     }
     # Garante que o turno começe num combatente vivo
     _skip_to_alive(battle)
+    _touch(battle)   # carimbo inicial para o vigia de turno
     battle['log'].append({'type': 'start',
                           'message': f'⚔️ Batalha em dupla iniciada! Ordem: '
                                      + ', '.join(combatants[c]['name'] for c in order)})
@@ -129,10 +130,19 @@ def _skip_to_alive(battle):
         battle['turn_idx'] += 1
 
 
+def _touch(battle):
+    """Carimba quando o turno virou — o VIGIA do app usa para saber há
+    quanto tempo a batalha está parada (e o turn_seq como token anti-corrida)."""
+    import time as _t
+    battle['turn_at'] = _t.time()
+    battle['turn_seq'] = int(battle.get('turn_seq') or 0) + 1
+
+
 def advance_turn(battle):
     """Passa para o próximo combatente vivo; incrementa round ao dar a volta."""
     if battle['phase'] != 'active':
         return
+    _touch(battle)
     n = len(battle['order'])
     start_pos = battle['turn_idx'] % n
     for step in range(1, n + 1):

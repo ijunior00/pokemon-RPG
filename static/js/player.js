@@ -1170,9 +1170,15 @@ async function resumeActiveBattle() {
     } catch (e) { return; }
     if (!d) return;
 
-    // Batalha em dupla: a view do servidor já é o formato do overlay
+    // Batalha em dupla: a view do servidor já é o formato do overlay.
+    // _groupBattleView zerado ANTES do render: o _gbApplyFx anima o diff
+    // entre o estado velho e o novo — num resync (refresh/reconexão) isso
+    // dispararia tremor/dano de tudo que aconteceu enquanto estivemos fora.
     if (d.group_battle) {
-        try { renderGroupBattle(d.group_battle); } catch (e) { console.error('resume grupo falhou:', e); }
+        try {
+            _groupBattleView = null;
+            renderGroupBattle(d.group_battle);
+        } catch (e) { console.error('resume grupo falhou:', e); }
     }
 
     // 🎯 teste de captura fora de batalha pendente sobrevive ao refresh
@@ -4752,6 +4758,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Depois do time fresco: retoma batalha ativa perdida num refresh
     try { await resumeActiveBattle(); } catch(e) { console.error('resumeActiveBattle:', e); }
 });
+
+// 🔌 Reconectou (tela desbloqueou, wi-fi voltou): re-busca a batalha em vez
+// de continuar com HP/turno velhos (era o travamento mais comum da mesa).
+window.onSocketReconnect = () => { resumeActiveBattle(); };
 
 
 // ============================================
