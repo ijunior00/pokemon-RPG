@@ -5559,6 +5559,203 @@ def handle_group_battle_action(data):
         _group_broadcast(battle)
 
 
+def _touch_turn(bs):
+    """Carimba QUANDO o turno virou e um contador de sequência.
+
+    `turn_at` é o que permite ao vigia saber há quantos segundos a batalha
+    está parada; `turn_seq` é o token de concorrência otimista — o vigia
+    fotografa o valor antes de agir e desiste se alguém mexeu no meio."""
+    if isinstance(bs, dict):
+        bs['turn_at'] = _time.time()
+        bs['turn_seq'] = int(bs.get('turn_seq') or 0) + 1
+
+
+def _wild_turn_server(player_id, table_id):
+    """🤖 Turno do SELVAGEM jogado PELO SERVIDOR (vigia / ⚡ Destravar).
+
+    Existe porque o turno do selvagem no 1v1 é conduzido pelo navegador do
+    jogador (setTimeout): se ele bloqueia o celular ou fecha a aba, o
+    selvagem nunca age e a batalha congela para sempre.
+
+    Não reintroduz a race de outrora (servidor com encounter velho
+    sobrescrevendo HP): reusa o MESMO caminho canônico do mestre
+    (_run_battle_action → _calc_wild_attack), que relê o estado fresco,
+    respeita _BATTLE_BUSY e revalida o turno antes de aplicar.
+    Devolve True se agiu."""
+    pid = str(player_id)
+    if pid in _BATTLE_BUSY:
+        return False
+    gs = _db_raw.get_game_state(table_id)
+    enc = (gs.get('active_encounters') or {}).get(pid)
+    bs = (enc or {}).get('battle_state') or {}
+    if not enc or bs.get('turn') != 'wild' or not bs.get('initiative_rolled'):
+        return False
+    if int(bs.get('wild_hp_current') or 0) <= 0:
+        return False
+
+    # Tick de status DO SELVAGEM antes de agir: sem isto um selvagem
+    # dormindo/congelado atacaria (o motor de dano não checa status do
+    # atacante — quem faz isso é o process_turn_start, que hoje o cliente
+    # chama via /api/status).
+    can_act, st_dmg, _msgs, _removed = effects.process_turn_start(
+        bs.get('wild_status'), bs.get('wild_hp_max') or 1)
+
+    payload = {
+        'player_id': pid, 'action_by': 'master',
+        'wild_status_damage': max(0, int(st_dmg or 0)),
+        'player_status_damage': 0, 'message': '',
+        '_expect_seq': bs.get('turn_seq'),
+    }
+    if can_act:
+        wp = dict(enc.get('pokemon') or {})
+        wp['currentHp'] = bs.get('wild_hp_current')
+        wp['maxHp'] = bs.get('wild_hp_max')
+        wp['moves'] = enc.get('wild_moves') or wp.get('moves') or ['Tackle']
+        pp = dict(enc.get('player_pokemon') or {})
+        pp['currentHp'] = bs.get('player_hp_current')
+        try:
+            move, mdata, _is_status = _npc_pick_move(
+                wp, pp, defender_has_status=bool(bs.get('player_status')))
+        except Exception:
+            move, mdata = 'Tackle', None
+        payload.update({'action_type': 'attack', 'move_name': move,
+                        'move_type': (mdata or {}).get('type', '')})
+    else:
+        # dormindo/congelado/paralisado travado: perde o turno
+        payload.update({'action_type': 'pass', 'move_name': 'Passar',
+                        'damage': 0,
+                        'message': 'O selvagem não conseguiu agir!'})
+
+    _run_battle_action(pid, payload, actor_role='master', actor_id=pid,
+                       table_id=table_id, emitter=_bg_emitter(pid))
+    return True
+
+
+# ── 🛡️ VIGIA DE TURNO ──
+# Varre as batalhas e joga pelos INIMIGOS quando o turno deles está parado
+# (o jogador saiu, o celular bloqueou, o socket caiu). Turno de jogador
+# humano nunca é forçado — só reportado ao mestre.
+WATCHDOG_TICK = int(os.environ.get('WATCHDOG_TICK', '5'))     # varredura (s)
+WATCHDOG_STALL = int(os.environ.get('WATCHDOG_STALL', '25'))  # turno parado (s)
+_LIVE_TABLES = set()    # mesas com alguém conectado (evita varrer o banco à toa)
+_WD_WARNED = {}         # (tipo, id) -> turn_seq já avisado (anti-spam no manual)
+_wd_started = False
+
+
+def _wd_warn_once(key, seq, room, payload):
+    """Avisa o mestre UMA vez por turno parado (no modo manual)."""
+    if _WD_WARNED.get(key) == seq:
+        return False
+    _WD_WARNED[key] = seq
+    socketio.emit('npc_awaiting_master', payload, room=room)
+    return True
+
+
+def _watchdog_pass():
+    """Uma varredura do vigia. Chamada pelo loop (e direto pelos testes)."""
+    now = _time.time()
+    # o modo AUTO é POR MESA: ler com o table_id explícito (fora de request
+    # o get_game_state() cairia na mesa 'default' e ignoraria o modo manual)
+    _auto_by_table = {}
+
+    def _auto_for(tid):
+        if tid not in _auto_by_table:
+            try:
+                _auto_by_table[tid] = _wild_auto_mode(_db_raw.get_game_state(tid))
+            except Exception:
+                _auto_by_table[tid] = True
+        return _auto_by_table[tid]
+
+    # ── 1v1: turno do selvagem parado ──
+    for tid in list(_LIVE_TABLES):
+        try:
+            gs = _db_raw.get_game_state(tid)   # servido do cache de processo
+        except Exception:
+            continue
+        auto = _auto_for(tid)
+        for pid, enc in list((gs.get('active_encounters') or {}).items()):
+            bs = (enc or {}).get('battle_state') or {}
+            if bs.get('turn') != 'wild' or not bs.get('initiative_rolled'):
+                continue
+            if now - float(bs.get('turn_at') or 0) < WATCHDOG_STALL:
+                continue
+            if auto:
+                try:
+                    _wild_turn_server(pid, tid)
+                except Exception as e:
+                    print(f'[watchdog] 1v1 {pid}: {e}')
+            else:
+                _wd_warn_once(('wild', str(pid)), bs.get('turn_seq'),
+                              f'master_{tid}',
+                              {'message': '🎭 Modo manual: o selvagem está '
+                                          'esperando você jogar o turno dele.',
+                               'player_id': str(pid)})
+
+    # ── grupo (dupla/emboscada/vilão): turno de selvagem parado ──
+    for battle in list(ACTIVE_GROUP_BATTLES.values()):
+        if battle.get('phase') != 'active':
+            continue
+        if now - float(battle.get('turn_at') or 0) < WATCHDOG_STALL:
+            continue
+        cur = gb.current_combatant(battle)
+        if not cur or cur.get('side') != 'wild':
+            continue
+        if _auto_for(battle.get('table_id')):
+            try:
+                _group_run_wild_turns(battle)
+                _group_field_round_hook(battle)
+                _group_villain_reinforce(battle)
+                if battle['phase'] == 'finished':
+                    _group_broadcast(battle, 'group_battle_end')
+                    ACTIVE_GROUP_BATTLES.pop(battle['id'], None)
+                else:
+                    _group_broadcast(battle)
+            except Exception as e:
+                print(f'[watchdog] grupo {battle.get("id")}: {e}')
+        else:
+            _wd_warn_once(('group', battle.get('id')), battle.get('turn_seq'),
+                          f"master_{battle.get('table_id')}",
+                          {'message': f"🎭 Modo manual: {cur['name']} está "
+                                      'esperando você jogar o turno dele.',
+                           'battle_id': battle.get('id')})
+
+    # ── PvP: turno de NPC parado (handle_npc_turn já trata o modo manual) ──
+    for battle in list(ACTIVE_PVP.values()):
+        if battle.get('phase') != 'battle':
+            continue
+        if now - float(battle.get('turn_at') or 0) < WATCHDOG_STALL:
+            continue
+        turn = battle.get('turn')
+        actor = battle.get(turn) or {}
+        if not actor.get('is_npc'):
+            continue
+        try:
+            handle_npc_turn(battle, turn)
+        except Exception as e:
+            print(f'[watchdog] pvp {battle.get("id")}: {e}')
+
+
+def _battle_watchdog():
+    while True:
+        socketio.sleep(WATCHDOG_TICK)
+        try:
+            _watchdog_pass()
+        except Exception as e:
+            print(f'[watchdog] passada falhou: {e}')
+
+
+def _ensure_watchdog():
+    """Sobe o vigia na PRIMEIRA conexão (nunca no import: banco frio no boot
+    não pode derrubar o processo, e os testes não devem ganhar um greenlet)."""
+    global _wd_started
+    if _wd_started or os.environ.get('WATCHDOG', 'on').lower() in ('off', '0', 'false'):
+        return
+    _wd_started = True
+    socketio.start_background_task(_battle_watchdog)
+    print(f'[watchdog] vigia de turno ativo (tick {WATCHDOG_TICK}s, '
+          f'estagnação {WATCHDOG_STALL}s)')
+
+
 @app.route('/master/force-actions', methods=['POST'])
 @login_required
 def master_force_actions():
@@ -5578,14 +5775,19 @@ def master_force_actions():
     details = []
     waiting = []
 
-    # 1v1: vez do selvagem → nudge no cliente (auto OU manual, é o mestre mandando)
+    # 1v1: vez do selvagem → o SERVIDOR joga (antes só cutucava o cliente do
+    # jogador, que é justamente quem falhou quando a batalha travou — e ainda
+    # reportava sucesso). Cada chamada relê o estado: não reusar o `gs` do laço.
     gs = get_game_state()
     for pid, enc in list((gs.get('active_encounters') or {}).items()):
         bs = (enc or {}).get('battle_state') or {}
         uname = users.get(str(pid), {}).get('username', str(pid))
         if bs.get('turn') == 'wild':
-            socketio.emit('force_wild_turn', {}, room=str(pid))
-            details.append(f"selvagem vs {uname} (1v1)")
+            if _wild_turn_server(pid, tid):
+                details.append(f"selvagem vs {uname} (1v1)")
+            else:
+                socketio.emit('force_wild_turn', {}, room=str(pid))
+                details.append(f"cutucada no cliente de {uname} (1v1)")
         elif enc:
             waiting.append(f'{uname} (1v1)')
 
@@ -7641,6 +7843,8 @@ def handle_connect():
         else:
             join_room(f'players_{tid}')
         print(f"[CONNECTED] {current_user.username} ({current_user.role}) table={tid}")
+        _LIVE_TABLES.add(tid)   # o vigia só varre mesas com gente conectada
+        _ensure_watchdog()
         # 🔌 Empurra o estado das batalhas EM MEMÓRIA para quem (re)conectou.
         # O PvP não tem rota de reidratação (/player/battle/active só devolve
         # encontro 1v1 e grupo) — sem isto, quem perdia o socket num PvP
@@ -7831,6 +8035,7 @@ def handle_initiative(data):
     
     encounter['battle_state']['initiative_rolled'] = True
     encounter['battle_state']['turn'] = first_turn
+    _touch_turn(encounter['battle_state'])
     encounter['battle_state']['round'] = 1
     encounter['battle_state']['wild_initiative'] = wild_init
     encounter['battle_state']['player_initiative'] = player_init
@@ -7964,7 +8169,6 @@ def handle_battle_action(data):
     """Handle a battle action (attack, status move, etc.)."""
     if not current_user.is_authenticated:
         return
-    action_by = data.get('action_by')  # 'player' or 'master' (for wild pokemon)
     # Security: non-masters can only act for themselves. No modo AUTO o
     # navegador do JOGADOR conduz o turno do selvagem (action_by='master')
     # — permitido, mas o dano é RECALCULADO no servidor abaixo, então o
@@ -7975,6 +8179,31 @@ def handle_battle_action(data):
         player_id = str(data.get('player_id', current_user.id))
         if not _player_in_master_table(player_id, get_users(), _tid()):
             return
+    _run_battle_action(player_id, data, actor_role=current_user.role,
+                       actor_id=str(current_user.id), table_id=_tid(),
+                       emitter=emit)
+
+
+def _bg_emitter(player_id):
+    """Emissor para uso FORA de contexto de socket (vigia de turno): o
+    `emit` do handler responde ao sid do caller; aqui não há caller, então
+    o default vai para a sala do jogador."""
+    def _emit(event, payload=None, **kw):
+        socketio.emit(event, payload, room=kw.get('room', str(player_id)))
+    return _emit
+
+
+def _run_battle_action(player_id, data, *, actor_role, actor_id, table_id, emitter):
+    """NÚCLEO da ação de batalha 1v1 — sem dependência de contexto de socket.
+
+    Extraído de handle_battle_action para que o VIGIA DE TURNO
+    (_battle_watchdog) possa jogar pelo selvagem quando o navegador do
+    jogador não faz isso (celular bloqueado, aba fechada). Toda a
+    autoridade do servidor (recálculo de dano, guardas, motor v3)
+    continua exatamente onde estava."""
+    action_by = data.get('action_by')  # 'player' or 'master' (for wild pokemon)
+    emit = emitter                     # o corpo abaixo chama emit(...) direto
+    current_user_role = actor_role
     # Guard de re-entrância (duplo-clique / duas abas): sob gevent o check+add é
     # atômico (sem yield), então a 2ª ação concorrente do MESMO encontro é
     # descartada — fecha o lost-update (dois battle_action lendo o mesmo turno
@@ -7994,7 +8223,7 @@ def handle_battle_action(data):
         wild_status_damage = data.get('wild_status_damage', 0)
         player_status_damage = data.get('player_status_damage', 0)
         
-        game_state = get_game_state()
+        game_state = _db_raw.get_game_state(table_id)
         encounter = game_state['active_encounters'].get(player_id)
         if not encounter:
             return
@@ -8006,7 +8235,7 @@ def handle_battle_action(data):
         ppk = encounter.get('player_pokemon') or {}
         if ppk and ppk.get('sv') != migrations.STATS_VERSION:
             del game_state['active_encounters'][player_id]
-            save_game_state(game_state)
+            _db_raw.save_game_state(game_state, table_id)
             emit('battle_ended_by_update', {
                 'message': '⚙️ Batalha reiniciada pela atualização do sistema de stats. Inicie um novo encontro.'
             }, room=player_id)
@@ -8018,6 +8247,12 @@ def handle_battle_action(data):
             expected = 'player' if action_by == 'player' else 'wild'
             if battle_state.get('turn') and battle_state['turn'] != expected:
                 return
+        # Token do VIGIA: ele fotografa o turn_seq antes de agir; se alguém
+        # mexeu no turno nesse meio-tempo (o próprio cliente acordou e jogou),
+        # a jogada do vigia é descartada em vez de duplicar o turno.
+        _exp_seq = data.get('_expect_seq')
+        if _exp_seq is not None and battle_state.get('turn_seq') != _exp_seq:
+            return
 
         # Pokémon desmaiado NÃO age (HP ≤ 0): fecha o "último golpe" depois
         # de ser zerado (o cliente às vezes ainda mostrava o turno antigo).
@@ -8033,7 +8268,7 @@ def handle_battle_action(data):
         # O cliente do jogador dispara o auto-attack por conta própria — aqui
         # o servidor descarta essa ação para o mestre poder conduzir.
         if (action_type != 'apply_status' and action_by == 'master'
-                and current_user.role != 'master'
+                and current_user_role != 'master'
                 and not _wild_auto_mode(game_state)):
             emit('action_blocked', {
                 'manual_wild': True,
@@ -8053,7 +8288,7 @@ def handle_battle_action(data):
             _iname = str(data.get('item_name') or '')
             _xk = _xmap.get(_iname.lower())
             _users_x = get_users()
-            _bag_x = _users_x.get(current_user.id, {}).get('trainer_data', {}).get('bag', [])
+            _bag_x = _users_x.get(actor_id, {}).get('trainer_data', {}).get('bag', [])
             _slot = next((it for it in _bag_x
                           if str(it.get('name', '')).lower() == _iname.lower()
                           and int(it.get('qty', 0)) > 0), None)
@@ -8061,7 +8296,7 @@ def handle_battle_action(data):
                 emit('action_blocked', {'message': f'{_iname} indisponível.'})
                 return
             _slot['qty'] = int(_slot['qty']) - 1
-            _users_x[current_user.id]['trainer_data']['bag'] = [
+            _users_x[actor_id]['trainer_data']['bag'] = [
                 it for it in _bag_x if int(it.get('qty', 0)) > 0]
             save_users(_users_x)
             ppoke_x = encounter.get('player_pokemon') or {}
@@ -8209,7 +8444,7 @@ def handle_battle_action(data):
         # escolhe o golpe). Cliente nenhum é autoridade sobre o dano.
         if action_type == 'attack' and action_by == 'master' and move_name:
             wild_calc = _calc_wild_attack(encounter, move_name, None)   # v3: servidor rola o d100
-            if wild_calc.get('is_status') and current_user.role == 'master':
+            if wild_calc.get('is_status') and current_user_role == 'master':
                 # Mestre escolheu um golpe de STATUS do selvagem: processa no
                 # motor (espelho do backstop do ataque do jogador acima).
                 damage = 0
@@ -8340,7 +8575,7 @@ def handle_battle_action(data):
         # do payload — senão o cliente forjava HP infinito na troca.
         if action_type == 'switch' and action_by == 'player':
             _sw_users = get_users()
-            _sw_team = _sw_users.get(current_user.id, {}).get('trainer_data', {}).get('team', [])
+            _sw_team = _sw_users.get(actor_id, {}).get('trainer_data', {}).get('team', [])
             # Persiste o HP de batalha do Pokémon que SAI no time armazenado.
             # Durante a batalha selvagem o dano vive só no battle_state (o
             # currentHp do time nunca é decrementado aqui), então sem isto a
@@ -8366,7 +8601,7 @@ def handle_battle_action(data):
             _sw_poke = _sw_team[_sw_idx] if 0 <= _sw_idx < len(_sw_team) else None
             # ☠️ obediência: acima do teto não entra em campo (a troca não
             # acontece nem consome o turno — nada foi persistido ainda)
-            _sw_trainer = _sw_users.get(current_user.id, {}).get('trainer_data', {}) or {}
+            _sw_trainer = _sw_users.get(actor_id, {}).get('trainer_data', {}) or {}
             if isinstance(_sw_poke, dict) and not _poke_obeys(_sw_trainer, _sw_poke):
                 emit('action_blocked', {'message': _disobey_msg(_sw_trainer, _sw_poke)},
                      room=player_id)
@@ -8382,7 +8617,7 @@ def handle_battle_action(data):
                     encounter['player_pokemon'] = _sw_poke
                     encounter['player_pokemon_idx'] = _sw_idx
             # grava o HP do Pokémon que saiu (e a troca de ativo) no save real
-            _sw_users[current_user.id]['trainer_data']['team'] = _sw_team
+            _sw_users[actor_id]['trainer_data']['team'] = _sw_team
             save_users(_sw_users)
             # trocar de pokémon zera os buffs/debuffs acumulados do lado do jogador
             ppoke_sw = encounter.get('player_pokemon')
@@ -8509,6 +8744,7 @@ def handle_battle_action(data):
         
         # Switch turn
         battle_state['turn'] = 'wild' if battle_state['turn'] == 'player' else 'player'
+        _touch_turn(battle_state)   # carimbo p/ o vigia saber há quanto tempo parou
         field_events = []
         if battle_state['turn'] == 'player':
             battle_state['round'] += 1
@@ -8555,7 +8791,7 @@ def handle_battle_action(data):
 
         encounter['battle_state'] = battle_state
         game_state['active_encounters'][player_id] = encounter
-        save_game_state(game_state)
+        _db_raw.save_game_state(game_state, table_id)
         
         # Build action result
         action_result = {
@@ -8578,7 +8814,7 @@ def handle_battle_action(data):
         }
         
         # Notify both sides
-        emit('battle_update', action_result, room=f'master_{_tid()}')
+        emit('battle_update', action_result, room=f'master_{table_id}')
         emit('battle_update', action_result, room=player_id)
         _spectate_wild(player_id, encounter,
                        last=(f'{move_name}: {message}' if move_name else message) or '…')
@@ -8586,7 +8822,7 @@ def handle_battle_action(data):
         # 💀 Pokémon do jogador caiu: se o time inteiro está no chão, o
         # selvagem AVANÇA NO TREINADOR (alerta para a mesa; o mestre conduz)
         if int(battle_state.get('player_hp_current') or 0) <= 0:
-            _wild_trainer_threat(player_id, encounter, game_state, _tid())
+            _wild_trainer_threat(player_id, encounter, game_state, table_id)
         
         # Wild auto-attack is handled client-side (player.js wildPokemonAutoAttack) to support
         # status damage, move variety, and status moves. Server-side auto-attack removed to
@@ -8618,6 +8854,7 @@ def _auto_roll_initiative(player_id, game_state):
 
     encounter['battle_state']['initiative_rolled'] = True
     encounter['battle_state']['turn'] = first_turn
+    _touch_turn(encounter['battle_state'])
     encounter['battle_state']['round'] = 1
     encounter['battle_state']['wild_initiative'] = wild_init
     encounter['battle_state']['player_initiative'] = player_init

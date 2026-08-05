@@ -10,6 +10,7 @@ NÃO usar em banco de produção.
 import os
 import sys
 import random
+import time as _time_mod
 import traceback
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -2381,6 +2382,108 @@ def main():
     check(S, 'destravar: 1v1 na vez do selvagem cutuca o cliente do jogador',
           d.get('forced') == 1 and any('1v1' in x for x in d.get('details') or [])
           and bool(recv(s1, 'force_wild_turn')))
+    _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
+
+    # ── 🛡️ VIGIA DE TURNO: o servidor joga pelo selvagem quando o navegador
+    #    do jogador não joga (celular bloqueado / aba fechada) ──
+    appmod._LIVE_TABLES.add(TID)
+    _uu = db.get_users()
+    for _p in _uu[u1]['trainer_data']['team']:
+        _p['currentHp'] = _p.get('maxHp', 20)
+    db.save_users(_uu)
+    msio.emit('master_action', {'type': 'forced_encounter', 'player_id': u1,
+                                'pokemon': enc['pokemon'], 'level': enc['level'],
+                                'wild_moves': ['Tackle']})
+    recv(msio)
+    s1.get_received()
+    s1.emit('start_encounter', {'pokemon': dict(enc['pokemon'],
+                                                hp=enc['pokemon'].get('maxHp', 30)),
+                                'level': enc['level'], 'is_shiny': False,
+                                'route_id': 'route1', 'player_pokemon': 'Charmander',
+                                'player_pokemon_idx': 0, 'wild_moves': ['Tackle']})
+    recv(s1)
+    _wd_enc = gstate()['active_encounters'].get(str(u1))
+    if _wd_enc:
+        def _arm_wild_turn(stall=999, status=None):
+            """Deixa o encontro parado na vez do selvagem há `stall` segundos."""
+            _g = gstate()
+            _b = _g['active_encounters'][str(u1)]['battle_state']
+            _b['turn'] = 'wild'
+            _b['initiative_rolled'] = True
+            _b['player_hp_current'] = _b['player_hp_max']
+            _b['wild_hp_current'] = _b['wild_hp_max']
+            _b['wild_status'] = status
+            _b['turn_at'] = _time_mod.time() - stall
+            _b['turn_seq'] = int(_b.get('turn_seq') or 0) + 1
+            db.save_game_state(_g, TID)
+            return _b
+
+        _b0 = _arm_wild_turn()
+        _hp0 = _b0['player_hp_current']
+        s1.get_received()
+        appmod._watchdog_pass()
+        _b1 = gstate()['active_encounters'][str(u1)]['battle_state']
+        check(S, 'vigia: selvagem parado age sozinho (jogador offline)',
+              int(_b1['player_hp_current']) < int(_hp0) and _b1['turn'] == 'player',
+              f"hp {_hp0}→{_b1['player_hp_current']} turno={_b1['turn']}")
+        check(S, 'vigia: o jogador recebe o battle_update da jogada',
+              bool(recv(s1, 'battle_update')))
+        # idempotência: passada imediata não age de novo (turn_at renovado)
+        _hp1 = _b1['player_hp_current']
+        appmod._watchdog_pass()
+        check(S, 'vigia: não repete a jogada na passada seguinte',
+              int(gstate()['active_encounters'][str(u1)]['battle_state']
+                  ['player_hp_current']) == int(_hp1))
+        # turno do JOGADOR parado → nunca é forçado
+        _g = gstate(); _bp = _g['active_encounters'][str(u1)]['battle_state']
+        _bp['turn'] = 'player'; _bp['turn_at'] = _time_mod.time() - 999
+        _bp['player_hp_current'] = _bp['player_hp_max']
+        db.save_game_state(_g, TID)
+        appmod._watchdog_pass()
+        _bp2 = gstate()['active_encounters'][str(u1)]['battle_state']
+        check(S, 'vigia: turno do JOGADOR nunca é forçado',
+              _bp2['turn'] == 'player'
+              and int(_bp2['player_hp_current']) == int(_bp2['player_hp_max']))
+        # selvagem IMPEDIDO de agir (dormindo/congelado): perde o turno em vez
+        # de atacar. Determinístico: o sono real acorda por rolagem, então o
+        # que se testa aqui é o VIGIA respeitar o veredito do process_turn_start.
+        _b2 = _arm_wild_turn(status={'condition': 'dormindo', 'turns': 3})
+        _hp2 = _b2['player_hp_current']
+        _real_pts = appmod.effects.process_turn_start
+        appmod.effects.process_turn_start = lambda st, mx: (False, 0, ['zzz'], False)
+        try:
+            appmod._watchdog_pass()
+        finally:
+            appmod.effects.process_turn_start = _real_pts
+        _b3 = gstate()['active_encounters'][str(u1)]['battle_state']
+        check(S, 'vigia: selvagem sem poder agir passa o turno (não ataca)',
+              _b3['turn'] == 'player'
+              and int(_b3['player_hp_current']) == int(_hp2),
+              f"hp {_hp2}→{_b3['player_hp_current']}")
+        # MODO MANUAL: o vigia não joga — avisa o mestre (1x por turno)
+        msio.emit('set_auto_mode', {'enabled': False}); recv(msio)
+        _b4 = _arm_wild_turn()
+        _hp4 = _b4['player_hp_current']
+        msio.get_received()
+        appmod._watchdog_pass()
+        _b5 = gstate()['active_encounters'][str(u1)]['battle_state']
+        _warn = recv(msio, 'npc_awaiting_master')
+        check(S, 'vigia: no modo manual não joga sozinho, avisa o mestre',
+              int(_b5['player_hp_current']) == int(_hp4) and bool(_warn))
+        msio.get_received()
+        appmod._watchdog_pass()
+        check(S, 'vigia: aviso do modo manual não vira spam',
+              not recv(msio, 'npc_awaiting_master'))
+        msio.emit('set_auto_mode', {'enabled': True}); recv(msio)
+    else:
+        for _nm in ('selvagem parado age sozinho (jogador offline)',
+                    'o jogador recebe o battle_update da jogada',
+                    'não repete a jogada na passada seguinte',
+                    'turno do JOGADOR nunca é forçado',
+                    'selvagem sem poder agir passa o turno (não ataca)',
+                    'no modo manual não joga sozinho, avisa o mestre',
+                    'aviso do modo manual não vira spam'):
+            check(S, f'vigia: {_nm}', False, 'encontro não criado')
     _gs = gstate(); _gs['active_encounters'].pop(str(u1), None); db.save_game_state(_gs, TID)
     # grupo na vez do selvagem → o servidor roda o turno na hora
     _uu = db.get_users()

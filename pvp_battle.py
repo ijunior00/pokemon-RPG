@@ -215,6 +215,10 @@ def advance_turn(battle):
     battle['turn'] = 'player2' if battle['turn'] == 'player1' else 'player1'
     if battle['turn'] == 'player1':
         battle['round'] += 1
+    # carimbo para o VIGIA de turno do app (NPC parado = ele joga)
+    import time as _t
+    battle['turn_at'] = _t.time()
+    battle['turn_seq'] = int(battle.get('turn_seq') or 0) + 1
 
 
 def get_battle_state_for_player(battle, player_key):
