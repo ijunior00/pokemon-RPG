@@ -3429,6 +3429,34 @@ def main():
     check(S, 'busca de pokémon', any(x['name'] == 'Pikachu' for x in (r.get_json() or [])))
     r = m.get('/health')
     check(S, 'healthcheck', (r.get_json() or {}).get('status') == 'ok')
+    # /ping é o keepalive BARATO: responde sem abrir conexão no Postgres
+    # (o /health abre — pingar nele de minuto em minuto queimava cota do Neon)
+    _c0 = db._conn_count
+    r = anon.get('/ping')
+    check(S, 'ping responde sem login', r.status_code == 200 and b'pong' in r.data)
+    check(S, 'ping NÃO abre conexão no banco', db._conn_count == _c0,
+          f'{db._conn_count - _c0} conexões')
+    # retry de conexão: Neon acordando falha 2x e conecta na 3ª
+    import psycopg2 as _pg2
+    _real_connect = _pg2.connect
+    _tries = {'n': 0}
+
+    def _flaky_connect(*a, **kw):
+        _tries['n'] += 1
+        if _tries['n'] <= 2:
+            raise _pg2.OperationalError('could not connect to server (simulado)')
+        return _real_connect(*a, **kw)
+
+    _pg2.connect = _flaky_connect
+    try:
+        _conn = db.get_conn()
+        _conn.close()
+        check(S, 'banco: reconecta sozinho quando o Neon está acordando',
+              _tries['n'] == 3)
+    except Exception as _e:
+        check(S, 'banco: reconecta sozinho quando o Neon está acordando', False, str(_e))
+    finally:
+        _pg2.connect = _real_connect
 
     section('17. Sistema v3 — cooldown/momentum/clima/casos especiais')
     S = 'Sistema v3'

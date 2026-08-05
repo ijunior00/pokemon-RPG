@@ -5,6 +5,7 @@ Static data (pokemon, moves, routes, mega_stones) stays in JSON files.
 """
 import os
 import json
+import time
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -17,11 +18,32 @@ if not DATABASE_URL:
 
 _conn_count = 0   # diagnóstico: quantas conexões o processo abriu (DB_STATS=1)
 
+# O Neon (free) SUSPENDE o compute por inatividade: a primeira conexão
+# depois do cochilo demora ou falha com OperationalError — e antes isso
+# virava erro na cara do jogador no meio da mesa. Tenta de novo com espera
+# curta e crescente (sob gevent, o time.sleep cede o hub, não trava).
+_CONNECT_TIMEOUT = int(os.environ.get('DB_CONNECT_TIMEOUT', '10'))
+_CONNECT_RETRIES = int(os.environ.get('DB_CONNECT_RETRIES', '4'))
+
 
 def get_conn():
     global _conn_count
-    _conn_count += 1
-    return psycopg2.connect(DATABASE_URL)
+    delay, last_err = 0.5, None
+    for attempt in range(max(1, _CONNECT_RETRIES)):
+        try:
+            conn = psycopg2.connect(DATABASE_URL, connect_timeout=_CONNECT_TIMEOUT)
+            _conn_count += 1
+            if attempt:
+                print(f'[db] conectou na tentativa {attempt + 1} '
+                      f'(banco estava acordando)')
+            return conn
+        except psycopg2.OperationalError as e:
+            last_err = e
+            if attempt == max(1, _CONNECT_RETRIES) - 1:
+                break
+            time.sleep(delay)
+            delay = min(delay * 2, 4.0)
+    raise last_err
 
 
 if os.environ.get('DB_STATS'):

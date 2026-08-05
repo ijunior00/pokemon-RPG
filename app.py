@@ -1166,15 +1166,36 @@ def index():
         return redirect(url_for('player_dashboard'))
     return redirect(url_for('login'))
 
+@app.route('/ping')
+def ping():
+    """Keepalive BARATO: não toca o banco (ao contrário de /health).
+
+    É o endpoint para acordar o serviço antes da sessão (o plano free do
+    Render hiberna após ~15 min: a primeira requisição leva ~30 s). Como
+    não abre conexão no Postgres, pingar de minuto em minuto não queima a
+    cota de data transfer do Neon."""
+    return 'pong', 200, {'Cache-Control': 'no-store'}
+
+
+# /health abre conexão no Postgres — memoiza por 60s para que um monitor
+# externo mal configurado não vire tráfego contra a cota do Neon.
+_HEALTH_CACHE = {'at': 0.0, 'ok': None}
+
+
 @app.route('/health')
 def health_check():
     """Health check endpoint for Render and monitoring tools."""
-    try:
-        conn = db.get_conn()
-        conn.close()
-        db_ok = True
-    except Exception:
-        db_ok = False
+    now = _time.time()
+    if _HEALTH_CACHE['ok'] is not None and now - _HEALTH_CACHE['at'] < 60:
+        db_ok = _HEALTH_CACHE['ok']
+    else:
+        try:
+            conn = db.get_conn()
+            conn.close()
+            db_ok = True
+        except Exception:
+            db_ok = False
+        _HEALTH_CACHE['at'], _HEALTH_CACHE['ok'] = now, db_ok
     status = 'ok' if db_ok else 'degraded'
     return jsonify({'status': status, 'db': db_ok}), 200 if db_ok else 503
 
@@ -7620,6 +7641,33 @@ def handle_connect():
         else:
             join_room(f'players_{tid}')
         print(f"[CONNECTED] {current_user.username} ({current_user.role}) table={tid}")
+        # 🔌 Empurra o estado das batalhas EM MEMÓRIA para quem (re)conectou.
+        # O PvP não tem rota de reidratação (/player/battle/active só devolve
+        # encontro 1v1 e grupo) — sem isto, quem perdia o socket num PvP
+        # ficava com a tela congelada para sempre.
+        try:
+            _push_live_state(str(current_user.id), tid, is_master=(current_user.role == 'master'))
+        except Exception as e:
+            print(f'[connect] push de estado falhou: {e}')
+
+
+def _push_live_state(uid, tid, is_master=False):
+    """Reenvia ao socket recém-conectado o estado das batalhas em memória."""
+    for battle in list(ACTIVE_PVP.values()):
+        if battle.get('phase') not in ('battle', 'selection'):
+            continue
+        for key in ('player1', 'player2'):
+            side = battle.get(key) or {}
+            if str(side.get('id')) == uid and not side.get('is_npc'):
+                emit('pvp_battle_state', pvp.get_battle_state_for_player(battle, key))
+                break
+    for battle in list(ACTIVE_GROUP_BATTLES.values()):
+        if battle.get('table_id') != tid or battle.get('phase') != 'active':
+            continue
+        mine = any(c.get('player_id') == uid for c in battle['combatants'].values()
+                   if c.get('side') == 'ally')
+        if mine or is_master:
+            emit('group_battle_update', gb.state_view(battle))
 
 @socketio.on('disconnect')
 def handle_disconnect():
